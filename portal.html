@@ -298,7 +298,6 @@ body {
   color: #2563eb;
 }
 
-<style>
 .wallet-card button:active {
     transform: scale(0.95);
     filter: brightness(0.9);
@@ -322,8 +321,25 @@ body {
 #btn-deposit-glow {
     animation: pulse-green 2s infinite;
 }
-</style>
-    
+
+  .publisher-header-card {
+    background: #1e293b; padding: 20px; border-radius: 18px;
+    display: flex; justify-content: space-between; align-items: center;
+    border: 1px solid #334155; margin-bottom: 20px;
+}
+.stat-item small { color: #94a3b8; font-size: 11px; display: block; }
+.stat-item h3 { margin: 5px 0 0; font-size: 18px; }
+.withdraw-trigger-btn { background: #3b82f6; color: #fff; border: none; padding: 10px 20px; border-radius: 10px; font-weight: bold; cursor: pointer; }
+
+.withdraw-card { background: #0f172a; border-radius: 25px; padding: 25px; border: 1px solid #3b82f6; color: #fff; }
+.rules-box { background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 15px; border: 1px dashed #3b82f6; margin-bottom: 20px; font-size: 13px; }
+.rules-box p { margin: 5px 0; color: #cbd5e1; }
+.modern-input { width: 100%; padding: 12px; background: #1e293b; border: 1px solid #334155; border-radius: 10px; color: #fff; margin-top: 5px; outline: none; }
+.withdraw-summary { margin-top: 10px; font-size: 12px; color: #f1c40f; font-weight: bold; }
+.main-withdraw-btn { width: 100%; padding: 15px; background: #2ecc71; color: #fff; border: none; border-radius: 12px; font-weight: bold; margin-top: 20px; cursor: pointer; }
+.back-btn { background: none; border: none; color: #94a3b8; cursor: pointer; margin-bottom: 10px; }
+        
+        
         
     </style>
 </head>
@@ -572,6 +588,53 @@ body {
     
 <div id="sec-channels" class="section" style="display: none; padding: 15px;">
     
+    <div class="publisher-header-card">
+        <div style="display: flex; gap: 20px;">
+            <div class="stat-item">
+                <small>إجمالي الأرباح 📈</small>
+                <h3 id="total-earned-display">$0.00</h3>
+            </div>
+            <div class="stat-item">
+                <small>القابل للسحب 💰</small>
+                <h3 id="withdrawable-balance-display" style="color: #2ecc71;">$0.00</h3>
+            </div>
+        </div>
+        <button class="withdraw-trigger-btn" onclick="openTab('withdraw')">سحب الآن</button>
+    </div>
+
+    </div>
+
+<div id="sec-withdraw" class="section" style="display: none; padding: 15px;">
+    <div class="withdraw-card">
+        <button onclick="openTab('channels')" class="back-btn">⬅️ العودة</button>
+        
+        <h2 style="text-align: center; color: #fff; margin-bottom: 20px;">طلب سحب أرباح</h2>
+        
+        <div class="rules-box">
+            <p>📌 <b>الحد الأدنى:</b> 30$</p>
+            <p>🕒 <b>وقت المعالجة:</b> 24 - 48 ساعة</p>
+            <p>💸 <b>العمولة:</b> 3$ ثابتة (رسوم الشبكة)</p>
+            <p>🌐 <b>الوسيلة:</b> USDT (TRC20)</p>
+        </div>
+
+        <div class="input-container">
+            <label>عنوان المحفظة (USDT TRC20)</label>
+            <input type="text" id="withdraw-wallet" placeholder="T..." class="modern-input">
+        </div>
+
+        <div class="input-container">
+            <label>المبلغ المطلوب</label>
+            <input type="number" id="withdraw-amount" oninput="calculateWithdrawNet()" placeholder="0.00" class="modern-input">
+            <div id="withdraw-summary" class="withdraw-summary">ستستلم: 0.00$</div>
+        </div>
+
+        <button id="confirm-withdraw-btn" onclick="executeWithdrawWorkflow()" class="main-withdraw-btn">
+            تأكيد وطلب السحب
+        </button>
+    </div>
+</div>
+    
+    
     <div class="stats-grid">
         <div class="stat-card" style="border-bottom: 4px solid #3498db;">
             <h4 style="color: #3498db; font-size: 12px; margin: 0;">🖱️ النقرات (CPC)</h4>
@@ -671,7 +734,7 @@ body {
     <h4 style="color:#888; font-size:14px; margin-top: 30px;">📺 قنواتك المسجلة:</h4>
     <div id="my-elite-channels" style="min-height: 50px;"></div>
 </div>
-
+    
 <div id="sec-admin" class="section" style="display: none; padding: 15px; background: #0f172a; min-height: 100vh;">
     
     <div class="card-glass" style="background: linear-gradient(135deg, #1e3799, #0984e3); color: white; padding: 25px; border-radius: 25px; margin-bottom: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1);">
@@ -987,12 +1050,6 @@ function closeModal() {
     if (window.Telegram && window.Telegram.WebApp) {
         window.Telegram.WebApp.enableVerticalSwipe();
     }
-}
-    
-
-// --- 3. دالة إغلاق النوافذ ---
-function closeModal() { 
-    document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); 
 }
 
 // --- 4. دالة لوحة الناشر (إضافة قناة) ---
@@ -1499,16 +1556,72 @@ function processDepositSubmission() {
         btn.innerText = "🚀 إرسال الطلب للمراجعة";
     });
 }
+    // بيانات المستخدم (تأتي من البوت)
+let currentBalance = 85.00; 
+
+// 1. حساب الصافي مع العمولة 3$
+function calculateWithdrawNet() {
+    const amount = parseFloat(document.getElementById('withdraw-amount').value) || 0;
+    const summary = document.getElementById('withdraw-summary');
+    if (amount >= 30) {
+        summary.innerText = `ستستلم: ${(amount - 3).toFixed(2)}$ (بعد خصم عمولة 3$)`;
+        summary.style.color = "#2ecc71";
+    } else {
+        summary.innerText = "الحد الأدنى للسحب 30$";
+        summary.style.color = "#e74c3c";
+    }
+}
+
+// 2. تنفيذ سير العمل (The Workflow)
+async function executeWithdrawWorkflow() {
+    const amount = parseFloat(document.getElementById('withdraw-amount').value);
+    const wallet = document.getElementById('withdraw-wallet').value;
+    const currentBalance = 85.0; // هنا تضع متغير الرصيد الحقيقي من تطبيقك
+
+    // التحقق من الشروط
+    if (amount < 30) return webApp.showAlert("❌ الحد الأدنى للسحب 30$");
+    if (amount > currentBalance) return webApp.showAlert("⚠️ رصيدك غير كافٍ!");
+    if (!wallet.startsWith('T')) return webApp.showAlert("🚫 محفظة TRC20 غير صحيحة");
+
+    const btn = document.getElementById('confirm-withdraw-btn');
+    btn.innerText = "جاري المعالجة...";
+    btn.disabled = true;
+
+    // إرسال البيانات للبوت (هنا يحدث السحر)
+    const data = {
+        type: "withdrawal",
+        amount: amount,
+        fee: 3,
+        net: amount - 3,
+        wallet: wallet,
+        status: "Pending" // الحالة: قيد الانتظار
+    };
+
+    webApp.sendData(JSON.stringify(data));
+
+    // إشعار نهائي للمستخدم
+    setTimeout(() => {
+        webApp.showConfirm("✅ تم تقديم الطلب! سيصلك المبلغ خلال 24-48 ساعة بعد المراجعة.");
+        openTab('channels'); 
+    }, 1000);
+}
+    
 
 // --- [ 5. دوال الواجهة والتنقل ] ---
 function openTab(tab, el) {
-    // إخفاء جميع الأقسام وإلغاء تفعيل الأزرار
+    // 1. إخفاء جميع الأقسام وإلغاء تفعيل الأزرار
     document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
     document.querySelectorAll('.nav-item').forEach(t => t.classList.remove('active'));
     
-    // إظهار القسم المطلوب وتفعيل الزر
+    // 2. تحديد وإظهار القسم المطلوب وتفعيل الزر
+    // ملاحظة: القسم الجديد سيكون id الخاص به "sec-withdraw"
     const target = document.getElementById('sec-' + tab);
-    if (target) target.style.display = 'block';
+    if (target) {
+        target.style.display = 'block';
+        // إضافة أنيميشن بسيط عند الظهور (اختياري)
+        target.style.animation = 'fadeIn 0.3s ease';
+    }
+    
     if (el) el.classList.add('active');
 
     const user = webApp.initDataUnsafe.user;
@@ -1520,16 +1633,21 @@ function openTab(tab, el) {
         if (tab === 'promo') {
             startCampaignsMonitor(user.id);
         }
+        // تحديث الرصيد عند فتح قسم السحب لضمان دقة الأرقام
+        if (tab === 'withdraw') {
+            // هنا نستدعي دالة تحديث الرصيد إذا كانت موجودة لديك
+            if (typeof updatePublisherStats === "function") {
+                updatePublisherStats(user.id);
+            }
+        }
     }
 
-    // إضافة اهتزاز بسيط عند النقر (لأجهزة الموبايل)
+    // 3. إضافة اهتزاز بسيط عند النقر (لأجهزة الموبايل)
     if (webApp.HapticFeedback) {
         webApp.HapticFeedback.impactOccurred('light');
     }
 }
     
-function closeModal() { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); }
-
 function copyWalletAddress() {
     navigator.clipboard.writeText("TSiS4tDnUwa5YptcYatRZ8ykPeMwmALLSV");
     showToast("✅ تم نسخ العنوان");
