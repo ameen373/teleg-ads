@@ -335,19 +335,92 @@ body {
     animation: pulse-green 2s infinite;
 }
 
-    .publisher-header-card {
-    background: #1e293b; padding: 20px; border-radius: 20px;
-    display: flex; justify-content: space-between; align-items: center;
-    border: 1px solid #334155; margin-bottom: 15px;
+/* الكارت الرئيسي بتصميم زجاجي احترافي */
+.publisher-header-card {
+    background: linear-gradient(145deg, #1e293b, #0f172a);
+    padding: 20px; 
+    border-radius: 22px;
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;
+    border: 1px solid rgba(59, 130, 246, 0.2); 
+    margin-bottom: 20px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.3);
 }
-.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.stat-card { background: #1e293b; padding: 15px; border-radius: 15px; border: 1px solid #334155; text-align: center; }
-.profit-tag { font-size: 10px; color: #2ecc71; background: rgba(46, 204, 113, 0.1); padding: 2px 6px; border-radius: 5px; margin-top: 5px; }
-.withdraw-card { background: #0f172a; border-radius: 25px; padding: 20px; border: 1px solid #3b82f6; }
-.rules-box { background: rgba(59, 130, 246, 0.05); padding: 12px; border-radius: 12px; border: 1px dashed #3b82f6; margin-bottom: 15px; font-size: 12px; }
-.modern-input { width: 100%; padding: 12px; background: #1e293b; border: 1px solid #334155; border-radius: 10px; color: #fff; box-sizing: border-box; }
-.main-withdraw-btn { width: 100%; padding: 15px; background: #3b82f6; color: #fff; border: none; border-radius: 12px; font-weight: bold; margin-top: 15px; }
-          
+
+/* شبكة الإحصائيات */
+.stats-grid { 
+    display: grid; 
+    grid-template-columns: 1fr 1fr; 
+    gap: 12px; 
+}
+
+/* كروت الإحصائيات مع تأثير التحويم */
+.stat-card { 
+    background: #1e293b; 
+    padding: 18px; 
+    border-radius: 18px; 
+    border: 1px solid #334155; 
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.stat-card:active {
+    transform: scale(0.96);
+    border-color: #3b82f6;
+}
+
+/* تاغ الربح الأخضر */
+.profit-tag { 
+    font-size: 10px; 
+    color: #2ecc71; 
+    background: rgba(46, 204, 113, 0.1); 
+    padding: 4px 8px; 
+    border-radius: 8px; 
+    margin-top: 8px;
+    display: inline-block;
+    font-weight: bold;
+}
+
+/* كارت السحب المطور */
+.withdraw-card { 
+    background: #0f172a; 
+    border-radius: 28px; 
+    padding: 25px; 
+    border: 1px solid rgba(59, 130, 246, 0.3); 
+}
+
+/* المدخلات الحديثة */
+.modern-input { 
+    width: 100%; 
+    padding: 14px; 
+    background: #1e293b; 
+    border: 1px solid #334155; 
+    border-radius: 12px; 
+    color: #fff; 
+    box-sizing: border-box;
+    transition: 0.3s;
+}
+
+.modern-input:focus {
+    border-color: #3b82f6;
+    outline: none;
+    background: #1e293b;
+}
+
+/* زر السحب العملاق */
+.main-withdraw-btn { 
+    width: 100%; 
+    padding: 16px; 
+    background: linear-gradient(90deg, #3b82f6, #2563eb); 
+    color: #fff; 
+    border: none; 
+    border-radius: 15px; 
+    font-weight: 800; 
+    margin-top: 20px; 
+    box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
+}
+            
     </style>
 </head>
 <body>
@@ -625,32 +698,35 @@ body {
         <button class="withdraw-trigger-btn" onclick="openTab('withdraw')">سحب الآن</button>
     </div>
 
-    <div class="stats-grid">
-        <div class="stat-card" style="border-bottom: 3px solid #3498db;">
-            <h4>🖱️ النقرات (CPC)</h4>
-            <p id="stat-clicks">0</p>
-            <div class="profit-tag">+$<span id="profit-clicks">0.00</span></div>
-        </div>
+<div class="stats-grid">
+    <div class="stat-card" style="border-top: 3px solid #38bdf8;">
+        <div style="font-size: 10px; color: #38bdf8; font-weight: bold; margin-bottom: 5px;">ACTIVE CPC</div>
+        <h4>🖱️ أرباح النقرات</h4>
+        <p id="stat-clicks">0</p>
+        <div class="profit-tag">+$<span id="profit-clicks">0.00</span></div>
+    </div>
 
-        <div class="stat-card" style="border-bottom: 3px solid #2ecc71;">
-            <h4>🚀 المشاهدات (CPM)</h4>
-            <p id="stat-views">0</p>
-            <div class="profit-tag">+$<span id="profit-views">0.00</span></div>
-        </div>
+    <div class="stat-card" style="border-top: 3px solid #2ecc71;">
+        <div style="font-size: 10px; color: #2ecc71; font-weight: bold; margin-bottom: 5px;">LIVE CPM</div>
+        <h4>🚀 أرباح المشاهدات</h4>
+        <p id="stat-views">0</p>
+        <div class="profit-tag">+$<span id="profit-views">0.00</span></div>
+    </div>
 
-        <div class="stat-card" style="border-bottom: 3px solid #9b59b6;">
-            <h4>⏳ منشورات مثبتة</h4>
-            <p id="stat-fixed-posts">0</p>
-            <div class="profit-tag">+$<span id="profit-fixed">0.00</span></div>
-        </div>
+    <div class="stat-card" style="border-top: 3px solid #a855f7;">
+        <div style="font-size: 10px; color: #a855f7; font-weight: bold; margin-bottom: 5px;">FIXED POSTS</div>
+        <h4>⏳ منشورات مثبتة</h4>
+        <p id="stat-fixed-posts">0</p>
+        <div class="profit-tag">+$<span id="profit-fixed">0.00</span></div>
+    </div>
 
-        <div class="stat-card" style="background: rgba(241, 196, 15, 0.1); border: 1px solid #f1c40f;">
-            <h4 style="color: #f1c40f;">📈 الإجمالي</h4>
-            <p id="total-net-earnings" style="color: #fff;">$0.00</p>
-            <div style="font-size: 9px; color: #f1c40f; opacity: 0.8;">صافي الربح الكلي</div>
-        </div>
+    <div id="total-net-earnings-card" class="stat-card">
+        <div style="font-size: 10px; color: #f59e0b; font-weight: bold; margin-bottom: 5px;">TOTAL NET</div>
+        <h4 style="color: #f59e0b;">💰 إجمالي الصافي</h4>
+        <p id="total-net-earnings" style="font-size: 22px; color: #fbbf24;">$0.00</p>
     </div>
 </div>
+        
 
 <div id="section-withdraw" class="section" style="display: none; padding: 15px;">
     <div class="withdraw-card">
@@ -1385,9 +1461,21 @@ function startBalanceMonitor(userId) {
     db.ref('users/' + userId + '/balance').on('value', (snap) => {
         const newBal = parseFloat(snap.val() || 0);
         
-        const targetIds = ['bal-total', 'adv-rem-bal', 'bal-avail', 'user-balance-display'];
+        // أضفنا المعرفات الجديدة للقائمة هنا لكي تعمل الإحصائيات
+        const targetIds = [
+            'bal-total', 
+            'adv-rem-bal', 
+            'bal-avail', 
+            'user-balance-display',
+            'withdrawable-balance-display', // الإضافة الجديدة
+            'total-net-earnings'           // الإضافة الجديدة
+        ];
+
         targetIds.forEach(id => {
-            animateValue(id, lastBalance, newBal, 1000);
+            // التحقق من وجود العنصر قبل محاولة تحريكه لتجنب الأخطاء
+            if (document.getElementById(id)) {
+                animateValue(id, lastBalance, newBal, 1000);
+            }
         });
 
         if (newBal > lastBalance && lastBalance !== 0) {
@@ -1397,7 +1485,7 @@ function startBalanceMonitor(userId) {
         lastBalance = newBal;
     });
 }
-
+        
 function startTransactionMonitor(userId) {
     const transRef = db.ref('transactions/' + userId);
     transRef.off(); // فصل أي مراقب قديم لمنع تكرار البيانات
