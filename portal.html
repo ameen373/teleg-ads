@@ -336,22 +336,17 @@ body {
 }
 
     .publisher-header-card {
-    background: #1e293b; padding: 20px; border-radius: 18px;
+    background: #1e293b; padding: 20px; border-radius: 20px;
     display: flex; justify-content: space-between; align-items: center;
-    border: 1px solid #334155; margin-bottom: 20px;
+    border: 1px solid #334155; margin-bottom: 15px;
 }
-.stat-item small { color: #94a3b8; font-size: 11px; display: block; }
-.stat-item h3 { margin: 5px 0 0; font-size: 18px; }
-.withdraw-trigger-btn { background: #3b82f6; color: #fff; border: none; padding: 10px 20px; border-radius: 10px; font-weight: bold; cursor: pointer; }
-
-.withdraw-card { background: #0f172a; border-radius: 25px; padding: 25px; border: 1px solid #3b82f6; color: #fff; }
-.rules-box { background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 15px; border: 1px dashed #3b82f6; margin-bottom: 20px; font-size: 13px; }
-.rules-box p { margin: 5px 0; color: #cbd5e1; }
-.modern-input { width: 100%; padding: 12px; background: #1e293b; border: 1px solid #334155; border-radius: 10px; color: #fff; margin-top: 5px; outline: none; }
-.withdraw-summary { margin-top: 10px; font-size: 12px; color: #f1c40f; font-weight: bold; }
-.main-withdraw-btn { width: 100%; padding: 15px; background: #2ecc71; color: #fff; border: none; border-radius: 12px; font-weight: bold; margin-top: 20px; cursor: pointer; }
-.back-btn { background: none; border: none; color: #94a3b8; cursor: pointer; margin-bottom: 10px; }
-        
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stat-card { background: #1e293b; padding: 15px; border-radius: 15px; border: 1px solid #334155; text-align: center; }
+.profit-tag { font-size: 10px; color: #2ecc71; background: rgba(46, 204, 113, 0.1); padding: 2px 6px; border-radius: 5px; margin-top: 5px; }
+.withdraw-card { background: #0f172a; border-radius: 25px; padding: 20px; border: 1px solid #3b82f6; }
+.rules-box { background: rgba(59, 130, 246, 0.05); padding: 12px; border-radius: 12px; border: 1px dashed #3b82f6; margin-bottom: 15px; font-size: 12px; }
+.modern-input { width: 100%; padding: 12px; background: #1e293b; border: 1px solid #334155; border-radius: 10px; color: #fff; box-sizing: border-box; }
+.main-withdraw-btn { width: 100%; padding: 15px; background: #3b82f6; color: #fff; border: none; border-radius: 12px; font-weight: bold; margin-top: 15px; }
           
     </style>
 </head>
@@ -622,45 +617,62 @@ body {
     
 <div id="sec-channels" class="section" style="display: none; padding: 15px;">
 
-<div id="sec-channels" class="section" style="display: none; padding: 15px;">
+<div id="section-channels" class="section" style="display: none; padding: 15px;">
     <div class="publisher-header-card">
-        <div style="display: flex; gap: 20px;">
-            <div class="stat-item">
-                <small>إجمالي الأرباح 📈</small>
-                <h3 id="total-earned-display">$0.00</h3>
-            </div>
-            <div class="stat-item">
-                <small>القابل للسحب 💰</small>
-                <h3 id="withdrawable-balance-display" style="color: #2ecc71;">$0.00</h3>
-            </div>
+        <div style="display: flex; flex-direction: column; gap: 5px;">
+            <small style="color: #94a3b8; font-size: 11px;">الرصيد القابل للسحب 💰</small>
+            <h2 id="withdrawable-balance-display" style="color: #2ecc71; margin: 0; font-size: 24px;">$0.00</h2>
         </div>
         <button class="withdraw-trigger-btn" onclick="openTab('withdraw')">سحب الآن</button>
     </div>
 
-    </div>
+    <div class="stats-grid">
+        <div class="stat-card" style="border-bottom: 3px solid #3498db;">
+            <h4>🖱️ النقرات (CPC)</h4>
+            <p id="stat-clicks">0</p>
+            <div class="profit-tag">+$<span id="profit-clicks">0.00</span></div>
+        </div>
 
-<div id="sec-withdraw" class="section" style="display: none; padding: 15px;">
+        <div class="stat-card" style="border-bottom: 3px solid #2ecc71;">
+            <h4>🚀 المشاهدات (CPM)</h4>
+            <p id="stat-views">0</p>
+            <div class="profit-tag">+$<span id="profit-views">0.00</span></div>
+        </div>
+
+        <div class="stat-card" style="border-bottom: 3px solid #9b59b6;">
+            <h4>⏳ منشورات مثبتة</h4>
+            <p id="stat-fixed-posts">0</p>
+            <div class="profit-tag">+$<span id="profit-fixed">0.00</span></div>
+        </div>
+
+        <div class="stat-card" style="background: rgba(241, 196, 15, 0.1); border: 1px solid #f1c40f;">
+            <h4 style="color: #f1c40f;">📈 الإجمالي</h4>
+            <p id="total-net-earnings" style="color: #fff;">$0.00</p>
+            <div style="font-size: 9px; color: #f1c40f; opacity: 0.8;">صافي الربح الكلي</div>
+        </div>
+    </div>
+</div>
+
+<div id="section-withdraw" class="section" style="display: none; padding: 15px;">
     <div class="withdraw-card">
-        <button onclick="openTab('channels')" class="back-btn">⬅️ العودة</button>
-        
+        <button onclick="openTab('channels')" class="back-btn">⬅️ العودة للناشر</button>
         <h2 style="text-align: center; color: #fff; margin-bottom: 20px;">طلب سحب أرباح</h2>
         
         <div class="rules-box">
             <p>📌 <b>الحد الأدنى:</b> 30$</p>
-            <p>🕒 <b>وقت المعالجة:</b> 24 - 48 ساعة</p>
-            <p>💸 <b>العمولة:</b> 3$ ثابتة (رسوم الشبكة)</p>
+            <p>💸 <b>العمولة:</b> 3$ (رسوم الشبكة)</p>
             <p>🌐 <b>الوسيلة:</b> USDT (TRC20)</p>
         </div>
 
-        <div class="input-container">
-            <label>عنوان المحفظة (USDT TRC20)</label>
+        <div class="input-container" style="margin-bottom:15px;">
+            <label style="display:block; margin-bottom:5px; font-size:12px;">عنوان المحفظة (USDT TRC20)</label>
             <input type="text" id="withdraw-wallet" placeholder="T..." class="modern-input">
         </div>
 
         <div class="input-container">
-            <label>المبلغ المطلوب</label>
+            <label style="display:block; margin-bottom:5px; font-size:12px;">المبلغ المطلوب</label>
             <input type="number" id="withdraw-amount" oninput="calculateWithdrawNet()" placeholder="0.00" class="modern-input">
-            <div id="withdraw-summary" class="withdraw-summary">ستستلم: 0.00$</div>
+            <div id="withdraw-summary" class="withdraw-summary" style="margin-top:10px;">الحد الأدنى للسحب 30$</div>
         </div>
 
         <button id="confirm-withdraw-btn" onclick="executeWithdrawWorkflow()" class="main-withdraw-btn">
@@ -668,32 +680,6 @@ body {
         </button>
     </div>
 </div>
-    
-    
-    <div class="stats-grid">
-        <div class="stat-card" style="border-bottom: 4px solid #3498db;">
-            <h4 style="color: #3498db; font-size: 12px; margin: 0;">🖱️ النقرات (CPC)</h4>
-            <p id="stat-clicks" style="font-size: 20px; font-weight: bold; margin: 8px 0;">0</p>
-            <div class="profit-tag">الربح: $<span id="profit-clicks">0.00</span></div>
-        </div>
-
-        <div class="stat-card" style="border-bottom: 4px solid #2ecc71;">
-            <h4 style="color: #2ecc71; font-size: 12px; margin: 0;">🚀 المشاهدات (CPM)</h4>
-            <p id="stat-views" style="font-size: 20px; font-weight: bold; margin: 8px 0;">0</p>
-            <div class="profit-tag">الربح: $<span id="profit-views">0.00</span></div>
-        </div>
-
-        <div class="stat-card" style="border-bottom: 4px solid #9b59b6;">
-            <h4 style="color: #9b59b6; font-size: 12px; margin: 0;">⏰ منشورات (24h)</h4>
-            <p id="stat-timed" style="font-size: 20px; font-weight: bold; margin: 8px 0;">0</p>
-            <div class="profit-tag">الربح: $<span id="profit-timed">0.00</span></div>
-        </div>
-
-        <div class="stat-card" style="background: linear-gradient(135deg, #f1c40f, #f39c12); color: #000; border:none; display: flex; flex-direction: column; justify-content: center;">
-            <h4 style="margin: 0; font-size: 12px; font-weight: 800;">💰 الإجمالي الصافي</h4>
-            <h2 style="margin: 5px 0; font-size: 24px;">$<span id="total-net-earnings">0.00</span></h2>
-        </div>
-    </div>
 
     <button class="btn-premium-add" onclick="togglePublisherPanel()" style="margin-top: 20px;">
         ➕ إضافة قناة جديدة للمنصة
@@ -875,49 +861,59 @@ function checkAdminPrivileges(user) {
 // ==========================================
 // 2. دوال السحب والأرباح (Publisher)
 // ==========================================
-async function executeWithdrawWorkflow() {
-    const amount = parseFloat(document.getElementById('withdraw-amount').value);
-    const wallet = document.getElementById('withdraw-wallet').value;
-    const currentBalance = 85.0; // هنا تضع متغير الرصيد الحقيقي من تطبيقك
-
-    // التحقق من الشروط
-    if (amount < 30) return webApp.showAlert("❌ الحد الأدنى للسحب 30$");
-    if (amount > currentBalance) return webApp.showAlert("⚠️ رصيدك غير كافٍ!");
-    if (!wallet.startsWith('T')) return webApp.showAlert("🚫 محفظة TRC20 غير صحيحة");
-
-    const btn = document.getElementById('confirm-withdraw-btn');
-    btn.innerText = "جاري المعالجة...";
-    btn.disabled = true;
-
-    // إرسال البيانات للبوت (هنا يحدث السحر)
-    const data = {
-        type: "withdrawal",
-        amount: amount,
-        fee: 3,
-        net: amount - 3,
-        wallet: wallet,
-        status: "Pending" // الحالة: قيد الانتظار
-    };
-
-    webApp.sendData(JSON.stringify(data));
-
-    // إشعار نهائي للمستخدم
-    setTimeout(() => {
-        webApp.showConfirm("✅ تم تقديم الطلب! سيصلك المبلغ خلال 24-48 ساعة بعد المراجعة.");
-        openTab('channels'); 
-    }, 1000);
-    }
-    
-
+// 1. حساب صافي السحب
 function calculateWithdrawNet() {
-    const amount = parseFloat(document.getElementById('withdraw-amount').value) || 0;
+    const amountInput = document.getElementById('withdraw-amount');
     const summary = document.getElementById('withdraw-summary');
+    const amount = parseFloat(amountInput.value) || 0;
+
     if (amount >= 30) {
         summary.innerText = `ستستلم: ${(amount - 3).toFixed(2)}$ (بعد خصم عمولة 3$)`;
         summary.style.color = "#2ecc71";
     } else {
         summary.innerText = "الحد الأدنى للسحب 30$";
         summary.style.color = "#e74c3c";
+    }
+}
+
+// 2. تنفيذ عملية السحب كاملة
+async function executeWithdrawWorkflow() {
+    const amount = parseFloat(document.getElementById('withdraw-amount').value);
+    const wallet = document.getElementById('withdraw-wallet').value;
+    
+    // جلب الرصيد الحالي (تأكد أن هذا المتغير هو نفسه المستخدم في تطبيقك)
+    const currentBalance = parseFloat(document.getElementById('withdrawable-balance-display').innerText.replace('$', '')) || 0;
+
+    if (isNaN(amount) || amount < 30) return webApp.showAlert("❌ الحد الأدنى للسحب 30$");
+    if (amount > currentBalance) return webApp.showAlert("⚠️ رصيدك الحالي غير كافٍ!");
+    if (!wallet || !wallet.startsWith('T')) return webApp.showAlert("🚫 يرجى إدخال محفظة TRC20 صحيحة تبدأ بحرف T");
+
+    const btn = document.getElementById('confirm-withdraw-btn');
+    btn.innerText = "جاري الإرسال...";
+    btn.disabled = true;
+
+    try {
+        const data = {
+            type: "withdrawal_request",
+            userId: webApp.initDataUnsafe.user.id,
+            amount: amount,
+            wallet: wallet,
+            netAmount: amount - 3,
+            date: new Date().toISOString()
+        };
+
+        // إرسال البيانات لتليجرام
+        webApp.sendData(JSON.stringify(data));
+        
+        webApp.showConfirm("✅ تم استلام طلبك بنجاح. سيتم التحقق وتحويل المبلغ خلال 24-48 ساعة.", (ok) => {
+            if(ok) openTab('channels');
+        });
+
+    } catch (error) {
+        webApp.showAlert("❌ حدث خطأ أثناء إرسال الطلب.");
+    } finally {
+        btn.innerText = "تأكيد وطلب السحب";
+        btn.disabled = false;
     }
 }
 
