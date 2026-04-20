@@ -1338,7 +1338,8 @@ function openTab(tabName, element) {
             startCampaignsMonitor(user.id);
         }
     }
-
+}
+            
 function showToast(message, type = 'success') {
     const toast = document.createElement('div');
     toast.style = `
@@ -1640,9 +1641,6 @@ if (webApp.HapticFeedback) {
 // ==========================================
 // 1. إعدادات تليجرام الأساسية والتشغيل
 // ==========================================
-const webApp = window.Telegram.WebApp;
-const MY_ADMIN_ID = 549686235; // ضعه هنا
-
     window.onload = startApp;
 
 window.addEventListener('offline', () => showToast("🔴 انقطع الاتصال بالإنترنت!", "error"));
