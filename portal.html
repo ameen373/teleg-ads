@@ -1638,9 +1638,10 @@ function adminAction(type) {
 // ==========================================
 
 // تشغيل الاهتزاز عند تحميل الصفحة (اختياري)
-if (webApp.HapticFeedback) {
+if (webApp.isVersionAtLeast('6.1') && webApp.HapticFeedback) {
     webApp.HapticFeedback.selectionChanged();
 }
+        
 
 // أمر تشغيل التطبيق
 window.onload = startApp;
