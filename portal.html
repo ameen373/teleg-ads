@@ -1443,13 +1443,12 @@ function startTransactionMonitor(userId) {
     });
 }
 
-
 function startCampaignsMonitor(userId) {
     db.ref('campaigns').orderByChild('owner').equalTo(userId).on('value', (snap) => {
         const dashboard = document.getElementById('active-campaigns-dashboard');
         if (!dashboard) return;
 
-        dashboard.innerHTML = ''; // مسح المحتوى القديم لبدء التحديث اللحظي
+        dashboard.innerHTML = ''; 
 
         if (!snap.exists()) {
             dashboard.innerHTML = '<div style="opacity:0.5; font-size:11px; padding:20px; text-align:center;">لا توجد حملات جارية حالياً..</div>';
@@ -1460,7 +1459,6 @@ function startCampaignsMonitor(userId) {
             const camp = child.val();
             const statusInfo = getStatusStyle(camp.status);
             
-            // دمج التصميم الجديد مع بيانات الاهتمامات والجغرافيا
             dashboard.innerHTML += `
                 <div class="card" style="background: #0f172a; border: 1px solid #334155; padding: 12px; margin-bottom: 10px; text-align: right; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
                     <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
@@ -1497,10 +1495,9 @@ function startCampaignsMonitor(userId) {
                     ` : ''}
                 </div>
             `;
-        });
-    });
-    }
-
+        }); // إغلاق snap.forEach
+    }); // إغلاق on('value')
+} // إغلاق الدالة startCampaignsMonitor
 
 function updateRealTimeStats(userId) {
     console.log("تحديث إحصائيات المعلن للمستخدم: " + userId);
