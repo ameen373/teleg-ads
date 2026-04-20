@@ -615,9 +615,8 @@ body {
     </div>
     </div>
     
-<div id="sec-channels" class="section" style="display: none; padding: 15px;">
-
 <div id="section-channels" class="section" style="display: none; padding: 15px;">
+        
     <div class="publisher-header-card">
         <div style="display: flex; flex-direction: column; gap: 5px;">
             <small style="color: #94a3b8; font-size: 11px;">الرصيد القابل للسحب 💰</small>
@@ -1309,7 +1308,7 @@ function openTab(tabName, element) {
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
 
     // 2. الإظهار (فتح القسم الذي طلبه المستخدم)
-    const target = document.getElementById('sec-' + tabName);
+    const target = document.getElementById('section-' + tabName);
     if (target) {
         target.style.display = 'block';
     } else {
