@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8">
+        <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
     <title>Telega-IO Extreme v3 - Ameen</title>
+
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -15,11 +17,22 @@
             --accent: #3b82f6; --gold: #f59e0b; --safe: #10b981; --danger: #ef4444; --text: #ffffff;
         }
 body { 
+    /* استخدمنا الخطوط الاحترافية من النسخة الأولى */
     font-family: 'Segoe UI', system-ui, sans-serif; 
-    background: var(--bg); 
-    color: var(--text); 
+    
+    /* اخترنا اللون الداكن من النسخة الثانية كأساس */
+    background-color: #0f172a; 
+    color: white; 
+    
+    /* جعلنا النصوص في المنتصف كما في النسخة الثانية */
+    text-align: center; 
+    
+    /* دمجنا المسافات (padding) لضمان عدم اختفاء الكود خلف الأزرار السفلية */
     margin: 0; 
-    padding-bottom: 90px; 
+    padding: 20px;
+    padding-bottom: 100px; 
+    
+    /* أضفنا الانتقال الناعم من النسخة الأولى */
     transition: background 0.3s ease, color 0.3s ease; 
 }
         
@@ -339,11 +352,32 @@ body {
 .main-withdraw-btn { width: 100%; padding: 15px; background: #2ecc71; color: #fff; border: none; border-radius: 12px; font-weight: bold; margin-top: 20px; cursor: pointer; }
 .back-btn { background: none; border: none; color: #94a3b8; cursor: pointer; margin-bottom: 10px; }
         
-        
+          
     </style>
 </head>
 <body>
 
+<div id="modal-crypto-deposit" class="modal" style="display: none; position: fixed; z-index: 10000; inset: 0; background: rgba(0,0,0,0.95); align-items: center; justify-content: center; backdrop-filter: blur(8px);">
+    <div class="modal-content" style="border: 2px solid #2ecc71; width: 92%; max-width: 400px; background: #0f172a; border-radius: 30px; padding: 25px; position: relative; box-shadow: 0 0 30px rgba(46, 204, 113, 0.2);">
+        <span style="position: absolute; top: 15px; left: 20px; cursor: pointer; font-size: 24px; color: #64748b;" onclick="closeModal()">✕</span>
+        <h3 style="color:#2ecc71; text-align:center; margin-top:0; font-family: sans-serif;">🪙 شحن USDT (TRC20)</h3>
+        <div style="background: rgba(46, 204, 113, 0.05); padding: 15px; border-radius: 20px; border: 1px dashed #2ecc71; text-align: center; margin: 20px 0;">
+            <small style="color: #94a3b8; display: block; margin-bottom: 8px;">قم بالتحويل إلى العنوان التالي (شبكة TRON):</small>
+            <b id="wallet-addr" style="display:block; color: #fff; font-size: 11px; word-break: break-all; margin-bottom: 15px; font-family: monospace; letter-spacing: 0.5px;">TSiS4tDnUwa5YptcYatRZ8ykPeMwmALLSV</b>
+            <button onclick="copyWalletAddress()" style="width:100%; background:#2ecc71; border:none; padding:12px; border-radius:15px; font-weight:800; cursor:pointer; color:#000;">📋 نسخ عنوان المحفظة</button>
+        </div>
+        <div style="margin-bottom: 15px;">
+            <label style="color: #94a3b8; font-size: 12px; margin-right: 5px;">المبلغ بالدولار ($):</label>
+            <input type="number" id="final-amount" placeholder="مثلاً: 50" style="width:100%; background:#1e293b; color:white; border:1px solid #334155; padding:12px; border-radius:12px; margin-top:5px; outline:none;">
+        </div>
+        <div style="margin-bottom: 20px;">
+            <label style="color: #94a3b8; font-size: 12px; margin-right: 5px;">معرف العملية (TXID):</label>
+            <input type="text" id="final-txid" placeholder="الصق الـ TXID هنا" style="width:100%; background:#1e293b; color:white; border:1px solid #334155; padding:12px; border-radius:12px; margin-top:5px; outline:none;">
+        </div>
+        <button id="main-submit-btn" onclick="processDepositSubmission()" style="width:100%; background:#2ecc71; border:none; padding:18px; border-radius:20px; color:white; font-weight:800; cursor:pointer; font-size:16px; transition: 0.3s;">🚀 إرسال الطلب للمراجعة</button>
+    </div>
+</div>
+    
 <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
 <script>eruda.init();</script>
 
@@ -782,10 +816,114 @@ body {
 </div>
 
 <script>
+        
+   // ==========================================
+// 1. إعدادات تليجرام الأساسية والتشغيل
+// ==========================================
+const webApp = window.Telegram.WebApp;
+// 1. التعريفات الأساسية (Globals)
+const webApp = window.Telegram.WebApp;
+const ADMIN_ID = 549686235;
+let lastBalance = 0; 
+window.lastViews = 0; // أضف هذا
+window.lastClicks = 0; // أضف هذا
 
+const firebaseConfig = {
+  apiKey: "AIzaSyB9wJ3RKL9Sc0VqIgOz3HIL6PAZMK1GZos",
+  authDomain: "telega-io.firebaseapp.com",
+  databaseURL: "https://telega-io-default-rtdb.firebaseio.com",
+  projectId: "telega-io",
+  storageBucket: "telega-io.firebasestorage.app",
+  messagingSenderId: "413242252888",
+  appId: "1:413242252888:web:6055aaa7fcdd256910b42d"
+};
 
-    // نظام الأرباح المطور (الناشر)
-    function updatePublisherStats(userId) {
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
+const db = firebase.database();
+
+function startApp() {
+    webApp.ready();
+    webApp.expand();
+    const user = webApp.initDataUnsafe.user;
+    if (user) {
+        startBalanceMonitor(user.id);
+        startTransactionMonitor(user.id);
+        startCampaignsMonitor(user.id); // <--- أضف هذا السطر هنا
+        
+        if (user.id === ADMIN_ID) startAdminMonitor();
+    }
+}
+
+function checkBotStatus() {
+    tg.showAlert('🔍 يتم الآن التحقق من الصلاحيات ووجود البوت كمسؤول... يرجى الانتظار');
+    // هنا يمكنك إضافة كود API مستقبلاً للتحقق الفعلي
+}
+
+function checkAdminPrivileges(user) {
+    if (user && user.id === MY_ADMIN_ID) {
+        // إذا كان المستخدم هو أمين، نظهر له قسم الإدارة
+        document.getElementById('sec-admin').style.display = 'block';
+        // تشغيل نظام المراقبة الحية للطلبات
+        initAdminRealtime();
+    } else {
+        // لأي مستخدم آخر، نحذف القسم تماماً لزيادة الأمان
+        const adminSec = document.getElementById('sec-admin');
+        if (adminSec) adminSec.remove();
+    }
+}
+
+// ==========================================
+// 2. دوال السحب والأرباح (Publisher)
+// ==========================================
+async function executeWithdrawWorkflow() {
+    const amount = parseFloat(document.getElementById('withdraw-amount').value);
+    const wallet = document.getElementById('withdraw-wallet').value;
+    const currentBalance = 85.0; // هنا تضع متغير الرصيد الحقيقي من تطبيقك
+
+    // التحقق من الشروط
+    if (amount < 30) return webApp.showAlert("❌ الحد الأدنى للسحب 30$");
+    if (amount > currentBalance) return webApp.showAlert("⚠️ رصيدك غير كافٍ!");
+    if (!wallet.startsWith('T')) return webApp.showAlert("🚫 محفظة TRC20 غير صحيحة");
+
+    const btn = document.getElementById('confirm-withdraw-btn');
+    btn.innerText = "جاري المعالجة...";
+    btn.disabled = true;
+
+    // إرسال البيانات للبوت (هنا يحدث السحر)
+    const data = {
+        type: "withdrawal",
+        amount: amount,
+        fee: 3,
+        net: amount - 3,
+        wallet: wallet,
+        status: "Pending" // الحالة: قيد الانتظار
+    };
+
+    webApp.sendData(JSON.stringify(data));
+
+    // إشعار نهائي للمستخدم
+    setTimeout(() => {
+        webApp.showConfirm("✅ تم تقديم الطلب! سيصلك المبلغ خلال 24-48 ساعة بعد المراجعة.");
+        openTab('channels'); 
+    }, 1000);
+    }
+    
+
+function calculateWithdrawNet() {
+    const amount = parseFloat(document.getElementById('withdraw-amount').value) || 0;
+    const summary = document.getElementById('withdraw-summary');
+    if (amount >= 30) {
+        summary.innerText = `ستستلم: ${(amount - 3).toFixed(2)}$ (بعد خصم عمولة 3$)`;
+        summary.style.color = "#2ecc71";
+    } else {
+        summary.innerText = "الحد الأدنى للسحب 30$";
+        summary.style.color = "#e74c3c";
+    }
+}
+
+function updatePublisherStats(userId) {
         db.ref('users/' + userId + '/stats').on('value', snap => {
             const d = snap.val() || {};
             const c = d.clicks || 0, v = d.views || 0, t = d.timed_posts || 0;
@@ -800,9 +938,7 @@ body {
             document.getElementById('total-net-earnings').innerText = (cp + vp + tp).toFixed(2);
         });
     }
-
-
-// 3. تقديم القناة للمراجعة مع حفظ القارة والتصنيف
+    
 function submitEliteChannel() {
     const n = document.getElementById('ch-name').value;
     const l = document.getElementById('ch-link').value;
@@ -850,71 +986,108 @@ function submitEliteChannel() {
         tg.showAlert("❌ حدث خطأ: " + error.message);
     });
 }
-    
-// 4. دالة التحقق من إضافة البوت (تنبيه شكلي في الوقت الحالي)
-function checkBotStatus() {
-    tg.showAlert('🔍 يتم الآن التحقق من الصلاحيات ووجود البوت كمسؤول... يرجى الانتظار');
-    // هنا يمكنك إضافة كود API مستقبلاً للتحقق الفعلي
-}
 
-// 1. نظام الرفع من المعرض والمعاينة
-function handleFileUpload(input) {
-    const file = input.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            document.getElementById('adv-media-url').value = e.target.result;
-            updateAdPreview();
-        };
-        reader.readAsDataURL(file);
+
+function togglePublisherPanel() {
+    const p = document.getElementById('publisher-panel');
+    if (!p) return;
+    
+    const isHidden = (p.style.display === 'none' || p.style.display === '');
+    p.style.display = isHidden ? 'block' : 'none';
+
+    if (isHidden) {
+        setupGeoDropdowns('ch-continent', 'ch-country');
+    }
+
+    if (window.tg && tg.HapticFeedback) {
+        tg.HapticFeedback.impactOccurred('light');
     }
 }
 
-    // --- 2. دالة المعاينة اللحظية الفائقة (الصور + الفيديو + الروابط) ---
-function updateAdPreview() {
-    const txtManual = document.getElementById('adv-text-manual')?.value || "";
-    const media = document.getElementById('adv-media-url')?.value || "";
-    const link = document.getElementById('adv-link-smart')?.value || "";
-    
-    const box = document.getElementById('ad-preview'); 
-    const img = document.getElementById('preview-img');
-    const vid = document.getElementById('preview-video');
-    const txt = document.getElementById('preview-text-smart');
 
-    // إذا وجد أي محتوى، نقوم بإظهار صندوق المعاينة وتحديثه
-    if (txtManual || media || link) {
-        if (box) box.style.display = 'block';
-        
-        // تحديث النص (إظهار الرابط إذا لم يوجد وصف)
-        if (txt) {
-            txt.innerText = txtManual || (link ? "🔗 الرابط: " + link : "محتوى الإعلان يظهر هنا...");
-        }
-        
-        // التحقق الذكي من نوع الوسائط (Media Detection)
-        const isImg = media.match(/\.(jpeg|jpg|gif|png|webp|svg|bmp)$/i) || media.startsWith('data:image');
-        const isVid = media.match(/\.(mp4|webm|mov|ogg)$/i) || media.startsWith('data:video');
+// ==========================================
+// 3. دوال الإيداع والشحن (Deposit)
+// ==========================================
+function processDepositSubmission() {
+    const amtField = document.getElementById('final-amount');
+    const txField = document.getElementById('final-txid');
+    const btn = document.getElementById('main-submit-btn');
 
-        // تحديث الصورة
-        if (img) {
-            img.style.display = isImg ? 'block' : 'none';
-            if (isImg) img.src = media;
+    if (!amtField || !txField) return;
+
+    const amt = amtField.value;
+    const tx = txField.value;
+    const user = webApp.initDataUnsafe.user || { id: 0, first_name: 'Unknown' };
+
+    if (!amt || !tx) {
+        showToast("⚠️ يرجى إدخال البيانات المطلوبة", "error");
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerText = "جاري الإرسال...";
+
+    db.ref('deposit_requests').push({
+        uid: user.id,
+        userName: user.first_name,
+        amount: amt,
+        txid: tx,
+        status: 'pending',
+        timestamp: Date.now()
+    }).then(() => {
+        showToast("✅ تم إرسال طلبك بنجاح");
+        closeModal();
+        amtField.value = '';
+        txField.value = '';
+    }).catch(err => {
+        showToast("❌ خطأ: " + err.message, "error");
+    }).finally(() => {
+        btn.disabled = false;
+        btn.innerText = "🚀 إرسال الطلب للمراجعة";
+    });
+}
+
+function copyWalletAddress() {
+    navigator.clipboard.writeText("TSiS4tDnUwa5YptcYatRZ8ykPeMwmALLSV");
+    showToast("✅ تم نسخ العنوان");
+}
+
+function openModal(id) {
+    const modal = document.getElementById(id);
+    if (!modal) return;
+
+    // 1. إظهار النافذة
+    modal.style.display = 'flex';
+
+    // 2. إجبار تليجرام على التوسع الكامل
+    if (window.Telegram && window.Telegram.WebApp) {
+        window.Telegram.WebApp.expand(); // توسيع الشاشة لأقصى حد
+        window.Telegram.WebApp.disableVerticalSwipe(); // تعطيل سحب الإغلاق
+    }
+
+    // 3. منع خلفية الصفحة من التحرك
+    document.body.style.overflow = 'hidden';
+
+    // 4. تشغيل الأنظمة الفرعية
+    if (id === 'modal-smart-campaign') {
+        if (typeof setupGeoDropdowns === "function") {
+            setupGeoDropdowns('adv-continent', 'adv-country');
         }
-        
-        // تحديث الفيديو
-        if (vid) {
-            vid.style.display = isVid ? 'block' : 'none';
-            if (isVid) {
-                vid.src = media;
-                vid.load(); // إعادة تحميل الفيديو ليعمل الرابط الجديد
-            }
-        }
-    } else { 
-        // إذا كانت الخانات فارغة، نخفي صندوق المعاينة تماماً
-        if (box) box.style.display = 'none'; 
     }
 }
 
-// 2. دالة الإطلاق المدمجة (المطورة: جغرافيا + اهتمامات)
+function closeModal() {
+    document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+    
+    // إعادة تفعيل ميزة السحب بعد إغلاق النافذة ليعود التطبيق لطبيعته
+    if (window.Telegram && window.Telegram.WebApp) {
+        window.Telegram.WebApp.enableVerticalSwipe();
+    }
+}
+
+// ==========================================
+// 4. إعدادات المعلن والحملات (Advertiser)
+// ==========================================
 function processNewCampaign() {
     const user = window.Telegram.WebApp.initDataUnsafe.user;
     if (!user) return window.Telegram.WebApp.showAlert("❌ خطأ في بيانات المستخدم");
@@ -973,18 +1146,7 @@ function processNewCampaign() {
         }
     });
 }
-    function getInterestName(cat) {
-    const categories = {
-        'all': 'عام 🌍', 'sports': 'رياضة ⚽', 'beauty': 'جمال ✨',
-        'cooking': 'طبخ 🍳', 'movies': 'أفلام 🎬', 'crypto': 'عملات 🪙',
-        'gaming': 'ألعاب 🎮', 'coding': 'برمجة 💻', 'tech': 'تقنية 📱',
-        'fun': 'ترفيه 😂', 'news': 'أخبار 🗞️'
-    };
-    return categories[cat] || 'عام 🌍';
-    }
-    
 
-// 3. حاسبة النتائج المتوقعة
 function estimateCampaign() {
     const budgetInput = document.getElementById('adv-daily-budget');
     const typeSelect = document.getElementById('adv-quality');
@@ -1006,8 +1168,75 @@ function estimateCampaign() {
         if (estDisplay) estDisplay.style.display = 'none';
     }
         }
+
+function updateAdPreview() {
+    const txtManual = document.getElementById('adv-text-manual')?.value || "";
+    const media = document.getElementById('adv-media-url')?.value || "";
+    const link = document.getElementById('adv-link-smart')?.value || "";
     
-// 3. ميزة إعادة الاستهداف (Re-run) - وظيفة استدعاء البيانات
+    const box = document.getElementById('ad-preview'); 
+    const img = document.getElementById('preview-img');
+    const vid = document.getElementById('preview-video');
+    const txt = document.getElementById('preview-text-smart');
+
+    // إذا وجد أي محتوى، نقوم بإظهار صندوق المعاينة وتحديثه
+    if (txtManual || media || link) {
+        if (box) box.style.display = 'block';
+        
+        // تحديث النص (إظهار الرابط إذا لم يوجد وصف)
+        if (txt) {
+            txt.innerText = txtManual || (link ? "🔗 الرابط: " + link : "محتوى الإعلان يظهر هنا...");
+        }
+        
+        // التحقق الذكي من نوع الوسائط (Media Detection)
+        const isImg = media.match(/\.(jpeg|jpg|gif|png|webp|svg|bmp)$/i) || media.startsWith('data:image');
+        const isVid = media.match(/\.(mp4|webm|mov|ogg)$/i) || media.startsWith('data:video');
+
+        // تحديث الصورة
+        if (img) {
+            img.style.display = isImg ? 'block' : 'none';
+            if (isImg) img.src = media;
+        }
+        
+        // تحديث الفيديو
+        if (vid) {
+            vid.style.display = isVid ? 'block' : 'none';
+            if (isVid) {
+                vid.src = media;
+                vid.load(); // إعادة تحميل الفيديو ليعمل الرابط الجديد
+            }
+        }
+    } else { 
+        // إذا كانت الخانات فارغة، نخفي صندوق المعاينة تماماً
+        if (box) box.style.display = 'none'; 
+    }
+}
+
+function switchAdMode(mode) {
+    // 1. إخفاء جميع الأقسام
+    document.querySelectorAll('.ad-mode-section').forEach(sec => sec.style.display = 'none');
+    document.querySelectorAll('.goal-item').forEach(item => {
+        item.style.borderColor = 'transparent';
+        item.style.background = 'rgba(30, 41, 59, 0.5)';
+    });
+
+    // 2. إظهار القسم المختار
+    document.getElementById('section-' + mode).style.display = 'block';
+    
+    // 3. تمييز الزر المختار (التلوين)
+    const activeTab = document.getElementById('tab-' + mode);
+    activeTab.style.borderColor = '#38bdf8';
+    activeTab.style.background = 'rgba(56, 189, 248, 0.1)';
+
+    // 4. حفظ الوضع في الحقل المخفي
+    document.getElementById('current-ad-mode').value = mode;
+    
+    // هزة خفيفة (تفاعل تليجرام)
+    if (window.Telegram?.WebApp?.HapticFeedback) {
+        window.Telegram.WebApp.HapticFeedback.selectionChanged();
+    }
+}
+
 function rerunCampaign(pastData) {
     document.getElementById('adv-text-manual').value = pastData.text;
     document.getElementById('adv-media-url').value = pastData.media;
@@ -1018,65 +1247,18 @@ function rerunCampaign(pastData) {
     tg.showAlert("🔄 تم استعادة بيانات الحملة القديمة بنجاح!");
 }
 
-// --- 1. دالة فتح النوافذ المنبثقة المطورة (الفتح الذكي) ---
-function openModal(id) {
-    const modal = document.getElementById(id);
-    if (!modal) return;
-
-    // 1. إظهار النافذة
-    modal.style.display = 'flex';
-
-    // 2. إجبار تليجرام على التوسع الكامل
-    if (window.Telegram && window.Telegram.WebApp) {
-        window.Telegram.WebApp.expand(); // توسيع الشاشة لأقصى حد
-        window.Telegram.WebApp.disableVerticalSwipe(); // تعطيل سحب الإغلاق
-    }
-
-    // 3. منع خلفية الصفحة من التحرك
-    document.body.style.overflow = 'hidden';
-
-    // 4. تشغيل الأنظمة الفرعية
-    if (id === 'modal-smart-campaign') {
-        if (typeof setupGeoDropdowns === "function") {
-            setupGeoDropdowns('adv-continent', 'adv-country');
-        }
+function handleFileUpload(input) {
+    const file = input.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById('adv-media-url').value = e.target.result;
+            updateAdPreview();
+        };
+        reader.readAsDataURL(file);
     }
 }
 
-// وتأكد أن دالة الإغلاق تعيد تفعيل السحب مرة أخرى
-function closeModal() {
-    document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
-    
-    // إعادة تفعيل ميزة السحب بعد إغلاق النافذة ليعود التطبيق لطبيعته
-    if (window.Telegram && window.Telegram.WebApp) {
-        window.Telegram.WebApp.enableVerticalSwipe();
-    }
-}
-    
-
-// --- 3. دالة إغلاق النوافذ ---
-function closeModal() { 
-    document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); 
-}
-
-// --- 4. دالة لوحة الناشر (إضافة قناة) ---
-function togglePublisherPanel() {
-    const p = document.getElementById('publisher-panel');
-    if (!p) return;
-    
-    const isHidden = (p.style.display === 'none' || p.style.display === '');
-    p.style.display = isHidden ? 'block' : 'none';
-
-    if (isHidden) {
-        setupGeoDropdowns('ch-continent', 'ch-country');
-    }
-
-    if (window.tg && tg.HapticFeedback) {
-        tg.HapticFeedback.impactOccurred('light');
-    }
-}
-
-// --- 5. الدالة الأم لتجهيز القوائم الجغرافية ---
 function setupGeoDropdowns(continentId, countryId) {
     const continentSelect = document.getElementById(continentId);
     const countrySelect = document.getElementById(countryId);
@@ -1110,159 +1292,54 @@ function setupGeoDropdowns(continentId, countryId) {
                 countrySelect.appendChild(opt);
             });
         }
-        
-        // اهتزاز عند تغيير المنطقة
-        if (window.tg && tg.HapticFeedback) {
-            tg.HapticFeedback.selectionChanged();
-        }
+
+    function getInterestName(cat) {
+    const categories = {
+        'all': 'عام 🌍', 'sports': 'رياضة ⚽', 'beauty': 'جمال ✨',
+        'cooking': 'طبخ 🍳', 'movies': 'أفلام 🎬', 'crypto': 'عملات 🪙',
+        'gaming': 'ألعاب 🎮', 'coding': 'برمجة 💻', 'tech': 'تقنية 📱',
+        'fun': 'ترفيه 😂', 'news': 'أخبار 🗞️'
     };
-}
+    return categories[cat] || 'عام 🌍';
+    }
 
-    // --- [1] إعدادات الهوية والأمان ---
-const MY_ADMIN_ID = 549686235; 
+// ==========================================
+// 5. نظام التنقل والواجهة (UI & Navigation)
+// ==========================================
 
-function checkAdminPrivileges(user) {
-    if (user && user.id === MY_ADMIN_ID) {
-        // إذا كان المستخدم هو أمين، نظهر له قسم الإدارة
-        document.getElementById('sec-admin').style.display = 'block';
-        // تشغيل نظام المراقبة الحية للطلبات
-        initAdminRealtime();
+function openTab(tabName, element) {
+    // 1. التنظيف (إخفاء كل شيء ومسح حالة الأزرار)
+    document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
+    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+
+    // 2. الإظهار (فتح القسم الذي طلبه المستخدم)
+    const target = document.getElementById('sec-' + tabName);
+    if (target) {
+        target.style.display = 'block';
     } else {
-        // لأي مستخدم آخر، نحذف القسم تماماً لزيادة الأمان
-        const adminSec = document.getElementById('sec-admin');
-        if (adminSec) adminSec.remove();
+        console.error("خطأ: القسم sec-" + tabName + " غير موجود في الـ HTML");
     }
-}
 
+    // 3. التفعيل (تغيير لون الزر في القائمة السفلية)
+    if (element) element.classList.add('active');
 
-// --- [3] تنفيذ الموافقة وإضافة الرصيد ---
-function approveDeposit(reqId, userId, amount) {
-    tg.showConfirm(`تأكيد إضافة $${amount} لحساب المستخدم؟`, (ok) => {
-        if (ok) {
-            tg.showProgress();
-            // تحديث حالة الطلب
-            db.ref('deposit_requests/' + reqId).update({ status: 'approved' });
-            // إضافة الرصيد للمستخدم
-            db.ref('users/' + userId + '/balance').transaction(curr => (curr || 0) + parseFloat(amount))
-            .then(() => {
-                tg.hideProgress();
-                tg.showAlert("✅ تمت العملية بنجاح!");
-            });
+    // 4. التفاعل (الاهتزاز للموبايل)
+    if (window.Telegram.WebApp.HapticFeedback) {
+        window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
+    }
+
+    // 5. الذكاء (تحديث البيانات بناءً على القسم المفتوح)
+    const user = window.Telegram.WebApp.initDataUnsafe.user;
+    if (user) {
+        if (tabName === 'channels') {
+            // تحديث رصيد الناشر فور فتح القسم
+            console.log("تحديث بيانات الناشر...");
+            startBalanceMonitor(user.id); 
         }
-    });
-}
-
-// --- [4] الإضافة اليدوية السريعة (للطوارئ) ---
-function adminAction(type) {
-    if (type === 'add') {
-        const targetUid = document.getElementById('adm-uid').value;
-        const amount = document.getElementById('adm-val').value;
-
-        if (!targetUid || !amount) return webApp.showAlert("⚠️ أدخل الـ ID والمبلغ أولاً");
-
-        db.ref('users/' + targetUid + '/balance').transaction(curr => (parseFloat(curr) || 0) + parseFloat(amount))
-        .then(() => {
-            webApp.showAlert("✅ تمت إضافة $" + amount + " بنجاح إلى ID: " + targetUid);
-            document.getElementById('adm-val').value = ''; // تصفير المبلغ بعد التنفيذ
-        })
-        .catch(err => webApp.showAlert("❌ خطأ: " + err.message));
+        if (tabName === 'promo') {
+            startCampaignsMonitor(user.id);
+        }
     }
-}
-
-function switchAdMode(mode) {
-    // 1. إخفاء جميع الأقسام
-    document.querySelectorAll('.ad-mode-section').forEach(sec => sec.style.display = 'none');
-    document.querySelectorAll('.goal-item').forEach(item => {
-        item.style.borderColor = 'transparent';
-        item.style.background = 'rgba(30, 41, 59, 0.5)';
-    });
-
-    // 2. إظهار القسم المختار
-    document.getElementById('section-' + mode).style.display = 'block';
-    
-    // 3. تمييز الزر المختار (التلوين)
-    const activeTab = document.getElementById('tab-' + mode);
-    activeTab.style.borderColor = '#38bdf8';
-    activeTab.style.background = 'rgba(56, 189, 248, 0.1)';
-
-    // 4. حفظ الوضع في الحقل المخفي
-    document.getElementById('current-ad-mode').value = mode;
-    
-    // هزة خفيفة (تفاعل تليجرام)
-    if (window.Telegram?.WebApp?.HapticFeedback) {
-        window.Telegram.WebApp.HapticFeedback.selectionChanged();
-    }
-}
-    
-</script>
-</body>
-</html>
-
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Telega IO - Admin & User</title>
-
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
-
-    <style>
-        body { background-color: #0f172a; color: white; font-family: sans-serif; text-align: center; padding: 20px; }
-        .balance-card { background: #1e293b; padding: 20px; border-radius: 20px; border: 1px solid #2ecc71; margin-bottom: 20px; }
-        #user-balance-display { font-size: 2em; font-weight: bold; color: #2ecc71; }
-        button { cursor: pointer; transition: 0.3s; }
-        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; z-index: 1000; }
-    </style>
-</head>
-<body>
-
-    <div id="modal-crypto-deposit" class="modal" style="display: none; position: fixed; z-index: 10000; inset: 0; background: rgba(0,0,0,0.95); align-items: center; justify-content: center; backdrop-filter: blur(8px);">
-    <div class="modal-content" style="border: 2px solid #2ecc71; width: 92%; max-width: 400px; background: #0f172a; border-radius: 30px; padding: 25px; position: relative; box-shadow: 0 0 30px rgba(46, 204, 113, 0.2);">
-        <span style="position: absolute; top: 15px; left: 20px; cursor: pointer; font-size: 24px; color: #64748b;" onclick="closeModal()">✕</span>
-        <h3 style="color:#2ecc71; text-align:center; margin-top:0; font-family: sans-serif;">🪙 شحن USDT (TRC20)</h3>
-        <div style="background: rgba(46, 204, 113, 0.05); padding: 15px; border-radius: 20px; border: 1px dashed #2ecc71; text-align: center; margin: 20px 0;">
-            <small style="color: #94a3b8; display: block; margin-bottom: 8px;">قم بالتحويل إلى العنوان التالي (شبكة TRON):</small>
-            <b id="wallet-addr" style="display:block; color: #fff; font-size: 11px; word-break: break-all; margin-bottom: 15px; font-family: monospace; letter-spacing: 0.5px;">TSiS4tDnUwa5YptcYatRZ8ykPeMwmALLSV</b>
-            <button onclick="copyWalletAddress()" style="width:100%; background:#2ecc71; border:none; padding:12px; border-radius:15px; font-weight:800; cursor:pointer; color:#000;">📋 نسخ عنوان المحفظة</button>
-        </div>
-        <div style="margin-bottom: 15px;">
-            <label style="color: #94a3b8; font-size: 12px; margin-right: 5px;">المبلغ بالدولار ($):</label>
-            <input type="number" id="final-amount" placeholder="مثلاً: 50" style="width:100%; background:#1e293b; color:white; border:1px solid #334155; padding:12px; border-radius:12px; margin-top:5px; outline:none;">
-        </div>
-        <div style="margin-bottom: 20px;">
-            <label style="color: #94a3b8; font-size: 12px; margin-right: 5px;">معرف العملية (TXID):</label>
-            <input type="text" id="final-txid" placeholder="الصق الـ TXID هنا" style="width:100%; background:#1e293b; color:white; border:1px solid #334155; padding:12px; border-radius:12px; margin-top:5px; outline:none;">
-        </div>
-        <button id="main-submit-btn" onclick="processDepositSubmission()" style="width:100%; background:#2ecc71; border:none; padding:18px; border-radius:20px; color:white; font-weight:800; cursor:pointer; font-size:16px; transition: 0.3s;">🚀 إرسال الطلب للمراجعة</button>
-    </div>
-    </div>
-
-<script>
-// 1. التعريفات الأساسية (Globals)
-const webApp = window.Telegram.WebApp;
-const ADMIN_ID = 549686235;
-let lastBalance = 0; 
-window.lastViews = 0; // أضف هذا
-window.lastClicks = 0; // أضف هذا
-
-const firebaseConfig = {
-  apiKey: "AIzaSyB9wJ3RKL9Sc0VqIgOz3HIL6PAZMK1GZos",
-  authDomain: "telega-io.firebaseapp.com",
-  databaseURL: "https://telega-io-default-rtdb.firebaseio.com",
-  projectId: "telega-io",
-  storageBucket: "telega-io.firebasestorage.app",
-  messagingSenderId: "413242252888",
-  appId: "1:413242252888:web:6055aaa7fcdd256910b42d"
-};
-
-if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
-}
-const db = firebase.database();
-
-// --- [ 2. الدوال المساعدة: الإشعارات والعداد ] ---
 
 function showToast(message, type = 'success') {
     const toast = document.createElement('div');
@@ -1295,8 +1372,19 @@ function animateValue(id, start, end, duration) {
     window.requestAnimationFrame(step);
 }
 
-// --- [ 3. دوال المراقبة الأساسية ] ---
+function getStatusStyle(status) {
+    switch(status) {
+        case 'active': return { text: 'تعمل الآن 🟢', bg: 'rgba(46, 204, 113, 0.1)', color: '#2ecc71' };
+        case 'pending': return { text: 'قيد المراجعة ⏳', bg: 'rgba(241, 196, 15, 0.1)', color: '#f1c40f' };
+        case 'completed': return { text: 'منتهية ✅', bg: 'rgba(148, 163, 184, 0.1)', color: '#94a3b8' };
+        case 'rejected': return { text: 'مرفوضة ❌', bg: 'rgba(231, 76, 60, 0.1)', color: '#e74c3c' };
+        default: return { text: 'غير معروف', bg: '#334155', color: '#fff' };
+    }
+}
 
+// ==========================================
+// 6. المراقبة وتحديث البيانات (Monitors)
+// ==========================================
 function startBalanceMonitor(userId) {
     db.ref('users/' + userId + '/balance').on('value', (snap) => {
         const newBal = parseFloat(snap.val() || 0);
@@ -1314,9 +1402,6 @@ function startBalanceMonitor(userId) {
     });
 }
 
-// --- [ تابع لقسم 3: دوال المراقبة الأساسية ] ---
-
-// 1. دالة سجل العمليات - مطورة لمنع التكرار
 function startTransactionMonitor(userId) {
     const transRef = db.ref('transactions/' + userId);
     transRef.off(); // فصل أي مراقب قديم لمنع تكرار البيانات
@@ -1358,43 +1443,9 @@ function startTransactionMonitor(userId) {
         });
     });
 }
-    // 2. دالة الإحصائيات المباشرة - ضرورية لتحديث الرسوم البيانية والأرقام
 
-    function updateRealTimeStats(userId) {
-    console.log("تحديث إحصائيات المعلن للمستخدم: " + userId);
-    
-    db.ref('stats/' + userId).on('value', (snap) => {
-        if (!snap.exists()) return;
-        const data = snap.val();
 
-        // 1. تحديث المشاهدات (تطابق id="adv-views")
-        animateValue('adv-views', window.lastViews || 0, data.totalViews || 0, 1000);
-        
-        // 2. تحديث النقرات (تطابق id="adv-clicks")
-        animateValue('adv-clicks', window.lastClicks || 0, data.totalClicks || 0, 1000);
-
-        // 3. حساب وتحديث نسبة التفاعل (تطابق id="adv-ctr")
-        if (data.totalViews > 0) {
-            const ctr = ((data.totalClicks / data.totalViews) * 100).toFixed(2);
-            const ctrElement = document.getElementById('adv-ctr');
-            if (ctrElement) ctrElement.innerText = ctr + '%';
-        }
-
-        // تحديث الأعمدة في حال وجودها في قسم آخر
-        if (data.weeklyProgress) {
-            data.weeklyProgress.forEach((val, index) => {
-                const bar = document.getElementById('bar-' + (index + 1));
-                if (bar) bar.style.height = val + '%'; 
-            });
-        }
-
-        // حفظ القيم الحالية للأنيميشن القادم
-        window.lastViews = data.totalViews || 0;
-        window.lastClicks = data.totalClicks || 0;
-    });
-    }
-
-    function startCampaignsMonitor(userId) {
+function startCampaignsMonitor(userId) {
     db.ref('campaigns').orderByChild('owner').equalTo(userId).on('value', (snap) => {
         const dashboard = document.getElementById('active-campaigns-dashboard');
         if (!dashboard) return;
@@ -1451,17 +1502,44 @@ function startTransactionMonitor(userId) {
     });
     }
 
-// دالة مساعدة لتحديد شكل الحالة
-function getStatusStyle(status) {
-    switch(status) {
-        case 'active': return { text: 'تعمل الآن 🟢', bg: 'rgba(46, 204, 113, 0.1)', color: '#2ecc71' };
-        case 'pending': return { text: 'قيد المراجعة ⏳', bg: 'rgba(241, 196, 15, 0.1)', color: '#f1c40f' };
-        case 'completed': return { text: 'منتهية ✅', bg: 'rgba(148, 163, 184, 0.1)', color: '#94a3b8' };
-        case 'rejected': return { text: 'مرفوضة ❌', bg: 'rgba(231, 76, 60, 0.1)', color: '#e74c3c' };
-        default: return { text: 'غير معروف', bg: '#334155', color: '#fff' };
-    }
-}
+
+function updateRealTimeStats(userId) {
+    console.log("تحديث إحصائيات المعلن للمستخدم: " + userId);
     
+    db.ref('stats/' + userId).on('value', (snap) => {
+        if (!snap.exists()) return;
+        const data = snap.val();
+
+        // 1. تحديث المشاهدات (تطابق id="adv-views")
+        animateValue('adv-views', window.lastViews || 0, data.totalViews || 0, 1000);
+        
+        // 2. تحديث النقرات (تطابق id="adv-clicks")
+        animateValue('adv-clicks', window.lastClicks || 0, data.totalClicks || 0, 1000);
+
+        // 3. حساب وتحديث نسبة التفاعل (تطابق id="adv-ctr")
+        if (data.totalViews > 0) {
+            const ctr = ((data.totalClicks / data.totalViews) * 100).toFixed(2);
+            const ctrElement = document.getElementById('adv-ctr');
+            if (ctrElement) ctrElement.innerText = ctr + '%';
+        }
+
+        // تحديث الأعمدة في حال وجودها في قسم آخر
+        if (data.weeklyProgress) {
+            data.weeklyProgress.forEach((val, index) => {
+                const bar = document.getElementById('bar-' + (index + 1));
+                if (bar) bar.style.height = val + '%'; 
+            });
+        }
+
+        // حفظ القيم الحالية للأنيميشن القادم
+        window.lastViews = data.totalViews || 0;
+        window.lastClicks = data.totalClicks || 0;
+    });
+    }
+
+// ==========================================
+// 7. لوحة الإدارة (Admin Actions)
+// ==========================================
 function startAdminMonitor() {
     db.ref('deposit_requests').orderByChild('status').equalTo('pending').on('value', (snap) => {
         const list = document.getElementById('admin-pending-list');
@@ -1492,7 +1570,6 @@ function startAdminMonitor() {
     });
 }
 
-// 2. تحديث دالة اتخاذ القرار لتشمل سجل الرفض
 function handleDecision(reqId, userId, amount, action) {
     const requestRef = db.ref('deposit_requests/' + reqId);
     
@@ -1525,155 +1602,54 @@ function handleDecision(reqId, userId, amount, action) {
     }
 }
 
-function processDepositSubmission() {
-    const amtField = document.getElementById('final-amount');
-    const txField = document.getElementById('final-txid');
-    const btn = document.getElementById('main-submit-btn');
-
-    if (!amtField || !txField) return;
-
-    const amt = amtField.value;
-    const tx = txField.value;
-    const user = webApp.initDataUnsafe.user || { id: 0, first_name: 'Unknown' };
-
-    if (!amt || !tx) {
-        showToast("⚠️ يرجى إدخال البيانات المطلوبة", "error");
-        return;
-    }
-
-    btn.disabled = true;
-    btn.innerText = "جاري الإرسال...";
-
-    db.ref('deposit_requests').push({
-        uid: user.id,
-        userName: user.first_name,
-        amount: amt,
-        txid: tx,
-        status: 'pending',
-        timestamp: Date.now()
-    }).then(() => {
-        showToast("✅ تم إرسال طلبك بنجاح");
-        closeModal();
-        amtField.value = '';
-        txField.value = '';
-    }).catch(err => {
-        showToast("❌ خطأ: " + err.message, "error");
-    }).finally(() => {
-        btn.disabled = false;
-        btn.innerText = "🚀 إرسال الطلب للمراجعة";
+function approveDeposit(reqId, userId, amount) {
+    tg.showConfirm(`تأكيد إضافة $${amount} لحساب المستخدم؟`, (ok) => {
+        if (ok) {
+            tg.showProgress();
+            // تحديث حالة الطلب
+            db.ref('deposit_requests/' + reqId).update({ status: 'approved' });
+            // إضافة الرصيد للمستخدم
+            db.ref('users/' + userId + '/balance').transaction(curr => (curr || 0) + parseFloat(amount))
+            .then(() => {
+                tg.hideProgress();
+                tg.showAlert("✅ تمت العملية بنجاح!");
+            });
+        }
     });
 }
 
-    // 1. حساب الصافي مع العمولة 3$
-function calculateWithdrawNet() {
-    const amount = parseFloat(document.getElementById('withdraw-amount').value) || 0;
-    const summary = document.getElementById('withdraw-summary');
-    if (amount >= 30) {
-        summary.innerText = `ستستلم: ${(amount - 3).toFixed(2)}$ (بعد خصم عمولة 3$)`;
-        summary.style.color = "#2ecc71";
-    } else {
-        summary.innerText = "الحد الأدنى للسحب 30$";
-        summary.style.color = "#e74c3c";
+function adminAction(type) {
+    if (type === 'add') {
+        const targetUid = document.getElementById('adm-uid').value;
+        const amount = document.getElementById('adm-val').value;
+
+        if (!targetUid || !amount) return webApp.showAlert("⚠️ أدخل الـ ID والمبلغ أولاً");
+
+        db.ref('users/' + targetUid + '/balance').transaction(curr => (parseFloat(curr) || 0) + parseFloat(amount))
+        .then(() => {
+            webApp.showAlert("✅ تمت إضافة $" + amount + " بنجاح إلى ID: " + targetUid);
+            document.getElementById('adm-val').value = ''; // تصفير المبلغ بعد التنفيذ
+        })
+        .catch(err => webApp.showAlert("❌ خطأ: " + err.message));
     }
 }
 
-// 2. تنفيذ سير العمل (The Workflow)
-async function executeWithdrawWorkflow() {
-    const amount = parseFloat(document.getElementById('withdraw-amount').value);
-    const wallet = document.getElementById('withdraw-wallet').value;
-    const currentBalance = 85.0; // هنا تضع متغير الرصيد الحقيقي من تطبيقك
 
-    // التحقق من الشروط
-    if (amount < 30) return webApp.showAlert("❌ الحد الأدنى للسحب 30$");
-    if (amount > currentBalance) return webApp.showAlert("⚠️ رصيدك غير كافٍ!");
-    if (!wallet.startsWith('T')) return webApp.showAlert("🚫 محفظة TRC20 غير صحيحة");
-
-    const btn = document.getElementById('confirm-withdraw-btn');
-    btn.innerText = "جاري المعالجة...";
-    btn.disabled = true;
-
-    // إرسال البيانات للبوت (هنا يحدث السحر)
-    const data = {
-        type: "withdrawal",
-        amount: amount,
-        fee: 3,
-        net: amount - 3,
-        wallet: wallet,
-        status: "Pending" // الحالة: قيد الانتظار
-    };
-
-    webApp.sendData(JSON.stringify(data));
-
-    // إشعار نهائي للمستخدم
-    setTimeout(() => {
-        webApp.showConfirm("✅ تم تقديم الطلب! سيصلك المبلغ خلال 24-48 ساعة بعد المراجعة.");
-        openTab('channels'); 
-    }, 1000);
-    }
-
-// --- [ 5. دوال الواجهة والتنقل ] ---
-function openTab(tabName, element) {
-    // 1. التنظيف (إخفاء كل شيء ومسح حالة الأزرار)
-    document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
-    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-
-    // 2. الإظهار (فتح القسم الذي طلبه المستخدم)
-    const target = document.getElementById('sec-' + tabName);
-    if (target) {
-        target.style.display = 'block';
-    } else {
-        console.error("خطأ: القسم sec-" + tabName + " غير موجود في الـ HTML");
-    }
-
-    // 3. التفعيل (تغيير لون الزر في القائمة السفلية)
-    if (element) element.classList.add('active');
-
-    // 4. التفاعل (الاهتزاز للموبايل)
-    if (window.Telegram.WebApp.HapticFeedback) {
-        window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
-    }
-
-    // 5. الذكاء (تحديث البيانات بناءً على القسم المفتوح)
-    const user = window.Telegram.WebApp.initDataUnsafe.user;
-    if (user) {
-        if (tabName === 'channels') {
-            // تحديث رصيد الناشر فور فتح القسم
-            console.log("تحديث بيانات الناشر...");
-            startBalanceMonitor(user.id); 
-        }
-        if (tabName === 'promo') {
-            startCampaignsMonitor(user.id);
-        }
-    }
-
-    // 6. المراقبة (صديقك الكونسول)
-    console.log("تم فتح القسم: " + tabName);
+if (webApp.HapticFeedback) {
+    webApp.HapticFeedback.selectionChanged();
 }
-
     
-function copyWalletAddress() {
-    navigator.clipboard.writeText("TSiS4tDnUwa5YptcYatRZ8ykPeMwmALLSV");
-    showToast("✅ تم نسخ العنوان");
-}
+// ==========================================
+// 1. إعدادات تليجرام الأساسية والتشغيل
+// ==========================================
+const webApp = window.Telegram.WebApp;
+const MY_ADMIN_ID = 549686235; // ضعه هنا
 
-// --- [ 6. تشغيل التطبيق ] ---
-
-function startApp() {
-    webApp.ready();
-    webApp.expand();
-    const user = webApp.initDataUnsafe.user;
-    if (user) {
-        startBalanceMonitor(user.id);
-        startTransactionMonitor(user.id);
-        startCampaignsMonitor(user.id); // <--- أضف هذا السطر هنا
-        
-        if (user.id === ADMIN_ID) startAdminMonitor();
-    }
-}
-
-window.onload = startApp;
+    window.onload = startApp;
 
 window.addEventListener('offline', () => showToast("🔴 انقطع الاتصال بالإنترنت!", "error"));
 window.addEventListener('online', () => showToast("🟢 عاد الاتصال بالإنترنت", "success"));
+
 </script>
-    
+</body>
+</html>
