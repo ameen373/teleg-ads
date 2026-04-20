@@ -421,6 +421,73 @@ body {
     box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
 }
             
+/* الخلفية العامة للقسم */
+#section-channels {
+    background: radial-gradient(circle at top right, #1e293b 0%, #0f172a 100%);
+    min-height: 100vh;
+}
+
+/* كارت الرصيد الملكي */
+.publisher-header-card {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(15px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 24px;
+    padding: 25px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+}
+
+/* تأثير اللمعان المتحرك على الكارت */
+.publisher-header-card::before {
+    content: '';
+    position: absolute;
+    top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: conic-gradient(transparent, rgba(56, 189, 248, 0.1), transparent 30%);
+    animation: rotate-glow 6s linear infinite;
+}
+
+@keyframes rotate-glow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* أزرار السحب المتوهجة */
+.withdraw-trigger-btn {
+    background: linear-gradient(135deg, #38bdf8, #2563eb) !important;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 14px;
+    font-weight: 800;
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
+    transition: 0.3s all cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    z-index: 2;
+}
+
+.withdraw-trigger-btn:active { transform: scale(0.9); }
+
+/* كروت الإحصائيات (الأقوى بـ Hover Effect) */
+.stat-card {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 20px;
+    padding: 15px;
+    transition: 0.4s;
+    position: relative;
+}
+
+.stat-card:hover {
+    border-color: rgba(56, 189, 248, 0.5);
+    background: rgba(15, 23, 42, 0.9);
+}
+
+.stat-card h4 { font-size: 13px; color: #94a3b8; margin-bottom: 8px; }
+.stat-card p { font-size: 20px; font-weight: 900; color: #fff; margin: 0; }
+            
+            
     </style>
 </head>
 <body>
@@ -688,50 +755,52 @@ body {
     </div>
     </div>
     
-    <div id="section-channels" class="section" style="display: none; padding: 15px;">
+    <div id="section-channels" class="section" style="display: none; padding: 20px;">
     
-    <div class="publisher-header-card">
-        <div style="display: flex; flex-direction: column; gap: 5px;">
-            <small style="color: #94a3b8; font-size: 11px;">الرصيد القابل للسحب 💰</small>
-            <h2 id="withdrawable-balance-display" style="color: #2ecc71; margin: 0; font-size: 24px;">$0.00</h2>
+    <div class="publisher-header-card" style="margin-bottom: 25px;">
+        <div style="position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <p style="color: #38bdf8; font-size: 12px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px;">Withdrawable Balance</p>
+                <div style="display: flex; align-items: baseline; gap: 5px;">
+                    <span style="color: #fff; font-size: 32px; font-weight: 900;">$</span>
+                    <h2 id="withdrawable-balance-display" style="color: #fff; font-size: 32px; font-weight: 900; margin: 0;">0.00</h2>
+                </div>
+            </div>
+            <button class="withdraw-trigger-btn" onclick="openTab('withdraw')">
+                <span style="margin-right: 5px;">💳</span> سحب الآن
+            </button>
         </div>
-        <button class="withdraw-trigger-btn" onclick="openTab('withdraw')">سحب الآن</button>
     </div>
 
-    <div class="stats-grid">
-        <div class="stat-card" style="border-top: 3px solid #38bdf8;">
-            <div style="font-size: 10px; color: #38bdf8; font-weight: bold; margin-bottom: 5px;">ACTIVE CPC</div>
-            <h4>🖱️ أرباح النقرات</h4>
+    <div class="stats-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+        <div class="stat-card" style="border-left: 4px solid #38bdf8;">
+            <h4>🖱️ النقرات</h4>
             <p id="stat-clicks">0</p>
-            <div class="profit-tag">+$<span id="profit-clicks">0.00</span></div>
+            <div class="profit-tag" style="color: #38bdf8;">Earned CPC</div>
         </div>
-
-        <div class="stat-card" style="border-top: 3px solid #2ecc71;">
-            <div style="font-size: 10px; color: #2ecc71; font-weight: bold; margin-bottom: 5px;">LIVE CPM</div>
-            <h4>🚀 أرباح المشاهدات</h4>
+        <div class="stat-card" style="border-left: 4px solid #2ecc71;">
+            <h4>🚀 المشاهدات</h4>
             <p id="stat-views">0</p>
-            <div class="profit-tag">+$<span id="profit-views">0.00</span></div>
+            <div class="profit-tag" style="color: #2ecc71;">Earned CPM</div>
         </div>
-
-        <div class="stat-card" style="border-top: 3px solid #a855f7;">
-            <div style="font-size: 10px; color: #a855f7; font-weight: bold; margin-bottom: 5px;">FIXED POSTS</div>
-            <h4>⏳ منشورات مثبتة</h4>
+        <div class="stat-card" style="border-left: 4px solid #a855f7;">
+            <h4>⏳ منشورات ثابتة</h4>
             <p id="stat-fixed-posts">0</p>
-            <div class="profit-tag">+$<span id="profit-fixed">0.00</span></div>
+            <div class="profit-tag" style="color: #a855f7;">Fixed 1/24h</div>
         </div>
-
-        <div id="total-net-earnings-card" class="stat-card">
-            <div style="font-size: 10px; color: #f59e0b; font-weight: bold; margin-bottom: 5px;">TOTAL NET</div>
-            <h4 style="color: #f59e0b;">💰 إجمالي الصافي</h4>
-            <p id="total-net-earnings" style="font-size: 22px; color: #fbbf24;">$0.00</p>
+        <div class="stat-card" style="background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), transparent); border: 1px solid #fbbf24;">
+            <h4 style="color: #fbbf24;">💰 إجمالي الصافي</h4>
+            <p id="total-net-earnings" style="color: #fbbf24;">0.00</p>
+            <div class="profit-tag" style="color: #fbbf24;">Net Profit</div>
         </div>
     </div>
 
-    <div style="margin-top: 20px; text-align: center;">
-         <button class="add-channel-btn" style="width: 100%; padding: 15px; background: linear-gradient(to right, #f1c40f, #f39c12); border: none; border-radius: 50px; font-weight: bold; color: #000;">
-            + إضافة قناة جديدة للمنصة
-         </button>
-    </div>
+    <button onclick="togglePublisherPanel()" class="add-channel-btn" style="width: 100%; margin-top: 30px; padding: 18px; background: linear-gradient(90deg, #f59e0b, #d97706); border: none; border-radius: 18px; color: #fff; font-weight: 900; font-size: 16px; box-shadow: 0 10px 20px rgba(217, 119, 6, 0.3); cursor: pointer;">
+        ✨ إضافة قناة جديدة للمنصة
+    </button>
+
+    <div id="publisher-panel" style="display: none; transition: 0.5s;">
+        </div>
     </div>
         
 
@@ -909,13 +978,31 @@ const db = firebase.database();
 function startApp() {
     webApp.ready();
     webApp.expand();
+    
     const user = webApp.initDataUnsafe.user;
     if (user) {
-        startBalanceMonitor(user.id);
-        startTransactionMonitor(user.id);
-        startCampaignsMonitor(user.id); // <--- أضف هذا السطر هنا
+        const userId = user.id;
+
+        // 1. مراقبة الرصيد العام (للمعلن وللواجهة الرئيسية)
+        startBalanceMonitor(userId);
         
-        if (user.id === ADMIN_ID) startAdminMonitor();
+        // 2. مراقبة أرباح وإحصائيات الناشر (المحرك الجديد والأقوى)
+        if (typeof startPublisherMonitor === "function") {
+            startPublisherMonitor(userId);
+        }
+
+        // 3. مراقبة المعاملات المالية (سحب/إيداع)
+        startTransactionMonitor(userId);
+        
+        // 4. مراقبة الحملات الإعلانية (للمعلن)
+        startCampaignsMonitor(userId); 
+        
+        // 5. التحقق من صلاحيات الإدمن
+        if (userId === ADMIN_ID) {
+            startAdminMonitor();
+        }
+    } else {
+        console.error("❌ فشل الحصول على بيانات المستخدم من Telegram");
     }
 }
 
@@ -1077,6 +1164,14 @@ function togglePublisherPanel() {
     }
 }
 
+// استدعِ هذه الدالة عند تحديث البيانات
+function refreshPublisherData(newData) {
+    // حركة عداد للرصيد
+    animateValue("withdrawable-balance-display", 0, newData.balance, 1500);
+    // حركة عداد للإحصائيات
+    animateValue("stat-clicks", 0, newData.clicks, 1000);
+    animateValue("total-net-earnings", 0, newData.totalNet, 2000);
+}
 
 // ==========================================
 // 3. دوال الإيداع والشحن (Deposit)
@@ -1532,6 +1627,37 @@ function startTransactionMonitor(userId) {
     });
 }
 
+// 6. المراقبة وتحديث البيانات (Monitors)
+// ==========================================
+
+function startPublisherMonitor(userId) {
+    console.log("🚀 تم تشغيل مراقب أرباح الناشر للمستخدم:", userId);
+    
+    // المراقبة الحية من قاعدة بيانات Firebase
+    db.ref('users/' + userId).on('value', (snapshot) => {
+        const data = snapshot.val();
+        
+        if (data) {
+            // تجميع البيانات الجديدة لإرسالها لدالة التحديث
+            const stats = {
+                balance: data.balance || 0,
+                clicks: data.publisher_stats?.clicks || 0,
+                totalNet: (data.balance + (data.publisher_stats?.total_earned || 0)) // مثال للحساب
+            };
+
+            // استدعاء الدالة التي تصنع حركة الأرقام (التي وضعناها في القسم 2)
+            refreshPublisherData(stats);
+            
+            // تحديث قائمة القنوات المسجلة بالمرة
+            if (typeof updateMyChannelsList === "function") {
+                updateMyChannelsList(data.channels);
+            }
+        }
+    }, (error) => {
+        console.error("❌ خطأ في مراقبة البيانات:", error);
+    });
+}
+        
 function startCampaignsMonitor(userId) {
     db.ref('campaigns').orderByChild('owner').equalTo(userId).on('value', (snap) => {
         const dashboard = document.getElementById('active-campaigns-dashboard');
