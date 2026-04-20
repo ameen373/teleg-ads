@@ -1612,35 +1612,45 @@ async function executeWithdrawWorkflow() {
     }
 
 // --- [ 5. دوال الواجهة والتنقل ] ---
-function openTab(tab, el) {
-    // إخفاء جميع الأقسام وإلغاء تفعيل الأزرار
+function openTab(tabName, element) {
+    // 1. التنظيف (إخفاء كل شيء ومسح حالة الأزرار)
     document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
-    document.querySelectorAll('.nav-item').forEach(t => t.classList.remove('active'));
-    
-    // إظهار القسم المطلوب وتفعيل الزر
-    const target = document.getElementById('sec-' + tab);
-    if (target) target.style.display = 'block';
-    if (el) el.classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
 
-    const user = webApp.initDataUnsafe.user;
+    // 2. الإظهار (فتح القسم الذي طلبه المستخدم)
+    const target = document.getElementById('sec-' + tabName);
+    if (target) {
+        target.style.display = 'block';
+    } else {
+        console.error("خطأ: القسم sec-" + tabName + " غير موجود في الـ HTML");
+    }
+
+    // 3. التفعيل (تغيير لون الزر في القائمة السفلية)
+    if (element) element.classList.add('active');
+
+    // 4. التفاعل (الاهتزاز للموبايل)
+    if (window.Telegram.WebApp.HapticFeedback) {
+        window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
+    }
+
+    // 5. الذكاء (تحديث البيانات بناءً على القسم المفتوح)
+    const user = window.Telegram.WebApp.initDataUnsafe.user;
     if (user) {
-        // تحديث البيانات فوراً عند فتح القسم الخاص بها
-        if (tab === 'stats') {
-            updateRealTimeStats(user.id);
+        if (tabName === 'channels') {
+            // تحديث رصيد الناشر فور فتح القسم
+            console.log("تحديث بيانات الناشر...");
+            startBalanceMonitor(user.id); 
         }
-        if (tab === 'promo') {
+        if (tabName === 'promo') {
             startCampaignsMonitor(user.id);
         }
     }
 
-    // إضافة اهتزاز بسيط عند النقر (لأجهزة الموبايل)
-    if (webApp.HapticFeedback) {
-        webApp.HapticFeedback.impactOccurred('light');
-    }
+    // 6. المراقبة (صديقك الكونسول)
+    console.log("تم فتح القسم: " + tabName);
 }
-    
-function closeModal() { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); }
 
+    
 function copyWalletAddress() {
     navigator.clipboard.writeText("TSiS4tDnUwa5YptcYatRZ8ykPeMwmALLSV");
     showToast("✅ تم نسخ العنوان");
