@@ -755,52 +755,110 @@ body {
     </div>
     </div>
     
-    <div id="section-channels" class="section" style="display: none; padding: 20px;">
+    <div id="section-channels" class="section" style="display: none; padding: 15px; background: #0f172a;">
     
-    <div class="publisher-header-card" style="margin-bottom: 25px;">
-        <div style="position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: center;">
+    <div class="publisher-header-card" style="margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
-                <p style="color: #38bdf8; font-size: 12px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px;">Withdrawable Balance</p>
-                <div style="display: flex; align-items: baseline; gap: 5px;">
-                    <span style="color: #fff; font-size: 32px; font-weight: 900;">$</span>
-                    <h2 id="withdrawable-balance-display" style="color: #fff; font-size: 32px; font-weight: 900; margin: 0;">0.00</h2>
-                </div>
+                <small style="color: #38bdf8; font-weight: bold; letter-spacing: 1px;">AVAILABLE BALANCE</small>
+                <h2 id="withdrawable-balance-display" style="color: #fff; font-size: 28px; margin: 5px 0;">$0.00</h2>
             </div>
-            <button class="withdraw-trigger-btn" onclick="openTab('withdraw')">
-                <span style="margin-right: 5px;">💳</span> سحب الآن
-            </button>
+            <button class="withdraw-trigger-btn" onclick="openTab('withdraw')">💳 سحب الآن</button>
         </div>
     </div>
 
-    <div class="stats-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-        <div class="stat-card" style="border-left: 4px solid #38bdf8;">
-            <h4>🖱️ النقرات</h4>
+    <div class="stats-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 25px;">
+        <div class="stat-card">
+            <small>🖱️ CPC Profits</small>
             <p id="stat-clicks">0</p>
-            <div class="profit-tag" style="color: #38bdf8;">Earned CPC</div>
         </div>
-        <div class="stat-card" style="border-left: 4px solid #2ecc71;">
-            <h4>🚀 المشاهدات</h4>
+        <div class="stat-card">
+            <small>🚀 CPM Profits</small>
             <p id="stat-views">0</p>
-            <div class="profit-tag" style="color: #2ecc71;">Earned CPM</div>
         </div>
-        <div class="stat-card" style="border-left: 4px solid #a855f7;">
-            <h4>⏳ منشورات ثابتة</h4>
+        <div class="stat-card">
+            <small>⏳ Fixed Ads</small>
             <p id="stat-fixed-posts">0</p>
-            <div class="profit-tag" style="color: #a855f7;">Fixed 1/24h</div>
         </div>
-        <div class="stat-card" style="background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), transparent); border: 1px solid #fbbf24;">
-            <h4 style="color: #fbbf24;">💰 إجمالي الصافي</h4>
+        <div class="stat-card" style="border: 1px solid #fbbf24;">
+            <small style="color: #fbbf24;">💰 Net Total</small>
             <p id="total-net-earnings" style="color: #fbbf24;">0.00</p>
-            <div class="profit-tag" style="color: #fbbf24;">Net Profit</div>
         </div>
     </div>
 
-    <button onclick="togglePublisherPanel()" class="add-channel-btn" style="width: 100%; margin-top: 30px; padding: 18px; background: linear-gradient(90deg, #f59e0b, #d97706); border: none; border-radius: 18px; color: #fff; font-weight: 900; font-size: 16px; box-shadow: 0 10px 20px rgba(217, 119, 6, 0.3); cursor: pointer;">
+    <button onclick="togglePublisherPanel()" class="add-channel-btn" style="width: 100%; padding: 16px; background: linear-gradient(90deg, #f1c40f, #f39c12); border: none; border-radius: 15px; font-weight: 900; color: #000; box-shadow: 0 4px 15px rgba(243, 156, 18, 0.2);">
         ✨ إضافة قناة جديدة للمنصة
     </button>
 
-    <div id="publisher-panel" style="display: none; transition: 0.5s;">
+    <div id="publisher-panel" style="display: none; background: #1a1f2e; padding: 20px; border-radius: 20px; margin-top: 20px; border: 1px solid #334155; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+        
+        <h3 style="color: #f1c40f; text-align: center; margin-bottom: 20px;">📝 تسجيل بيانات القناة</h3>
+        
+        <input type="text" id="ch-name" class="modern-input" placeholder="🏷️ اسم قناتك" style="margin-bottom: 12px;">
+        <input type="text" id="ch-link" class="modern-input" placeholder="🔗 رابط القناة @username" style="margin-bottom: 12px;">
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+            <select id="ch-continent" class="modern-input" onchange="setupGeoDropdowns()">
+                <option value="">🌍 المنطقة</option>
+            </select>
+            <select id="ch-country" class="modern-input">
+                <option value="all">كل الدول</option>
+            </select>
         </div>
+
+        <div style="background: rgba(255,255,255,0.03); padding: 15px; border-radius: 15px; border: 1px dashed #444;">
+            <label style="color: #38bdf8; font-size: 11px; font-weight: bold;">🎯 تخصص المحتوى:</label>
+            <select id="pub-ch-category" class="modern-input" style="margin: 8px 0;">
+                <option value="movies">الأفلام والمسلسلات 🎬</option>
+                <option value="crypto">العملات المشفره 🪙</option>
+                <option value="tech">التكنولوجيا 📱</option>
+            </select>
+
+            <label style="color: #38bdf8; font-size: 11px; font-weight: bold;">💳 أنواع الإعلانات المقبولة:</label>
+            <div style="display: flex; gap: 10px; margin-top: 8px;">
+                <label class="check-card"><input type="checkbox" id="pub-accept-fixed" checked> ثابت</label>
+                <label class="check-card"><input type="checkbox" id="pub-accept-performance" checked> أداء</label>
+            </div>
+        </div>
+
+        <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 12px; margin-top: 15px; border-left: 4px solid #f1c40f;">
+            <div style="display: flex; justify-content: space-between; align-items: center; color: #fff;">
+                <span>⏰ سعر المنشور (24h):</span>
+                <div style="display: flex; align-items: center; gap: 5px;">
+                    <input type="number" id="price-24h" value="5" class="small-price-input"> $
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 12px;">
+    
+    <button class="step-btn" style="background: #0088cc; display: flex; align-items: center; justify-content: center; gap: 10px;" 
+            onclick="window.open('https://t.me/Ads_telegabot?startchannel=true')">
+        <span>🤖</span> 1. إضافة البوت كمسؤول
+    </button>
+
+    <button class="step-btn" style="background: rgba(255,255,255,0.05); border: 1px solid #444; color: #fff;" 
+            onclick="tg.showAlert('🔍 يتم الآن فحص صلاحيات البوت في القناة... \nيرجى التأكد من منحه صلاحية (نشر الرسائل)')">
+        <span>🔍</span> 2. تحقق من الصلاحيات
+    </button>
+    
+    <button class="step-btn" style="background: linear-gradient(90deg, #2ecc71, #27ae60); box-shadow: 0 4px 15px rgba(46, 204, 113, 0.2);" 
+            onclick="submitEliteChannel()">
+        <span>🚀</span> 3. تقديم القناة للمراجعة
+    </button>
+
+    <button onclick="togglePublisherPanel()" style="background: none; border: none; color: #64748b; font-size: 11px; margin-top: 5px;">
+        إلغاء العملية ✖️
+    </button>
+        </div>
+
+    <div style="margin-top: 35px;">
+        <h4 style="color: #94a3b8; font-size: 14px; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+            <span style="width: 20px; height: 1px; background: #444;"></span>
+            📺 قنواتك المسجلة
+        </h4>
+        <div id="my-elite-channels" style="min-height: 100px;"></div>
+    </div>
     </div>
         
 
@@ -833,76 +891,7 @@ body {
     </div>
 </div>
 
-    <div id="publisher-panel" style="display: none; background: #1a1a1a; padding: 20px; border-radius: 15px; margin-top: 20px; border: 1px solid #333;">
-        <h3 style="color: #f1c40f; text-align: center; margin-bottom: 20px; font-weight: 800;">📝 بيانات القناة</h3>
-        
-        <input type="text" id="ch-name" class="input-premium" placeholder="🏷️ اسم قناتك">
-        <input type="text" id="ch-link" class="input-premium" placeholder="🔗 رابط القناة @username">
-        
-        <label style="color: #888; font-size: 12px; display: block; margin-top: 10px;">🌍 استهداف القناة:</label>
-        <select id="ch-continent" class="input-premium" style="margin-bottom: 8px; width: 100%;">
-            <option value="">اختر المنطقة...</option>
-        </select>
-        <select id="ch-country" class="input-premium" style="width: 100%;">
-            <option value="all">كل دول المنطقة</option>
-        </select>
-
-<div class="card" style="background: #1e293b; padding: 15px; border-radius: 20px; margin-top: 15px; border: 1px dashed #334155;">
-    <h4 style="color: #38bdf8; font-size: 13px; margin-bottom: 12px;">🛠️ إعدادات استقبال الإعلانات:</h4>
-
-    <label class="label-small">🎯 تخصص محتوى القناة:</label>
-    <select id="pub-ch-category" class="input-premium">
-        <option value="all">عام 🌍</option>
-        <option value="crypto">العملات المشفره 🪙</option>
-        <option value="movies">الأفلام والمسلسلات 🎬</option>
-        <option value="tech">التكنولوجيا والتقنية 📱</option>
-        <option value="coding">التطبيقات والبرمجة 💻</option>
-    </select>
-
-    <label class="label-small">🌍 الجمهور الغالب في القناة:</label>
-    <select id="pub-ch-region" class="input-premium">
-        <option value="global">عالمي (كل المناطق)</option>
-        <option value="mena">الشرق الأوسط وشمال أفريقيا</option>
-        <option value="gcc">دول الخليج العربي</option>
-        <option value="eu">أوروبا وأمريكا</option>
-    </select>
-
-    <label class="label-small">💳 أنواع الإعلانات التي تقبلها:</label>
-    <div style="display: flex; gap: 8px; margin-top: 5px;">
-        <label style="font-size: 10px; color: #fff; background: rgba(255,255,255,0.05); padding: 5px 10px; border-radius: 8px; flex: 1; text-align: center;">
-            <input type="checkbox" id="pub-accept-fixed" checked> ثابت 1/24
-        </label>
-        <label style="font-size: 10px; color: #fff; background: rgba(255,255,255,0.05); padding: 5px 10px; border-radius: 8px; flex: 1; text-align: center;">
-            <input type="checkbox" id="pub-accept-performance"> أداء (نقرات/مشاهدات)
-        </label>
-    </div>
-</div>
-        <div style="background:rgba(0,0,0,0.6); padding:15px; border-radius:15px; margin: 15px 0; font-size:13px; border:1px solid #444;">
-            <p style="margin-bottom:10px; color: #fff;">⏰ <b>منشور (24h):</b> 
-                               <input type="number" id="price-24h" placeholder="0" style="width:60px; background:none; border:1px solid #f1c40f; color:white; border-radius:5px; text-align: center;"> $ 
-                <small style="color: #888;">(عمولتنا 10%)</small>
-            </p>
-            <p style="margin-bottom:10px; color: #fff;">🖱️ <b>نقرات (CPC):</b> <span style="color:#2ecc71; font-weight: bold;">5$ / 1000</span></p>
-            <p style="margin: 0; color: #fff;">🚀 <b>مشاهدات (CPM):</b> <span style="color:#2ecc71; font-weight: bold;">1$ / 1000</span></p>
-        </div>
-
-                <button class="btn-premium-add" style="width:100%; background:#0088cc; color:white; border-radius: 12px; margin-bottom: 10px; padding: 12px; border: none; cursor: pointer;" onclick="window.open('https://t.me/Ads_telegabot?startchannel=true')">
-            🤖 1. إضافة البوت كمسؤول
-        </button>
-
-        <button onclick="tg.showAlert('🔍 يتم الآن التحقق من الصلاحيات...')" style="width:100%; padding:12px; background:none; border:1px solid #444; color:white; border-radius:12px; margin-bottom:10px; cursor: pointer;">
-            🔍 2. تحقق من الإضافة
-        </button>
-        
-        <button onclick="submitEliteChannel()" style="width:100%; padding:15px; background:#2ecc71; border:none; color:white; border-radius:12px; font-weight:bold; font-size:16px; cursor: pointer;">
-            🚀 3. تقديم القناة للمراجعة
-        </button>
-
-    </div> 
-
-    <h4 style="color:#888; font-size:14px; margin-top: 30px;">📺 قنواتك المسجلة:</h4>
-    <div id="my-elite-channels" style="min-height: 50px;"></div>
-</div>
+    
 
 <div id="sec-admin" class="section" style="display: none; padding: 15px; background: #0f172a; min-height: 100vh;">
     
