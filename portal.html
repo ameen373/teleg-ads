@@ -1290,8 +1290,10 @@ function setupGeoDropdowns(continentId, countryId) {
                 countrySelect.appendChild(opt);
             });
         }
+    }; // <--- هذا القوس كان مفقوداً (إغلاق onchange)
+} // <--- هذا القوس كان مفقوداً (إغلاق الدالة الأساسية)
 
-    function getInterestName(cat) {
+function getInterestName(cat) {
     const categories = {
         'all': 'عام 🌍', 'sports': 'رياضة ⚽', 'beauty': 'جمال ✨',
         'cooking': 'طبخ 🍳', 'movies': 'أفلام 🎬', 'crypto': 'عملات 🪙',
@@ -1299,7 +1301,7 @@ function setupGeoDropdowns(continentId, countryId) {
         'fun': 'ترفيه 😂', 'news': 'أخبار 🗞️'
     };
     return categories[cat] || 'عام 🌍';
-    }
+}
 
 // ==========================================
 // 5. نظام التنقل والواجهة (UI & Navigation)
