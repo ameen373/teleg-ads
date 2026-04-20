@@ -1614,6 +1614,7 @@ function approveDeposit(reqId, userId, amount) {
     });
 }
 
+// --- [ نهاية دالة adminAction ] ---
 function adminAction(type) {
     if (type === 'add') {
         const targetUid = document.getElementById('adm-uid').value;
@@ -1624,25 +1625,28 @@ function adminAction(type) {
         db.ref('users/' + targetUid + '/balance').transaction(curr => (parseFloat(curr) || 0) + parseFloat(amount))
         .then(() => {
             webApp.showAlert("✅ تمت إضافة $" + amount + " بنجاح إلى ID: " + targetUid);
-            document.getElementById('adm-val').value = ''; // تصفير المبلغ بعد التنفيذ
+            document.getElementById('adm-val').value = ''; 
         })
         .catch(err => webApp.showAlert("❌ خطأ: " + err.message));
     }
 }
 
+// ==========================================
+// إعدادات التشغيل النهائية (توضع مرة واحدة في نهاية الملف)
+// ==========================================
 
+// تشغيل الاهتزاز عند تحميل الصفحة (اختياري)
 if (webApp.HapticFeedback) {
     webApp.HapticFeedback.selectionChanged();
 }
-    
-// ==========================================
-// 1. إعدادات تليجرام الأساسية والتشغيل
-// ==========================================
-    window.onload = startApp;
 
+// أمر تشغيل التطبيق
+window.onload = startApp;
+
+// مراقبة حالة الإنترنت
 window.addEventListener('offline', () => showToast("🔴 انقطع الاتصال بالإنترنت!", "error"));
 window.addEventListener('online', () => showToast("🟢 عاد الاتصال بالإنترنت", "success"));
-
+        
 </script>
 </body>
 </html>
