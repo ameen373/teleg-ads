@@ -515,21 +515,22 @@ body {
 .stat-card small { color: #94a3b8; font-size: 10px; display: block; margin-bottom: 5px; }
 .stat-card p { font-size: 18px; font-weight: 900; margin: 0; color: #fff; }
 
-            /* الأيقونات النابضة (للمال) */
-@keyframes coinPulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.3); filter: drop-shadow(0 0 5px #f1c40f); }
-    100% { transform: scale(1); }
+/* حركة نبض هادئة لكيس المال */
+@keyframes money-pulse {
+    0% { transform: scale(1); opacity: 0.8; }
+    50% { transform: scale(1.2); opacity: 1; text-shadow: 0 0 8px #f1c40f; }
+    100% { transform: scale(1); opacity: 0.8; }
 }
 
-/* الصاروخ الطائر */
-@keyframes rocketFly {
-    0%, 100% { transform: translateY(0) rotate(-5deg); }
-    50% { transform: translateY(-8px) rotate(5deg); }
+/* حركة دوران خفيفة للصاروخ أو الساعة */
+@keyframes icon-float {
+    0% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+    100% { transform: translateY(0); }
 }
 
-.ani-coin { display: inline-block; animation: coinPulse 2s infinite ease-in-out; }
-.ani-rocket { display: inline-block; animation: rocketFly 1.5s infinite ease-in-out; }
+.ani-money { display: inline-block; animation: money-pulse 2s infinite ease-in-out; }
+.ani-float { display: inline-block; animation: icon-float 3s infinite ease-in-out; }
             
     </style>
 </head>
@@ -823,11 +824,11 @@ body {
             <small>⏳ Fixed Ads</small>
             <p id="stat-fixed-posts">0</p>
         </div>
-        <div class="stat-card" style="border: 1px solid #fbbf24;">
-            <small style="color: #fbbf24;">💰 Net Total</small>
-            <p id="total-net-earnings" style="color: #fbbf24;">0.00</p>
+        <div class="stat-card">
+    <small style="color: #f1c40f;">MEMBER</small>
+    <h4 style="color: #fff;">إجمالي الرصيد (USDT) <span class="ani-money">💰</span></h4>
+    <p id="total-balance-display" style="font-size: 24px; font-weight: 900; color: #f1c40f;">0.00</p>
         </div>
-    </div>
 
     <button onclick="togglePublisherPanel()" class="add-channel-btn" style="width: 100%; padding: 16px; background: linear-gradient(90deg, #f1c40f, #f39c12); border: none; border-radius: 15px; font-weight: 900; color: #000; box-shadow: 0 4px 15px rgba(243, 156, 18, 0.2);">
         ✨ إضافة قناة جديدة للمنصة
