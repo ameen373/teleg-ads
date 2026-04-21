@@ -514,7 +514,22 @@ body {
 }
 .stat-card small { color: #94a3b8; font-size: 10px; display: block; margin-bottom: 5px; }
 .stat-card p { font-size: 18px; font-weight: 900; margin: 0; color: #fff; }
-            
+
+            /* الأيقونات النابضة (للمال) */
+@keyframes coinPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.3); filter: drop-shadow(0 0 5px #f1c40f); }
+    100% { transform: scale(1); }
+}
+
+/* الصاروخ الطائر */
+@keyframes rocketFly {
+    0%, 100% { transform: translateY(0) rotate(-5deg); }
+    50% { transform: translateY(-8px) rotate(5deg); }
+}
+
+.ani-coin { display: inline-block; animation: coinPulse 2s infinite ease-in-out; }
+.ani-rocket { display: inline-block; animation: rocketFly 1.5s infinite ease-in-out; }
             
     </style>
 </head>
@@ -1495,39 +1510,70 @@ function getInterestName(cat) {
 // ==========================================
 
 function openTab(tabName, element) {
-    // 1. التنظيف (إخفاء كل شيء ومسح حالة الأزرار)
+    // 1. التنظيف (إخفاء كل الأقسام بناءً على الكلاس)
     document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
 
-    // 2. الإظهار (فتح القسم الذي طلبه المستخدم)
+    // 2. الإظهار (التأكد من مطابقة الـ ID للـ HTML)
+    // لاحظ: إذا كانت أقسامك في الـ HTML تبدأ بـ 'section-' اتركها كما هي
     const target = document.getElementById('section-' + tabName);
+    
     if (target) {
         target.style.display = 'block';
+        // تمرير الشاشة للأعلى عند الانتقال
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
-        console.error("خطأ: القسم sec-" + tabName + " غير موجود في الـ HTML");
+        // رسالة تنبيه برمجية أوضح للمطور
+        console.warn(`⚠️ تنبيه: القسم section-${tabName} غير موجود في الـ HTML حالياً.`);
     }
 
-    // 3. التفعيل (تغيير لون الزر في القائمة السفلية)
-    if (element) element.classList.add('active');
-
-    // 4. التفاعل (الاهتزاز للموبايل)
-    if (window.Telegram.WebApp.HapticFeedback) {
-        window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
+    // 3. التفعيل البصري للزر
+    if (element) {
+        element.classList.add('active');
+    } else {
+        // محاولة إيجاد الزر برمجياً إذا لم يُمرر الـ element
+        const navBtn = document.querySelector(`.nav-item[onclick*="${tabName}"]`);
+        if (navBtn) navBtn.classList.add('active');
     }
 
-    // 5. الذكاء (تحديث البيانات بناءً على القسم المفتوح)
+    // 4. التفاعل اللمسي (Haptic Feedback) - متوافق مع الإصدارات الحديثة
+    try {
+        if (window.Telegram.WebApp.HapticFeedback) {
+            window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
+        }
+    } catch (e) { console.log("HapticFeedback not supported"); }
+
+    // 5. المحرك الذكي (تحديث البيانات فورياً)
     const user = window.Telegram.WebApp.initDataUnsafe.user;
     if (user) {
-        if (tabName === 'channels') {
-            // تحديث رصيد الناشر فور فتح القسم
-            console.log("تحديث بيانات الناشر...");
-            startBalanceMonitor(user.id); 
-        }
-        if (tabName === 'promo') {
-            startCampaignsMonitor(user.id);
+        const userId = user.id;
+        
+        switch(tabName) {
+            case 'channels':
+                console.log("📈 تشغيل محرك الناشر الأقوى...");
+                // استدعاء المراقب الشامل الذي صنعناه
+                if (typeof startPublisherMonitor === "function") {
+                    startPublisherMonitor(userId);
+                } else {
+                    startBalanceMonitor(userId);
+                }
+                break;
+                
+            case 'promo':
+                console.log("🎯 تحديث حملات المعلن...");
+                if (typeof startCampaignsMonitor === "function") {
+                    startCampaignsMonitor(userId);
+                }
+                break;
+                
+            case 'home':
+                // تحديث سريع للرصيد الرئيسي
+                startBalanceMonitor(userId);
+                break;
         }
     }
 }
+
             
 function showToast(message, type = 'success') {
     const toast = document.createElement('div');
