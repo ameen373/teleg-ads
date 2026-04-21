@@ -535,7 +535,6 @@ body {
     </style>
 </head>
 <body>
-
 <div id="modal-crypto-deposit" class="modal" style="display: none; position: fixed; z-index: 10000; inset: 0; background: rgba(0,0,0,0.95); align-items: center; justify-content: center; backdrop-filter: blur(8px);">
     <div class="modal-content" style="border: 2px solid #2ecc71; width: 92%; max-width: 400px; background: #0f172a; border-radius: 30px; padding: 25px; position: relative; box-shadow: 0 0 30px rgba(46, 204, 113, 0.2);">
         <span style="position: absolute; top: 15px; left: 20px; cursor: pointer; font-size: 24px; color: #64748b;" onclick="closeModal()">✕</span>
@@ -553,46 +552,43 @@ body {
             <label style="color: #94a3b8; font-size: 12px; margin-right: 5px;">معرف العملية (TXID):</label>
             <input type="text" id="final-txid" placeholder="الصق الـ TXID هنا" style="width:100%; background:#1e293b; color:white; border:1px solid #334155; padding:12px; border-radius:12px; margin-top:5px; outline:none;">
         </div>
-        <button id="main-submit-btn" onclick="processDepositSubmission()" 
-        style="width:100%; background: linear-gradient(90deg, #2ecc71, #27ae60); border:none; padding:18px; border-radius:20px; color:white; font-weight:800; cursor:pointer; font-size:16px; box-shadow: 0 4px 15px rgba(46, 204, 113, 0.4);">
-    🚀 إرسال الطلب للمراجعة
-        </button>
+        <button id="main-submit-btn" onclick="processDepositSubmission()" style="width:100%; background:#2ecc71; border:none; padding:18px; border-radius:20px; color:white; font-weight:800; cursor:pointer; font-size:16px; transition: 0.3s;">🚀 إرسال الطلب للمراجعة</button>
     </div>
 </div>
-
-        
-<div id="modal-crypto-deposit" class="modal" style="display: none; position: fixed; z-index: 10000; inset: 0; background: rgba(0,0,0,0.95); align-items: center; justify-content: center; backdrop-filter: blur(8px);">
-        <div class="modal-content" ...>
-             </div>
-    </div>
-
-    <div class="main-content" style="margin-top:20px; margin-bottom:80px;">
-        <div id="section-home" class="section" style="display: block;">
-            </div>
-
-        <div id="section-promo" class="section" style="display: none;">
-            </div>
-
-        <div id="section-channels" class="section" style="display: none;">
-            </div>
-
-        <div id="section-admin" class="section" style="display: none;">
-            </div>
-
-    </div>
-
-    <div class="bottom-nav">
-        <div class="nav-item" onclick="openTab('admin', this)"><div>👤</div><span>الإدارة</span></div>
-        <div class="nav-item active" onclick="openTab('promo', this)"><div>📘</div><span>المعلن</span></div>
-        <div class="nav-item" onclick="openTab('channels', this)"><div>📣</div><span>الناشر</span></div>
-        <div class="nav-item" onclick="openTab('home', this)"><div>🏠</div><span>الرئيسية</span></div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-    <script>eruda.init();</script>
     
+<script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+<script>eruda.init();</script>
+
+<div class="main-content" style="margin-top:60px; margin-bottom:80px;">
+
+<div class="bottom-nav">
+  
+  <div class="nav-item" onclick="openTab('admin', this)">
+    <div>👤</div>
+    <span>الإدارة</span>
+  </div>
+
+  <div class="nav-item active" onclick="openTab('promo', this)">
+    <div>📘</div>
+    <span>المعلن</span>
+  </div>
+
+  <div class="nav-item" onclick="openTab('channels', this)">
+    <div>📣</div>
+    <span>الناشر</span>
+  </div>
+
+  <div class="nav-item" onclick="openTab('home', this)">
+    <div>🏠</div>
+    <span>الرئيسية</span>
+  </div>
+
+</div>
+
     
     <div id="section-home" class="section" style="display:none;"></div>
+
+        <div id="sec-home" class="section" style="display: none;">
         <div class="card" style="text-align: center; border: 1px solid var(--accent);">
             <div id="user-rank" style="font-size: 10px; color: var(--gold); font-weight: bold;">MEMBER</div>
             <small>إجمالي الرصيد (USDT)</small>
@@ -606,8 +602,8 @@ body {
             <h4 style="margin:0; color:var(--danger);">🔥 عروض أمين الحصرية</h4>
             <p id="offer-text" style="font-size: 12px; color: #94a3b8; margin-top: 5px;">خصم 30% للمعلنين الدائمين!</p>
         </div>
-    </div>
-
+        </div>
+        
 <div id="section-promo" class="section" style="display:none;"></div>
     
     <div class="wallet-card" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 1px solid #334155; border-radius: 25px; padding: 20px; margin-bottom: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.2);">
