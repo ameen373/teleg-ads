@@ -532,21 +532,6 @@ body {
 .ani-money { display: inline-block; animation: money-pulse 2s infinite ease-in-out; }
 .ani-float { display: inline-block; animation: icon-float 3s infinite ease-in-out; }
 
-/* هذا الكود يضمن أن الأقسام المخفية لا تأخذ مساحة ولا تظهر أبداً */
-.section {
-    display: none; /* مخفي افتراضياً */
-    visibility: hidden;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
-
-/* هذا الكلاس سيضاف فقط للقسم النشط بواسطة الجافا سكريبت */
-.section.active-section {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-}
-            
             
     </style>
 </head>
