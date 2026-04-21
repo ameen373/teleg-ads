@@ -1026,39 +1026,33 @@ if (!firebase.apps.length) {
 }
 const db = firebase.database();
 
-        function startApp() { // تم تصحيح حرف f
-    webApp.ready();
-    webApp.expand();
-    
-    const user = webApp.initDataUnsafe.user;
-    
-    // تأكد من وجود دالة تفتح قسماً افتراضياً لكي لا تظل الشاشة سوداء
-    if (typeof openTab === "function") {
-        openTab('home', null); 
+       function startApp() {
+    // تهيئة تطبيق تليجرام
+    if (window.Telegram && window.Telegram.WebApp) {
+        window.Telegram.WebApp.ready();
+        window.Telegram.WebApp.expand();
     }
 
+    // فتح الصفحة الرئيسية تلقائياً عند التشغيل لضمان عدم وجود شاشة سوداء
+    openTab('home', document.querySelector('.nav-item:last-child'));
+
+    const user = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp.initDataUnsafe.user : null;
     if (user) {
         const userId = user.id;
-
-        startBalanceMonitor(userId);
+        if (typeof startBalanceMonitor === "function") startBalanceMonitor(userId);
+        if (typeof startTransactionMonitor === "function") startTransactionMonitor(userId);
+        if (typeof startCampaignsMonitor === "function") startCampaignsMonitor(userId);
         
-        if (typeof startPublisherMonitor === "function") {
-            startPublisherMonitor(userId);
-        }
-
-        startTransactionMonitor(userId);
-        startCampaignsMonitor(userId); 
-        
-        // استخدام المعرف الذي قمت بتصحيحه سابقاً
-        if (userId === 1445722421) { 
-            startAdminMonitor();
+        // التحقق من الإدمن (استخدمت المعرف الخاص بك)
+        if (userId === 549686235) {
+            if (typeof startAdminMonitor === "function") startAdminMonitor();
         }
     } else {
-        console.error("❌ فشل الحصول على بيانات المستخدم من Telegram");
-        // وضع تجريبي ليظهر الرصيد 0.00 بدلاً من السواد عند الاختبار في المتصفح
-        startBalanceMonitor("demo_mode");
+        console.warn("⚠️ مظهر المعاينة: لا توجد بيانات مستخدم");
     }
-        }
+       }
+        
+        
 
 function checkBotStatus() {
     tg.showAlert('🔍 يتم الآن التحقق من الصلاحيات ووجود البوت كمسؤول... يرجى الانتظار');
@@ -1532,62 +1526,33 @@ function getInterestName(cat) {
 // ==========================================
 
 function openTab(tabName, element) {
-    // 1. إخفاء جميع الأقسام (تصحيح شامل لكل الأقسام التي تبدأ بـ section- أو sec-)
+    // إخفاء كل الأقسام التي تملك كلاس section
     document.querySelectorAll('.section').forEach(s => {
         s.style.display = 'none';
     });
-    
-    // إخفاء قسم الإحصائيات تحديداً لأنه كان يسبب تداخلاً
-    const secStats = document.getElementById('sec-stats');
-    if (secStats) secStats.style.display = 'none';
 
-    // 2. إزالة التفعيل من جميع أزرار القائمة السفلية
+    // إزالة التفعيل من أزرار التنقل
     document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.remove('active');
     });
 
-    // 3. إظهار القسم المطلوب (معالجة ذكية للاسم)
-    let targetId = 'section-' + tabName;
-    let target = document.getElementById(targetId);
-    
-    // محاولة ثانية في حال كان الاسم sec- وليس section-
-    if (!target) {
-        target = document.getElementById('sec-' + tabName);
-    }
-    
+    // إظهار القسم المطلوب
+    const target = document.getElementById('section-' + tabName);
     if (target) {
         target.style.display = 'block';
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-        console.warn("⚠️ القسم " + targetId + " غير موجود في الـ HTML");
     }
 
-    // 4. تفعيل الزر الذي تم الضغط عليه
+    // تفعيل الزر المختار
     if (element) {
         element.classList.add('active');
     }
 
-    // 5. تشغيل ميزات تليجرام (فقط إذا كان التطبيق مفتوحاً داخل تليجرام)
-    try {
-        if (window.Telegram && window.Telegram.WebApp) {
-            const webApp = window.Telegram.WebApp;
-            
-            // اهتزاز خفيف عند الضغط
-            if (webApp.HapticFeedback) {
-                webApp.HapticFeedback.impactOccurred('light');
-            }
-
-            // تحديث البيانات بناءً على القسم
-            const user = webApp.initDataUnsafe.user;
-            if (user) {
-                if (tabName === 'promo') startCampaignsMonitor(user.id);
-                if (tabName === 'home') startBalanceMonitor(user.id);
-            }
-        }
-    } catch (e) {
-        console.log("Telegram Features: " + e.message);
+    // تفعيل الاهتزاز إذا كان متاحاً
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+        window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
     }
 }
+        
         
             
 function showToast(message, type = 'success') {
