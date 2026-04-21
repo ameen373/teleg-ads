@@ -618,7 +618,7 @@ body {
         </div>
         </div>
         
-<div id="section-promo" class="section" style="display:block;">
+<div id="section-promo" class="section" style="display:none;">
 
       <div class="wallet-card" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 1px solid #334155; border-radius: 25px; padding: 20px; margin-bottom: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.2);">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
@@ -683,7 +683,9 @@ body {
     <div class="modal-content" style="border: 2px solid var(--gold); max-width: 500px; background: var(--bg); color: var(--text); padding: 20px; border-radius: 20px;">
         <span style="float:left; cursor:pointer; font-size:24px;" onclick="closeModal()">✕</span>
         <h3 style="color:var(--gold); text-align:center; margin-bottom:15px;">🎯 تخصيص حملة Ads Pro</h3>
-
+    </div>
+</div>
+        
         <div id="ad-preview" style="background: #242f3d; padding: 12px; border-radius: 12px; border: 1px solid #0fbcf9; margin-bottom: 15px; display: none;">
             <small style="color: #0fbcf9;">📱 شكل الإعلان المتوقع:</small>
             <div style="background: #17212b; padding: 10px; border-radius: 8px; margin-top: 5px;">
@@ -1024,36 +1026,39 @@ if (!firebase.apps.length) {
 }
 const db = firebase.database();
 
-function startApp() {
+        function startApp() { // تم تصحيح حرف f
     webApp.ready();
     webApp.expand();
     
     const user = webApp.initDataUnsafe.user;
+    
+    // تأكد من وجود دالة تفتح قسماً افتراضياً لكي لا تظل الشاشة سوداء
+    if (typeof openTab === "function") {
+        openTab('home', null); 
+    }
+
     if (user) {
         const userId = user.id;
 
-        // 1. مراقبة الرصيد العام (للمعلن وللواجهة الرئيسية)
         startBalanceMonitor(userId);
         
-        // 2. مراقبة أرباح وإحصائيات الناشر (المحرك الجديد والأقوى)
         if (typeof startPublisherMonitor === "function") {
             startPublisherMonitor(userId);
         }
 
-        // 3. مراقبة المعاملات المالية (سحب/إيداع)
         startTransactionMonitor(userId);
-        
-        // 4. مراقبة الحملات الإعلانية (للمعلن)
         startCampaignsMonitor(userId); 
         
-        // 5. التحقق من صلاحيات الإدمن
-        if (userId === ADMIN_ID) {
+        // استخدام المعرف الذي قمت بتصحيحه سابقاً
+        if (userId === 1445722421) { 
             startAdminMonitor();
         }
     } else {
         console.error("❌ فشل الحصول على بيانات المستخدم من Telegram");
+        // وضع تجريبي ليظهر الرصيد 0.00 بدلاً من السواد عند الاختبار في المتصفح
+        startBalanceMonitor("demo_mode");
     }
-}
+        }
 
 function checkBotStatus() {
     tg.showAlert('🔍 يتم الآن التحقق من الصلاحيات ووجود البوت كمسؤول... يرجى الانتظار');
@@ -1527,69 +1532,63 @@ function getInterestName(cat) {
 // ==========================================
 
 function openTab(tabName, element) {
-    // 1. التنظيف (إخفاء كل الأقسام بناءً على الكلاس)
-    document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
-    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+    // 1. إخفاء جميع الأقسام (تصحيح شامل لكل الأقسام التي تبدأ بـ section- أو sec-)
+    document.querySelectorAll('.section').forEach(s => {
+        s.style.display = 'none';
+    });
+    
+    // إخفاء قسم الإحصائيات تحديداً لأنه كان يسبب تداخلاً
+    const secStats = document.getElementById('sec-stats');
+    if (secStats) secStats.style.display = 'none';
 
-    // 2. الإظهار (التأكد من مطابقة الـ ID للـ HTML)
-    // لاحظ: إذا كانت أقسامك في الـ HTML تبدأ بـ 'section-' اتركها كما هي
-    const target = document.getElementById('section-' + tabName);
+    // 2. إزالة التفعيل من جميع أزرار القائمة السفلية
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.remove('active');
+    });
+
+    // 3. إظهار القسم المطلوب (معالجة ذكية للاسم)
+    let targetId = 'section-' + tabName;
+    let target = document.getElementById(targetId);
+    
+    // محاولة ثانية في حال كان الاسم sec- وليس section-
+    if (!target) {
+        target = document.getElementById('sec-' + tabName);
+    }
     
     if (target) {
         target.style.display = 'block';
-        // تمرير الشاشة للأعلى عند الانتقال
         window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
-        // رسالة تنبيه برمجية أوضح للمطور
-        console.warn(`⚠️ تنبيه: القسم section-${tabName} غير موجود في الـ HTML حالياً.`);
+        console.warn("⚠️ القسم " + targetId + " غير موجود في الـ HTML");
     }
 
-    // 3. التفعيل البصري للزر
+    // 4. تفعيل الزر الذي تم الضغط عليه
     if (element) {
         element.classList.add('active');
-    } else {
-        // محاولة إيجاد الزر برمجياً إذا لم يُمرر الـ element
-        const navBtn = document.querySelector(`.nav-item[onclick*="${tabName}"]`);
-        if (navBtn) navBtn.classList.add('active');
     }
 
-    // 4. التفاعل اللمسي (Haptic Feedback) - متوافق مع الإصدارات الحديثة
+    // 5. تشغيل ميزات تليجرام (فقط إذا كان التطبيق مفتوحاً داخل تليجرام)
     try {
-        if (window.Telegram.WebApp.HapticFeedback) {
-            window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
-        }
-    } catch (e) { console.log("HapticFeedback not supported"); }
+        if (window.Telegram && window.Telegram.WebApp) {
+            const webApp = window.Telegram.WebApp;
+            
+            // اهتزاز خفيف عند الضغط
+            if (webApp.HapticFeedback) {
+                webApp.HapticFeedback.impactOccurred('light');
+            }
 
-    // 5. المحرك الذكي (تحديث البيانات فورياً)
-    const user = window.Telegram.WebApp.initDataUnsafe.user;
-    if (user) {
-        const userId = user.id;
-        
-        switch(tabName) {
-            case 'channels':
-                console.log("📈 تشغيل محرك الناشر الأقوى...");
-                // استدعاء المراقب الشامل الذي صنعناه
-                if (typeof startPublisherMonitor === "function") {
-                    startPublisherMonitor(userId);
-                } else {
-                    startBalanceMonitor(userId);
-                }
-                break;
-                
-            case 'promo':
-                console.log("🎯 تحديث حملات المعلن...");
-                if (typeof startCampaignsMonitor === "function") {
-                    startCampaignsMonitor(userId);
-                }
-                break;
-                
-            case 'home':
-                // تحديث سريع للرصيد الرئيسي
-                startBalanceMonitor(userId);
-                break;
+            // تحديث البيانات بناءً على القسم
+            const user = webApp.initDataUnsafe.user;
+            if (user) {
+                if (tabName === 'promo') startCampaignsMonitor(user.id);
+                if (tabName === 'home') startBalanceMonitor(user.id);
+            }
         }
+    } catch (e) {
+        console.log("Telegram Features: " + e.message);
     }
-        }
+}
+        
             
 function showToast(message, type = 'success') {
     const toast = document.createElement('div');
