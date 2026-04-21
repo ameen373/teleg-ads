@@ -1526,42 +1526,41 @@ function getInterestName(cat) {
 // 5. نظام التنقل والواجهة (UI & Navigation)
 // ==========================================
 
-function openTab(tabName, element) {
+Function openTab(tabName, element) {
     // 1. التنظيف (إخفاء كل الأقسام بناءً على الكلاس)
-    // أضفنا !important لضمان أن الإخفاء أقوى من أي تنسيق آخر يسبب التداخل
-    document.querySelectorAll('.section').forEach(s => {
-        s.style.setProperty('display', 'none', 'important');
-    });
+    document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
 
     // 2. الإظهار (التأكد من مطابقة الـ ID للـ HTML)
+    // لاحظ: إذا كانت أقسامك في الـ HTML تبدأ بـ 'section-' اتركها كما هي
     const target = document.getElementById('section-' + tabName);
     
     if (target) {
-        // إظهار القسم المطلوب بقوة !important لمنع تداخل قسم المعلن
-        target.style.setProperty('display', 'block', 'important');
+        target.style.display = 'block';
         // تمرير الشاشة للأعلى عند الانتقال
         window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
+        // رسالة تنبيه برمجية أوضح للمطور
         console.warn(`⚠️ تنبيه: القسم section-${tabName} غير موجود في الـ HTML حالياً.`);
     }
 
-    // 3. التفعيل البصري للزر (نفس منطقك تماماً)
+    // 3. التفعيل البصري للزر
     if (element) {
         element.classList.add('active');
     } else {
+        // محاولة إيجاد الزر برمجياً إذا لم يُمرر الـ element
         const navBtn = document.querySelector(`.nav-item[onclick*="${tabName}"]`);
         if (navBtn) navBtn.classList.add('active');
     }
 
-    // 4. التفاعل اللمسي (Haptic Feedback) - بدون أي تغيير
+    // 4. التفاعل اللمسي (Haptic Feedback) - متوافق مع الإصدارات الحديثة
     try {
         if (window.Telegram.WebApp.HapticFeedback) {
             window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
         }
     } catch (e) { console.log("HapticFeedback not supported"); }
 
-    // 5. المحرك الذكي وتحديث البيانات (نفس منطقك الأصلي 100%)
+    // 5. المحرك الذكي (تحديث البيانات فورياً)
     const user = window.Telegram.WebApp.initDataUnsafe.user;
     if (user) {
         const userId = user.id;
@@ -1569,9 +1568,10 @@ function openTab(tabName, element) {
         switch(tabName) {
             case 'channels':
                 console.log("📈 تشغيل محرك الناشر الأقوى...");
+                // استدعاء المراقب الشامل الذي صنعناه
                 if (typeof startPublisherMonitor === "function") {
                     startPublisherMonitor(userId);
-                } else if (typeof startBalanceMonitor === "function") {
+                } else {
                     startBalanceMonitor(userId);
                 }
                 break;
@@ -1584,14 +1584,12 @@ function openTab(tabName, element) {
                 break;
                 
             case 'home':
-                if (typeof startBalanceMonitor === "function") {
-                    startBalanceMonitor(userId);
-                }
+                // تحديث سريع للرصيد الرئيسي
+                startBalanceMonitor(userId);
                 break;
         }
     }
-}
-
+        }
             
 function showToast(message, type = 'success') {
     const toast = document.createElement('div');
