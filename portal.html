@@ -1661,21 +1661,23 @@ function adminAction(type) {
 }
 
 
-if (webApp.HapticFeedback) {
+// ==========================================
+// إعدادات التشغيل النهائية (توضع مرة واحدة في نهاية الملف)
+// ==========================================
+
+// تشغيل الاهتزاز عند تحميل الصفحة (اختياري)
+if (webApp.isVersionAtLeast('6.1') && webApp.HapticFeedback) {
     webApp.HapticFeedback.selectionChanged();
 }
-    
-// ==========================================
-// 1. إعدادات تليجرام الأساسية والتشغيل
-// ==========================================
-const webApp = window.Telegram.WebApp;
-const MY_ADMIN_ID = 549686235; // ضعه هنا
+        
 
-    window.onload = startApp;
+// أمر تشغيل التطبيق
+window.onload = startApp;
 
+// مراقبة حالة الإنترنت
 window.addEventListener('offline', () => showToast("🔴 انقطع الاتصال بالإنترنت!", "error"));
 window.addEventListener('online', () => showToast("🟢 عاد الاتصال بالإنترنت", "success"));
-
+        
 </script>
 </body>
 </html>
