@@ -532,10 +532,28 @@ body {
 .ani-money { display: inline-block; animation: money-pulse 2s infinite ease-in-out; }
 .ani-float { display: inline-block; animation: icon-float 3s infinite ease-in-out; }
 
+/* هذا الكود يضمن أن الأقسام المخفية لا تأخذ مساحة ولا تظهر أبداً */
+.section {
+    display: none; /* مخفي افتراضياً */
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+/* هذا الكلاس سيضاف فقط للقسم النشط بواسطة الجافا سكريبت */
+.section.active-section {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+            
             
     </style>
 </head>
 <body>
+        <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+<script>eruda.init();</script>
+        
 <div id="modal-crypto-deposit" class="modal" style="display: none; position: fixed; z-index: 10000; inset: 0; background: rgba(0,0,0,0.95); align-items: center; justify-content: center; backdrop-filter: blur(8px);">
     <div class="modal-content" style="border: 2px solid #2ecc71; width: 92%; max-width: 400px; background: #0f172a; border-radius: 30px; padding: 25px; position: relative; box-shadow: 0 0 30px rgba(46, 204, 113, 0.2);">
         <span style="position: absolute; top: 15px; left: 20px; cursor: pointer; font-size: 24px; color: #64748b;" onclick="closeModal()">✕</span>
@@ -556,9 +574,6 @@ body {
         <button id="main-submit-btn" onclick="processDepositSubmission()" style="width:100%; background:#2ecc71; border:none; padding:18px; border-radius:20px; color:white; font-weight:800; cursor:pointer; font-size:16px; transition: 0.3s;">🚀 إرسال الطلب للمراجعة</button>
     </div>
 </div>
-    
-<script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-<script>eruda.init();</script>
 
 <div class="main-content" style="margin-top:60px; margin-bottom:80px;">
 
@@ -603,9 +618,9 @@ body {
         </div>
         </div>
         
-<div id="section-promo" class="section" style="display:none;">
+<div id="section-promo" class="section" style="display:block;">
 
-    <div class="wallet-card" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 1px solid #334155; border-radius: 25px; padding: 20px; margin-bottom: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.2);">
+      <div class="wallet-card" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 1px solid #334155; border-radius: 25px; padding: 20px; margin-bottom: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.2);">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
         <span style="color: #94a3b8; font-size: 13px; font-weight: 500;">الميزانية الإعلانية</span>
         <div style="background: rgba(46, 204, 113, 0.1); color: #2ecc71; padding: 4px 10px; border-radius: 10px; font-size: 10px; font-weight: bold;">
@@ -798,15 +813,13 @@ body {
             <div id="bar-7" style="width: 15px; background: #2ecc71; border-radius: 4px; height: 90%;"></div>
         </div>
     </div>
-    </div>
-        
+        </div>
     
     <div id="section-channels" class="section" style="display: none; padding: 15px; background: #0f172a;">
     
     <div class="publisher-header-card" style="margin-bottom: 20px;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
-                    
                 <small style="color: #38bdf8; font-weight: bold; letter-spacing: 1px;">AVAILABLE BALANCE</small>
                 <h2 id="withdrawable-balance-display" style="color: #fff; font-size: 28px; margin: 5px 0;">$0.00</h2>
             </div>
@@ -1011,33 +1024,36 @@ if (!firebase.apps.length) {
 }
 const db = firebase.database();
 
-       function startApp() {
-    // تهيئة تطبيق تليجرام
-    if (window.Telegram && window.Telegram.WebApp) {
-        window.Telegram.WebApp.ready();
-        window.Telegram.WebApp.expand();
-    }
-
-    // فتح الصفحة الرئيسية تلقائياً عند التشغيل لضمان عدم وجود شاشة سوداء
-    openTab('home', document.querySelector('.nav-item:last-child'));
-
-    const user = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp.initDataUnsafe.user : null;
+function startApp() {
+    webApp.ready();
+    webApp.expand();
+    
+    const user = webApp.initDataUnsafe.user;
     if (user) {
         const userId = user.id;
-        if (typeof startBalanceMonitor === "function") startBalanceMonitor(userId);
-        if (typeof startTransactionMonitor === "function") startTransactionMonitor(userId);
-        if (typeof startCampaignsMonitor === "function") startCampaignsMonitor(userId);
+
+        // 1. مراقبة الرصيد العام (للمعلن وللواجهة الرئيسية)
+        startBalanceMonitor(userId);
         
-        // التحقق من الإدمن (استخدمت المعرف الخاص بك)
-        if (userId === 549686235) {
-            if (typeof startAdminMonitor === "function") startAdminMonitor();
+        // 2. مراقبة أرباح وإحصائيات الناشر (المحرك الجديد والأقوى)
+        if (typeof startPublisherMonitor === "function") {
+            startPublisherMonitor(userId);
+        }
+
+        // 3. مراقبة المعاملات المالية (سحب/إيداع)
+        startTransactionMonitor(userId);
+        
+        // 4. مراقبة الحملات الإعلانية (للمعلن)
+        startCampaignsMonitor(userId); 
+        
+        // 5. التحقق من صلاحيات الإدمن
+        if (userId === ADMIN_ID) {
+            startAdminMonitor();
         }
     } else {
-        console.warn("⚠️ مظهر المعاينة: لا توجد بيانات مستخدم");
+        console.error("❌ فشل الحصول على بيانات المستخدم من Telegram");
     }
-       }
-        
-        
+}
 
 function checkBotStatus() {
     tg.showAlert('🔍 يتم الآن التحقق من الصلاحيات ووجود البوت كمسؤول... يرجى الانتظار');
@@ -1511,34 +1527,69 @@ function getInterestName(cat) {
 // ==========================================
 
 function openTab(tabName, element) {
-    // إخفاء كل الأقسام التي تملك كلاس section
-    document.querySelectorAll('.section').forEach(s => {
-        s.style.display = 'none';
-    });
+    // 1. التنظيف (إخفاء كل الأقسام بناءً على الكلاس)
+    document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
+    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
 
-    // إزالة التفعيل من أزرار التنقل
-    document.querySelectorAll('.nav-item').forEach(item => {
-        item.classList.remove('active');
-    });
-
-    // إظهار القسم المطلوب
+    // 2. الإظهار (التأكد من مطابقة الـ ID للـ HTML)
+    // لاحظ: إذا كانت أقسامك في الـ HTML تبدأ بـ 'section-' اتركها كما هي
     const target = document.getElementById('section-' + tabName);
+    
     if (target) {
         target.style.display = 'block';
+        // تمرير الشاشة للأعلى عند الانتقال
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+        // رسالة تنبيه برمجية أوضح للمطور
+        console.warn(`⚠️ تنبيه: القسم section-${tabName} غير موجود في الـ HTML حالياً.`);
     }
 
-    // تفعيل الزر المختار
+    // 3. التفعيل البصري للزر
     if (element) {
         element.classList.add('active');
+    } else {
+        // محاولة إيجاد الزر برمجياً إذا لم يُمرر الـ element
+        const navBtn = document.querySelector(`.nav-item[onclick*="${tabName}"]`);
+        if (navBtn) navBtn.classList.add('active');
     }
 
-    // تفعيل الاهتزاز إذا كان متاحاً
-    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
-        window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
+    // 4. التفاعل اللمسي (Haptic Feedback) - متوافق مع الإصدارات الحديثة
+    try {
+        if (window.Telegram.WebApp.HapticFeedback) {
+            window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
+        }
+    } catch (e) { console.log("HapticFeedback not supported"); }
+
+    // 5. المحرك الذكي (تحديث البيانات فورياً)
+    const user = window.Telegram.WebApp.initDataUnsafe.user;
+    if (user) {
+        const userId = user.id;
+        
+        switch(tabName) {
+            case 'channels':
+                console.log("📈 تشغيل محرك الناشر الأقوى...");
+                // استدعاء المراقب الشامل الذي صنعناه
+                if (typeof startPublisherMonitor === "function") {
+                    startPublisherMonitor(userId);
+                } else {
+                    startBalanceMonitor(userId);
+                }
+                break;
+                
+            case 'promo':
+                console.log("🎯 تحديث حملات المعلن...");
+                if (typeof startCampaignsMonitor === "function") {
+                    startCampaignsMonitor(userId);
+                }
+                break;
+                
+            case 'home':
+                // تحديث سريع للرصيد الرئيسي
+                startBalanceMonitor(userId);
+                break;
+        }
     }
-}
-        
-        
+        }
             
 function showToast(message, type = 'success') {
     const toast = document.createElement('div');
