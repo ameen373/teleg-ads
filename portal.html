@@ -531,6 +531,22 @@ body {
 
 .ani-money { display: inline-block; animation: money-pulse 2s infinite ease-in-out; }
 .ani-float { display: inline-block; animation: icon-float 3s infinite ease-in-out; }
+
+/* هذا الكود يضمن أن الأقسام المخفية لا تأخذ مساحة ولا تظهر أبداً */
+.section {
+    display: none; /* مخفي افتراضياً */
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+/* هذا الكلاس سيضاف فقط للقسم النشط بواسطة الجافا سكريبت */
+.section.active-section {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+            
             
     </style>
 </head>
@@ -1514,39 +1530,40 @@ function getInterestName(cat) {
 
 function openTab(tabName, element) {
     // 1. التنظيف (إخفاء كل الأقسام بناءً على الكلاس)
-    document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
+    // أضفنا !important لضمان أن الإخفاء أقوى من أي تنسيق آخر يسبب التداخل
+    document.querySelectorAll('.section').forEach(s => {
+        s.style.setProperty('display', 'none', 'important');
+    });
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
 
     // 2. الإظهار (التأكد من مطابقة الـ ID للـ HTML)
-    // لاحظ: إذا كانت أقسامك في الـ HTML تبدأ بـ 'section-' اتركها كما هي
     const target = document.getElementById('section-' + tabName);
     
     if (target) {
-        target.style.display = 'block';
+        // إظهار القسم المطلوب بقوة !important لمنع تداخل قسم المعلن
+        target.style.setProperty('display', 'block', 'important');
         // تمرير الشاشة للأعلى عند الانتقال
         window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
-        // رسالة تنبيه برمجية أوضح للمطور
         console.warn(`⚠️ تنبيه: القسم section-${tabName} غير موجود في الـ HTML حالياً.`);
     }
 
-    // 3. التفعيل البصري للزر
+    // 3. التفعيل البصري للزر (نفس منطقك تماماً)
     if (element) {
         element.classList.add('active');
     } else {
-        // محاولة إيجاد الزر برمجياً إذا لم يُمرر الـ element
         const navBtn = document.querySelector(`.nav-item[onclick*="${tabName}"]`);
         if (navBtn) navBtn.classList.add('active');
     }
 
-    // 4. التفاعل اللمسي (Haptic Feedback) - متوافق مع الإصدارات الحديثة
+    // 4. التفاعل اللمسي (Haptic Feedback) - بدون أي تغيير
     try {
         if (window.Telegram.WebApp.HapticFeedback) {
             window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
         }
     } catch (e) { console.log("HapticFeedback not supported"); }
 
-    // 5. المحرك الذكي (تحديث البيانات فورياً)
+    // 5. المحرك الذكي وتحديث البيانات (نفس منطقك الأصلي 100%)
     const user = window.Telegram.WebApp.initDataUnsafe.user;
     if (user) {
         const userId = user.id;
@@ -1554,10 +1571,9 @@ function openTab(tabName, element) {
         switch(tabName) {
             case 'channels':
                 console.log("📈 تشغيل محرك الناشر الأقوى...");
-                // استدعاء المراقب الشامل الذي صنعناه
                 if (typeof startPublisherMonitor === "function") {
                     startPublisherMonitor(userId);
-                } else {
+                } else if (typeof startBalanceMonitor === "function") {
                     startBalanceMonitor(userId);
                 }
                 break;
@@ -1570,8 +1586,9 @@ function openTab(tabName, element) {
                 break;
                 
             case 'home':
-                // تحديث سريع للرصيد الرئيسي
-                startBalanceMonitor(userId);
+                if (typeof startBalanceMonitor === "function") {
+                    startBalanceMonitor(userId);
+                }
                 break;
         }
     }
