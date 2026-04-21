@@ -796,7 +796,7 @@ body {
 
 <script>
         
-   // ==========================================
+  // ==========================================
 // 1. إعدادات تليجرام الأساسية والتشغيل
 // ==========================================
 const webApp = window.Telegram.WebApp;
@@ -823,13 +823,31 @@ const db = firebase.database();
 function startApp() {
     webApp.ready();
     webApp.expand();
+    
     const user = webApp.initDataUnsafe.user;
     if (user) {
-        startBalanceMonitor(user.id);
-        startTransactionMonitor(user.id);
-        startCampaignsMonitor(user.id); // <--- أضف هذا السطر هنا
+        const userId = user.id;
+
+        // 1. مراقبة الرصيد العام (للمعلن وللواجهة الرئيسية)
+        startBalanceMonitor(userId);
         
-        if (user.id === ADMIN_ID) startAdminMonitor();
+        // 2. مراقبة أرباح وإحصائيات الناشر (المحرك الجديد والأقوى)
+        if (typeof startPublisherMonitor === "function") {
+            startPublisherMonitor(userId);
+        }
+
+        // 3. مراقبة المعاملات المالية (سحب/إيداع)
+        startTransactionMonitor(userId);
+        
+        // 4. مراقبة الحملات الإعلانية (للمعلن)
+        startCampaignsMonitor(userId); 
+        
+        // 5. التحقق من صلاحيات الإدمن
+        if (userId === ADMIN_ID) {
+            startAdminMonitor();
+        }
+    } else {
+        console.error("❌ فشل الحصول على بيانات المستخدم من Telegram");
     }
 }
 
@@ -854,49 +872,59 @@ function checkAdminPrivileges(user) {
 // ==========================================
 // 2. دوال السحب والأرباح (Publisher)
 // ==========================================
-async function executeWithdrawWorkflow() {
-    const amount = parseFloat(document.getElementById('withdraw-amount').value);
-    const wallet = document.getElementById('withdraw-wallet').value;
-    const currentBalance = 85.0; // هنا تضع متغير الرصيد الحقيقي من تطبيقك
-
-    // التحقق من الشروط
-    if (amount < 30) return webApp.showAlert("❌ الحد الأدنى للسحب 30$");
-    if (amount > currentBalance) return webApp.showAlert("⚠️ رصيدك غير كافٍ!");
-    if (!wallet.startsWith('T')) return webApp.showAlert("🚫 محفظة TRC20 غير صحيحة");
-
-    const btn = document.getElementById('confirm-withdraw-btn');
-    btn.innerText = "جاري المعالجة...";
-    btn.disabled = true;
-
-    // إرسال البيانات للبوت (هنا يحدث السحر)
-    const data = {
-        type: "withdrawal",
-        amount: amount,
-        fee: 3,
-        net: amount - 3,
-        wallet: wallet,
-        status: "Pending" // الحالة: قيد الانتظار
-    };
-
-    webApp.sendData(JSON.stringify(data));
-
-    // إشعار نهائي للمستخدم
-    setTimeout(() => {
-        webApp.showConfirm("✅ تم تقديم الطلب! سيصلك المبلغ خلال 24-48 ساعة بعد المراجعة.");
-        openTab('channels'); 
-    }, 1000);
-    }
-    
-
+// 1. حساب صافي السحب
 function calculateWithdrawNet() {
-    const amount = parseFloat(document.getElementById('withdraw-amount').value) || 0;
+    const amountInput = document.getElementById('withdraw-amount');
     const summary = document.getElementById('withdraw-summary');
+    const amount = parseFloat(amountInput.value) || 0;
+
     if (amount >= 30) {
         summary.innerText = `ستستلم: ${(amount - 3).toFixed(2)}$ (بعد خصم عمولة 3$)`;
         summary.style.color = "#2ecc71";
     } else {
         summary.innerText = "الحد الأدنى للسحب 30$";
         summary.style.color = "#e74c3c";
+    }
+}
+
+// 2. تنفيذ عملية السحب كاملة
+async function executeWithdrawWorkflow() {
+    const amount = parseFloat(document.getElementById('withdraw-amount').value);
+    const wallet = document.getElementById('withdraw-wallet').value;
+    
+    // جلب الرصيد الحالي (تأكد أن هذا المتغير هو نفسه المستخدم في تطبيقك)
+    const currentBalance = parseFloat(document.getElementById('withdrawable-balance-display').innerText.replace('$', '')) || 0;
+
+    if (isNaN(amount) || amount < 30) return webApp.showAlert("❌ الحد الأدنى للسحب 30$");
+    if (amount > currentBalance) return webApp.showAlert("⚠️ رصيدك الحالي غير كافٍ!");
+    if (!wallet || !wallet.startsWith('T')) return webApp.showAlert("🚫 يرجى إدخال محفظة TRC20 صحيحة تبدأ بحرف T");
+
+    const btn = document.getElementById('confirm-withdraw-btn');
+    btn.innerText = "جاري الإرسال...";
+    btn.disabled = true;
+
+    try {
+        const data = {
+            type: "withdrawal_request",
+            userId: webApp.initDataUnsafe.user.id,
+            amount: amount,
+            wallet: wallet,
+            netAmount: amount - 3,
+            date: new Date().toISOString()
+        };
+
+        // إرسال البيانات لتليجرام
+        webApp.sendData(JSON.stringify(data));
+        
+        webApp.showConfirm("✅ تم استلام طلبك بنجاح. سيتم التحقق وتحويل المبلغ خلال 24-48 ساعة.", (ok) => {
+            if(ok) openTab('channels');
+        });
+
+    } catch (error) {
+        webApp.showAlert("❌ حدث خطأ أثناء إرسال الطلب.");
+    } finally {
+        btn.innerText = "تأكيد وطلب السحب";
+        btn.disabled = false;
     }
 }
 
@@ -981,6 +1009,14 @@ function togglePublisherPanel() {
     }
 }
 
+// استدعِ هذه الدالة عند تحديث البيانات
+function refreshPublisherData(newData) {
+    // حركة عداد للرصيد
+    animateValue("withdrawable-balance-display", 0, newData.balance, 1500);
+    // حركة عداد للإحصائيات
+    animateValue("stat-clicks", 0, newData.clicks, 1000);
+    animateValue("total-net-earnings", 0, newData.totalNet, 2000);
+}
 
 // ==========================================
 // 3. دوال الإيداع والشحن (Deposit)
@@ -1269,8 +1305,10 @@ function setupGeoDropdowns(continentId, countryId) {
                 countrySelect.appendChild(opt);
             });
         }
+    }; // <--- هذا القوس كان مفقوداً (إغلاق onchange)
+} // <--- هذا القوس كان مفقوداً (إغلاق الدالة الأساسية)
 
-    function getInterestName(cat) {
+function getInterestName(cat) {
     const categories = {
         'all': 'عام 🌍', 'sports': 'رياضة ⚽', 'beauty': 'جمال ✨',
         'cooking': 'طبخ 🍳', 'movies': 'أفلام 🎬', 'crypto': 'عملات 🪙',
@@ -1278,11 +1316,12 @@ function setupGeoDropdowns(continentId, countryId) {
         'fun': 'ترفيه 😂', 'news': 'أخبار 🗞️'
     };
     return categories[cat] || 'عام 🌍';
-    }
+}
 
 // ==========================================
 // 5. نظام التنقل والواجهة (UI & Navigation)
 // ==========================================
+
 function openTab(tabName, element) {
     // 1. التنظيف (إخفاء كل الأقسام بناءً على الكلاس)
     document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
@@ -1346,8 +1385,8 @@ function openTab(tabName, element) {
                 break;
         }
     }
-}
-
+        }
+            
 function showToast(message, type = 'success') {
     const toast = document.createElement('div');
     toast.style = `
@@ -1396,9 +1435,21 @@ function startBalanceMonitor(userId) {
     db.ref('users/' + userId + '/balance').on('value', (snap) => {
         const newBal = parseFloat(snap.val() || 0);
         
-        const targetIds = ['bal-total', 'adv-rem-bal', 'bal-avail', 'user-balance-display'];
+        // أضفنا المعرفات الجديدة للقائمة هنا لكي تعمل الإحصائيات
+        const targetIds = [
+            'bal-total', 
+            'adv-rem-bal', 
+            'bal-avail', 
+            'user-balance-display',
+            'withdrawable-balance-display', // الإضافة الجديدة
+            'total-net-earnings'           // الإضافة الجديدة
+        ];
+
         targetIds.forEach(id => {
-            animateValue(id, lastBalance, newBal, 1000);
+            // التحقق من وجود العنصر قبل محاولة تحريكه لتجنب الأخطاء
+            if (document.getElementById(id)) {
+                animateValue(id, lastBalance, newBal, 1000);
+            }
         });
 
         if (newBal > lastBalance && lastBalance !== 0) {
@@ -1408,7 +1459,7 @@ function startBalanceMonitor(userId) {
         lastBalance = newBal;
     });
 }
-
+        
 function startTransactionMonitor(userId) {
     const transRef = db.ref('transactions/' + userId);
     transRef.off(); // فصل أي مراقب قديم لمنع تكرار البيانات
@@ -1451,13 +1502,43 @@ function startTransactionMonitor(userId) {
     });
 }
 
+// 6. المراقبة وتحديث البيانات (Monitors)
+// ==========================================
 
+function startPublisherMonitor(userId) {
+    console.log("🚀 تم تشغيل مراقب أرباح الناشر للمستخدم:", userId);
+    
+    // المراقبة الحية من قاعدة بيانات Firebase
+    db.ref('users/' + userId).on('value', (snapshot) => {
+        const data = snapshot.val();
+        
+        if (data) {
+            // تجميع البيانات الجديدة لإرسالها لدالة التحديث
+            const stats = {
+                balance: data.balance || 0,
+                clicks: data.publisher_stats?.clicks || 0,
+                totalNet: (data.balance + (data.publisher_stats?.total_earned || 0)) // مثال للحساب
+            };
+
+            // استدعاء الدالة التي تصنع حركة الأرقام (التي وضعناها في القسم 2)
+            refreshPublisherData(stats);
+            
+            // تحديث قائمة القنوات المسجلة بالمرة
+            if (typeof updateMyChannelsList === "function") {
+                updateMyChannelsList(data.channels);
+            }
+        }
+    }, (error) => {
+        console.error("❌ خطأ في مراقبة البيانات:", error);
+    });
+}
+        
 function startCampaignsMonitor(userId) {
     db.ref('campaigns').orderByChild('owner').equalTo(userId).on('value', (snap) => {
         const dashboard = document.getElementById('active-campaigns-dashboard');
         if (!dashboard) return;
 
-        dashboard.innerHTML = ''; // مسح المحتوى القديم لبدء التحديث اللحظي
+        dashboard.innerHTML = ''; 
 
         if (!snap.exists()) {
             dashboard.innerHTML = '<div style="opacity:0.5; font-size:11px; padding:20px; text-align:center;">لا توجد حملات جارية حالياً..</div>';
@@ -1468,7 +1549,6 @@ function startCampaignsMonitor(userId) {
             const camp = child.val();
             const statusInfo = getStatusStyle(camp.status);
             
-            // دمج التصميم الجديد مع بيانات الاهتمامات والجغرافيا
             dashboard.innerHTML += `
                 <div class="card" style="background: #0f172a; border: 1px solid #334155; padding: 12px; margin-bottom: 10px; text-align: right; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
                     <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
@@ -1505,10 +1585,9 @@ function startCampaignsMonitor(userId) {
                     ` : ''}
                 </div>
             `;
-        });
-    });
-    }
-
+        }); // إغلاق snap.forEach
+    }); // إغلاق on('value')
+} // إغلاق الدالة startCampaignsMonitor
 
 function updateRealTimeStats(userId) {
     console.log("تحديث إحصائيات المعلن للمستخدم: " + userId);
@@ -1625,6 +1704,7 @@ function approveDeposit(reqId, userId, amount) {
     });
 }
 
+// --- [ نهاية دالة adminAction ] ---
 function adminAction(type) {
     if (type === 'add') {
         const targetUid = document.getElementById('adm-uid').value;
@@ -1635,12 +1715,11 @@ function adminAction(type) {
         db.ref('users/' + targetUid + '/balance').transaction(curr => (parseFloat(curr) || 0) + parseFloat(amount))
         .then(() => {
             webApp.showAlert("✅ تمت إضافة $" + amount + " بنجاح إلى ID: " + targetUid);
-            document.getElementById('adm-val').value = ''; // تصفير المبلغ بعد التنفيذ
+            document.getElementById('adm-val').value = ''; 
         })
         .catch(err => webApp.showAlert("❌ خطأ: " + err.message));
     }
 }
-
 
 // ==========================================
 // إعدادات التشغيل النهائية (توضع مرة واحدة في نهاية الملف)
