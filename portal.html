@@ -335,224 +335,50 @@ body {
     animation: pulse-green 2s infinite;
 }
 
-/* الكارت الرئيسي بتصميم زجاجي احترافي */
-.publisher-header-card {
-    background: linear-gradient(145deg, #1e293b, #0f172a);
-    padding: 20px; 
-    border-radius: 22px;
-    display: flex; 
-    justify-content: space-between; 
-    align-items: center;
-    border: 1px solid rgba(59, 130, 246, 0.2); 
-    margin-bottom: 20px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+    .publisher-header-card {
+    background: #1e293b; padding: 20px; border-radius: 18px;
+    display: flex; justify-content: space-between; align-items: center;
+    border: 1px solid #334155; margin-bottom: 20px;
 }
+.stat-item small { color: #94a3b8; font-size: 11px; display: block; }
+.stat-item h3 { margin: 5px 0 0; font-size: 18px; }
+.withdraw-trigger-btn { background: #3b82f6; color: #fff; border: none; padding: 10px 20px; border-radius: 10px; font-weight: bold; cursor: pointer; }
 
-/* شبكة الإحصائيات */
-.stats-grid { 
-    display: grid; 
-    grid-template-columns: 1fr 1fr; 
-    gap: 12px; 
-}
-
-/* كروت الإحصائيات مع تأثير التحويم */
-.stat-card { 
-    background: #1e293b; 
-    padding: 18px; 
-    border-radius: 18px; 
-    border: 1px solid #334155; 
-    text-align: center;
-    transition: all 0.3s ease;
-}
-
-.stat-card:active {
-    transform: scale(0.96);
-    border-color: #3b82f6;
-}
-
-/* تاغ الربح الأخضر */
-.profit-tag { 
-    font-size: 10px; 
-    color: #2ecc71; 
-    background: rgba(46, 204, 113, 0.1); 
-    padding: 4px 8px; 
-    border-radius: 8px; 
-    margin-top: 8px;
-    display: inline-block;
-    font-weight: bold;
-}
-
-/* كارت السحب المطور */
-.withdraw-card { 
-    background: #0f172a; 
-    border-radius: 28px; 
-    padding: 25px; 
-    border: 1px solid rgba(59, 130, 246, 0.3); 
-}
-
-/* المدخلات الحديثة */
-.modern-input { 
-    width: 100%; 
-    padding: 14px; 
-    background: #1e293b; 
-    border: 1px solid #334155; 
-    border-radius: 12px; 
-    color: #fff; 
-    box-sizing: border-box;
-    transition: 0.3s;
-}
-
-.modern-input:focus {
-    border-color: #3b82f6;
-    outline: none;
-    background: #1e293b;
-}
-
-/* زر السحب العملاق */
-.main-withdraw-btn { 
-    width: 100%; 
-    padding: 16px; 
-    background: linear-gradient(90deg, #3b82f6, #2563eb); 
-    color: #fff; 
-    border: none; 
-    border-radius: 15px; 
-    font-weight: 800; 
-    margin-top: 20px; 
-    box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
-}
-            
-/* الخلفية العامة للقسم */
-#section-channels {
-    background: radial-gradient(circle at top right, #1e293b 0%, #0f172a 100%);
-    min-height: 100vh;
-}
-
-/* كارت الرصيد الملكي */
-.publisher-header-card {
-    background: rgba(255, 255, 255, 0.03);
-    backdrop-filter: blur(15px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 24px;
-    padding: 25px;
-    position: relative;
-    overflow: hidden;
-    box-shadow: 0 20px 40px rgba(0,0,0,0.4);
-}
-
-/* تأثير اللمعان المتحرك على الكارت */
-.publisher-header-card::before {
-    content: '';
-    position: absolute;
-    top: -50%; left: -50%;
-    width: 200%; height: 200%;
-    background: conic-gradient(transparent, rgba(56, 189, 248, 0.1), transparent 30%);
-    animation: rotate-glow 6s linear infinite;
-}
-
-@keyframes rotate-glow {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-}
-
-/* أزرار السحب المتوهجة */
-.withdraw-trigger-btn {
-    background: linear-gradient(135deg, #38bdf8, #2563eb) !important;
-    color: white;
-    border: none;
-    padding: 12px 24px;
-    border-radius: 14px;
-    font-weight: 800;
-    box-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
-    transition: 0.3s all cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    z-index: 2;
-}
-
-.withdraw-trigger-btn:active { transform: scale(0.9); }
-
-/* كروت الإحصائيات (الأقوى بـ Hover Effect) */
-.stat-card {
-    background: rgba(15, 23, 42, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 20px;
-    padding: 15px;
-    transition: 0.4s;
-    position: relative;
-}
-
-.stat-card:hover {
-    border-color: rgba(56, 189, 248, 0.5);
-    background: rgba(15, 23, 42, 0.9);
-}
-
-.stat-card h4 { font-size: 13px; color: #94a3b8; margin-bottom: 8px; }
-.stat-card p { font-size: 20px; font-weight: 900; color: #fff; margin: 0; }
-
-            /* تصميم الكروت والحقول */
-.modern-input {
-    width: 100%; padding: 12px; background: #0f172a; border: 1px solid #334155;
-    border-radius: 10px; color: #fff; font-size: 13px;
-}
-
-.check-card {
-    flex: 1; background: #0f172a; padding: 10px; border-radius: 8px;
-    text-align: center; color: #fff; font-size: 11px; border: 1px solid #334155;
-}
-
-.small-price-input {
-    width: 50px; background: #1e293b; border: 1px solid #f1c40f;
-    color: #fff; border-radius: 5px; text-align: center; font-weight: bold;
-}
-
-.step-btn {
-    width: 100%; padding: 14px; border-radius: 12px; border: none;
-    color: #fff; font-weight: bold; background: #0088cc; cursor: pointer;
-    transition: 0.3s;
-}
-
-.stat-card {
-    background: #1e293b; padding: 15px; border-radius: 18px; border: 1px solid #334155;
-}
-.stat-card small { color: #94a3b8; font-size: 10px; display: block; margin-bottom: 5px; }
-.stat-card p { font-size: 18px; font-weight: 900; margin: 0; color: #fff; }
-
-/* حركة نبض هادئة لكيس المال */
-@keyframes money-pulse {
-    0% { transform: scale(1); opacity: 0.8; }
-    50% { transform: scale(1.2); opacity: 1; text-shadow: 0 0 8px #f1c40f; }
-    100% { transform: scale(1); opacity: 0.8; }
-}
-
-/* حركة دوران خفيفة للصاروخ أو الساعة */
-@keyframes icon-float {
-    0% { transform: translateY(0); }
-    50% { transform: translateY(-5px); }
-    100% { transform: translateY(0); }
-}
-
-.ani-money { display: inline-block; animation: money-pulse 2s infinite ease-in-out; }
-.ani-float { display: inline-block; animation: icon-float 3s infinite ease-in-out; }
-
-/* هذا الكود يضمن أن الأقسام المخفية لا تأخذ مساحة ولا تظهر أبداً */
-.section {
-    display: none; /* مخفي افتراضياً */
-    visibility: hidden;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
-
-/* هذا الكلاس سيضاف فقط للقسم النشط بواسطة الجافا سكريبت */
-.section.active-section {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-}
-            
-            
+.withdraw-card { background: #0f172a; border-radius: 25px; padding: 25px; border: 1px solid #3b82f6; color: #fff; }
+.rules-box { background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 15px; border: 1px dashed #3b82f6; margin-bottom: 20px; font-size: 13px; }
+.rules-box p { margin: 5px 0; color: #cbd5e1; }
+.modern-input { width: 100%; padding: 12px; background: #1e293b; border: 1px solid #334155; border-radius: 10px; color: #fff; margin-top: 5px; outline: none; }
+.withdraw-summary { margin-top: 10px; font-size: 12px; color: #f1c40f; font-weight: bold; }
+.main-withdraw-btn { width: 100%; padding: 15px; background: #2ecc71; color: #fff; border: none; border-radius: 12px; font-weight: bold; margin-top: 20px; cursor: pointer; }
+.back-btn { background: none; border: none; color: #94a3b8; cursor: pointer; margin-bottom: 10px; }
+        
+          
     </style>
 </head>
 <body>
 
-        <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+<div id="modal-crypto-deposit" class="modal" style="display: none; position: fixed; z-index: 10000; inset: 0; background: rgba(0,0,0,0.95); align-items: center; justify-content: center; backdrop-filter: blur(8px);">
+    <div class="modal-content" style="border: 2px solid #2ecc71; width: 92%; max-width: 400px; background: #0f172a; border-radius: 30px; padding: 25px; position: relative; box-shadow: 0 0 30px rgba(46, 204, 113, 0.2);">
+        <span style="position: absolute; top: 15px; left: 20px; cursor: pointer; font-size: 24px; color: #64748b;" onclick="closeModal()">✕</span>
+        <h3 style="color:#2ecc71; text-align:center; margin-top:0; font-family: sans-serif;">🪙 شحن USDT (TRC20)</h3>
+        <div style="background: rgba(46, 204, 113, 0.05); padding: 15px; border-radius: 20px; border: 1px dashed #2ecc71; text-align: center; margin: 20px 0;">
+            <small style="color: #94a3b8; display: block; margin-bottom: 8px;">قم بالتحويل إلى العنوان التالي (شبكة TRON):</small>
+            <b id="wallet-addr" style="display:block; color: #fff; font-size: 11px; word-break: break-all; margin-bottom: 15px; font-family: monospace; letter-spacing: 0.5px;">TSiS4tDnUwa5YptcYatRZ8ykPeMwmALLSV</b>
+            <button onclick="copyWalletAddress()" style="width:100%; background:#2ecc71; border:none; padding:12px; border-radius:15px; font-weight:800; cursor:pointer; color:#000;">📋 نسخ عنوان المحفظة</button>
+        </div>
+        <div style="margin-bottom: 15px;">
+            <label style="color: #94a3b8; font-size: 12px; margin-right: 5px;">المبلغ بالدولار ($):</label>
+            <input type="number" id="final-amount" placeholder="مثلاً: 50" style="width:100%; background:#1e293b; color:white; border:1px solid #334155; padding:12px; border-radius:12px; margin-top:5px; outline:none;">
+        </div>
+        <div style="margin-bottom: 20px;">
+            <label style="color: #94a3b8; font-size: 12px; margin-right: 5px;">معرف العملية (TXID):</label>
+            <input type="text" id="final-txid" placeholder="الصق الـ TXID هنا" style="width:100%; background:#1e293b; color:white; border:1px solid #334155; padding:12px; border-radius:12px; margin-top:5px; outline:none;">
+        </div>
+        <button id="main-submit-btn" onclick="processDepositSubmission()" style="width:100%; background:#2ecc71; border:none; padding:18px; border-radius:20px; color:white; font-weight:800; cursor:pointer; font-size:16px; transition: 0.3s;">🚀 إرسال الطلب للمراجعة</button>
+    </div>
+</div>
+    
+<script src="https://cdn.jsdelivr.net/npm/eruda"></script>
 <script>eruda.init();</script>
 
 <div class="main-content" style="margin-top:60px; margin-bottom:80px;">
@@ -580,9 +406,8 @@ body {
   </div>
 
 </div>
-
     
-        <div id="section-home" class="section" style="display: none;">
+    <div id="sec-home" class="section" style="display: none;">
         <div class="card" style="text-align: center; border: 1px solid var(--accent);">
             <div id="user-rank" style="font-size: 10px; color: var(--gold); font-weight: bold;">MEMBER</div>
             <small>إجمالي الرصيد (USDT)</small>
@@ -596,11 +421,11 @@ body {
             <h4 style="margin:0; color:var(--danger);">🔥 عروض أمين الحصرية</h4>
             <p id="offer-text" style="font-size: 12px; color: #94a3b8; margin-top: 5px;">خصم 30% للمعلنين الدائمين!</p>
         </div>
-        </div>
-        
-<div id="section-promo" class="section" style="display:block;">
+    </div>
 
-      <div class="wallet-card" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 1px solid #334155; border-radius: 25px; padding: 20px; margin-bottom: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.2);">
+<div id="sec-promo" class="section" style="display: none;">
+    
+    <div class="wallet-card" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 1px solid #334155; border-radius: 25px; padding: 20px; margin-bottom: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.2);">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
         <span style="color: #94a3b8; font-size: 13px; font-weight: 500;">الميزانية الإعلانية</span>
         <div style="background: rgba(46, 204, 113, 0.1); color: #2ecc71; padding: 4px 10px; border-radius: 10px; font-size: 10px; font-weight: bold;">
@@ -663,8 +488,7 @@ body {
     <div class="modal-content" style="border: 2px solid var(--gold); max-width: 500px; background: var(--bg); color: var(--text); padding: 20px; border-radius: 20px;">
         <span style="float:left; cursor:pointer; font-size:24px;" onclick="closeModal()">✕</span>
         <h3 style="color:var(--gold); text-align:center; margin-bottom:15px;">🎯 تخصيص حملة Ads Pro</h3>
-    </div>
-        
+
         <div id="ad-preview" style="background: #242f3d; padding: 12px; border-radius: 12px; border: 1px solid #0fbcf9; margin-bottom: 15px; display: none;">
             <small style="color: #0fbcf9;">📱 شكل الإعلان المتوقع:</small>
             <div style="background: #17212b; padding: 10px; border-radius: 8px; margin-top: 5px;">
@@ -770,7 +594,7 @@ body {
         <button class="btn btn-primary" style="background:var(--safe); width:100%; border-radius:50px; padding: 12px; font-weight: bold;" onclick="processNewCampaign()">🚀 إطلاق الحملة الآن</button>
     </div>
 </div>
-    <div id="section-stats" class="section" style="display: none; padding: 15px;">
+    <div id="sec-stats" class="section" style="display: none; padding: 15px;">
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
         <div class="card" style="background: #1e293b; padding: 15px; border-radius: 20px; border-bottom: 3px solid #0984e3;">
             <small style="color: #64748b;">إجمالي المشاهدات</small><br>
@@ -794,136 +618,49 @@ body {
             <div id="bar-7" style="width: 15px; background: #2ecc71; border-radius: 4px; height: 90%;"></div>
         </div>
     </div>
-        </div>
-    
-    <div id="section-channels" class="section" style="display: none; padding: 15px; background: #0f172a;">
-    
-    <div class="publisher-header-card" style="margin-bottom: 20px;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div>
-                <small style="color: #38bdf8; font-weight: bold; letter-spacing: 1px;">AVAILABLE BALANCE</small>
-                <h2 id="withdrawable-balance-display" style="color: #fff; font-size: 28px; margin: 5px 0;">$0.00</h2>
-            </div>
-            <button class="withdraw-trigger-btn" onclick="openTab('withdraw')">💳 سحب الآن</button>
-        </div>
     </div>
+    
+<div id="sec-channels" class="section" style="display: none; padding: 15px;">
 
-    <div class="stats-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 25px;">
-        <div class="stat-card">
-            <small>🖱️ CPC Profits</small>
-            <p id="stat-clicks">0</p>
-        </div>
-        <div class="stat-card">
-            <small>🚀 CPM Profits</small>
-            <p id="stat-views">0</p>
-        </div>
-        <div class="stat-card">
-            <small>⏳ Fixed Ads</small>
-            <p id="stat-fixed-posts">0</p>
-        </div>
-        <div class="stat-card">
-    <small style="color: #f1c40f;">MEMBER</small>
-    <h4 style="color: #fff;">إجمالي الرصيد (USDT) <span class="ani-money">💰</span></h4>
-    <p id="total-balance-display" style="font-size: 24px; font-weight: 900; color: #f1c40f;">0.00</p>
-        </div>
-
-    <button onclick="togglePublisherPanel()" class="add-channel-btn" style="width: 100%; padding: 16px; background: linear-gradient(90deg, #f1c40f, #f39c12); border: none; border-radius: 15px; font-weight: 900; color: #000; box-shadow: 0 4px 15px rgba(243, 156, 18, 0.2);">
-        ✨ إضافة قناة جديدة للمنصة
-    </button>
-
-    <div id="publisher-panel" style="display: none; background: #1a1f2e; padding: 20px; border-radius: 20px; margin-top: 20px; border: 1px solid #334155; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-        
-        <h3 style="color: #f1c40f; text-align: center; margin-bottom: 20px;">📝 تسجيل بيانات القناة</h3>
-        
-        <input type="text" id="ch-name" class="modern-input" placeholder="🏷️ اسم قناتك" style="margin-bottom: 12px;">
-        <input type="text" id="ch-link" class="modern-input" placeholder="🔗 رابط القناة @username" style="margin-bottom: 12px;">
-        
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
-            <select id="ch-continent" class="modern-input" onchange="setupGeoDropdowns()">
-                <option value="">🌍 المنطقة</option>
-            </select>
-            <select id="ch-country" class="modern-input">
-                <option value="all">كل الدول</option>
-            </select>
-        </div>
-
-        <div style="background: rgba(255,255,255,0.03); padding: 15px; border-radius: 15px; border: 1px dashed #444;">
-            <label style="color: #38bdf8; font-size: 11px; font-weight: bold;">🎯 تخصص المحتوى:</label>
-            <select id="pub-ch-category" class="modern-input" style="margin: 8px 0;">
-                <option value="movies">الأفلام والمسلسلات 🎬</option>
-                <option value="crypto">العملات المشفره 🪙</option>
-                <option value="tech">التكنولوجيا 📱</option>
-            </select>
-
-            <label style="color: #38bdf8; font-size: 11px; font-weight: bold;">💳 أنواع الإعلانات المقبولة:</label>
-            <div style="display: flex; gap: 10px; margin-top: 8px;">
-                <label class="check-card"><input type="checkbox" id="pub-accept-fixed" checked> ثابت</label>
-                <label class="check-card"><input type="checkbox" id="pub-accept-performance" checked> أداء</label>
+<div id="sec-channels" class="section" style="display: none; padding: 15px;">
+    <div class="publisher-header-card">
+        <div style="display: flex; gap: 20px;">
+            <div class="stat-item">
+                <small>إجمالي الأرباح 📈</small>
+                <h3 id="total-earned-display">$0.00</h3>
+            </div>
+            <div class="stat-item">
+                <small>القابل للسحب 💰</small>
+                <h3 id="withdrawable-balance-display" style="color: #2ecc71;">$0.00</h3>
             </div>
         </div>
-
-        <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 12px; margin-top: 15px; border-left: 4px solid #f1c40f;">
-            <div style="display: flex; justify-content: space-between; align-items: center; color: #fff;">
-                <span>⏰ سعر المنشور (24h):</span>
-                <div style="display: flex; align-items: center; gap: 5px;">
-                    <input type="number" id="price-24h" value="5" class="small-price-input"> $
-                </div>
-            </div>
-        </div>
-
-        <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 12px;">
-    
-    <button class="step-btn" style="background: #0088cc; display: flex; align-items: center; justify-content: center; gap: 10px;" 
-            onclick="window.open('https://t.me/Ads_telegabot?startchannel=true')">
-        <span>🤖</span> 1. إضافة البوت كمسؤول
-    </button>
-
-    <button class="step-btn" style="background: rgba(255,255,255,0.05); border: 1px solid #444; color: #fff;" 
-            onclick="tg.showAlert('🔍 يتم الآن فحص صلاحيات البوت في القناة... \nيرجى التأكد من منحه صلاحية (نشر الرسائل)')">
-        <span>🔍</span> 2. تحقق من الصلاحيات
-    </button>
-    
-    <button class="step-btn" style="background: linear-gradient(90deg, #2ecc71, #27ae60); box-shadow: 0 4px 15px rgba(46, 204, 113, 0.2);" 
-            onclick="submitEliteChannel()">
-        <span>🚀</span> 3. تقديم القناة للمراجعة
-    </button>
-
-    <button onclick="togglePublisherPanel()" style="background: none; border: none; color: #64748b; font-size: 11px; margin-top: 5px;">
-        إلغاء العملية ✖️
-    </button>
-        </div>
-
-    <div style="margin-top: 35px;">
-        <h4 style="color: #94a3b8; font-size: 14px; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
-            <span style="width: 20px; height: 1px; background: #444;"></span>
-            📺 قنواتك المسجلة
-        </h4>
-        <div id="my-elite-channels" style="min-height: 100px;"></div>
+        <button class="withdraw-trigger-btn" onclick="openTab('withdraw')">سحب الآن</button>
     </div>
-    </div>
-        
 
-<div id="section-withdraw" class="section" style="display: none; padding: 15px;">
+    </div>
+
+<div id="sec-withdraw" class="section" style="display: none; padding: 15px;">
     <div class="withdraw-card">
-        <button onclick="openTab('channels')" class="back-btn">⬅️ العودة للناشر</button>
+        <button onclick="openTab('channels')" class="back-btn">⬅️ العودة</button>
         
         <h2 style="text-align: center; color: #fff; margin-bottom: 20px;">طلب سحب أرباح</h2>
         
         <div class="rules-box">
             <p>📌 <b>الحد الأدنى:</b> 30$</p>
-            <p>💸 <b>العمولة:</b> 3$ (رسوم الشبكة)</p>
+            <p>🕒 <b>وقت المعالجة:</b> 24 - 48 ساعة</p>
+            <p>💸 <b>العمولة:</b> 3$ ثابتة (رسوم الشبكة)</p>
             <p>🌐 <b>الوسيلة:</b> USDT (TRC20)</p>
         </div>
 
-        <div class="input-container" style="margin-bottom:15px;">
-            <label style="display:block; margin-bottom:5px; font-size:12px;">عنوان المحفظة (USDT TRC20)</label>
+        <div class="input-container">
+            <label>عنوان المحفظة (USDT TRC20)</label>
             <input type="text" id="withdraw-wallet" placeholder="T..." class="modern-input">
         </div>
 
         <div class="input-container">
-            <label style="display:block; margin-bottom:5px; font-size:12px;">المبلغ المطلوب</label>
+            <label>المبلغ المطلوب</label>
             <input type="number" id="withdraw-amount" oninput="calculateWithdrawNet()" placeholder="0.00" class="modern-input">
-            <div id="withdraw-summary" class="withdraw-summary" style="margin-top:10px;">الحد الأدنى للسحب 30$</div>
+            <div id="withdraw-summary" class="withdraw-summary">ستستلم: 0.00$</div>
         </div>
 
         <button id="confirm-withdraw-btn" onclick="executeWithdrawWorkflow()" class="main-withdraw-btn">
@@ -931,10 +668,109 @@ body {
         </button>
     </div>
 </div>
-    </div>
     
+    
+    <div class="stats-grid">
+        <div class="stat-card" style="border-bottom: 4px solid #3498db;">
+            <h4 style="color: #3498db; font-size: 12px; margin: 0;">🖱️ النقرات (CPC)</h4>
+            <p id="stat-clicks" style="font-size: 20px; font-weight: bold; margin: 8px 0;">0</p>
+            <div class="profit-tag">الربح: $<span id="profit-clicks">0.00</span></div>
+        </div>
 
-<div id="section-admin" class="section" style="display: none; padding: 15px; background: #0f172a; min-height: 100vh;">
+        <div class="stat-card" style="border-bottom: 4px solid #2ecc71;">
+            <h4 style="color: #2ecc71; font-size: 12px; margin: 0;">🚀 المشاهدات (CPM)</h4>
+            <p id="stat-views" style="font-size: 20px; font-weight: bold; margin: 8px 0;">0</p>
+            <div class="profit-tag">الربح: $<span id="profit-views">0.00</span></div>
+        </div>
+
+        <div class="stat-card" style="border-bottom: 4px solid #9b59b6;">
+            <h4 style="color: #9b59b6; font-size: 12px; margin: 0;">⏰ منشورات (24h)</h4>
+            <p id="stat-timed" style="font-size: 20px; font-weight: bold; margin: 8px 0;">0</p>
+            <div class="profit-tag">الربح: $<span id="profit-timed">0.00</span></div>
+        </div>
+
+        <div class="stat-card" style="background: linear-gradient(135deg, #f1c40f, #f39c12); color: #000; border:none; display: flex; flex-direction: column; justify-content: center;">
+            <h4 style="margin: 0; font-size: 12px; font-weight: 800;">💰 الإجمالي الصافي</h4>
+            <h2 style="margin: 5px 0; font-size: 24px;">$<span id="total-net-earnings">0.00</span></h2>
+        </div>
+    </div>
+
+    <button class="btn-premium-add" onclick="togglePublisherPanel()" style="margin-top: 20px;">
+        ➕ إضافة قناة جديدة للمنصة
+    </button>
+
+    <div id="publisher-panel" style="display: none; background: #1a1a1a; padding: 20px; border-radius: 15px; margin-top: 20px; border: 1px solid #333;">
+        <h3 style="color: #f1c40f; text-align: center; margin-bottom: 20px; font-weight: 800;">📝 بيانات القناة</h3>
+        
+        <input type="text" id="ch-name" class="input-premium" placeholder="🏷️ اسم قناتك">
+        <input type="text" id="ch-link" class="input-premium" placeholder="🔗 رابط القناة @username">
+        
+        <label style="color: #888; font-size: 12px; display: block; margin-top: 10px;">🌍 استهداف القناة:</label>
+        <select id="ch-continent" class="input-premium" style="margin-bottom: 8px; width: 100%;">
+            <option value="">اختر المنطقة...</option>
+        </select>
+        <select id="ch-country" class="input-premium" style="width: 100%;">
+            <option value="all">كل دول المنطقة</option>
+        </select>
+
+<div class="card" style="background: #1e293b; padding: 15px; border-radius: 20px; margin-top: 15px; border: 1px dashed #334155;">
+    <h4 style="color: #38bdf8; font-size: 13px; margin-bottom: 12px;">🛠️ إعدادات استقبال الإعلانات:</h4>
+
+    <label class="label-small">🎯 تخصص محتوى القناة:</label>
+    <select id="pub-ch-category" class="input-premium">
+        <option value="all">عام 🌍</option>
+        <option value="crypto">العملات المشفره 🪙</option>
+        <option value="movies">الأفلام والمسلسلات 🎬</option>
+        <option value="tech">التكنولوجيا والتقنية 📱</option>
+        <option value="coding">التطبيقات والبرمجة 💻</option>
+    </select>
+
+    <label class="label-small">🌍 الجمهور الغالب في القناة:</label>
+    <select id="pub-ch-region" class="input-premium">
+        <option value="global">عالمي (كل المناطق)</option>
+        <option value="mena">الشرق الأوسط وشمال أفريقيا</option>
+        <option value="gcc">دول الخليج العربي</option>
+        <option value="eu">أوروبا وأمريكا</option>
+    </select>
+
+    <label class="label-small">💳 أنواع الإعلانات التي تقبلها:</label>
+    <div style="display: flex; gap: 8px; margin-top: 5px;">
+        <label style="font-size: 10px; color: #fff; background: rgba(255,255,255,0.05); padding: 5px 10px; border-radius: 8px; flex: 1; text-align: center;">
+            <input type="checkbox" id="pub-accept-fixed" checked> ثابت 1/24
+        </label>
+        <label style="font-size: 10px; color: #fff; background: rgba(255,255,255,0.05); padding: 5px 10px; border-radius: 8px; flex: 1; text-align: center;">
+            <input type="checkbox" id="pub-accept-performance"> أداء (نقرات/مشاهدات)
+        </label>
+    </div>
+</div>
+        <div style="background:rgba(0,0,0,0.6); padding:15px; border-radius:15px; margin: 15px 0; font-size:13px; border:1px solid #444;">
+            <p style="margin-bottom:10px; color: #fff;">⏰ <b>منشور (24h):</b> 
+                               <input type="number" id="price-24h" placeholder="0" style="width:60px; background:none; border:1px solid #f1c40f; color:white; border-radius:5px; text-align: center;"> $ 
+                <small style="color: #888;">(عمولتنا 10%)</small>
+            </p>
+            <p style="margin-bottom:10px; color: #fff;">🖱️ <b>نقرات (CPC):</b> <span style="color:#2ecc71; font-weight: bold;">5$ / 1000</span></p>
+            <p style="margin: 0; color: #fff;">🚀 <b>مشاهدات (CPM):</b> <span style="color:#2ecc71; font-weight: bold;">1$ / 1000</span></p>
+        </div>
+
+                <button class="btn-premium-add" style="width:100%; background:#0088cc; color:white; border-radius: 12px; margin-bottom: 10px; padding: 12px; border: none; cursor: pointer;" onclick="window.open('https://t.me/Ads_telegabot?startchannel=true')">
+            🤖 1. إضافة البوت كمسؤول
+        </button>
+
+        <button onclick="tg.showAlert('🔍 يتم الآن التحقق من الصلاحيات...')" style="width:100%; padding:12px; background:none; border:1px solid #444; color:white; border-radius:12px; margin-bottom:10px; cursor: pointer;">
+            🔍 2. تحقق من الإضافة
+        </button>
+        
+        <button onclick="submitEliteChannel()" style="width:100%; padding:15px; background:#2ecc71; border:none; color:white; border-radius:12px; font-weight:bold; font-size:16px; cursor: pointer;">
+            🚀 3. تقديم القناة للمراجعة
+        </button>
+
+    </div> 
+
+    <h4 style="color:#888; font-size:14px; margin-top: 30px;">📺 قنواتك المسجلة:</h4>
+    <div id="my-elite-channels" style="min-height: 50px;"></div>
+</div>
+
+<div id="sec-admin" class="section" style="display: none; padding: 15px; background: #0f172a; min-height: 100vh;">
     
     <div class="card-glass" style="background: linear-gradient(135deg, #1e3799, #0984e3); color: white; padding: 25px; border-radius: 25px; margin-bottom: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1);">
         <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -979,7 +815,6 @@ body {
     </div>
 </div>
 
-            
 <script>
         
    // ==========================================
@@ -1009,31 +844,13 @@ const db = firebase.database();
 function startApp() {
     webApp.ready();
     webApp.expand();
-    
     const user = webApp.initDataUnsafe.user;
     if (user) {
-        const userId = user.id;
-
-        // 1. مراقبة الرصيد العام (للمعلن وللواجهة الرئيسية)
-        startBalanceMonitor(userId);
+        startBalanceMonitor(user.id);
+        startTransactionMonitor(user.id);
+        startCampaignsMonitor(user.id); // <--- أضف هذا السطر هنا
         
-        // 2. مراقبة أرباح وإحصائيات الناشر (المحرك الجديد والأقوى)
-        if (typeof startPublisherMonitor === "function") {
-            startPublisherMonitor(userId);
-        }
-
-        // 3. مراقبة المعاملات المالية (سحب/إيداع)
-        startTransactionMonitor(userId);
-        
-        // 4. مراقبة الحملات الإعلانية (للمعلن)
-        startCampaignsMonitor(userId); 
-        
-        // 5. التحقق من صلاحيات الإدمن
-        if (userId === ADMIN_ID) {
-            startAdminMonitor();
-        }
-    } else {
-        console.error("❌ فشل الحصول على بيانات المستخدم من Telegram");
+        if (user.id === ADMIN_ID) startAdminMonitor();
     }
 }
 
@@ -1058,59 +875,49 @@ function checkAdminPrivileges(user) {
 // ==========================================
 // 2. دوال السحب والأرباح (Publisher)
 // ==========================================
-// 1. حساب صافي السحب
-function calculateWithdrawNet() {
-    const amountInput = document.getElementById('withdraw-amount');
-    const summary = document.getElementById('withdraw-summary');
-    const amount = parseFloat(amountInput.value) || 0;
+async function executeWithdrawWorkflow() {
+    const amount = parseFloat(document.getElementById('withdraw-amount').value);
+    const wallet = document.getElementById('withdraw-wallet').value;
+    const currentBalance = 85.0; // هنا تضع متغير الرصيد الحقيقي من تطبيقك
 
+    // التحقق من الشروط
+    if (amount < 30) return webApp.showAlert("❌ الحد الأدنى للسحب 30$");
+    if (amount > currentBalance) return webApp.showAlert("⚠️ رصيدك غير كافٍ!");
+    if (!wallet.startsWith('T')) return webApp.showAlert("🚫 محفظة TRC20 غير صحيحة");
+
+    const btn = document.getElementById('confirm-withdraw-btn');
+    btn.innerText = "جاري المعالجة...";
+    btn.disabled = true;
+
+    // إرسال البيانات للبوت (هنا يحدث السحر)
+    const data = {
+        type: "withdrawal",
+        amount: amount,
+        fee: 3,
+        net: amount - 3,
+        wallet: wallet,
+        status: "Pending" // الحالة: قيد الانتظار
+    };
+
+    webApp.sendData(JSON.stringify(data));
+
+    // إشعار نهائي للمستخدم
+    setTimeout(() => {
+        webApp.showConfirm("✅ تم تقديم الطلب! سيصلك المبلغ خلال 24-48 ساعة بعد المراجعة.");
+        openTab('channels'); 
+    }, 1000);
+    }
+    
+
+function calculateWithdrawNet() {
+    const amount = parseFloat(document.getElementById('withdraw-amount').value) || 0;
+    const summary = document.getElementById('withdraw-summary');
     if (amount >= 30) {
         summary.innerText = `ستستلم: ${(amount - 3).toFixed(2)}$ (بعد خصم عمولة 3$)`;
         summary.style.color = "#2ecc71";
     } else {
         summary.innerText = "الحد الأدنى للسحب 30$";
         summary.style.color = "#e74c3c";
-    }
-}
-
-// 2. تنفيذ عملية السحب كاملة
-async function executeWithdrawWorkflow() {
-    const amount = parseFloat(document.getElementById('withdraw-amount').value);
-    const wallet = document.getElementById('withdraw-wallet').value;
-    
-    // جلب الرصيد الحالي (تأكد أن هذا المتغير هو نفسه المستخدم في تطبيقك)
-    const currentBalance = parseFloat(document.getElementById('withdrawable-balance-display').innerText.replace('$', '')) || 0;
-
-    if (isNaN(amount) || amount < 30) return webApp.showAlert("❌ الحد الأدنى للسحب 30$");
-    if (amount > currentBalance) return webApp.showAlert("⚠️ رصيدك الحالي غير كافٍ!");
-    if (!wallet || !wallet.startsWith('T')) return webApp.showAlert("🚫 يرجى إدخال محفظة TRC20 صحيحة تبدأ بحرف T");
-
-    const btn = document.getElementById('confirm-withdraw-btn');
-    btn.innerText = "جاري الإرسال...";
-    btn.disabled = true;
-
-    try {
-        const data = {
-            type: "withdrawal_request",
-            userId: webApp.initDataUnsafe.user.id,
-            amount: amount,
-            wallet: wallet,
-            netAmount: amount - 3,
-            date: new Date().toISOString()
-        };
-
-        // إرسال البيانات لتليجرام
-        webApp.sendData(JSON.stringify(data));
-        
-        webApp.showConfirm("✅ تم استلام طلبك بنجاح. سيتم التحقق وتحويل المبلغ خلال 24-48 ساعة.", (ok) => {
-            if(ok) openTab('channels');
-        });
-
-    } catch (error) {
-        webApp.showAlert("❌ حدث خطأ أثناء إرسال الطلب.");
-    } finally {
-        btn.innerText = "تأكيد وطلب السحب";
-        btn.disabled = false;
     }
 }
 
@@ -1195,14 +1002,6 @@ function togglePublisherPanel() {
     }
 }
 
-// استدعِ هذه الدالة عند تحديث البيانات
-function refreshPublisherData(newData) {
-    // حركة عداد للرصيد
-    animateValue("withdrawable-balance-display", 0, newData.balance, 1500);
-    // حركة عداد للإحصائيات
-    animateValue("stat-clicks", 0, newData.clicks, 1000);
-    animateValue("total-net-earnings", 0, newData.totalNet, 2000);
-}
 
 // ==========================================
 // 3. دوال الإيداع والشحن (Deposit)
@@ -1491,10 +1290,8 @@ function setupGeoDropdowns(continentId, countryId) {
                 countrySelect.appendChild(opt);
             });
         }
-    }; // <--- هذا القوس كان مفقوداً (إغلاق onchange)
-} // <--- هذا القوس كان مفقوداً (إغلاق الدالة الأساسية)
 
-function getInterestName(cat) {
+    function getInterestName(cat) {
     const categories = {
         'all': 'عام 🌍', 'sports': 'رياضة ⚽', 'beauty': 'جمال ✨',
         'cooking': 'طبخ 🍳', 'movies': 'أفلام 🎬', 'crypto': 'عملات 🪙',
@@ -1502,77 +1299,46 @@ function getInterestName(cat) {
         'fun': 'ترفيه 😂', 'news': 'أخبار 🗞️'
     };
     return categories[cat] || 'عام 🌍';
-}
+    }
 
 // ==========================================
 // 5. نظام التنقل والواجهة (UI & Navigation)
 // ==========================================
 
 function openTab(tabName, element) {
-    // 1. التنظيف (إخفاء كل الأقسام بناءً على الكلاس)
+    // 1. التنظيف (إخفاء كل شيء ومسح حالة الأزرار)
     document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
 
-    // 2. الإظهار (التأكد من مطابقة الـ ID للـ HTML)
-    // لاحظ: إذا كانت أقسامك في الـ HTML تبدأ بـ 'section-' اتركها كما هي
-    const target = document.getElementById('section-' + tabName);
-    
+    // 2. الإظهار (فتح القسم الذي طلبه المستخدم)
+    const target = document.getElementById('sec-' + tabName);
     if (target) {
         target.style.display = 'block';
-        // تمرير الشاشة للأعلى عند الانتقال
-        window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
-        // رسالة تنبيه برمجية أوضح للمطور
-        console.warn(`⚠️ تنبيه: القسم section-${tabName} غير موجود في الـ HTML حالياً.`);
+        console.error("خطأ: القسم sec-" + tabName + " غير موجود في الـ HTML");
     }
 
-    // 3. التفعيل البصري للزر
-    if (element) {
-        element.classList.add('active');
-    } else {
-        // محاولة إيجاد الزر برمجياً إذا لم يُمرر الـ element
-        const navBtn = document.querySelector(`.nav-item[onclick*="${tabName}"]`);
-        if (navBtn) navBtn.classList.add('active');
+    // 3. التفعيل (تغيير لون الزر في القائمة السفلية)
+    if (element) element.classList.add('active');
+
+    // 4. التفاعل (الاهتزاز للموبايل)
+    if (window.Telegram.WebApp.HapticFeedback) {
+        window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
     }
 
-    // 4. التفاعل اللمسي (Haptic Feedback) - متوافق مع الإصدارات الحديثة
-    try {
-        if (window.Telegram.WebApp.HapticFeedback) {
-            window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
-        }
-    } catch (e) { console.log("HapticFeedback not supported"); }
-
-    // 5. المحرك الذكي (تحديث البيانات فورياً)
+    // 5. الذكاء (تحديث البيانات بناءً على القسم المفتوح)
     const user = window.Telegram.WebApp.initDataUnsafe.user;
     if (user) {
-        const userId = user.id;
-        
-        switch(tabName) {
-            case 'channels':
-                console.log("📈 تشغيل محرك الناشر الأقوى...");
-                // استدعاء المراقب الشامل الذي صنعناه
-                if (typeof startPublisherMonitor === "function") {
-                    startPublisherMonitor(userId);
-                } else {
-                    startBalanceMonitor(userId);
-                }
-                break;
-                
-            case 'promo':
-                console.log("🎯 تحديث حملات المعلن...");
-                if (typeof startCampaignsMonitor === "function") {
-                    startCampaignsMonitor(userId);
-                }
-                break;
-                
-            case 'home':
-                // تحديث سريع للرصيد الرئيسي
-                startBalanceMonitor(userId);
-                break;
+        if (tabName === 'channels') {
+            // تحديث رصيد الناشر فور فتح القسم
+            console.log("تحديث بيانات الناشر...");
+            startBalanceMonitor(user.id); 
+        }
+        if (tabName === 'promo') {
+            startCampaignsMonitor(user.id);
         }
     }
-        }
-            
+
 function showToast(message, type = 'success') {
     const toast = document.createElement('div');
     toast.style = `
@@ -1621,21 +1387,9 @@ function startBalanceMonitor(userId) {
     db.ref('users/' + userId + '/balance').on('value', (snap) => {
         const newBal = parseFloat(snap.val() || 0);
         
-        // أضفنا المعرفات الجديدة للقائمة هنا لكي تعمل الإحصائيات
-        const targetIds = [
-            'bal-total', 
-            'adv-rem-bal', 
-            'bal-avail', 
-            'user-balance-display',
-            'withdrawable-balance-display', // الإضافة الجديدة
-            'total-net-earnings'           // الإضافة الجديدة
-        ];
-
+        const targetIds = ['bal-total', 'adv-rem-bal', 'bal-avail', 'user-balance-display'];
         targetIds.forEach(id => {
-            // التحقق من وجود العنصر قبل محاولة تحريكه لتجنب الأخطاء
-            if (document.getElementById(id)) {
-                animateValue(id, lastBalance, newBal, 1000);
-            }
+            animateValue(id, lastBalance, newBal, 1000);
         });
 
         if (newBal > lastBalance && lastBalance !== 0) {
@@ -1645,7 +1399,7 @@ function startBalanceMonitor(userId) {
         lastBalance = newBal;
     });
 }
-        
+
 function startTransactionMonitor(userId) {
     const transRef = db.ref('transactions/' + userId);
     transRef.off(); // فصل أي مراقب قديم لمنع تكرار البيانات
@@ -1688,43 +1442,13 @@ function startTransactionMonitor(userId) {
     });
 }
 
-// 6. المراقبة وتحديث البيانات (Monitors)
-// ==========================================
 
-function startPublisherMonitor(userId) {
-    console.log("🚀 تم تشغيل مراقب أرباح الناشر للمستخدم:", userId);
-    
-    // المراقبة الحية من قاعدة بيانات Firebase
-    db.ref('users/' + userId).on('value', (snapshot) => {
-        const data = snapshot.val();
-        
-        if (data) {
-            // تجميع البيانات الجديدة لإرسالها لدالة التحديث
-            const stats = {
-                balance: data.balance || 0,
-                clicks: data.publisher_stats?.clicks || 0,
-                totalNet: (data.balance + (data.publisher_stats?.total_earned || 0)) // مثال للحساب
-            };
-
-            // استدعاء الدالة التي تصنع حركة الأرقام (التي وضعناها في القسم 2)
-            refreshPublisherData(stats);
-            
-            // تحديث قائمة القنوات المسجلة بالمرة
-            if (typeof updateMyChannelsList === "function") {
-                updateMyChannelsList(data.channels);
-            }
-        }
-    }, (error) => {
-        console.error("❌ خطأ في مراقبة البيانات:", error);
-    });
-}
-        
 function startCampaignsMonitor(userId) {
     db.ref('campaigns').orderByChild('owner').equalTo(userId).on('value', (snap) => {
         const dashboard = document.getElementById('active-campaigns-dashboard');
         if (!dashboard) return;
 
-        dashboard.innerHTML = ''; 
+        dashboard.innerHTML = ''; // مسح المحتوى القديم لبدء التحديث اللحظي
 
         if (!snap.exists()) {
             dashboard.innerHTML = '<div style="opacity:0.5; font-size:11px; padding:20px; text-align:center;">لا توجد حملات جارية حالياً..</div>';
@@ -1735,6 +1459,7 @@ function startCampaignsMonitor(userId) {
             const camp = child.val();
             const statusInfo = getStatusStyle(camp.status);
             
+            // دمج التصميم الجديد مع بيانات الاهتمامات والجغرافيا
             dashboard.innerHTML += `
                 <div class="card" style="background: #0f172a; border: 1px solid #334155; padding: 12px; margin-bottom: 10px; text-align: right; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
                     <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
@@ -1771,9 +1496,10 @@ function startCampaignsMonitor(userId) {
                     ` : ''}
                 </div>
             `;
-        }); // إغلاق snap.forEach
-    }); // إغلاق on('value')
-} // إغلاق الدالة startCampaignsMonitor
+        });
+    });
+    }
+
 
 function updateRealTimeStats(userId) {
     console.log("تحديث إحصائيات المعلن للمستخدم: " + userId);
@@ -1890,7 +1616,6 @@ function approveDeposit(reqId, userId, amount) {
     });
 }
 
-// --- [ نهاية دالة adminAction ] ---
 function adminAction(type) {
     if (type === 'add') {
         const targetUid = document.getElementById('adm-uid').value;
@@ -1901,29 +1626,28 @@ function adminAction(type) {
         db.ref('users/' + targetUid + '/balance').transaction(curr => (parseFloat(curr) || 0) + parseFloat(amount))
         .then(() => {
             webApp.showAlert("✅ تمت إضافة $" + amount + " بنجاح إلى ID: " + targetUid);
-            document.getElementById('adm-val').value = ''; 
+            document.getElementById('adm-val').value = ''; // تصفير المبلغ بعد التنفيذ
         })
         .catch(err => webApp.showAlert("❌ خطأ: " + err.message));
     }
 }
 
-// ==========================================
-// إعدادات التشغيل النهائية (توضع مرة واحدة في نهاية الملف)
-// ==========================================
 
-// تشغيل الاهتزاز عند تحميل الصفحة (اختياري)
-if (webApp.isVersionAtLeast('6.1') && webApp.HapticFeedback) {
+if (webApp.HapticFeedback) {
     webApp.HapticFeedback.selectionChanged();
 }
-        
+    
+// ==========================================
+// 1. إعدادات تليجرام الأساسية والتشغيل
+// ==========================================
+const webApp = window.Telegram.WebApp;
+const MY_ADMIN_ID = 549686235; // ضعه هنا
 
-// أمر تشغيل التطبيق
-window.onload = startApp;
+    window.onload = startApp;
 
-// مراقبة حالة الإنترنت
 window.addEventListener('offline', () => showToast("🔴 انقطع الاتصال بالإنترنت!", "error"));
 window.addEventListener('online', () => showToast("🟢 عاد الاتصال بالإنترنت", "success"));
-        
+
 </script>
 </body>
 </html>
