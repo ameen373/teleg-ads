@@ -1765,40 +1765,9 @@ function updateRealTimeStats(userId) {
     });
 }
 
-function handleDecision(reqId, userId, amount, action) {
-    const requestRef = db.ref('deposit_requests/' + reqId);
-    
-    if (action === 'approve') {
-        requestRef.update({ status: 'approved' }).then(() => {
-            // إضافة الرصيد
-            db.ref('users/' + userId + '/balance').transaction(curr => (parseFloat(curr) || 0) + parseFloat(amount));
-            // إضافة سجل عملية ناجحة
-            db.ref('transactions/' + userId).push({
-                type: 'deposit',
-                title: 'شحن رصيد USDT',
-                amount: amount,
-                status: 'approved',
-                timestamp: Date.now()
-            });
-            showToast("✅ تمت الموافقة وتحديث الرصيد");
-        });
-    } else {
-        requestRef.update({ status: 'rejected' }).then(() => {
-            // سجل عملية مرفوضة لكي يراها المستخدم في سجله
-            db.ref('transactions/' + userId).push({
-                type: 'deposit',
-                title: 'طلب شحن مرفوض',
-                amount: amount,
-                status: 'rejected',
-                timestamp: Date.now()
-            });
-            showToast("❌ تم رفض الطلب وتسجيله", "error");
-        });
-    }
-}
 
 async function loadWithdrawalRequests() {
-    // حماية: التأكد أنك الآدمن
+    // 1. حماية: التأكد أنك الآدمن (القائد)
     if (webApp.initDataUnsafe.user.id !== 549686235) return;
     
     const listContainer = document.getElementById('admin-requests-list');
@@ -1807,14 +1776,13 @@ async function loadWithdrawalRequests() {
     // رسالة انتظار بسيطة
     listContainer.innerHTML = "<p style='text-align:center; padding:20px; opacity:0.6; font-size:12px;'>⏳ جاري جلب طلبات السحب...</p>";
 
-    // طلب المفاتيح من سحابة تليجرام
+    // 2. طلب المفاتيح التي تبدأ بـ withdraw_ من سحابة تليجرام
     webApp.CloudStorage.getKeys((err, keys) => {
         if (err || !keys) {
             listContainer.innerHTML = "<p style='text-align:center; padding:20px; opacity:0.5;'>❌ فشل الوصول للسحابة</p>";
             return;
         }
 
-        // تصفية المفاتيح التي تبدأ بـ withdraw_
         const withdrawKeys = keys.filter(k => k.startsWith('withdraw_'));
         
         if (withdrawKeys.length === 0) {
@@ -1822,7 +1790,7 @@ async function loadWithdrawalRequests() {
             return;
         }
 
-        // جلب محتويات المفاتيح
+        // 3. جلب بيانات طلبات السحب
         webApp.CloudStorage.getItems(withdrawKeys, (err, items) => {
             if (err || !items) return;
             
@@ -1838,17 +1806,22 @@ async function loadWithdrawalRequests() {
                                 <span>📅 ${req.date || 'غير محدد'}</span>
                                 <span>ID: ${req.userId}</span>
                             </div>
-                            <p style="margin: 0; font-size: 14px; color: #f8fafc;">👤 <b>${req.name}</b></p>
+                            <p style="margin: 0; font-size: 14px; color: #f8fafc;">👤 المستخدم: <b>${req.name}</b></p>
                             <p style="margin: 5px 0; font-size: 16px; color: #2ecc71; font-weight: bold;">طلب سحب: $${req.amount}</p>
                             
                             <div style="background: #0f172a; padding: 10px; border-radius: 10px; margin: 10px 0; border: 1px dashed #334155;">
-                                <small style="color: #64748b; display: block; font-size: 9px; margin-bottom: 3px;">محفظة USDT TRC20:</small>
+                                <small style="color: #64748b; display: block; font-size: 9px; margin-bottom: 3px;">عنوان محفظة USDT (TRC20):</small>
                                 <code style="font-size: 11px; color: #0fbcf9; word-break: break-all;">${req.wallet}</code>
                             </div>
 
-                            <button onclick="markAsDone('${key}', 'withdraw')" style="width: 100%; background: #2ecc71; color: white; border: none; padding: 10px; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 13px;">
-                                ✅ تم التحويل (حذف الطلب)
-                            </button>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                                <button onclick="handleRequest('${key}', 'withdraw', 'approve')" style="background: #2ecc71; color: white; border: none; padding: 12px; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 13px;">
+                                    ✅ تم التحويل
+                                </button>
+                                <button onclick="handleRequest('${key}', 'withdraw', 'reject')" style="background: #e74c3c; color: white; border: none; padding: 12px; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 13px;">
+                                    ❌ رفض الطلب
+                                </button>
+                            </div>
                         </div>
                     `;
                     listContainer.insertAdjacentHTML('beforeend', card);
@@ -1859,6 +1832,8 @@ async function loadWithdrawalRequests() {
         });
     });
 }
+
+        
 
         async function loadDepositRequests() {
     // 1. حماية: التأكد أنك الآدمن (القائد)
@@ -1909,9 +1884,12 @@ async function loadWithdrawalRequests() {
                                 <code style="font-size: 10px; color: #0fbcf9; word-break: break-all;">${req.txid}</code>
                             </div>
 
-                            <div style="display: grid; grid-template-columns: 1fr; gap: 8px;">
-                                <button onclick="markAsDone('${key}', 'deposit')" style="width: 100%; background: #0984e3; color: white; border: none; padding: 12px; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 13px;">
-                                    ✅ تم التأكد وإضافة الرصيد
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                                <button onclick="handleRequest('${key}', 'deposit', 'approve')" style="background: #2ecc71; color: white; border: none; padding: 12px; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 13px;">
+                                    ✅ قبول
+                                </button>
+                                <button onclick="handleRequest('${key}', 'deposit', 'reject')" style="background: #e74c3c; color: white; border: none; padding: 12px; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 13px;">
+                                    ❌ رفض
                                 </button>
                             </div>
                         </div>
@@ -1926,39 +1904,74 @@ async function loadWithdrawalRequests() {
 }
 
 
-function markAsDone(key, type) {
-    // تحديد رسالة التأكيد بناءً على نوع الطلب
-    const message = type === 'withdraw' 
-        ? "❓ هل تأكدت من تحويل المبلغ للمستخدم بنجاح؟\nسيتم حذف الطلب نهائياً." 
-        : "❓ هل وصلت الأموال لمحفظتك بالفعل؟\nسيتم إضافة الرصيد وحذف الطلب.";
+// ==========================================
+// 7. لوحة الإدارة (Admin Actions) - النسخة الاحترافية
+// ==========================================
 
-    if (confirm(message)) {
-        webApp.CloudStorage.removeItem(key, (err, success) => {
-            if (success) {
-                // إشعار نجاح
-                if (typeof showToast === "function") {
-                    showToast("✅ تم التحديث بنجاح");
+// 1. الدالة الأساسية لمعالجة الطلبات (بديلة markAsDone)
+function handleRequest(key, type, action) {
+    webApp.CloudStorage.getItem(key, (err, value) => {
+        if (err || !value) {
+            webApp.showAlert("❌ خطأ: تعذر العثور على بيانات الطلب");
+            return;
+        }
+
+        const req = JSON.parse(value);
+        const amount = parseFloat(req.amount) || 0;
+        const userId = req.uid || req.userId;
+        const userName = req.userName || req.name || "مستخدم";
+
+        if (action === 'approve') {
+            if (confirm(`✅ شحن $${amount} لـ ${userName}؟`)) {
+                if (type === 'deposit') {
+                    // 1. تحديث الرصيد في Firebase
+                    db.ref('users/' + userId + '/balance').transaction(curr => (parseFloat(curr) || 0) + amount)
+                    .then(() => {
+                        // 2. تسجيل عملية ناجحة في سجل المستخدم
+                        db.ref('transactions/' + userId).push({
+                            type: 'deposit',
+                            title: 'شحن رصيد USDT',
+                            amount: amount,
+                            status: 'approved',
+                            timestamp: Date.now()
+                        });
+                        // 3. حذف الطلب من واجهة الإدارة
+                        finalizeRequestAction(key, type, "تم الشحن والتسجيل");
+                    });
                 } else {
-                    webApp.showAlert("✅ تم التحديث وحذف الطلب");
+                    // في السحب: نحذف الطلب فقط (لأن الخصم تم مسبقاً)
+                    finalizeRequestAction(key, type, "تم تأكيد السحب");
                 }
-
-                // تحديث القائمة التي كنت تشاهدها لكي يختفي العنصر المحذوف
-                if (type === 'withdraw') {
-                    loadWithdrawalRequests();
-                } else {
-                    loadDepositRequests();
-                }
-
-                // تأثير لمسي عند النجاح
-                if (webApp.HapticFeedback) webApp.HapticFeedback.notificationOccurred('success');
-            } else {
-                webApp.showAlert("❌ خطأ: لم يتم حذف الطلب. حاول مجدداً.");
             }
-        });
-    }
+        } 
+        else if (action === 'reject') {
+            if (confirm("🚨 رفض الطلب؟ سيظهر للمستخدم في سجله أنه مرفوض.")) {
+                // تسجيل عملية مرفوضة في سجل المستخدم ليعرف السبب
+                db.ref('transactions/' + userId).push({
+                    type: type,
+                    title: type === 'deposit' ? 'طلب شحن مرفوض' : 'طلب سحب مرفوض',
+                    amount: amount,
+                    status: 'rejected',
+                    timestamp: Date.now()
+                });
+                finalizeRequestAction(key, type, "تم الرفض وتسجيله للمستخدم");
+            }
+        }
+    });
 }
-        
-        
+
+// دالة التنظيف المساعدة
+function finalizeRequestAction(key, type, statusMsg) {
+    webApp.CloudStorage.removeItem(key, (err, success) => {
+        if (success) {
+            showToast("✅ " + statusMsg);
+            type === 'deposit' ? loadDepositRequests() : loadWithdrawalRequests();
+            if (webApp.HapticFeedback) webApp.HapticFeedback.notificationOccurred('success');
+        }
+    });
+}
+
+
 function approveDeposit(reqId, userId, amount) {
     tg.showConfirm(`تأكيد إضافة $${amount} لحساب المستخدم؟`, (ok) => {
         if (ok) {
@@ -1977,20 +1990,35 @@ function approveDeposit(reqId, userId, amount) {
 
 // --- [ نهاية دالة adminAction ] ---
 function adminAction(type) {
-    if (type === 'add') {
-        const targetUid = document.getElementById('adm-uid').value;
-        const amount = document.getElementById('adm-val').value;
+    const targetId = document.getElementById('adm-uid').value;
+    const amount = parseFloat(document.getElementById('adm-val').value);
 
-        if (!targetUid || !amount) return webApp.showAlert("⚠️ أدخل الـ ID والمبلغ أولاً");
+    if (!targetId || !amount) {
+        webApp.showAlert("⚠️ يرجى إدخال ID المستخدم والمبلغ أولاً");
+        return;
+    }
 
-        db.ref('users/' + targetUid + '/balance').transaction(curr => (parseFloat(curr) || 0) + parseFloat(amount))
-        .then(() => {
-            webApp.showAlert("✅ تمت إضافة $" + amount + " بنجاح إلى ID: " + targetUid);
-            document.getElementById('adm-val').value = ''; 
-        })
-        .catch(err => webApp.showAlert("❌ خطأ: " + err.message));
+    // رسالة تأكيد للقائد قبل التنفيذ
+    const confirmMsg = `هل أنت متأكد من إضافة $${amount} يدوياً للمستخدم (ID: ${targetId})؟`;
+    
+    if (confirm(confirmMsg)) {
+        // تحديث الرصيد في Firebase
+        db.ref('users/' + targetId + '/balance').transaction((current) => {
+            return (parseFloat(current) || 0) + amount;
+        }).then(() => {
+            webApp.showAlert(`✅ تم بنجاح إضافة $${amount} إلى حساب ${targetId}`);
+            
+            // تفريغ الحقول بعد النجاح
+            document.getElementById('adm-val').value = '';
+            
+            // إرسال إشعار لمسي نجاح
+            if (webApp.HapticFeedback) webApp.HapticFeedback.notificationOccurred('success');
+        }).catch(err => {
+            webApp.showAlert("❌ خطأ في قاعدة البيانات: " + err.message);
+        });
     }
 }
+
 
 // ==========================================
 // إعدادات التشغيل النهائية (توضع مرة واحدة في نهاية الملف)
