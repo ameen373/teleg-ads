@@ -377,7 +377,223 @@ html, body {
     max-width: 100% !important;
     box-sizing: border-box;
 }
+
+            /* إضافة نبض لزر الشحن لزيادة لفت الانتباه */
+#btn-deposit-glow {
+    animation: pulse-green 2s infinite;
+}
+
+/* الكارت الرئيسي بتصميم زجاجي احترافي */
+.publisher-header-card {
+    background: linear-gradient(145deg, #1e293b, #0f172a);
+    padding: 20px; 
+    border-radius: 22px;
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;
+    border: 1px solid rgba(59, 130, 246, 0.2); 
+    margin-bottom: 20px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+}
+
+/* شبكة الإحصائيات */
+.stats-grid { 
+    display: grid; 
+    grid-template-columns: 1fr 1fr; 
+    gap: 12px; 
+}
+
+/* كروت الإحصائيات مع تأثير التحويم */
+.stat-card { 
+    background: #1e293b; 
+    padding: 18px; 
+    border-radius: 18px; 
+    border: 1px solid #334155; 
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.stat-card:active {
+    transform: scale(0.96);
+    border-color: #3b82f6;
+}
+
+/* تاغ الربح الأخضر */
+.profit-tag { 
+    font-size: 10px; 
+    color: #2ecc71; 
+    background: rgba(46, 204, 113, 0.1); 
+    padding: 4px 8px; 
+    border-radius: 8px; 
+    margin-top: 8px;
+    display: inline-block;
+    font-weight: bold;
+}
+
+/* كارت السحب المطور */
+.withdraw-card { 
+    background: #0f172a; 
+    border-radius: 28px; 
+    padding: 25px; 
+    border: 1px solid rgba(59, 130, 246, 0.3); 
+}
+
+/* المدخلات الحديثة */
+.modern-input { 
+    width: 100%; 
+    padding: 14px; 
+    background: #1e293b; 
+    border: 1px solid #334155; 
+    border-radius: 12px; 
+    color: #fff; 
+    box-sizing: border-box;
+    transition: 0.3s;
+}
+
+.modern-input:focus {
+    border-color: #3b82f6;
+    outline: none;
+    background: #1e293b;
+}
+
+/* زر السحب العملاق */
+.main-withdraw-btn { 
+    width: 100%; 
+    padding: 16px; 
+    background: linear-gradient(90deg, #3b82f6, #2563eb); 
+    color: #fff; 
+    border: none; 
+    border-radius: 15px; 
+    font-weight: 800; 
+    margin-top: 20px; 
+    box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
+}
             
+/* الخلفية العامة للقسم */
+#section-channels {
+    background: radial-gradient(circle at top right, #1e293b 0%, #0f172a 100%);
+    min-height: 100vh;
+}
+
+/* كارت الرصيد الملكي */
+.publisher-header-card {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(15px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 24px;
+    padding: 25px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+}
+
+/* تأثير اللمعان المتحرك على الكارت */
+.publisher-header-card::before {
+    content: '';
+    position: absolute;
+    top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: conic-gradient(transparent, rgba(56, 189, 248, 0.1), transparent 30%);
+    animation: rotate-glow 6s linear infinite;
+}
+
+@keyframes rotate-glow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* أزرار السحب المتوهجة */
+.withdraw-trigger-btn {
+    background: linear-gradient(135deg, #38bdf8, #2563eb) !important;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 14px;
+    font-weight: 800;
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
+    transition: 0.3s all cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    z-index: 2;
+}
+
+.withdraw-trigger-btn:active { transform: scale(0.9); }
+
+/* كروت الإحصائيات (الأقوى بـ Hover Effect) */
+.stat-card {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 20px;
+    padding: 15px;
+    transition: 0.4s;
+    position: relative;
+}
+
+.stat-card:hover {
+    border-color: rgba(56, 189, 248, 0.5);
+    background: rgba(15, 23, 42, 0.9);
+}
+
+.stat-card h4 { font-size: 13px; color: #94a3b8; margin-bottom: 8px; }
+.stat-card p { font-size: 20px; font-weight: 900; color: #fff; margin: 0; }
+
+            /* تصميم الكروت والحقول */
+.modern-input {
+    width: 100%; padding: 12px; background: #0f172a; border: 1px solid #334155;
+    border-radius: 10px; color: #fff; font-size: 13px;
+}
+
+.check-card {
+    flex: 1; background: #0f172a; padding: 10px; border-radius: 8px;
+    text-align: center; color: #fff; font-size: 11px; border: 1px solid #334155;
+}
+
+.small-price-input {
+    width: 50px; background: #1e293b; border: 1px solid #f1c40f;
+    color: #fff; border-radius: 5px; text-align: center; font-weight: bold;
+}
+
+.step-btn {
+    width: 100%; padding: 14px; border-radius: 12px; border: none;
+    color: #fff; font-weight: bold; background: #0088cc; cursor: pointer;
+    transition: 0.3s;
+}
+
+.stat-card {
+    background: #1e293b; padding: 15px; border-radius: 18px; border: 1px solid #334155;
+}
+.stat-card small { color: #94a3b8; font-size: 10px; display: block; margin-bottom: 5px; }
+.stat-card p { font-size: 18px; font-weight: 900; margin: 0; color: #fff; }
+
+/* حركة نبض هادئة لكيس المال */
+@keyframes money-pulse {
+    0% { transform: scale(1); opacity: 0.8; }
+    50% { transform: scale(1.2); opacity: 1; text-shadow: 0 0 8px #f1c40f; }
+    100% { transform: scale(1); opacity: 0.8; }
+}
+
+/* حركة دوران خفيفة للصاروخ أو الساعة */
+@keyframes icon-float {
+    0% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+    100% { transform: translateY(0); }
+}
+
+.ani-money { display: inline-block; animation: money-pulse 2s infinite ease-in-out; }
+.ani-float { display: inline-block; animation: icon-float 3s infinite ease-in-out; }
+
+/* هذا الكود يضمن أن الأقسام المخفية لا تأخذ مساحة ولا تظهر أبداً */
+.section {
+    display: none; /* مخفي افتراضياً */
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+/* هذا الكلاس سيضاف فقط للقسم النشط بواسطة الجافا سكريبت */
+.section.active-section {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
           
     </style>
 </head>
