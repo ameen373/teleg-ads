@@ -398,10 +398,12 @@ body {
                 <div class="stat-item"><small>مكافآت</small><br><b id="bal-bonus" style="color:var(--gold);">0.00</b></div>
             </div>
         </div>
-            
-            </div> <hr style="opacity: 0; margin: 0;">
-        
-        
+        <div class="card" id="global-offer-card" style="border-right: 4px solid var(--danger);">
+            <h4 style="margin:0; color:var(--danger);">🔥 عروض أمين الحصرية</h4>
+            <p id="offer-text" style="font-size: 12px; color: #94a3b8; margin-top: 5px;">خصم 30% للمعلنين الدائمين!</p>
+        </div>
+    </div>
+
 <div id="section-promo" class="section" style="display: none;">
     
     <div class="wallet-card" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 1px solid #334155; border-radius: 25px; padding: 20px; margin-bottom: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.2);">
@@ -432,7 +434,6 @@ body {
     <h4 style="color: #94a3b8; margin-top: 0; margin-bottom: 15px; font-size: 14px; display: flex; align-items: center; gap: 8px;">
         🕒 سجل العمليات الأخيرة
     </h4>
-    </div>
         
     <div id="trans-history-list" style="display: flex; flex-direction: column; gap: 10px;">
         <p style="color: #64748b; font-size: 12px; text-align: center;">جاري تحميل السجل...</p>
@@ -440,7 +441,7 @@ body {
     </div>
     
 
-<div class="section" style="display: none; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;">
+<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;">
     <div style="background: #1e293b; padding: 12px; border-radius: 15px; text-align: center; border: 1px solid #334155;">
         <small style="color: #64748b; font-size: 10px; display: block; margin-bottom: 4px;">الظهور</small>
         <b id="adv-views" style="color: #f8fafc; font-size: 14px;">0</b>
@@ -454,21 +455,16 @@ body {
         <b id="adv-ctr" style="color: #2ecc71; font-size: 14px;">0%</b>
     </div>
 </div>
-        
-<button class="section btn-premium-add" 
-        style="background:var(--accent); width:100%; border-radius:50px; margin-top: 15px; display: none;" 
-        onclick="openModal('modal-smart-campaign')">
-    🚀 إنشاء حملة عالمية جديدة
-</button>
-        
+
+    <button class="btn-premium-add" style="background:var(--accent); width:100%; border-radius:50px; margin-top: 15px;" onclick="openModal('modal-smart-campaign')">🚀 إنشاء حملة عالمية جديدة</button>
     
-    <div class="card section" style="margin-top:20px; background: var(--card); display: none;">
-    <h4 style="color: var(--text);">📋 إدارة الحملات الحالية</h4>
-    <div id="active-campaigns-dashboard" style="text-align:center; padding:15px; opacity:0.5; font-size:11px;">
-        لا توجد حملات جارية حالياً..
+    <div class="card" style="margin-top:20px; background: var(--card);">
+        <h4 style="color: var(--text);">📋 إدارة الحملات الحالية</h4>
+        <div id="active-campaigns-dashboard" style="text-align:center; padding:15px; opacity:0.5; font-size:11px;">
+            لا توجد حملات جارية حالياً..
+        </div>
     </div>
-    </div>
-        
+</div>
 
 <div id="modal-smart-campaign" class="modal" style="display: none;">
     <div class="modal-content" style="border: 2px solid var(--gold); max-width: 500px; background: var(--bg); color: var(--text); padding: 20px; border-radius: 20px;">
@@ -581,7 +577,7 @@ body {
         <button class="btn btn-primary" style="background:var(--safe); width:100%; border-radius:50px; padding: 12px; font-weight: bold;" onclick="processNewCampaign()">🚀 إطلاق الحملة الآن</button>
     </div>
 </div>
-    <div id="section-stats" class="section" style="display: none; padding: 15px;">
+    <div id="sec-stats" class="section" style="display: none; padding: 15px;">
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
         <div class="card" style="background: #1e293b; padding: 15px; border-radius: 20px; border-bottom: 3px solid #0984e3;">
             <small style="color: #64748b;">إجمالي المشاهدات</small><br>
@@ -606,10 +602,7 @@ body {
         </div>
     </div>
     </div>
-        
-</div> <hr style="opacity: 0; margin: 0;">
-        
-        
+    
 <div id="section-channels" class="section" style="display: none; padding: 15px;">
     <div class="publisher-header-card">
         <div style="display: flex; gap: 20px;">
@@ -758,10 +751,7 @@ body {
     <h4 style="color:#888; font-size:14px; margin-top: 30px;">📺 قنواتك المسجلة:</h4>
     <div id="my-elite-channels" style="min-height: 50px;"></div>
 </div>
-        
-</div> <hr style="opacity: 0; margin: 0;">
-        
-        
+
 <div id="section-admin" class="section" style="display: none; padding: 15px; background: #0f172a; min-height: 100vh;">
     
     <div class="card-glass" style="background: linear-gradient(135deg, #1e3799, #0984e3); color: white; padding: 25px; border-radius: 25px; margin-bottom: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1);">
@@ -806,9 +796,6 @@ body {
             </div>
     </div>
 </div>
-
-        </div> <hr style="opacity: 0; margin: 0;">
-        
 
 <script>
         
@@ -1339,65 +1326,51 @@ function getInterestName(cat) {
 // ==========================================
 
 function openTab(tabName, element) {
-    // 1. إخفاء شامل لكل ما يحمل كلاس section لضمان عدم التداخل
-    document.querySelectorAll('.section').forEach(s => {
-        s.style.display = 'none';
-    });
+    // 1. التنظيف (إخفاء كل الأقسام بناءً على الكلاس)
+    document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
+    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
 
-    // 2. إزالة التفعيل من أزرار القائمة السفلية
-    document.querySelectorAll('.nav-item').forEach(item => {
-        item.classList.remove('active');
-    });
-
-    // 3. تحديد وإظهار القسم الرئيسي
+    // 2. الإظهار (التأكد من مطابقة الـ ID للـ HTML)
+    // لاحظ: إذا كانت أقسامك في الـ HTML تبدأ بـ 'section-' اتركها كما هي
     const target = document.getElementById('section-' + tabName);
     
     if (target) {
         target.style.display = 'block';
-
-        // [حل مشكلة اختفاء الأزرار] 
-        // هذا الجزء يبحث عن أي أزرار أو كروت داخل القسم المفتوح ويظهرها
-        target.querySelectorAll('.section').forEach(subItem => {
-            // إذا كان العنصر عبارة عن شبكة إحصائيات (Grid)
-            if (subItem.style.display === 'grid' || subItem.innerHTML.includes('grid')) {
-                subItem.style.display = 'grid';
-            } else {
-                subItem.style.display = 'block';
-            }
-        });
-
+        // تمرير الشاشة للأعلى عند الانتقال
         window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
-        console.warn(`⚠️ القسم section-${tabName} غير موجود في الـ HTML`);
+        // رسالة تنبيه برمجية أوضح للمطور
+        console.warn(`⚠️ تنبيه: القسم section-${tabName} غير موجود في الـ HTML حالياً.`);
     }
 
-    // 4. التفعيل البصري للزر
+    // 3. التفعيل البصري للزر
     if (element) {
         element.classList.add('active');
     } else {
+        // محاولة إيجاد الزر برمجياً إذا لم يُمرر الـ element
         const navBtn = document.querySelector(`.nav-item[onclick*="${tabName}"]`);
         if (navBtn) navBtn.classList.add('active');
     }
 
-    // 5. التفاعل اللمسي (Haptic Feedback)
+    // 4. التفاعل اللمسي (Haptic Feedback) - متوافق مع الإصدارات الحديثة
     try {
-        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+        if (window.Telegram.WebApp.HapticFeedback) {
             window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
         }
-    } catch (e) { console.log("HapticFeedback Error"); }
+    } catch (e) { console.log("HapticFeedback not supported"); }
 
-    // 6. المحرك الذكي (تحديث البيانات فورياً بناءً على القسم)
-    const user = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp.initDataUnsafe.user : null;
-    
+    // 5. المحرك الذكي (تحديث البيانات فورياً)
+    const user = window.Telegram.WebApp.initDataUnsafe.user;
     if (user) {
         const userId = user.id;
         
         switch(tabName) {
             case 'channels':
-                console.log("📈 تشغيل محرك الناشر...");
+                console.log("📈 تشغيل محرك الناشر الأقوى...");
+                // استدعاء المراقب الشامل الذي صنعناه
                 if (typeof startPublisherMonitor === "function") {
                     startPublisherMonitor(userId);
-                } else if (typeof startBalanceMonitor === "function") {
+                } else {
                     startBalanceMonitor(userId);
                 }
                 break;
@@ -1410,10 +1383,8 @@ function openTab(tabName, element) {
                 break;
                 
             case 'home':
-                console.log("🏠 تحديث الرصيد الرئيسي...");
-                if (typeof startBalanceMonitor === "function") {
-                    startBalanceMonitor(userId);
-                }
+                // تحديث سريع للرصيد الرئيسي
+                startBalanceMonitor(userId);
                 break;
         }
     }
