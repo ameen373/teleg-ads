@@ -733,43 +733,58 @@ body {
                 <h2 style="margin:0; font-size: 20px;">👑 لوحة القائد</h2>
                 <p style="margin:5px 0 0; font-size:11px; opacity:0.8;">إدارة النظام المركزي | v3.0</p>
             </div>
-            <div style="background: rgba(255,255,255,0.2); padding: 8px 15px; border-radius: 12px; backdrop-filter: blur(5px); font-size: 12px;">
+            <div style="background: rgba(255,255,255,0.2); padding: 8px 15px; border-radius: 12px; backdrop-filter: blur(5px); font-size: 11px; font-weight: bold;">
                 Admin Active ✅
             </div>
         </div>
     </div>
 
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
-        <div onclick="loadWithdrawalRequests()" style="background: #1e293b; padding: 15px; border-radius: 18px; border-bottom: 3px solid #f1c40f; cursor: pointer;">
-            <small style="color: #64748b;">تحديث الطلبات 🔄</small><br>
-            <b id="pending-count" style="font-size: 14px; color: #f1c40f;">اضغط للتحديث</b>
-        </div>
-        <div style="background: #1e293b; padding: 15px; border-radius: 18px; border-bottom: 3px solid #2ecc71;">
-            <small style="color: #64748b;">الحالة</small><br>
-            <b style="font-size: 14px; color: #2ecc71;">متصل الآن</b>
-        </div>
-    </div>
-
-    <div class="card" style="background: #1e293b; border: 1px solid #334155; padding: 20px; border-radius: 22px; margin-bottom: 25px;">
-        <h4 style="color: #94a3b8; margin-top: 0; margin-bottom: 15px; font-size: 14px;">🛠️ إضافة رصيد يدوي (طوارئ)</h4>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
-            <input type="text" id="adm-uid" class="input-premium" placeholder="ID المستخدم" style="margin:0; background: #0f172a; border-radius: 10px; border: 1px solid #334155; color: white; padding: 10px;">
-            <input type="number" id="adm-val" class="input-premium" placeholder="المبلغ $" style="margin:0; background: #0f172a; border-radius: 10px; border: 1px solid #334155; color: white; padding: 10px;">
-        </div>
-        <button onclick="adminAction('add')" style="width: 100%; background: #0984e3; color: white; border: none; padding: 12px; border-radius: 12px; font-weight: bold; cursor: pointer;">
-            تنفيذ الإضافة اليدوية +
+        <button id="btn-view-withdraw" onclick="switchAdminView('withdraw')" style="background: #1e293b; padding: 15px; border-radius: 18px; border: none; border-bottom: 3px solid var(--gold); color: white; cursor: pointer; transition: 0.3s;">
+            <small style="color: #64748b; display: block; margin-bottom: 5px;">واردات السحب</small>
+            <b style="font-size: 14px; color: var(--gold);">📥 طلبات السحب</b>
+        </button>
+        <button id="btn-view-deposit" onclick="switchAdminView('deposit')" style="background: #1e293b; padding: 15px; border-radius: 18px; border: none; border-bottom: 3px solid #2ecc71; color: white; cursor: pointer; transition: 0.3s; opacity: 0.7;">
+            <small style="color: #64748b; display: block; margin-bottom: 5px;">واردات الشحن</small>
+            <b style="font-size: 14px; color: #2ecc71;">💳 طلبات الشحن</b>
         </button>
     </div>
 
-    <div>
-        <h4 style="color: #f1c40f; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
-            📩 طلبات USDT قيد الانتظار
+    <div class="card" style="background: #1e293b; border: 1px solid #334155; padding: 20px; border-radius: 22px; margin-bottom: 25px;">
+        <h4 style="color: #94a3b8; margin-top: 0; margin-bottom: 15px; font-size: 13px; letter-spacing: 1px;">🛠️ التحكم اليدوي بالرصيد</h4>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
+            <input type="text" id="adm-uid" placeholder="ID المستخدم" style="margin:0; background: #0f172a; border-radius: 12px; border: 1px solid #334155; color: white; padding: 12px; font-size: 13px;">
+            <input type="number" id="adm-val" placeholder="المبلغ $" style="margin:0; background: #0f172a; border-radius: 12px; border: 1px solid #334155; color: white; padding: 12px; font-size: 13px;">
+        </div>
+        <button onclick="adminAction('add')" style="width: 100%; background: linear-gradient(to right, #0984e3, #00cec9); color: white; border: none; padding: 14px; border-radius: 12px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 15px rgba(9, 132, 227, 0.3);">
+            تعديل الرصيد فوراً +
+        </button>
+    </div>
+
+    <div id="admin-withdraw-container">
+        <h4 style="color: var(--gold); margin-bottom: 15px; display: flex; align-items: center; gap: 8px; font-size: 15px;">
+            📥 طلبات سحب USDT (معلقة)
         </h4>
         <div id="admin-requests-list" style="display: flex; flex-direction: column; gap: 12px; padding-bottom: 100px;">
-            <p style="color: #64748b; text-align: center; font-size: 12px;">لا توجد طلبات سحب حالياً</p>
+            <div style="text-align: center; padding: 40px; color: #64748b;">
+                <p style="font-size: 12px;">تأكد من الضغط على زر التحديث بالأعلى</p>
+            </div>
         </div>
     </div>
+
+    <div id="admin-deposit-container" style="display: none;">
+        <h4 style="color: #2ecc71; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; font-size: 15px;">
+            💳 طلبات شحن الرصيد (TXID)
+        </h4>
+        <div id="admin-deposits-list" style="display: flex; flex-direction: column; gap: 12px; padding-bottom: 100px;">
+            <div style="text-align: center; padding: 40px; color: #64748b;">
+                <p style="font-size: 12px;">لا توجد طلبات إيداع للمراجعة حالياً</p>
+            </div>
+        </div>
+    </div>
+
 </div>
+
 
 <script>
         
@@ -1363,85 +1378,62 @@ function getInterestName(cat) {
 // ==========================================
 
 function openTab(tabName, element) {
-    // 1. التنظيف (إخفاء كل الأقسام بناءً على الكلاس)
+    // 1. التنظيف (إخفاء كل الأقسام وإزالة حالة التفعيل من الأزرار)
     document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
 
-    // 2. الإظهار (التأكد من مطابقة الـ ID للـ HTML)
-    // نستخدم 'section-' + tabName ليتطابق مع المعرفات في HTML
+    // 2. الإظهار
     const target = document.getElementById('section-' + tabName);
-    
     if (target) {
         target.style.display = 'block';
-        // تمرير الشاشة للأعلى بسلاسة عند الانتقال
         window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-        console.warn(`⚠️ تنبيه: القسم section-${tabName} غير موجود في الـ HTML.`);
     }
 
-    // 3. التفعيل البصري للزر (Tab Highlight)
+    // 3. التفعيل البصري للزر
     if (element) {
         element.classList.add('active');
     } else {
-        // محاولة إيجاد الزر برمجياً إذا لم يُمرر الـ element مباشرة
         const navBtn = document.querySelector(`.nav-item[onclick*="${tabName}"]`);
         if (navBtn) navBtn.classList.add('active');
     }
 
-    // 4. التفاعل اللمسي (Haptic Feedback) لإعطاء شعور بالتطبيق الحقيقي
+    // 4. التفاعل اللمسي
     try {
-        if (window.Telegram.WebApp.HapticFeedback) {
-            window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
-        }
-    } catch (e) { 
-        console.log("HapticFeedback not supported"); 
-    }
+        if (webApp.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
+    } catch (e) {}
 
-    // 5. المحرك الذكي (تحديث البيانات بناءً على التبويب المفتوح)
-    const user = window.Telegram.WebApp.initDataUnsafe.user;
+    // 5. المحرك الذكي (تحديث البيانات بناءً على التبويب)
+    const user = webApp.initDataUnsafe.user;
     if (user) {
         const userId = user.id;
         
         switch(tabName) {
-            case 'channels':
-                console.log("📈 تحديث بيانات الناشر...");
-                if (typeof startPublisherMonitor === "function") {
-                    startPublisherMonitor(userId);
-                } else if (typeof startBalanceMonitor === "function") {
-                    startBalanceMonitor(userId);
+            case 'admin':
+                console.log("🛠️ تهيئة لوحة القائد...");
+                // الربط الجديد: استخدام switchAdminView لفتح تبويب السحب افتراضياً
+                if (typeof switchAdminView === "function") {
+                    switchAdminView('withdraw'); 
+                } else if (typeof loadWithdrawalRequests === "function") {
+                    loadWithdrawalRequests();
                 }
+                break;
+                
+            case 'channels':
+                if (typeof startPublisherMonitor === "function") startPublisherMonitor(userId);
                 break;
                 
             case 'promo':
-                console.log("🎯 تحديث حملات المعلن...");
-                if (typeof startCampaignsMonitor === "function") {
-                    startCampaignsMonitor(userId);
-                }
-                break;
-                
-            case 'admin':
-                console.log("🛠️ الدخول للوحة الإدارة - جلب طلبات السحب...");
-                // استدعاء دالة جلب الطلبات من الـ CloudStorage
-                if (typeof loadWithdrawalRequests === "function") {
-                    loadWithdrawalRequests();
-                }
-                // تشغيل أي مراقب إداري آخر إن وجد
-                if (typeof startAdminMonitor === "function") {
-                    startAdminMonitor();
-                }
+                if (typeof startCampaignsMonitor === "function") startCampaignsMonitor(userId);
                 break;
                 
             case 'home':
-                console.log("🏠 تحديث الرصيد الرئيسي...");
-                if (typeof startBalanceMonitor === "function") {
-                    startBalanceMonitor(userId);
-                }
+                if (typeof startBalanceMonitor === "function") startBalanceMonitor(userId);
                 break;
         }
     }
 }
-        
-            
+
+                   
 function showToast(message, type = 'success') {
     const toast = document.createElement('div');
     toast.style = `
@@ -1681,7 +1673,43 @@ function updateRealTimeStats(userId) {
 // ==========================================
 // 7. لوحة الإدارة (Admin Actions)
 // ==========================================
-function startAdminMonitor() {
+
+        function switchAdminView(view) {
+    const withdrawCont = document.getElementById('admin-withdraw-container');
+    const depositCont = document.getElementById('admin-deposit-container');
+    const btnW = document.getElementById('btn-view-withdraw');
+    const btnD = document.getElementById('btn-view-deposit');
+
+    // التأكد من وجود العناصر في الصفحة قبل محاولة تعديلها
+    if (!withdrawCont || !depositCont) return;
+
+    if (view === 'withdraw') {
+        // إظهار قسم السحب وإخفاء الشحن
+        withdrawCont.style.display = 'block';
+        depositCont.style.display = 'none';
+        
+        // تحديث ألوان الأزرار (ذهبي للسحب)
+        if(btnW) { btnW.style.background = 'var(--gold)'; btnW.style.color = '#000'; btnW.style.fontWeight = 'bold'; }
+        if(btnD) { btnD.style.background = 'transparent'; btnD.style.color = '#fff'; btnD.style.fontWeight = 'normal'; }
+        
+        // جلب البيانات
+        loadWithdrawalRequests();
+    } else {
+        // إظهار قسم الشحن وإخفاء السحب
+        withdrawCont.style.display = 'none';
+        depositCont.style.display = 'block';
+        
+        // تحديث ألوان الأزرار (أخضر للشحن)
+        if(btnW) { btnW.style.background = 'transparent'; btnW.style.color = '#fff'; btnW.style.fontWeight = 'normal'; }
+        if(btnD) { btnD.style.background = '#2ecc71'; btnD.style.color = '#fff'; btnD.style.fontWeight = 'bold'; }
+        
+        // جلب البيانات
+        loadDepositRequests();
+    }
+}
+
+        
+        function startAdminMonitor() {
     db.ref('deposit_requests').orderByChild('status').equalTo('pending').on('value', (snap) => {
         const list = document.getElementById('admin-pending-list');
         const badge = document.getElementById('pending-count');
@@ -1744,104 +1772,161 @@ function handleDecision(reqId, userId, amount, action) {
 }
 
 async function loadWithdrawalRequests() {
-    // 1. حماية القسم: التأكد أنك أنت فقط من يشاهد الطلبات
-    if (webApp.initDataUnsafe.user.id !== 549686235) {
-        console.error("Access Denied");
-        return;
-    }
-
+    // حماية: التأكد أنك الآدمن
+    if (webApp.initDataUnsafe.user.id !== 549686235) return;
+    
     const listContainer = document.getElementById('admin-requests-list');
     if (!listContainer) return;
 
-    // إظهار مؤشر تحميل
-    listContainer.innerHTML = `
-        <div style="text-align:center; padding:20px; opacity:0.7;">
-            <div class="spinner" style="border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid var(--gold); border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; margin: 0 auto 10px;"></div>
-            <p style="font-size:12px;">جاري جلب طلبات السحب من السحابة...</p>
-        </div>
-    `;
+    // رسالة انتظار بسيطة
+    listContainer.innerHTML = "<p style='text-align:center; padding:20px; opacity:0.6; font-size:12px;'>⏳ جاري جلب طلبات السحب...</p>";
 
-    // 2. جلب جميع المفاتيح المخزنة في CloudStorage
+    // طلب المفاتيح من سحابة تليجرام
     webApp.CloudStorage.getKeys((err, keys) => {
-        if (err || !keys || keys.length === 0) {
-            listContainer.innerHTML = "<div style='text-align:center; padding:30px; opacity:0.5;'>📭 لا توجد مفاتيح مخزنة حالياً.</div>";
+        if (err || !keys) {
+            listContainer.innerHTML = "<p style='text-align:center; padding:20px; opacity:0.5;'>❌ فشل الوصول للسحابة</p>";
             return;
         }
 
-        // تصفية المفاتيح الخاصة بالسحب فقط (التي تبدأ بـ withdraw_)
+        // تصفية المفاتيح التي تبدأ بـ withdraw_
         const withdrawKeys = keys.filter(k => k.startsWith('withdraw_'));
-
+        
         if (withdrawKeys.length === 0) {
-            listContainer.innerHTML = "<div style='text-align:center; padding:30px; opacity:0.5;'>📭 لا توجد طلبات سحب معلقة.</div>";
+            listContainer.innerHTML = "<p style='text-align:center; padding:30px; opacity:0.5; font-size:12px;'>📭 لا توجد طلبات سحب معلقة حالياً.</p>";
             return;
         }
 
-        // 3. جلب محتوى هذه المفاتيح (البيانات الفعلية)
+        // جلب محتويات المفاتيح
         webApp.CloudStorage.getItems(withdrawKeys, (err, items) => {
-            if (err) {
-                listContainer.innerHTML = "<p style='color:var(--danger); text-align:center;'>❌ فشل جلب البيانات من السيرفر.</p>";
-                return;
-            }
+            if (err || !items) return;
             
             listContainer.innerHTML = ""; // مسح رسالة التحميل
 
-            // تحويل البيانات وعرضها بشكل بطاقات مرتبة
-            Object.keys(items).reverse().forEach(key => { // استخدام reverse لعرض الأحدث أولاً
+            // عرض الطلبات (الأحدث في الأعلى)
+            Object.keys(items).reverse().forEach(key => {
                 try {
                     const req = JSON.parse(items[key]);
-                    const cardHtml = `
-                        <div class="admin-withdraw-card" style="background: #1e293b; border: 1px solid #334155; border-radius: 18px; padding: 15px; margin-bottom: 12px; position: relative; overflow: hidden;">
-                            <div style="position: absolute; top: 0; right: 0; background: var(--gold); color: #000; font-size: 9px; padding: 2px 10px; border-bottom-left-radius: 10px; font-weight: bold;">
-                                معلق (Pending)
+                    const card = `
+                        <div class="admin-card" style="background: #1e293b; border-radius: 18px; padding: 15px; margin-bottom: 12px; border-right: 4px solid var(--gold); position: relative;">
+                            <div style="font-size: 10px; color: #64748b; margin-bottom: 8px; display: flex; justify-content: space-between;">
+                                <span>📅 ${req.date || 'غير محدد'}</span>
+                                <span>ID: ${req.userId}</span>
                             </div>
+                            <p style="margin: 0; font-size: 14px; color: #f8fafc;">👤 <b>${req.name}</b></p>
+                            <p style="margin: 5px 0; font-size: 16px; color: #2ecc71; font-weight: bold;">طلب سحب: $${req.amount}</p>
                             
-                            <div style="margin-bottom: 10px;">
-                                <small style="color: #64748b; font-size: 10px; display: block;">${req.date}</small>
-                                <span style="color: #f8fafc; font-size: 14px; font-weight: bold;">👤 ${req.name}</span>
-                                <small style="color: #94a3b8; font-size: 10px;">(ID: ${req.userId})</small>
+                            <div style="background: #0f172a; padding: 10px; border-radius: 10px; margin: 10px 0; border: 1px dashed #334155;">
+                                <small style="color: #64748b; display: block; font-size: 9px; margin-bottom: 3px;">محفظة USDT TRC20:</small>
+                                <code style="font-size: 11px; color: #0fbcf9; word-break: break-all;">${req.wallet}</code>
                             </div>
 
-                            <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 12px; margin-bottom: 12px;">
-                                <div>
-                                    <small style="color: #64748b; font-size: 9px; display: block;">المبلغ المطلوب</small>
-                                    <b style="color: #2ecc71; font-size: 18px;">$${req.amount}</b>
-                                </div>
-                                <div style="text-align: left;">
-                                    <small style="color: #64748b; font-size: 9px; display: block;">الصافي للتحويل</small>
-                                    <b style="color: #fff; font-size: 14px;">$${(req.amount - 3).toFixed(2)}</b>
-                                </div>
-                            </div>
-
-                            <div style="margin-bottom: 15px;">
-                                <small style="color: #64748b; font-size: 10px; display: block; margin-bottom: 4px;">عنوان محفظة USDT (TRC20):</small>
-                                <div style="background: #0f172a; padding: 8px; border-radius: 8px; font-family: monospace; font-size: 11px; color: #0fbcf9; word-break: break-all; border: 1px dashed #334155;">
-                                    ${req.wallet}
-                                </div>
-                            </div>
-
-                            <button onclick="markAsDone('${key}')" style="width: 100%; background: #2ecc71; color: white; border: none; padding: 10px; border-radius: 12px; font-weight: bold; cursor: pointer; transition: 0.3s; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                                ✅ تم التحويل بنجاح
+                            <button onclick="markAsDone('${key}', 'withdraw')" style="width: 100%; background: #2ecc71; color: white; border: none; padding: 10px; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 13px;">
+                                ✅ تم التحويل (حذف الطلب)
                             </button>
                         </div>
                     `;
-                    listContainer.insertAdjacentHTML('beforeend', cardHtml);
+                    listContainer.insertAdjacentHTML('beforeend', card);
                 } catch (e) {
-                    console.error("خطأ في تحليل بيانات الطلب:", e);
+                    console.error("Error parsing withdrawal request:", e);
                 }
             });
         });
     });
 }
 
-// دالة الحذف عند إتمام السحب
-function markAsDone(key) {
-    if (confirm("هل أنت متأكد من حذف هذا الطلب؟ تأكد من أنك قمت بتحويل المبلغ للمستخدم أولاً.")) {
+        async function loadDepositRequests() {
+    // 1. حماية: التأكد أنك الآدمن (القائد)
+    if (webApp.initDataUnsafe.user.id !== 549686235) return;
+    
+    const listContainer = document.getElementById('admin-deposits-list');
+    if (!listContainer) return;
+
+    // رسالة انتظار
+    listContainer.innerHTML = "<p style='text-align:center; padding:20px; opacity:0.6; font-size:12px;'>⏳ جاري فحص طلبات الشحن الجديدة...</p>";
+
+    // 2. طلب المفاتيح التي تبدأ بـ deposit_ من سحابة تليجرام
+    webApp.CloudStorage.getKeys((err, keys) => {
+        if (err || !keys) {
+            listContainer.innerHTML = "<p style='text-align:center; padding:20px; opacity:0.5;'>❌ فشل الاتصال بالسحابة</p>";
+            return;
+        }
+
+        const depositKeys = keys.filter(k => k.startsWith('deposit_'));
+        
+        if (depositKeys.length === 0) {
+            listContainer.innerHTML = "<p style='text-align:center; padding:30px; opacity:0.5; font-size:12px;'>📭 لا توجد طلبات إيداع (شحن) حالياً.</p>";
+            return;
+        }
+
+        // 3. جلب بيانات طلبات الشحن
+        webApp.CloudStorage.getItems(depositKeys, (err, items) => {
+            if (err || !items) return;
+            
+            listContainer.innerHTML = ""; // مسح رسالة التحميل
+
+            // عرض طلبات الشحن (الأحدث أولاً)
+            Object.keys(items).reverse().forEach(key => {
+                try {
+                    const req = JSON.parse(items[key]);
+                    const card = `
+                        <div class="admin-card" style="background: #1e293b; border-radius: 18px; padding: 15px; margin-bottom: 12px; border-right: 4px solid #2ecc71; position: relative;">
+                            <div style="font-size: 10px; color: #64748b; margin-bottom: 8px; display: flex; justify-content: space-between;">
+                                <span>📅 ${req.timestamp || 'تاريخ غير معروف'}</span>
+                                <span style="color: #2ecc71; font-weight: bold;">طلب شحن 💰</span>
+                            </div>
+                            
+                            <p style="margin: 0; font-size: 14px; color: #f8fafc;">👤 المستخدم: <b>${req.userName}</b></p>
+                            <p style="margin: 5px 0; font-size: 18px; color: #fff;">المبلغ: <span style="color: #2ecc71;">$${req.amount}</span></p>
+                            
+                            <div style="background: #0f172a; padding: 10px; border-radius: 10px; margin: 10px 0; border: 1px dashed #334155; position: relative;">
+                                <small style="color: #64748b; display: block; font-size: 9px; margin-bottom: 3px;">هاش العملية (TXID):</small>
+                                <code style="font-size: 10px; color: #0fbcf9; word-break: break-all;">${req.txid}</code>
+                            </div>
+
+                            <div style="display: grid; grid-template-columns: 1fr; gap: 8px;">
+                                <button onclick="markAsDone('${key}', 'deposit')" style="width: 100%; background: #0984e3; color: white; border: none; padding: 12px; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 13px;">
+                                    ✅ تم التأكد وإضافة الرصيد
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    listContainer.insertAdjacentHTML('beforeend', card);
+                } catch (e) {
+                    console.error("Error parsing deposit request:", e);
+                }
+            });
+        });
+    });
+}
+
+
+function markAsDone(key, type) {
+    // تحديد رسالة التأكيد بناءً على نوع الطلب
+    const message = type === 'withdraw' 
+        ? "❓ هل تأكدت من تحويل المبلغ للمستخدم بنجاح؟\nسيتم حذف الطلب نهائياً." 
+        : "❓ هل وصلت الأموال لمحفظتك بالفعل؟\nسيتم إضافة الرصيد وحذف الطلب.";
+
+    if (confirm(message)) {
         webApp.CloudStorage.removeItem(key, (err, success) => {
             if (success) {
-                showToast("✅ تم تحديث قائمة الطلبات");
-                loadWithdrawalRequests(); // إعادة تحميل القائمة فوراً
+                // إشعار نجاح
+                if (typeof showToast === "function") {
+                    showToast("✅ تم التحديث بنجاح");
+                } else {
+                    webApp.showAlert("✅ تم التحديث وحذف الطلب");
+                }
+
+                // تحديث القائمة التي كنت تشاهدها لكي يختفي العنصر المحذوف
+                if (type === 'withdraw') {
+                    loadWithdrawalRequests();
+                } else {
+                    loadDepositRequests();
+                }
+
+                // تأثير لمسي عند النجاح
+                if (webApp.HapticFeedback) webApp.HapticFeedback.notificationOccurred('success');
             } else {
-                webApp.showAlert("❌ فشل حذف الطلب من السحابة.");
+                webApp.showAlert("❌ خطأ: لم يتم حذف الطلب. حاول مجدداً.");
             }
         });
     }
