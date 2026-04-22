@@ -455,16 +455,20 @@ body {
     </div>
 </div>
         
-
-    <button class="btn-premium-add" style="background:var(--accent); width:100%; border-radius:50px; margin-top: 15px;" onclick="openModal('modal-smart-campaign')">🚀 إنشاء حملة عالمية جديدة</button>
+<button class="section btn-premium-add" 
+        style="background:var(--accent); width:100%; border-radius:50px; margin-top: 15px; display: none;" 
+        onclick="openModal('modal-smart-campaign')">
+    🚀 إنشاء حملة عالمية جديدة
+</button>
+        
     
-    <div class="card" style="margin-top:20px; background: var(--card);">
-        <h4 style="color: var(--text);">📋 إدارة الحملات الحالية</h4>
-        <div id="active-campaigns-dashboard" style="text-align:center; padding:15px; opacity:0.5; font-size:11px;">
-            لا توجد حملات جارية حالياً..
-        </div>
+    <div class="card section" style="margin-top:20px; background: var(--card); display: none;">
+    <h4 style="color: var(--text);">📋 إدارة الحملات الحالية</h4>
+    <div id="active-campaigns-dashboard" style="text-align:center; padding:15px; opacity:0.5; font-size:11px;">
+        لا توجد حملات جارية حالياً..
     </div>
-</div>
+    </div>
+        
 
 <div id="modal-smart-campaign" class="modal" style="display: none;">
     <div class="modal-content" style="border: 2px solid var(--gold); max-width: 500px; background: var(--bg); color: var(--text); padding: 20px; border-radius: 20px;">
