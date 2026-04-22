@@ -521,10 +521,12 @@ body {
         <span style="display: block; font-size: 20px;">👁️</span>
         <p style="font-size: 10px; margin: 5px 0; color: #fff;">مشاهدات</p>
     </div>
+        
     <div id="tab-clicks" class="goal-item" onclick="switchAdMode('clicks')" style="background: rgba(30, 41, 59, 0.5); border: 2px solid transparent; padding: 10px; border-radius: 15px; text-align: center; cursor: pointer;">
         <span style="display: block; font-size: 20px;">🖱️</span>
         <p style="font-size: 10px; margin: 5px 0; color: #fff;">نقرات</p>
     </div>
+        
     <div id="tab-fixed" class="goal-item" onclick="switchAdMode('fixed')" style="background: rgba(30, 41, 59, 0.5); border: 2px solid transparent; padding: 10px; border-radius: 15px; text-align: center; cursor: pointer;">
         <span style="display: block; font-size: 20px;">🕒</span>
         <p style="font-size: 10px; margin: 5px 0; color: #fff;">ثابت 1/24</p>
@@ -609,23 +611,21 @@ body {
             <div class="stat-item">
                 <small>إجمالي الأرباح 📈</small>
                 <h3 id="total-earned-display">$0.00</h3>
-            
-            <div class="stat-item">
+            </div> 
+                <div class="stat-item">
                 <small>القابل للسحب 💰</small>
                 <h3 id="withdrawable-balance-display" style="color: #2ecc71;">$0.00</h3>
             </div> 
         </div> 
-        <button class="withdraw-trigger-btn" onclick="openTab('withdraw')">سحب الآن</button>
-     </div> 
-</div>  
-        <div id="section-withdraw" class="section" style="display: none; padding: 15px;">
+            <button class="withdraw-trigger-btn" onclick="openTab('withdraw')">سحب الآن</button>
+    </div> 
 </div> 
-        
+        <div id="section-withdraw" class="section" style="display: none; padding: 15px;">
     <div class="withdraw-card">
         <button onclick="openTab('channels')" class="back-btn" style="cursor:pointer;">⬅️ العودة</button>
-</div> 
-        
-        <h2 style="text-align: center; color: #fff; margin-bottom: 20px;">طلب سحب أرباح</h2>
+        <h2 style="text-align: center; color: #fff; margin-top: 20px;">طلب سحب أرباح</h2>
+    </div> 
+ </div>
         
         <div class="rules-box">
             <p>📌 <b>الحد الأدنى:</b> 30$</p>
