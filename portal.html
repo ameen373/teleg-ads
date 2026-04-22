@@ -1921,56 +1921,95 @@ function handleRequest(key, type, action) {
         const userId = req.uid || req.userId;
         const userName = req.userName || req.name || "مستخدم";
 
+        // --- 1. حالة الموافقة (Approve) ---
         if (action === 'approve') {
-            if (confirm(`✅ شحن $${amount} لـ ${userName}؟`)) {
+            const confirmMsg = type === 'deposit' 
+                ? `✅ تأكيد شحن $${amount} لـ ${userName}؟` 
+                : `✅ هل قمت بالتحويل؟ سيتم تأكيد السحب وإرسال إشعار للمستخدم.`;
+
+            if (confirm(confirmMsg)) {
                 if (type === 'deposit') {
-                    // 1. تحديث الرصيد في Firebase
+                    // شحن رصيد (للمعلنين)
                     db.ref('users/' + userId + '/balance').transaction(curr => (parseFloat(curr) || 0) + amount)
                     .then(() => {
-                        // 2. تسجيل عملية ناجحة في سجل المستخدم
-                        db.ref('transactions/' + userId).push({
-                            type: 'deposit',
-                            title: 'شحن رصيد USDT',
-                            amount: amount,
-                            status: 'approved',
-                            timestamp: Date.now()
-                        });
-                        // 3. حذف الطلب من واجهة الإدارة
-                        finalizeRequestAction(key, type, "تم الشحن والتسجيل");
+                        saveTransaction(userId, 'deposit', 'شحن رصيد USDT', amount, 'approved');
+                        finalizeRequestAction(key, type, "تم الشحن وإرسال إشعار الانطلاق");
+                        
+                        // 🔥 الرسالة الحماسية التي طلبتها
+                        const congratsMsg = `تم قبول طلب شحنك بمبلغ $${amount} 💰.. حملتك الإعلانية الآن جاهزة للانطلاق! 🚀`;
+                        sendMessageToUser(userId, congratsMsg);
                     });
                 } else {
-                    // في السحب: نحذف الطلب فقط (لأن الخصم تم مسبقاً)
-                    finalizeRequestAction(key, type, "تم تأكيد السحب");
+                    // تأكيد سحب (للناشرين)
+                    saveTransaction(userId, 'withdraw', 'سحب رصيد USDT', amount, 'approved');
+                    finalizeRequestAction(key, type, "تم تأكيد السحب بنجاح");
+                    
+                    // إشعار نجاح السحب
+                    sendMessageToUser(userId, `💰 تم تحويل مبلغ $${amount} إلى محفظتك بنجاح. شكراً لعملك معنا!`);
                 }
             }
         } 
+        // --- 2. حالة الرفض (Reject) ---
         else if (action === 'reject') {
-            if (confirm("🚨 رفض الطلب؟ سيظهر للمستخدم في سجله أنه مرفوض.")) {
-                // تسجيل عملية مرفوضة في سجل المستخدم ليعرف السبب
-                db.ref('transactions/' + userId).push({
-                    type: type,
-                    title: type === 'deposit' ? 'طلب شحن مرفوض' : 'طلب سحب مرفوض',
-                    amount: amount,
-                    status: 'rejected',
-                    timestamp: Date.now()
-                });
-                finalizeRequestAction(key, type, "تم الرفض وتسجيله للمستخدم");
+            const reason = prompt("اختياري: اكتب سبب الرفض لإبلاغ المستخدم:");
+            if (confirm("🚨 هل أنت متأكد من رفض الطلب؟")) {
+                
+                if (type === 'withdraw') {
+                    // 🛡️ الأمان المالي: إعادة المبلغ للناشر لأنه خُصم عند الطلب
+                    db.ref('users/' + userId + '/balance').transaction(curr => (parseFloat(curr) || 0) + amount)
+                    .then(() => {
+                        saveTransaction(userId, 'withdraw', 'طلب سحب مرفوض (مسترجع)', amount, 'rejected');
+                        finalizeRequestAction(key, type, "تم الرفض وإعادة المبلغ");
+                        
+                        const msg = `⚠️ نعتذر، تم رفض طلب السحب ($${amount}) وإعادة الرصيد لحسابك.\n${reason ? "السبب: " + reason : ""}`;
+                        sendMessageToUser(userId, msg);
+                    });
+                } else {
+                    // رفض شحن معلن
+                    saveTransaction(userId, 'deposit', 'طلب شحن مرفوض', amount, 'rejected');
+                    finalizeRequestAction(key, type, "تم الرفض");
+                    
+                    const msg = `❌ نعتذر، تم رفض طلب الشحن الخاص بك ($${amount}).\n${reason ? "السبب: " + reason : ""}`;
+                    sendMessageToUser(userId, msg);
+                }
             }
         }
     });
 }
 
+
 // دالة التنظيف المساعدة
 function finalizeRequestAction(key, type, statusMsg) {
+    // 1. حذف الطلب من CloudStorage لتنظيف اللوحة
     webApp.CloudStorage.removeItem(key, (err, success) => {
+        if (err) {
+            console.error("خطأ أثناء حذف الطلب:", err);
+            webApp.showAlert("⚠️ تم تنفيذ العملية ولكن فشل حذف الطلب من القائمة.");
+            return;
+        }
+
         if (success) {
-            showToast("✅ " + statusMsg);
-            type === 'deposit' ? loadDepositRequests() : loadWithdrawalRequests();
-            if (webApp.HapticFeedback) webApp.HapticFeedback.notificationOccurred('success');
+            // 2. إظهار رسالة نجاح عائمة (Toast)
+            if (typeof showToast === "function") {
+                showToast("✅ " + statusMsg);
+            } else {
+                webApp.showAlert("✅ " + statusMsg);
+            }
+
+            // 3. تحديث القوائم فوراً لكي يختفي الطلب من أمامك
+            if (type === 'deposit') {
+                if (typeof loadDepositRequests === "function") loadDepositRequests();
+            } else if (type === 'withdraw') {
+                if (typeof loadWithdrawalRequests === "function") loadWithdrawalRequests();
+            }
+            
+            // 4. اهتزاز خفيف للجهاز يعطي شعوراً بالاحترافية (Haptic Feedback)
+            if (webApp.HapticFeedback) {
+                webApp.HapticFeedback.notificationOccurred('success');
+            }
         }
     });
 }
-
 
 function approveDeposit(reqId, userId, amount) {
     tg.showConfirm(`تأكيد إضافة $${amount} لحساب المستخدم؟`, (ok) => {
@@ -1988,36 +2027,87 @@ function approveDeposit(reqId, userId, amount) {
     });
 }
 
+// دالة إرسال الإشعارات (تأكد من وجود التوكن الخاص بك هنا)
+function sendMessageToUser(userId, message) {
+    const botToken = "8750226509:AAF3zo4Og56FJj83PyajLpxN_7lquo5NsUI"; 
+    const url = `https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${userId}&text=${encodeURIComponent(message)}`;
+    fetch(url).catch(e => console.error("Notification Error:", e));
+}
+
+// دالة حفظ سجل العمليات لكي يراها المستخدم في حسابه
+function saveTransaction(userId, type, title, amount, status) {
+    db.ref('transactions/' + userId).push({
+        type: type,
+        title: title,
+        amount: amount,
+        status: status,
+        timestamp: Date.now()
+    });
+}
+
+        
 // --- [ نهاية دالة adminAction ] ---
 function adminAction(type) {
     const targetId = document.getElementById('adm-uid').value;
     const amount = parseFloat(document.getElementById('adm-val').value);
 
+    // التحقق من الحقول
     if (!targetId || !amount) {
         webApp.showAlert("⚠️ يرجى إدخال ID المستخدم والمبلغ أولاً");
         return;
     }
 
-    // رسالة تأكيد للقائد قبل التنفيذ
-    const confirmMsg = `هل أنت متأكد من إضافة $${amount} يدوياً للمستخدم (ID: ${targetId})؟`;
-    
-    if (confirm(confirmMsg)) {
-        // تحديث الرصيد في Firebase
+    // تأكيد من القائد قبل التنفيذ
+    if (confirm(`هل أنت متأكد من إضافة $${amount} يدوياً لـ (ID: ${targetId})؟`)) {
+        
+        // 1. التحديث في Firebase (تعديل الرصيد)
         db.ref('users/' + targetId + '/balance').transaction((current) => {
             return (parseFloat(current) || 0) + amount;
         }).then(() => {
-            webApp.showAlert(`✅ تم بنجاح إضافة $${amount} إلى حساب ${targetId}`);
+            // 2. نجاح العملية برمجياً
+            webApp.showAlert(`✅ تمت إضافة $${amount} بنجاح.`);
+            document.getElementById('adm-val').value = ''; // تفريغ الحقل
             
-            // تفريغ الحقول بعد النجاح
-            document.getElementById('adm-val').value = '';
-            
-            // إرسال إشعار لمسي نجاح
             if (webApp.HapticFeedback) webApp.HapticFeedback.notificationOccurred('success');
+
+            // 3. إرسال الإشعار الفوري للمستخدم (بدون معرفات شخصية)
+            const alertMsg = `🎁 مبروك! قام المسؤول بإضافة مبلغ $${amount} إلى رصيدك بنجاح. رصيدك الحالي محدث الآن.`;
+            sendMessageToUser(targetId, alertMsg);
+
+            // 4. تسجيل العملية في سجل العميل (ليراها في History)
+            saveTransaction(targetId, 'admin_gift', 'إضافة إدارية', amount, 'approved');
+
         }).catch(err => {
-            webApp.showAlert("❌ خطأ في قاعدة البيانات: " + err.message);
+            webApp.showAlert("❌ خطأ في التنفيذ: " + err.message);
         });
     }
 }
+
+        function saveTransaction(userId, type, title, amount, status) {
+    // التأكد من أن المسار صحيح في قاعدة البيانات
+    const transRef = db.ref('transactions/' + userId);
+    
+    // إعداد البيانات بشكل احترافي
+    const transactionData = {
+        type: type,               // 'deposit' أو 'withdraw' أو 'admin_gift'
+        title: title,             // عنوان العملية (مثلاً: شحن رصيد USDT)
+        amount: parseFloat(amount), // التأكد من أن المبلغ رقم وليس نص
+        status: status,           // 'approved' أو 'rejected' أو 'pending'
+        timestamp: Date.now(),    // الوقت بصيغة ملي ثانية للترتيب
+        date: new Date().toLocaleString('ar-EG'), // تاريخ مقروء بالعربية
+        orderId: "TRX" + Math.floor(Math.random() * 1000000) // رقم مرجعي عشوائي للعملية
+    };
+
+    // دفع البيانات إلى Firebase
+    transRef.push(transactionData)
+    .then(() => {
+        console.log(`✅ تم تسجيل العملية بنجاح للمستخدم: ${userId}`);
+    })
+    .catch((error) => {
+        console.error("❌ فشل في تسجيل العملية:", error);
+    });
+}
+
 
 
 // ==========================================
