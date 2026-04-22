@@ -1339,51 +1339,65 @@ function getInterestName(cat) {
 // ==========================================
 
 function openTab(tabName, element) {
-    // 1. التنظيف (إخفاء كل الأقسام بناءً على الكلاس)
-    document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
-    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+    // 1. إخفاء شامل لكل ما يحمل كلاس section لضمان عدم التداخل
+    document.querySelectorAll('.section').forEach(s => {
+        s.style.display = 'none';
+    });
 
-    // 2. الإظهار (التأكد من مطابقة الـ ID للـ HTML)
-    // لاحظ: إذا كانت أقسامك في الـ HTML تبدأ بـ 'section-' اتركها كما هي
+    // 2. إزالة التفعيل من أزرار القائمة السفلية
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.remove('active');
+    });
+
+    // 3. تحديد وإظهار القسم الرئيسي
     const target = document.getElementById('section-' + tabName);
     
     if (target) {
         target.style.display = 'block';
-        // تمرير الشاشة للأعلى عند الانتقال
+
+        // [حل مشكلة اختفاء الأزرار] 
+        // هذا الجزء يبحث عن أي أزرار أو كروت داخل القسم المفتوح ويظهرها
+        target.querySelectorAll('.section').forEach(subItem => {
+            // إذا كان العنصر عبارة عن شبكة إحصائيات (Grid)
+            if (subItem.style.display === 'grid' || subItem.innerHTML.includes('grid')) {
+                subItem.style.display = 'grid';
+            } else {
+                subItem.style.display = 'block';
+            }
+        });
+
         window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
-        // رسالة تنبيه برمجية أوضح للمطور
-        console.warn(`⚠️ تنبيه: القسم section-${tabName} غير موجود في الـ HTML حالياً.`);
+        console.warn(`⚠️ القسم section-${tabName} غير موجود في الـ HTML`);
     }
 
-    // 3. التفعيل البصري للزر
+    // 4. التفعيل البصري للزر
     if (element) {
         element.classList.add('active');
     } else {
-        // محاولة إيجاد الزر برمجياً إذا لم يُمرر الـ element
         const navBtn = document.querySelector(`.nav-item[onclick*="${tabName}"]`);
         if (navBtn) navBtn.classList.add('active');
     }
 
-    // 4. التفاعل اللمسي (Haptic Feedback) - متوافق مع الإصدارات الحديثة
+    // 5. التفاعل اللمسي (Haptic Feedback)
     try {
-        if (window.Telegram.WebApp.HapticFeedback) {
+        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
             window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
         }
-    } catch (e) { console.log("HapticFeedback not supported"); }
+    } catch (e) { console.log("HapticFeedback Error"); }
 
-    // 5. المحرك الذكي (تحديث البيانات فورياً)
-    const user = window.Telegram.WebApp.initDataUnsafe.user;
+    // 6. المحرك الذكي (تحديث البيانات فورياً بناءً على القسم)
+    const user = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp.initDataUnsafe.user : null;
+    
     if (user) {
         const userId = user.id;
         
         switch(tabName) {
             case 'channels':
-                console.log("📈 تشغيل محرك الناشر الأقوى...");
-                // استدعاء المراقب الشامل الذي صنعناه
+                console.log("📈 تشغيل محرك الناشر...");
                 if (typeof startPublisherMonitor === "function") {
                     startPublisherMonitor(userId);
-                } else {
+                } else if (typeof startBalanceMonitor === "function") {
                     startBalanceMonitor(userId);
                 }
                 break;
@@ -1396,8 +1410,10 @@ function openTab(tabName, element) {
                 break;
                 
             case 'home':
-                // تحديث سريع للرصيد الرئيسي
-                startBalanceMonitor(userId);
+                console.log("🏠 تحديث الرصيد الرئيسي...");
+                if (typeof startBalanceMonitor === "function") {
+                    startBalanceMonitor(userId);
+                }
                 break;
         }
     }
