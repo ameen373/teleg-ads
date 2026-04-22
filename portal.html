@@ -404,63 +404,54 @@ body {
         </div>
     </div>
 
-<div id="section-promo" class="section" style="display: none;">
+<div id="section-promo" class="section" style="display: none; padding: 15px;">
     
     <div class="wallet-card" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 1px solid #334155; border-radius: 25px; padding: 20px; margin-bottom: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.2);">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-        <span style="color: #94a3b8; font-size: 13px; font-weight: 500;">الميزانية الإعلانية</span>
-        <div style="background: rgba(46, 204, 113, 0.1); color: #2ecc71; padding: 4px 10px; border-radius: 10px; font-size: 10px; font-weight: bold;">
-            <i class="fas fa-check-double"></i> متصل بالبلوكشين
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <span style="color: #94a3b8; font-size: 13px; font-weight: 500;">الميزانية الإعلانية</span>
+            <div style="background: rgba(46, 204, 113, 0.1); color: #2ecc71; padding: 4px 10px; border-radius: 10px; font-size: 10px; font-weight: bold;">
+                <i class="fas fa-check-double"></i> متصل بالبلوكشين
+            </div>
+        </div>
+        
+        <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 20px;">
+            <span style="color: #fff; font-size: 32px; font-weight: 800;">$<span id="adv-rem-bal">0.00</span></span>
+            <span style="color: #64748b; font-size: 14px;">USDT</span>
+        </div>
+
+        <div style="display: flex; gap: 12px;">
+            <button onclick="openModal('modal-crypto-deposit')" style="flex: 1; background: #2ecc71; color: #fff; border: none; padding: 12px; border-radius: 15px; font-weight: bold; cursor: pointer;">
+                شحن الرصيد
+            </button>
+            <button onclick="openModal('modal-smart-campaign')" style="flex: 1; background: #334155; color: #fff; border: none; padding: 12px; border-radius: 15px; font-weight: bold; cursor: pointer;">
+                إعلان جديد
+            </button>
         </div>
     </div>
-    
-    <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 20px;">
-        <span style="color: #fff; font-size: 32px; font-weight: 800;">$<span id="adv-rem-bal">0.00</span></span>
-        <span style="color: #64748b; font-size: 14px;">USDT</span>
+
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;">
+        <div style="background: #1e293b; padding: 12px; border-radius: 15px; text-align: center; border: 1px solid #334155;">
+            <small style="color: #64748b; font-size: 10px; display: block; margin-bottom: 4px;">الظهور</small>
+            <b id="adv-views" style="color: #f8fafc; font-size: 14px;">0</b>
+        </div>
+        <div style="background: #1e293b; padding: 12px; border-radius: 15px; text-align: center; border: 1px solid #334155;">
+            <small style="color: #64748b; font-size: 10px; display: block; margin-bottom: 4px;">النقرات</small>
+            <b id="adv-clicks" style="color: #f8fafc; font-size: 14px;">0</b>
+        </div>
+        <div style="background: #1e293b; padding: 12px; border-radius: 15px; text-align: center; border: 1px solid #334155;">
+            <small style="color: #64748b; font-size: 10px; display: block; margin-bottom: 4px;">تفاعل</small>
+            <b id="adv-ctr" style="color: #2ecc71; font-size: 14px;">0%</b>
+        </div>
     </div>
 
-    <div style="display: flex; gap: 12px;">
-        <button onclick="openModal('modal-crypto-deposit')" style="flex: 1; background: #2ecc71; color: #fff; border: none; padding: 12px; border-radius: 15px; font-weight: bold; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(46, 204, 113, 0.3);">
-            <i class="fas fa-plus-circle"></i> شحن الرصيد
-        </button>
-        
-        <button onclick="openModal('modal-smart-campaign')" style="flex: 1; background: #334155; color: #fff; border: none; padding: 12px; border-radius: 15px; font-weight: bold; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center; gap: 8px;">
-            <i class="fas fa-rocket"></i> إعلان جديد
-        </button>
+    <div class="card" style="background: #1e293b; border: 1px solid #334155; padding: 20px; border-radius: 22px;">
+        <h4 style="color: #94a3b8; margin: 0 0 15px 0; font-size: 14px;">🕒 سجل العمليات الأخيرة</h4>
+        <div id="trans-history-list">
+            <p style="color: #64748b; font-size: 12px; text-align: center;">جاري تحميل السجل...</p>
+        </div>
     </div>
-</div>
 
-    <div class="card" style="background: #1e293b; border: 1px solid #334155; padding: 20px; border-radius: 22px; margin-top: 20px;">
-    <h4 style="color: #94a3b8; margin-top: 0; margin-bottom: 15px; font-size: 14px; display: flex; align-items: center; gap: 8px;">
-        🕒 سجل العمليات الأخيرة
-    </h4>
-        
-    <div id="trans-history-list" style="display: flex; flex-direction: column; gap: 10px;">
-        <p style="color: #64748b; font-size: 12px; text-align: center;">جاري تحميل السجل...</p>
-    </div>
-    </div>
-    
-
-<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;">
-    <div style="background: #1e293b; padding: 12px; border-radius: 15px; text-align: center; border: 1px solid #334155;">
-        <small style="color: #64748b; font-size: 10px; display: block; margin-bottom: 4px;">الظهور</small>
-        <b id="adv-views" style="color: #f8fafc; font-size: 14px;">0</b>
-    </div>
-    <div style="background: #1e293b; padding: 12px; border-radius: 15px; text-align: center; border: 1px solid #334155;">
-        <small style="color: #64748b; font-size: 10px; display: block; margin-bottom: 4px;">النقرات</small>
-        <b id="adv-clicks" style="color: #f8fafc; font-size: 14px;">0</b>
-    </div>
-    <div style="background: #1e293b; padding: 12px; border-radius: 15px; text-align: center; border: 1px solid #334155;">
-        <small style="color: #64748b; font-size: 10px; display: block; margin-bottom: 4px;">تفاعل</small>
-        <b id="adv-ctr" style="color: #2ecc71; font-size: 14px;">0%</b>
-    </div>
-</div>
-
-    
-<div class="section-advertiser" style="padding: 15px;">
-    <button class="btn-premium-add" style="background:var(--accent); width:100%; border-radius:50px; margin-top: 15px; padding: 12px; border: none; color: white; font-weight: bold; cursor: pointer;" onclick="openModal('modal-smart-campaign')">
-        🚀 إنشاء حملة عالمية جديدة
-    </button>
+    <button class="btn-premium-add" style="background:var(--accent); width:100%; border-radius:50px; margin-top: 20px; padding: 15px; border: none; color: white; font-weight: bold;" onclick="openModal('modal-smart-campaign')">🚀 إنشاء حملة عالمية جديدة</button>
     
     <div class="card" style="margin-top:20px; background: var(--card); padding: 15px; border-radius: 15px;">
         <h4 style="color: var(--text);">📋 إدارة الحملات الحالية</h4>
@@ -468,15 +459,13 @@ body {
             لا توجد حملات جارية حالياً..
         </div>
     </div>
-</div>
 
-<div id="modal-smart-campaign" class="modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); overflow-y: auto;">
+</div> <div id="modal-smart-campaign" class="modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); overflow-y: auto;">
     
-    <div class="modal-content" style="border: 2px solid var(--gold); max-width: 500px; background: var(--bg); color: var(--text); padding: 20px; border-radius: 20px; margin: 30px auto; position: relative;">
+    <div class="modal-content" style="border: 2px solid var(--gold); max-width: 500px; background: var(--bg); color: var(--text); padding: 20px; border-radius: 20px; margin: 20px auto;">
         
-        <span style="position: absolute; left: 20px; top: 15px; cursor: pointer; font-size: 24px; color: #888;" onclick="closeModal()">✕</span>
-        
-        <h3 style="color:var(--gold); text-align:center; margin-bottom:20px;">🎯 تخصيص حملة Ads Pro</h3>
+        <span style="float:left; cursor:pointer; font-size:24px; color: #888;" onclick="closeModal()">✕</span>
+        <h3 style="color:var(--gold); text-align:center; margin-bottom:15px;">🎯 تخصيص حملة Ads Pro</h3>
 
         <div id="ad-preview" style="background: #242f3d; padding: 12px; border-radius: 12px; border: 1px solid #0fbcf9; margin-bottom: 15px; display: none;">
             <small style="color: #0fbcf9;">📱 شكل الإعلان المتوقع:</small>
@@ -484,59 +473,61 @@ body {
                 <img id="preview-img" style="width:100%; border-radius:8px; display:none; margin-bottom:8px;">
                 <video id="preview-video" style="width:100%; border-radius:8px; display:none; margin-bottom:8px;" controls></video>
                 <p id="preview-text-smart" style="color: white; font-size: 13px; margin: 0;">نص الإعلان سيظهر هنا...</p>
-                <div style="background: #0088cc; color: white; text-align: center; padding: 5px; border-radius: 5px; font-size: 11px; margin-top: 8px;">🔗 رابط الإعلان نشط</div>
             </div>
         </div>
 
         <label class="label-small">📝 محتوى الإعلان:</label>
-        <textarea id="adv-text-manual" class="input-premium" style="height: 70px; margin-bottom: 12px; width: 100%;" oninput="updateAdPreview()" placeholder="اكتب وصف إعلانك الجذاب هنا..."></textarea>
+        <textarea id="adv-text-manual" class="input-premium" style="height: 60px; margin-bottom: 10px; width: 100%;" oninput="updateAdPreview()" placeholder="اكتب وصف إعلانك الجذاب هنا..."></textarea>
 
         <label class="label-small">🖼️ رابط الصورة أو الفيديو:</label>
-        <div style="display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-bottom: 12px;">
+        <div style="display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-bottom: 10px;">
             <input type="text" id="adv-media-url" class="input-premium" style="width: 100%;" oninput="updateAdPreview()" placeholder="رابط مباشر (jpg, mp4)">
             <button class="btn" style="width: 45px; background: var(--accent); color: white; border: none; border-radius: 8px;" onclick="document.getElementById('adv-file-upload').click()">📁</button>
             <input type="file" id="adv-file-upload" style="display: none;" onchange="handleFileUpload(this)">
         </div>
 
         <label class="label-small">🔗 رابط الزر (t.me):</label>
-        <input type="text" id="adv-link-smart" class="input-premium" style="margin-bottom: 12px; width: 100%;" oninput="updateAdPreview()" placeholder="https://t.me/your_channel">
+        <input type="text" id="adv-link-smart" class="input-premium" style="margin-bottom: 10px; width: 100%;" oninput="updateAdPreview()" placeholder="https://t.me/your_channel">
 
-        <label class="label-small">🌍 استهداف المناطق والاهتمامات:</label>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom: 12px;">
-            <select id="adv-continent" class="input-premium" style="width: 100%;"><option value="">القارة...</option></select>
+        <label class="label-small">🌍 استهداف المناطق:</label>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom: 10px;">
+            <select id="adv-continent" class="input-premium" style="width: 100%;"><option value="">اختر القارة...</option></select>
             <select id="adv-country" class="input-premium" style="width: 100%;"><option value="all">كل الدول</option></select>
         </div>
+
+        <label class="label-small">🎯 استهداف الاهتمامات:</label>
         <select id="adv-interests" class="input-premium" style="margin-bottom: 15px; width: 100%;">
             <option value="all">كل الاهتمامات (عام) 🌍</option>
             <option value="crypto">العملات المشفره 🪙</option>
             <option value="movies">الأفلام والمسلسلات 🎬</option>
-            <option value="tech">التكنولوجيا 📱</option>
+            <option value="tech">التكنولوجيا والتقنية 📱</option>
         </select>
 
         <label class="label-small">💳 نظام المحاسبة:</label>
         <div class="target-goal-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 15px;">
             <div id="tab-views" class="goal-item active" onclick="switchAdMode('views')" style="background: rgba(30, 41, 59, 0.5); padding: 10px; border-radius: 12px; text-align: center; cursor: pointer;">
-                <span style="font-size: 18px;">👁️</span><p style="font-size: 9px; margin: 3px 0; color: #fff;">مشاهدات</p>
+                <span style="font-size: 20px;">👁️</span><p style="font-size: 10px; color: #fff;">مشاهدات</p>
             </div>
             <div id="tab-clicks" class="goal-item" onclick="switchAdMode('clicks')" style="background: rgba(30, 41, 59, 0.5); padding: 10px; border-radius: 12px; text-align: center; cursor: pointer;">
-                <span style="font-size: 18px;">🖱️</span><p style="font-size: 9px; margin: 3px 0; color: #fff;">نقرات</p>
+                <span style="font-size: 20px;">🖱️</span><p style="font-size: 10px; color: #fff;">نقرات</p>
             </div>
             <div id="tab-fixed" class="goal-item" onclick="switchAdMode('fixed')" style="background: rgba(30, 41, 59, 0.5); padding: 10px; border-radius: 12px; text-align: center; cursor: pointer;">
-                <span style="font-size: 18px;">🕒</span><p style="font-size: 9px; margin: 3px 0; color: #fff;">ثابت</p>
+                <span style="font-size: 20px;">🕒</span><p style="font-size: 10px; color: #fff;">ثابت 1/24</p>
             </div>
         </div>
 
         <input type="hidden" id="current-ad-mode" value="views">
 
         <div id="section-views" class="ad-mode-section" style="background: rgba(46, 204, 113, 0.1); padding: 10px; border-radius: 10px; margin-bottom: 12px; border-right: 3px solid #2ecc71;">
-            <small style="color: #2ecc71;">✅ محاسبة مقابل كل 1000 مشاهدة (CPV).</small>
+            <small style="color: #2ecc71;">✅ سيتم المحاسبة مقابل كل 1000 مشاهدة (CPV).</small>
         </div>
         <div id="section-clicks" class="ad-mode-section" style="display: none; background: rgba(56, 189, 248, 0.1); padding: 10px; border-radius: 10px; margin-bottom: 12px; border-right: 3px solid #38bdf8;">
-            <small style="color: #38bdf8;">✅ محاسبة عند الضغط على الرابط فقط (CPC).</small>
+            <small style="color: #38bdf8;">✅ سيتم الخصم عند الضغط على الرابط فقط (CPC).</small>
         </div>
         <div id="section-fixed" class="ad-mode-section" style="display: none; margin-bottom: 12px;">
+            <label class="label-small">⏳ نظام التثبيت:</label>
             <select id="adv-post-type" class="input-premium" style="width: 100%;">
-                <option value="1/24">🥇 نظام 1/24 (ساعة تثبيت)</option>
+                <option value="1/24">🥇 نظام 1/24</option>
                 <option value="week">📅 نظام الأسبوع</option>
             </select>
         </div>
@@ -547,50 +538,26 @@ body {
                 <input type="number" id="adv-daily-budget" class="input-premium" style="width: 100%;" oninput="estimateCampaign()">
             </div>
             <div>
-                <label class="label-small">⏰ الانطلاق:</label>
+                <label class="label-small">⏰ وقت الانطلاق:</label>
                 <input type="datetime-local" id="adv-start-time" class="input-premium" style="width: 100%;">
             </div>
         </div>
 
-        <div style="display: flex; gap: 10px; margin-bottom: 20px; background: rgba(255,255,255,0.03); padding: 10px; border-radius: 10px;">
+        <div style="display: flex; gap: 10px; margin-bottom: 15px; background: rgba(255,255,255,0.03); padding: 10px; border-radius: 10px;">
             <label style="color: white; font-size: 11px; display: flex; align-items: center; gap: 5px; cursor:pointer;">
                 <input type="checkbox" id="adv-retarget"> إعادة استهداف 🎯
             </label>
-            <select id="adv-quality" class="input-premium" style="flex:1; margin:0; padding: 4px; height: 30px; font-size: 10px;">
+            <select id="adv-quality" class="input-premium" style="flex:1; margin:0; padding: 4px; font-size: 10px;">
                 <option value="high">جودة عالية ⭐</option>
                 <option value="economy">اقتصادية ✅</option>
             </select>
         </div>
 
-        <button class="btn btn-primary" style="background:var(--safe); width:100%; border-radius:50px; padding: 14px; font-weight: bold; border: none; color: white; cursor: pointer; font-size: 16px;" onclick="processNewCampaign()">
-            🚀 إطلاق الحملة الآن
-        </button>
+        <button class="btn btn-primary" style="background:var(--safe); width:100%; border-radius:50px; padding: 14px; font-weight: bold; border: none; color: white; cursor: pointer;" onclick="processNewCampaign()">🚀 إطلاق الحملة الآن</button>
 
-    </div> </div> <div id="sec-stats" class="section" style="display: none; padding: 15px;">
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
-        <div class="card" style="background: #1e293b; padding: 15px; border-radius: 20px; border-bottom: 3px solid #0984e3;">
-            <small style="color: #64748b;">إجمالي المشاهدات</small><br>
-            <b id="stat-views-total" style="font-size: 20px; color: #fff;">0</b>
-        </div>
-        <div class="card" style="background: #1e293b; padding: 15px; border-radius: 20px; border-bottom: 3px solid #e84393;">
-            <small style="color: #64748b;">النقرات (Clicks)</small><br>
-            <b id="stat-clicks-total" style="font-size: 20px; color: #fff;">0</b>
-        </div>
-    </div>
-    
-    <div class="card" style="background: #1e293b; padding: 20px; border-radius: 22px; margin-bottom: 20px;">
-        <h4 style="color: #94a3b8; margin-bottom: 15px; font-size: 14px;">📊 أداء الحملات (آخر 7 أيام)</h4>
-        <div style="display: flex; align-items: flex-end; justify-content: space-between; height: 100px;">
-            <div style="width: 12px; background: #0984e3; border-radius: 4px; height: 20%;"></div>
-            <div style="width: 12px; background: #0984e3; border-radius: 4px; height: 45%;"></div>
-            <div style="width: 12px; background: #0984e3; border-radius: 4px; height: 30%;"></div>
-            <div style="width: 12px; background: #0984e3; border-radius: 4px; height: 70%;"></div>
-            <div style="width: 12px; background: #2ecc71; border-radius: 4px; height: 90%;"></div>
-        </div>
-    </div>
-</div>
+    </div> </div> ```
 
-
+        
         <div id="section-channels" class="section" style="display: none; padding: 15px;">
     
     <div class="publisher-header-card">
