@@ -1017,67 +1017,101 @@ function refreshPublisherData(newData) {
 // ==========================================
 // 3. دوال الإيداع والشحن (Deposit)
 // ==========================================
+
 function processDepositSubmission() {
     const amtField = document.getElementById('final-amount');
     const txField = document.getElementById('final-txid');
     const btn = document.getElementById('main-submit-btn');
 
-    if (!amtField || !txField) return;
+    // فحص وجود العناصر في الـ HTML
+    if (!amtField || !txField) {
+        console.error("⚠️ خطأ: حقول الإدخال غير موجودة في الـ HTML");
+        return;
+    }
 
     const amt = amtField.value;
     const tx = txField.value;
     const user = webApp.initDataUnsafe.user || { id: 0, first_name: 'Unknown' };
 
+    // التحقق من إدخال البيانات
     if (!amt || !tx) {
-        showToast("⚠️ يرجى إدخال البيانات المطلوبة", "error");
+        if (typeof showToast === "function") {
+            showToast("⚠️ يرجى إدخال المبلغ وهاش العملية", "error");
+        } else {
+            webApp.showAlert("⚠️ يرجى إدخال البيانات المطلوبة");
+        }
         return;
     }
 
+    // تعطيل الزر لمنع الإرسال المتكرر
     btn.disabled = true;
-    btn.innerText = "جاري الإرسال...";
+    btn.innerText = "⏳ جاري الحفظ سحابياً...";
 
-    db.ref('deposit_requests').push({
+    // إنشاء معرف فريد لطلب الإيداع
+    const depositId = "deposit_" + Date.now() + "_" + user.id;
+    
+    const depositData = {
+        type: "deposit",
         uid: user.id,
         userName: user.first_name,
         amount: amt,
         txid: tx,
         status: 'pending',
-        timestamp: Date.now()
-    }).then(() => {
-        showToast("✅ تم إرسال طلبك بنجاح");
-        closeModal();
-        amtField.value = '';
-        txField.value = '';
-    }).catch(err => {
-        showToast("❌ خطأ: " + err.message, "error");
-    }).finally(() => {
+        timestamp: new Date().toLocaleString('ar-EG')
+    };
+
+    // حفظ البيانات في CloudStorage (لتراها في قسم الإدارة)
+    webApp.CloudStorage.setItem(depositId, JSON.stringify(depositData), (err, success) => {
+        if (success) {
+            webApp.showAlert("✅ تم إرسال طلب الشحن بنجاح! سيتم التحقق من العملية وإضافة الرصيد لحسابك.");
+            
+            // إغلاق النافذة وتفريغ الحقول
+            if (typeof closeModal === "function") closeModal();
+            amtField.value = '';
+            txField.value = '';
+            
+            // تمرير haptic feedback
+            if (webApp.HapticFeedback) webApp.HapticFeedback.notificationOccurred('success');
+        } else {
+            webApp.showAlert("❌ خطأ في الاتصال بالسحابة: " + (err || "حاول ثانية"));
+        }
+
+        // إعادة الزر لحالته
         btn.disabled = false;
         btn.innerText = "🚀 إرسال الطلب للمراجعة";
     });
 }
-
+        
 function copyWalletAddress() {
     navigator.clipboard.writeText("TSiS4tDnUwa5YptcYatRZ8ykPeMwmALLSV");
     showToast("✅ تم نسخ العنوان");
 }
 
+// ==========================================
+// دالة فتح النوافذ المنبثقة (Modals)
+// ==========================================
 function openModal(id) {
     const modal = document.getElementById(id);
-    if (!modal) return;
-
-    // 1. إظهار النافذة
-    modal.style.display = 'flex';
-
-    // 2. إجبار تليجرام على التوسع الكامل
-    if (window.Telegram && window.Telegram.WebApp) {
-        window.Telegram.WebApp.expand(); // توسيع الشاشة لأقصى حد
-        window.Telegram.WebApp.disableVerticalSwipe(); // تعطيل سحب الإغلاق
+    
+    // فحص أمان: إذا كان الـ ID غير موجود في الـ HTML لا تحاول تشغيل الكود
+    if (!modal) {
+        console.error("⚠️ فشل فتح النافذة: المعرف " + id + " غير موجود.");
+        return;
     }
 
-    // 3. منع خلفية الصفحة من التحرك
+    // 1. إظهار النافذة (استخدام flex أو block حسب تصميمك)
+    modal.style.display = 'flex'; 
+
+    // 2. إجبار تليجرام على التوسع وتعطيل سحب الإغلاق لحماية البيانات
+    if (window.Telegram && window.Telegram.WebApp) {
+        window.Telegram.WebApp.expand(); 
+        window.Telegram.WebApp.disableVerticalSwipe();
+    }
+
+    // 3. منع التمرير في خلفية التطبيق لتركيز المستخدم على النافذة
     document.body.style.overflow = 'hidden';
 
-    // 4. تشغيل الأنظمة الفرعية
+    // 4. تشغيل الأنظمة الخاصة بالحملات (إذا كانت هذه هي نافذة المعلن)
     if (id === 'modal-smart-campaign') {
         if (typeof setupGeoDropdowns === "function") {
             setupGeoDropdowns('adv-continent', 'adv-country');
@@ -1085,14 +1119,24 @@ function openModal(id) {
     }
 }
 
+// ==========================================
+// دالة إغلاق النوافذ المنبثقة
+// ==========================================
 function closeModal() {
-    document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+    // إخفاء كل النوافذ التي تحمل كلاس modal
+    document.querySelectorAll('.modal').forEach(m => {
+        m.style.display = 'none';
+    });
     
-    // إعادة تفعيل ميزة السحب بعد إغلاق النافذة ليعود التطبيق لطبيعته
+    // 1. إعادة انسيابية التمرير للصفحة (مهم جداً لكي لا يتجمد التطبيق)
+    document.body.style.overflow = 'auto';
+
+    // 2. إعادة تفعيل ميزة السحب في تليجرام
     if (window.Telegram && window.Telegram.WebApp) {
         window.Telegram.WebApp.enableVerticalSwipe();
     }
 }
+        
 
 // ==========================================
 // 4. إعدادات المعلن والحملات (Advertiser)
