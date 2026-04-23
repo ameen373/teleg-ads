@@ -378,7 +378,44 @@ html, body {
     box-sizing: border-box;
 }
             
-          
+.ref-main-card {
+    background: linear-gradient(145deg, #1e293b, #0f172a);
+    border: 2px solid #f1c40f;
+    border-radius: 30px;
+    padding: 30px 20px;
+    position: relative;
+    overflow: hidden;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(241, 196, 15, 0.1);
+}
+.glow-effect {
+    position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+    background: radial-gradient(circle, rgba(241,196,15,0.05) 0%, transparent 70%);
+}
+.ref-label { color: #94a3b8; font-size: 13px; margin-bottom: 8px; }
+.ref-balance-text { color: #fff; font-size: 42px; font-weight: 900; margin: 0; }
+.stat-tag { background: rgba(46, 204, 113, 0.1); color: #2ecc71; padding: 5px 12px; border-radius: 50px; font-size: 10px; font-weight: bold; }
+.btn-main-action { margin-top: 20px; background: #f1c40f; border: none; padding: 12px 25px; border-radius: 50px; font-weight: 900; cursor: pointer; color: #000; }
+
+.share-container { background: #161b22; border-radius: 20px; padding: 15px; margin-top: 20px; border: 1px solid #30363d; }
+.share-header { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 11px; }
+.copy-badge { color: #58a6ff; cursor: pointer; font-weight: bold; }
+#myRefLink { width: 100%; background: transparent; border: none; color: #58a6ff; font-size: 13px; outline: none; }
+
+.tiers-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 20px; }
+.tier-box { background: #161b22; padding: 12px; border-radius: 15px; border: 1px solid #30363d; }
+.tier-box.t4, .tier-box.t5 { grid-column: span 1.5; } /* موازنة الشكل */
+.tier-info { display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 8px; }
+.tier-info span { color: #8b949e; }
+.tier-info b { color: #f1c40f; }
+.tier-data { color: #fff; font-size: 16px; font-weight: bold; display: flex; align-items: center; gap: 5px; }
+.tier-data i { font-size: 12px; color: #4ade80; }
+
+.action-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-top: 20px; }
+.btn-tg-share { background: #0088cc; color: white; border: none; padding: 15px; border-radius: 15px; font-weight: bold; cursor: pointer; }
+.btn-qr { background: #fff; color: #000; border: none; border-radius: 15px; cursor: pointer; }
+            
+            
     </style>
 </head>
 <body>
@@ -759,52 +796,60 @@ html, body {
 </div>
 
         
-<div id="section-referrals" class="section" style="display: none; padding: 15px;">
-        
-    <div class="global-stats-card" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-radius: 25px; padding: 25px; border: 1.5px solid #f1c40f; position: relative; overflow: hidden;">
-        <div style="position: absolute; top: -20px; right: -20px; font-size: 100px; opacity: 0.05; color: #f1c40f;"><i class="fas fa-globe"></i></div>
-        
-        <div style="text-align: center;">
-            <p style="color: #94a3b8; font-size: 12px; margin-bottom: 5px;">أرباحك المعلقة (قيد السحب)</p>
-            <h2 style="color: #fff; font-size: 35px; font-weight: 900; margin: 0;">$<span id="ref-balance">0.00</span></h2>
-            <div style="display: flex; justify-content: center; gap: 10px; margin-top: 15px;">
-                <div style="background: rgba(46, 204, 113, 0.1); padding: 5px 15px; border-radius: 50px; color: #2ecc71; font-size: 10px; font-weight: bold; border: 1px solid #2ecc71;">
-                    <i class="fas fa-chart-line"></i> +12% اليوم
-                </div>
+<div id="section-referrals" class="section" style="display: none; padding: 15px; background: #0b0e11;">
+    
+    <div class="ref-main-card">
+        <div class="glow-effect"></div>
+        <div class="card-content">
+            <p class="ref-label">إجمالي أرباح الشبكة</p>
+            <h2 class="ref-balance-text">$<span id="ref-balance">0.00</span></h2>
+            <div class="ref-stats-mini">
+                <span class="stat-tag"><i class="fas fa-bolt"></i> نظام 5 أجيال نشط</span>
             </div>
-        </div>
-    </div>
-
-    <div style="margin-top: 25px;">
-        <h4 style="color: #fff; font-size: 14px; margin-bottom: 15px;"><i class="fas fa-magic" style="color: #f1c40f;"></i> أدوات الانتشار السريع</h4>
-        
-        <div class="share-box" style="background: #161b22; border-radius: 15px; padding: 15px; border: 1px solid #30363d;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <span style="color: #8b949e; font-size: 11px;">رابط الدعوة الخاص بك</span>
-                <span onclick="copyLink()" style="color: #58a6ff; font-size: 11px; cursor: pointer;"><i class="fas fa-copy"></i> نسخ</span>
-            </div>
-           <input type="text" id="myRefLink" value="https://t.me/Ads_telegabot?start=ref_USERID" readonly ...>
-                
-
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px;">
-            <button onclick="shareToTelegram()" style="background: #0088cc; color: white; border: none; padding: 12px; border-radius: 12px; font-weight: bold; font-size: 12px; cursor: pointer;">
-                <i class="fab fa-telegram-plane"></i> مشاركة في تلجرام
-            </button>
-            <button onclick="generateQRCode()" style="background: #fff; color: #000; border: none; padding: 12px; border-radius: 12px; font-weight: bold; font-size: 12px; cursor: pointer;">
-                <i class="fas fa-qrcode"></i> إنشاء كود QR
+            <button class="btn-main-action" onclick="withdrawRefEarnings()">
+                <i class="fas fa-arrow-down"></i> سحب الأرباح الآن
             </button>
         </div>
     </div>
 
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px;">
-        <div style="background: #161b22; padding: 15px; border-radius: 15px; border: 1px solid #30363d;">
-            <small style="color: #8b949e; font-size: 9px; display: block;">إجمالي فريقك</small>
-            <b id="total-team" style="color: #fff; font-size: 18px;">0</b>
+    <div class="share-container">
+        <div class="share-header">
+            <span><i class="fas fa-link"></i> رابط الدعوة العالمي</span>
+            <span class="copy-badge" onclick="copyRefLink()">نسخ الرابط</span>
         </div>
-        <div style="background: #161b22; padding: 15px; border-radius: 15px; border: 1px solid #30363d;">
-            <small style="color: #8b949e; font-size: 9px; display: block;">أرباح الأمس</small>
-            <b id="yesterday-earn" style="color: #2ecc71; font-size: 18px;">+$0.00</b>
+        <input type="text" id="myRefLink" readonly value="Loading...">
+    </div>
+
+    <div class="tiers-grid">
+        <div class="tier-box t1">
+            <div class="tier-info"><span>جيل 1</span><b>10%</b></div>
+            <div class="tier-data"><i class="fas fa-users"></i> <span id="tier1-count">0</span></div>
         </div>
+        <div class="tier-box t2">
+            <div class="tier-info"><span>جيل 2</span><b>5%</b></div>
+            <div class="tier-data"><i class="fas fa-users"></i> <span id="tier2-count">0</span></div>
+        </div>
+        <div class="tier-box t3">
+            <div class="tier-info"><span>جيل 3</span><b>3%</b></div>
+            <div class="tier-data"><i class="fas fa-users"></i> <span id="tier3-count">0</span></div>
+        </div>
+        <div class="tier-box t4">
+            <div class="tier-info"><span>جيل 4</span><b>2%</b></div>
+            <div class="tier-data"><i class="fas fa-users"></i> <span id="tier4-count">0</span></div>
+        </div>
+        <div class="tier-box t5">
+            <div class="tier-info"><span>جيل 5</span><b>1%</b></div>
+            <div class="tier-data"><i class="fas fa-users"></i> <span id="tier5-count">0</span></div>
+        </div>
+    </div>
+
+    <div class="action-grid">
+        <button class="btn-tg-share" onclick="shareToTelegram()">
+            <i class="fab fa-telegram-plane"></i> مشاركة في تلجرام
+        </button>
+        <button class="btn-qr" onclick="generateQRCode()">
+            <i class="fas fa-qrcode"></i> كود QR
+        </button>
     </div>
 
 </div>
@@ -1484,37 +1529,45 @@ function getInterestName(cat) {
 }
 
 // ==========================================
-// 4.5 نظام الإحالة العالمي (Referral System)
+// نظام الإحالة الإمبراطوري (5 أجيال) - المحرك البرمجي
 // ==========================================
 
-// دالة نسخ الرابط مع تأثير بصري
-function copyRefLink() {
-    const linkInput = document.getElementById('myRefLink');
-    linkInput.select();
-    linkInput.setSelectionRange(0, 99999); // للهواتف
-    
-    try {
-        document.execCommand('copy');
-        showToast("✅ تم نسخ رابطك العالمي.. انشره الآن!");
-    } catch (err) {
-        console.error('فشل النسخ', err);
+// 1. تهيئة النظام وجلب بيانات المستخدم الحقيقية
+function initReferralSystem() {
+    if (window.Telegram && window.Telegram.WebApp) {
+        const user = window.Telegram.WebApp.initDataUnsafe.user;
+        if (user) {
+            // توليد الرابط العالمي بناءً على معرف المستخدم الحقيقي
+            const refLink = `https://t.me/Ads_telegabot?start=ref${user.id}`;
+            document.getElementById('myRefLink').value = refLink;
+        }
     }
 }
 
-// دالة المشاركة الفيروسية عبر تليجرام
+// 2. دالة النسخ الاحترافية
+function copyRefLink() {
+    const linkInput = document.getElementById('myRefLink');
+    linkInput.select();
+    document.execCommand('copy');
+    
+    if (window.Telegram && window.Telegram.WebApp) {
+        window.Telegram.WebApp.showAlert("✅ تم نسخ رابط دعوتك العالمي بنجاح!");
+    } else {
+        alert("✅ تم النسخ!");
+    }
+}
+
+// 3. دالة المشاركة الفيروسية (النص الملكي)
 function shareToTelegram() {
     const refLink = document.getElementById('myRefLink').value;
-    
-    // النص الاحترافي
     const shareText = encodeURIComponent(
-        `🌟 انضم إلى شبكة telega.ads وحقق نجاحك الإعلاني! 🌟\n\n` +
-        `👥 للمعلنين: استهدف جمهورك بدقة وحقق نتائج مذهلة!\n` +
-        `💰 للناشرين: اجني الأموال بسهولة من قناتك مع محتوى ملائم!\n\n` +
+        `🌟 انضم إلى شبكة telega.ads وحقق نجاحك الإعلاني! 🌟\n` +
+        `🔗 ${refLink}\n\n` + 
+        `👥 للمعلنين: استهدف جمهورك بدقة وحقق نتائج مذهلة!\n\n` +
+        `💰 للناشرين: اجني الأموال بسهولة من موقعك مع محتوى ملائم!\n\n` +
         `🚀 انضم إلينا الآن وابدأ رحلتك نحو النجاح!`
     );
 
-    // الرابط البرمجي للمشاركة
-    // ملاحظة: وضعنا الرابط في بارامتر url لكي يقوم تليجرام بعمل Preview له وإظهار زر الفتح
     const tgUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${shareText}`;
     
     if (window.Telegram && window.Telegram.WebApp) {
@@ -1524,41 +1577,30 @@ function shareToTelegram() {
     }
 }
 
-// دالة سحب أرباح الإحالة إلى المحفظة الرئيسية
-async function withdrawRefEarnings() {
-    const balance = parseFloat(document.getElementById('ref-balance').innerText);
-    
-    if (balance <= 0) {
-        showToast("⚠️ ليس لديك أرباح كافية للسحب حالياً.");
-        return;
-    }
-
-    webApp.showConfirm(`هل تريد تحويل $${balance} من أرباح الإحالة إلى محفظتك الرئيسية؟`, (confirmed) => {
-        if (confirmed) {
-            // هنا يتم إرسال طلب للباك إند (API) لنقل الرصيد
-            console.log("جاري تحويل الأرباح...");
-            showToast("⏳ جاري معالجة التحويل..");
-            
-            // مثال لتحديث الواجهة بعد النجاح:
-            // document.getElementById('ref-balance').innerText = "0.00";
-            // startBalanceMonitor(); // لتحديث المحفظة الرئيسية
-        }
-    });
-}
-
-// تحديث بيانات الإحالة من قاعدة البيانات
+// 4. تحديث البيانات لـ 5 مستويات (الأقوى تقنياً)
 function updateReferralData(data) {
     if(!data) return;
     
-    // تحديث أعداد المستويات
-    if(data.tier1) document.getElementById('tier1-count').innerText = data.tier1;
-    if(data.tier2) document.getElementById('tier2-count').innerText = data.tier2;
-    if(data.tier3) document.getElementById('tier3-count').innerText = data.tier3;
-    
-    // تحديث الرصيد بتأثير أنيميشن
-    const currentBal = parseFloat(document.getElementById('ref-balance').innerText);
-    animateValue("ref-balance", currentBal, data.balance, 1000);
+    // تحديث المستويات الخمسة ديناميكياً
+    for (let i = 1; i <= 5; i++) {
+        const element = document.getElementById(`tier${i}-count`);
+        if (element && data[`tier${i}`] !== undefined) {
+            element.innerText = data[`tier${i}`];
         }
+    }
+    
+    // تحديث الرصيد مع تأثير الأنيميشن
+    const currentBal = parseFloat(document.getElementById('ref-balance').innerText) || 0;
+    if (typeof animateValue === "function") {
+        animateValue("ref-balance", currentBal, data.balance, 1000);
+    } else {
+        document.getElementById('ref-balance').innerText = data.balance.toFixed(2);
+    }
+}
+
+// 5. تشغيل التهيئة عند تحميل الصفحة
+document.addEventListener('DOMContentLoaded', initReferralSystem);
+
         
         
 // ==========================================
