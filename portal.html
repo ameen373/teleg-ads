@@ -896,26 +896,39 @@ if (!firebase.apps.length) {
 }
 const db = firebase.database();
 
-function startApp() {
+        function startApp() {
     webApp.ready();
     webApp.expand();
     
+    // --- الربط بالمحرك العالمي الجديد ---
+    // 1. ملء قوائم التصنيفات (العملات، التقنية، إلخ) للناشر والمعلن
+    if (typeof initTargetingUI === "function") {
+        initTargetingUI();
+    }
+    
+    // 2. تصفير قوائم الدول (اختياري لضمان نظافة الواجهة)
+    if (typeof syncCountries === "function") {
+        syncCountries('target-region', 'target-country');
+        syncCountries('adv-continent', 'adv-country');
+    }
+    // ------------------------------------
+
     const user = webApp.initDataUnsafe.user;
     if (user) {
         const userId = user.id;
 
-        // 1. مراقبة الرصيد العام (للمعلن وللواجهة الرئيسية)
+        // 1. مراقبة الرصيد العام
         startBalanceMonitor(userId);
         
-        // 2. مراقبة أرباح وإحصائيات الناشر (المحرك الجديد والأقوى)
+        // 2. مراقبة أرباح وإحصائيات الناشر
         if (typeof startPublisherMonitor === "function") {
             startPublisherMonitor(userId);
         }
 
-        // 3. مراقبة المعاملات المالية (سحب/إيداع)
+        // 3. مراقبة المعاملات المالية
         startTransactionMonitor(userId);
         
-        // 4. مراقبة الحملات الإعلانية (للمعلن)
+        // 4. مراقبة الحملات الإعلانية
         startCampaignsMonitor(userId); 
         
         // 5. التحقق من صلاحيات الإدمن
@@ -926,6 +939,7 @@ function startApp() {
         console.error("❌ فشل الحصول على بيانات المستخدم من Telegram");
     }
 }
+
 
 function checkBotStatus() {
     tg.showAlert('🔍 يتم الآن التحقق من الصلاحيات ووجود البوت كمسؤول... يرجى الانتظار');
@@ -1477,6 +1491,21 @@ function getInterestName(cat) {
     return TARGETING_ENGINE.categories[cat] || 'عام 🌍';
 }
 
+        function initTargetingUI() {
+    const pubCat = document.getElementById('target-category');
+    const advInt = document.getElementById('adv-interests');
+
+    // منع التكرار
+    if (pubCat) pubCat.innerHTML = '<option value="all">كل التخصصات</option>';
+    if (advInt) advInt.innerHTML = '<option value="all">كل الاهتمامات (عام)</option>';
+
+    // ملء البيانات من المحرك العالمي
+    Object.entries(TARGETING_ENGINE.categories).forEach(([key, name]) => {
+        if (pubCat) pubCat.options.add(new Option(name, key));
+        if (advInt) advInt.options.add(new Option(name, key));
+    });
+        }
+        
 
 // ==========================================
 // 5. نظام التنقل والواجهة (UI & Navigation)
