@@ -758,8 +758,9 @@ html, body {
     </div>
 </div>
 
-        <div id="section-referrals-pro" class="section-container" style="padding: 15px; background: #0b0f1a;">
-    
+        
+<div id="section-referrals" class="section" style="display: none; padding: 15px;">
+        
     <div class="global-stats-card" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-radius: 25px; padding: 25px; border: 1.5px solid #f1c40f; position: relative; overflow: hidden;">
         <div style="position: absolute; top: -20px; right: -20px; font-size: 100px; opacity: 0.05; color: #f1c40f;"><i class="fas fa-globe"></i></div>
         
@@ -1561,6 +1562,7 @@ function updateReferralData(data) {
 
 function openTab(tabName, element) {
     // 1. التنظيف (إخفاء كل الأقسام وإزالة حالة التفعيل من الأزرار)
+    // ملاحظة: تأكد أن قسم الإحالة في الـ HTML يمتلك class="section"
     document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
 
@@ -1579,20 +1581,27 @@ function openTab(tabName, element) {
         if (navBtn) navBtn.classList.add('active');
     }
 
-    // 4. التفاعل اللمسي
+    // 4. التفاعل اللمسي (Haptic Feedback) لراحة المستخدم
     try {
         if (webApp.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
     } catch (e) {}
 
-    // 5. المحرك الذكي (تحديث البيانات بناءً على التبويب)
+    // 5. المحرك الذكي (تحديث البيانات بناءً على التبويب المختار)
     const user = webApp.initDataUnsafe.user;
     if (user) {
         const userId = user.id;
         
         switch(tabName) {
+            case 'referrals':
+                console.log("💰 تحديث إحصائيات الإمبراطورية...");
+                // تحديث بيانات الإحالة فور فتح القسم لضمان دقة الأرقام أمام المسوق
+                if (typeof fetchReferralStats === "function") {
+                    fetchReferralStats(userId);
+                }
+                break;
+
             case 'admin':
                 console.log("🛠️ تهيئة لوحة القائد...");
-                // الربط الجديد: استخدام switchAdminView لفتح تبويب السحب افتراضياً
                 if (typeof switchAdminView === "function") {
                     switchAdminView('withdraw'); 
                 } else if (typeof loadWithdrawalRequests === "function") {
@@ -1614,6 +1623,7 @@ function openTab(tabName, element) {
         }
     }
 }
+
 
                    
 function showToast(message, type = 'success') {
