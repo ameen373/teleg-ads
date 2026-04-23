@@ -534,19 +534,32 @@ html, body {
         <label class="label-small">🔗 رابط الزر (t.me):</label>
         <input type="text" id="adv-link-smart" class="input-premium" style="margin-bottom: 10px; width: 100%;" oninput="updateAdPreview()" placeholder="https://t.me/your_channel">
 
-        <label class="label-small">🌍 استهداف المناطق:</label>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom: 10px;">
-            <select id="adv-continent" class="input-premium" style="width: 100%;"><option value="">اختر القارة...</option></select>
-            <select id="adv-country" class="input-premium" style="width: 100%;"><option value="all">كل الدول</option></select>
-        </div>
+        <div class="adv-targeting" style="background: rgba(255,255,255,0.03); padding: 15px; border-radius: 12px; border: 1px solid #333; margin-bottom:20px;">
+    <h3 style="font-size: 14px; color: #38bdf8; margin-bottom: 15px;"><i class="fas fa-bullseye"></i> استهداف الجمهور</h3>
 
-        <label class="label-small">🎯 استهداف الاهتمامات:</label>
-        <select id="adv-interests" class="input-premium" style="margin-bottom: 15px; width: 100%;">
-            <option value="all">كل الاهتمامات (عام) 🌍</option>
-            <option value="crypto">العملات المشفره 🪙</option>
-            <option value="movies">الأفلام والمسلسلات 🎬</option>
-            <option value="tech">التكنولوجيا والتقنية 📱</option>
+    <label style="color:#ccc; font-size:12px;">🎯 استهداف اهتمام معين:</label>
+    <select id="adv-interests" class="input-premium" style="width: 100%; border-radius: 8px; padding: 10px; background:#222; color:white; border:1px solid #444; margin-bottom:10px;">
+        <option value="all">كل الاهتمامات (عام)</option>
         </select>
+
+    <div style="display: flex; gap: 10px;">
+        <div style="flex: 1;">
+            <label style="color:#ccc; font-size:12px;">🌍 القارة المستهدفة:</label>
+            <select id="adv-continent" onchange="syncCountries('adv-continent', 'adv-country')" style="width: 100%; border-radius: 8px; padding: 10px; background:#222; color:white; border:1px solid #444;">
+                <option value="all">كل العالم</option>
+                <option value="asia">آسيا</option>
+                <option value="africa">أفريقيا</option>
+                <option value="europe">أوروبا</option>
+                <option value="north_america">أمريكا الشمالية</option>
+                <option value="south_america">أمريكا الجنوبية</option>
+                <option value="oceania">أوقيانوسيا</option>
+            </select>
+        </div>
+        <div style="flex: 1;">
+            <label style="color:#ccc; font-size:12px;">📍 دولة محددة:</label>
+            <select id="adv-country" style="width: 100%; border-radius: 8px; padding: 10px; background:#222; color:white; border:1px solid #444;">
+                <option value="all">كل الدول</option>
+            </select>
 
         <label class="label-small">💳 نظام المحاسبة:</label>
         <div class="target-goal-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 15px;">
@@ -654,34 +667,33 @@ html, body {
         <input type="text" id="ch-name" class="input-premium" placeholder="🏷️ اسم قناتك">
         <input type="text" id="ch-link" class="input-premium" placeholder="🔗 رابط القناة @username">
         
-        <label style="color: #888; font-size: 12px; display: block; margin-top: 10px;">🌍 استهداف القناة:</label>
-        <select id="ch-continent" class="input-premium" style="margin-bottom: 8px; width: 100%;">
-            <option value="">اختر المنطقة...</option>
-        </select>
-        <select id="ch-country" class="input-premium" style="width: 100%;">
-            <option value="all">كل دول المنطقة</option>
+        <div class="targeting-box" style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; border: 1px solid #444; margin-bottom:20px;">
+    <h3 style="font-size: 14px; color: #f1c40f; margin-bottom: 15px;"><i class="fas fa-crosshairs"></i> تصنيف واستهداف القناة</h3>
+
+    <label style="color:#ccc; font-size:12px;">🎯 نوع المحتوى:</label>
+    <select id="target-category" class="admin-input" style="width: 100%; border-radius: 8px; padding: 10px; background:#333; color:white; border:none; margin-bottom:10px;">
+        <option value="all">كل التخصصات</option>
         </select>
 
-<div class="card" style="background: #1e293b; padding: 15px; border-radius: 20px; margin-top: 15px; border: 1px dashed #334155;">
-    <h4 style="color: #38bdf8; font-size: 13px; margin-bottom: 12px;">🛠️ إعدادات استقبال الإعلانات:</h4>
-
+    <div style="display: flex; gap: 10px;">
+        <div style="flex: 1;">
+            <label style="color:#ccc; font-size:12px;">🌍 القارة:</label>
+            <select id="target-region" onchange="syncCountries('target-region', 'target-country')" style="width: 100%; border-radius: 8px; padding: 10px; background:#333; color:white; border:none;">
+                <option value="all">كل العالم</option>
+                <option value="asia">آسيا</option>
+                <option value="africa">أفريقيا</option>
+                <option value="europe">أوروبا</option>
+                <option value="north_america">أمريكا الشمالية</option>
+                <option value="south_america">أمريكا الجنوبية</option>
+                <option value="oceania">أوقيانوسيا</option>
+            </select>
+        </div>
+        <div style="flex: 1;">
+            <label style="color:#ccc; font-size:12px;">📍 الدولة:</label>
+            <select id="target-country" style="width: 100%; border-radius: 8px; padding: 10px; background:#333; color:white; border:none;">
+                <option value="all">كل الدول</option>
+            </select>
             
-    <label class="label-small">🎯 تخصص محتوى القناة:</label>
-    <select id="pub-ch-category" class="input-premium">
-        <option value="all">عام 🌍</option>
-        <option value="crypto">العملات المشفره 🪙</option>
-        <option value="movies">الأفلام والمسلسلات 🎬</option>
-        <option value="tech">التكنولوجيا والتقنية 📱</option>
-        <option value="coding">التطبيقات والبرمجة 💻</option>
-    </select>
-
-    <label class="label-small">🌍 الجمهور الغالب في القناة:</label>
-    <select id="pub-ch-region" class="input-premium">
-        <option value="global">عالمي (كل المناطق)</option>
-        <option value="mena">الشرق الأوسط وشمال أفريقيا</option>
-        <option value="gcc">دول الخليج العربي</option>
-        <option value="eu">أوروبا وأمريكا</option>
-    </select>
 
     <label class="label-small">💳 أنواع الإعلانات التي تقبلها:</label>
     <div style="display: flex; gap: 8px; margin-top: 5px;">
@@ -823,6 +835,52 @@ let lastBalance = 0;
 window.lastViews = 0; // أضف هذا
 window.lastClicks = 0; // أضف هذا
 
+// ==========================================
+// 1. قاعدة بيانات الاستهداف العالمي (العقل المدبر)
+// ==========================================
+const TARGETING_ENGINE = {
+    categories: {
+        crypto: "العملات المشفره 🪙",
+        tech: "التكنولوجيا والتقنية 📱",
+        movies: "الأفلام والمسلسلات 🎬",
+        entertainment: "الترفيه 🎭",
+        business: "المال والأعمال 📈",
+        news: "الأخبار والإعلام 📰",
+        gaming: "الألعاب والجيمنج 🎮",
+        health: "الصحة والرياضة 💪",
+        education: "التعليم والتدريب 📚",
+        art: "الفن والتصوير 🎨",
+        travel: "السياحة والسفر ✈️",
+        other: "تصنيفات أخرى ✨"
+    },
+    regions: {
+        asia: {
+            name: "آسيا",
+            countries: ["السعودية", "الإمارات", "الكويت", "قطر", "عُمان", "البحرين", "العراق", "الأردن", "اليمن", "تركيا", "الصين", "اليابان", "الهند"]
+        },
+        africa: {
+            name: "أفريقيا",
+            countries: ["مصر", "الجزائر", "المغرب", "تونس", "ليبيا", "السودان", "نيجيريا", "جنوب أفريقيا"]
+        },
+        europe: {
+            name: "أوروبا",
+            countries: ["ألمانيا", "فرنسا", "بريطانيا", "إيطاليا", "إسبانيا", "روسيا", "هولندا", "السويد"]
+        },
+        north_america: {
+            name: "أمريكا الشمالية",
+            countries: ["الولايات المتحدة", "كندا", "المكسيك"]
+        },
+        south_america: {
+            name: "أمريكا الجنوبية",
+            countries: ["البرازيل", "الأرجنتين", "كولومبيا", "تشيلي"]
+        },
+        oceania: {
+            name: "أوقيانوسيا",
+            countries: ["أستراليا", "نيوزيلندا"]
+        }
+    }
+};
+        
 const firebaseConfig = {
   apiKey: "AIzaSyB9wJ3RKL9Sc0VqIgOz3HIL6PAZMK1GZos",
   authDomain: "telega-io.firebaseapp.com",
@@ -998,50 +1056,59 @@ function updatePublisherStats(userId) {
     }
     
 function submitEliteChannel() {
-    const n = document.getElementById('ch-name').value;
-    const l = document.getElementById('ch-link').value;
-    const p = document.getElementById('price-24h').value;
-    const cat = document.getElementById('ch-category').value;
-    
-    // --- التعديل هنا لكي يأخذ القارة والدولة المختارة ---
-    const continent = document.getElementById('ch-continent').value;
-    const country = document.getElementById('ch-country').value;
-    // ------------------------------------------------
+    // 1. جلب البيانات من المدخلات الجديدة (بالأسماء الموحدة)
+    const name = document.getElementById('ch-name').value;
+    const link = document.getElementById('ch-link').value;
+    const price = document.getElementById('price-24h').value;
+    const category = document.getElementById('target-category').value; // الاسم الجديد
+    const region = document.getElementById('target-region').value; // الاسم الجديد
+    const country = document.getElementById('target-country').value; // الاسم الجديد
 
-    if (!n || !l || !p || !continent) {
-        tg.HapticFeedback.notificationOccurred('error');
-        return tg.showAlert("⚠️ عذراً، يرجى إكمال كافة البيانات واختيار المنطقة!");
+    // 2. التحقق من البيانات الأساسية
+    if (!name || !link || !price || region === 'all') {
+        if (window.Telegram?.WebApp?.HapticFeedback) {
+            window.Telegram.WebApp.HapticFeedback.notificationOccurred('error');
+        }
+        return webApp.showAlert("⚠️ عذراً، يرجى إكمال كافة البيانات واختيار المنطقة المستهدفة!");
     }
 
-    const data = {
-        name: n,
-        link: l,
-        price: p,
-        category: cat,
-        // --- حفظ البيانات الجغرافية في قاعدة البيانات ---
-        continent: continent,
+    // 3. تجهيز كائن البيانات (Data Object)
+    const channelData = {
+        name: name,
+        link: link,
+        price: parseFloat(price), // تحويل السعر لرقم لسهولة الحسابات مستقبلاً
+        category: category,
+        region: region,
         country: country,
-        // ----------------------------------------------
         status: 'pending',
-        owner: user.id,
+        owner: webApp.initDataUnsafe.user.id,
         date: new Date().toISOString()
     };
 
-    // حفظ البيانات في Firebase
-    db.ref('users/' + user.id + '/my_channels').push(data).then(() => {
-        return db.ref('admin_requests').push(data);
-    }).then(() => {
-        tg.HapticFeedback.notificationOccurred('success');
-        tg.showAlert("✅ تم إرسال قناتك بنجاح!");
+    // 4. الحفظ في Firebase (المسار المزدوج: للمستخدم وللإدارة)
+    const userId = webApp.initDataUnsafe.user.id;
+    
+    // حفظ نسخة في ملف المستخدم ونسخة لطلب الإدارة
+    Promise.all([
+        db.ref('users/' + userId + '/my_channels').push(channelData),
+        db.ref('admin_requests/channels').push(channelData)
+    ])
+    .then(() => {
+        if (window.Telegram?.WebApp?.HapticFeedback) {
+            window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+        }
+        webApp.showAlert("🚀 تم إرسال قناتك بنجاح! سيتم مراجعتها من قبل الإدارة.");
         
-        // تفريغ المدخلات
+        // 5. تفريغ الحقول وإغلاق اللوحة
         document.getElementById('ch-name').value = '';
         document.getElementById('ch-link').value = '';
         document.getElementById('price-24h').value = '';
         
         togglePublisherPanel();
-    }).catch((error) => {
-        tg.showAlert("❌ حدث خطأ: " + error.message);
+    })
+    .catch((error) => {
+        console.error("Firebase Error:", error);
+        webApp.showAlert("❌ حدث خطأ أثناء الحفظ: " + error.message);
     });
 }
 
@@ -1323,30 +1390,48 @@ function updateAdPreview() {
 }
 
 function switchAdMode(mode) {
-    // 1. إخفاء جميع الأقسام
-    document.querySelectorAll('.ad-mode-section').forEach(sec => sec.style.display = 'none');
+    // 1. تحديث القيمة في الحقل المخفي (لإرسالها مع الحملة)
+    const modeInput = document.getElementById('current-ad-mode');
+    if (modeInput) modeInput.value = mode;
+
+    // 2. تحديث شكل الأزرار (Tabs) وإزالة التمييز عن غير المختار
     document.querySelectorAll('.goal-item').forEach(item => {
-        item.style.borderColor = 'transparent';
-        item.style.background = 'rgba(30, 41, 59, 0.5)';
+        item.style.background = 'rgba(30, 41, 59, 0.5)'; // اللون الافتراضي
+        item.style.border = 'none';
+        item.classList.remove('active');
     });
-
-    // 2. إظهار القسم المختار
-    document.getElementById('section-' + mode).style.display = 'block';
     
-    // 3. تمييز الزر المختار (التلوين)
+    // 3. تمييز الزر المختار بألوان ذكية حسب النوع
     const activeTab = document.getElementById('tab-' + mode);
-    activeTab.style.borderColor = '#38bdf8';
-    activeTab.style.background = 'rgba(56, 189, 248, 0.1)';
+    if (activeTab) {
+        activeTab.classList.add('active');
+        // تخصيص الألوان: أخضر للمشاهدات، أزرق للنقرات، أصفر للثابت
+        const themeColor = mode === 'views' ? '#2ecc71' : (mode === 'clicks' ? '#38bdf8' : '#f1c40f');
+        const themeBg = mode === 'views' ? 'rgba(46, 204, 113, 0.2)' : (mode === 'clicks' ? 'rgba(56, 189, 248, 0.2)' : 'rgba(241, 196, 15, 0.2)');
+        
+        activeTab.style.background = themeBg;
+        activeTab.style.border = `1px solid ${themeColor}`;
+    }
 
-    // 4. حفظ الوضع في الحقل المخفي
-    document.getElementById('current-ad-mode').value = mode;
-    
-    // هزة خفيفة (تفاعل تليجرام)
+    // 4. إظهار قسم الإعدادات الخاص بالوضع المختار وإخفاء البقية
+    document.querySelectorAll('.ad-mode-section').forEach(section => {
+        section.style.display = 'none';
+    });
+    const targetSection = document.getElementById('section-' + mode);
+    if (targetSection) targetSection.style.display = 'block';
+
+    // 5. هزة خفيفة لمستخدمي تليجرام (Haptic Feedback)
     if (window.Telegram?.WebApp?.HapticFeedback) {
-        window.Telegram.WebApp.HapticFeedback.selectionChanged();
+        window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
+    }
+    
+    // 6. تحديث تقديرات الحملة فوراً عند التغيير
+    if (typeof estimateCampaign === "function") {
+        estimateCampaign();
     }
 }
 
+        
 function rerunCampaign(pastData) {
     document.getElementById('adv-text-manual').value = pastData.text;
     document.getElementById('adv-media-url').value = pastData.media;
@@ -1369,51 +1454,29 @@ function handleFileUpload(input) {
     }
 }
 
-function setupGeoDropdowns(continentId, countryId) {
-    const continentSelect = document.getElementById(continentId);
+        function syncCountries(regionId, countryId) {
+    const regionKey = document.getElementById(regionId).value;
     const countrySelect = document.getElementById(countryId);
-
-    if (!continentSelect || !countrySelect) return;
-
-    const geoDB = {
-        "الوطن العربي 🚩": ["اليمن", "السعودية", "الإمارات", "الكويت", "قطر", "عمان", "البحرين", "العراق", "الأردن", "فلسطين", "لبنان", "سوريا", "مصر", "الجزائر", "المغرب", "تونس", "ليبيا", "السودان", "موريتانيا", "الصومال", "جيبوتي", "جزر القمر"],
-        "آسيا 🌏": ["تركيا", "إيران", "باكستان", "الهند", "الصين", "اليابان", "ماليزيا"],
-        "أوروبا 🇪🇺": ["ألمانيا", "فرنسا", "بريطانيا", "إسبانيا", "إيطاليا", "روسيا"],
-        "أمريكا 🌎": ["الولايات المتحدة", "كندا", "البرازيل", "المكسيك"],
-        "أوقيانوسيا 🇦🇺": ["أستراليا", "نيوزيلندا"]
-    };
-
-    continentSelect.innerHTML = '<option value="">🌍 اختر المنطقة...</option>';
-    for (let continent in geoDB) {
-        let opt = document.createElement('option');
-        opt.value = continent;
-        opt.textContent = continent;
-        continentSelect.appendChild(opt);
+    
+    countrySelect.innerHTML = '<option value="all">📍 كل الدول</option>';
+    
+    if (regionKey !== 'all' && TARGETING_ENGINE.regions[regionKey]) {
+        TARGETING_ENGINE.regions[regionKey].countries.sort().forEach(country => {
+            let opt = document.createElement('option');
+            opt.value = country;
+            opt.textContent = country;
+            countrySelect.appendChild(opt);
+        });
     }
-
-    continentSelect.onchange = function() {
-        const selected = this.value;
-        countrySelect.innerHTML = '<option value="all">📍 كل دول المنطقة</option>';
-        if (geoDB[selected]) {
-            geoDB[selected].sort((a, b) => a.localeCompare(b, 'ar')).forEach(country => {
-                let opt = document.createElement('option');
-                opt.value = country;
-                opt.textContent = country;
-                countrySelect.appendChild(opt);
-            });
-        }
-    }; // <--- هذا القوس كان مفقوداً (إغلاق onchange)
-} // <--- هذا القوس كان مفقوداً (إغلاق الدالة الأساسية)
-
-function getInterestName(cat) {
-    const categories = {
-        'all': 'عام 🌍', 'sports': 'رياضة ⚽', 'beauty': 'جمال ✨',
-        'cooking': 'طبخ 🍳', 'movies': 'أفلام 🎬', 'crypto': 'عملات 🪙',
-        'gaming': 'ألعاب 🎮', 'coding': 'برمجة 💻', 'tech': 'تقنية 📱',
-        'fun': 'ترفيه 😂', 'news': 'أخبار 🗞️'
-    };
-    return categories[cat] || 'عام 🌍';
 }
+
+// دالة الحصول على اسم التخصص (البديلة للدالة القديمة)
+function getInterestName(cat) {
+    // تبحث الدالة عن الاسم في المصفوفة العالمية الجديدة
+    // إذا لم تجده، تعيد القيمة "عام 🌍" كخيار افتراضي
+    return TARGETING_ENGINE.categories[cat] || 'عام 🌍';
+}
+
 
 // ==========================================
 // 5. نظام التنقل والواجهة (UI & Navigation)
