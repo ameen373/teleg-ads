@@ -783,8 +783,8 @@ html, body {
                 <span style="color: #8b949e; font-size: 11px;">رابط الدعوة الخاص بك</span>
                 <span onclick="copyLink()" style="color: #58a6ff; font-size: 11px; cursor: pointer;"><i class="fas fa-copy"></i> نسخ</span>
             </div>
-            <input type="text" id="myRefLink" value="https://t.me/AdsProBot?start=ref_8821" readonly style="width: 100%; background: transparent; border: none; color: #fff; font-size: 13px; font-family: monospace; outline: none;">
-        </div>
+           <input type="text" id="myRefLink" value="https://t.me/Ads_telegabot?start=ref_USERID" readonly ...>
+                
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px;">
             <button onclick="shareToTelegram()" style="background: #0088cc; color: white; border: none; padding: 12px; border-radius: 12px; font-weight: bold; font-size: 12px; cursor: pointer;">
@@ -1504,9 +1504,10 @@ function copyRefLink() {
 // دالة المشاركة الفيروسية عبر تليجرام
 function shareToTelegram() {
     // 1. جلب رابط الإحالة الخاص بالمستخدم
+    // ملاحظة: تأكد أن قيمة input الذي يحمل id="myRefLink" تبدأ بـ https://t.me/Ads_telegabot?start=
     const refLink = document.getElementById('myRefLink').value;
     
-    // 2. النص الاحترافي الموحد (الذي اخترته أنت)
+    // 2. النص الاحترافي المحدث بالرابط الصحيح
     const shareText = encodeURIComponent(
         `🌟 انضم إلى شبكة telega.ads وحقق نجاحك الإعلاني! 🌟\n` +
         `🔗 ${refLink}\n\n` + 
@@ -1515,10 +1516,10 @@ function shareToTelegram() {
         `🚀 انضم إلينا الآن وابدأ رحلتك نحو النجاح!`
     );
 
-    // 3. الرابط البرمجي للمشاركة
+    // 3. الرابط البرمجي للمشاركة (استخدام المعرف الجديد)
     const tgUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${shareText}`;
     
-    // 4. تنفيذ الفتح الذكي داخل تليجرام
+    // 4. التنفيذ
     if (window.Telegram && window.Telegram.WebApp) {
         window.Telegram.WebApp.openTelegramLink(tgUrl);
     } else {
