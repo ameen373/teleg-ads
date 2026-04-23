@@ -377,7 +377,6 @@ html, body {
     max-width: 100% !important;
     box-sizing: border-box;
 }
-
             
           
     </style>
@@ -914,57 +913,73 @@ async function executeWithdrawWorkflow() {
 
     const amount = parseFloat(amountInput.value);
     const wallet = walletInput.value;
+    const userId = window.Telegram.WebApp.initDataUnsafe.user.id;
     
-    // جلب الرصيد الحالي من الواجهة
-    const currentBalance = parseFloat(document.getElementById('withdrawable-balance-display').innerText.replace('$', '')) || 0;
-
-    // 1. التحقق من البيانات
+    // 1. التحقق الأولي من البيانات
     if (isNaN(amount) || amount < 30) {
         return window.Telegram.WebApp.showAlert("❌ الحد الأدنى للسحب 30$");
-    }
-    if (amount > currentBalance) {
-        return window.Telegram.WebApp.showAlert("⚠️ رصيدك الحالي غير كافٍ!");
     }
     if (!wallet || !wallet.startsWith('T')) {
         return window.Telegram.WebApp.showAlert("🚫 يرجى إدخال محفظة TRC20 صحيحة تبدأ بحرف T");
     }
 
-    // 2. تجهيز الزر
-    btn.innerText = "⏳ جاري حفظ الطلب...";
+    // تجهيز الزر
+    btn.innerText = "⏳ جاري معالجة الرصيد...";
     btn.disabled = true;
 
-    // 3. تجهيز بيانات الطلب الفريدة
-    const requestId = "withdraw_" + Date.now() + "_" + window.Telegram.WebApp.initDataUnsafe.user.id;
-    const requestData = {
-        id: requestId,
-        userId: window.Telegram.WebApp.initDataUnsafe.user.id,
-        name: window.Telegram.WebApp.initDataUnsafe.user.first_name,
-        amount: amount,
-        wallet: wallet,
-        status: "pending",
-        date: new Date().toLocaleString('ar-EG')
-    };
-
-    // 4. الحفظ في CloudStorage (لكي يظهر في قسم الإدارة لاحقاً)
-    window.Telegram.WebApp.CloudStorage.setItem(requestId, JSON.stringify(requestData), (err, success) => {
-        if (success) {
-            window.Telegram.WebApp.showConfirm("✅ تم تسجيل طلب السحب بنجاح في النظام. هل تريد العودة للرئيسية؟", (ok) => {
-                // تحديث الرصيد في الواجهة فوراً
-                const newBal = currentBalance - amount;
-                document.getElementById('withdrawable-balance-display').innerText = "$" + newBal.toFixed(2);
-                
-                if(ok) openTab('channels'); // سينقلك للناشر دون إغلاق التطبيق
-            });
-        } else {
-            window.Telegram.WebApp.showAlert("❌ فشل حفظ الطلب، يرجى المحاولة لاحقاً.");
+    // 2. الخصم الحقيقي من Firebase (أهم خطوة للأمان)
+    // نستخدم transaction للتأكد من أن الخصم يتم بدقة حتى لو حاول المستخدم الضغط مرتين
+    db.ref('users/' + userId + '/balance').transaction((currentBalance) => {
+        if (currentBalance === null) return 0; // إذا لم يوجد رصيد
+        if (currentBalance < amount) {
+            return; // سيؤدي هذا إلى إلغاء العملية لأن الرصيد غير كافٍ
         }
-        
-        // إعادة الزر لحالته
-        btn.innerText = "تأكيد وطلب السحب";
-        btn.disabled = false;
+        return (parseFloat(currentBalance) - amount); // الخصم الفعلي
+    }, (error, committed, snapshot) => {
+        if (error) {
+            window.Telegram.WebApp.showAlert("❌ حدث خطأ في قاعدة البيانات، حاول ثانية.");
+            btn.innerText = "تأكيد وطلب السحب";
+            btn.disabled = false;
+        } else if (!committed) {
+            window.Telegram.WebApp.showAlert("⚠️ رصيدك الحالي غير كافٍ في قاعدة البيانات!");
+            btn.innerText = "تأكيد وطلب السحب";
+            btn.disabled = false;
+        } else {
+            // 3. إذا تم الخصم بنجاح من Firebase، نقوم الآن بحفظ الطلب للإدارة
+            const requestId = "withdraw_" + Date.now() + "_" + userId;
+            const requestData = {
+                id: requestId,
+                uid: userId, // استخدمنا uid ليتوافق مع دالة handleRequest
+                userName: window.Telegram.WebApp.initDataUnsafe.user.first_name,
+                amount: amount,
+                wallet: wallet,
+                status: "pending",
+                timestamp: Date.now(),
+                date: new Date().toLocaleString('ar-EG')
+            };
+
+            window.Telegram.WebApp.CloudStorage.setItem(requestId, JSON.stringify(requestData), (err, success) => {
+                if (success) {
+                    // 4. تسجيل العملية في سجل المستخدم لتعزيز الثقة
+                    // نستخدم الدالة المساعدة التي طورناها سابقاً
+                    saveTransaction(userId, 'withdraw', 'سحب رصيد (قيد الانتظار)', amount, 'pending');
+
+                    window.Telegram.WebApp.showConfirm("✅ تم خصم المبلغ وتسجيل طلب السحب بنجاح. هل تريد العودة للرئيسية؟", (ok) => {
+                        if(ok) openTab('channels');
+                    });
+                } else {
+                    // في حال فشل حفظ الطلب في السحابة، يجب إعادة المال للمستخدم!
+                    db.ref('users/' + userId + '/balance').transaction(c => (c || 0) + amount);
+                    window.Telegram.WebApp.showAlert("❌ فشل إرسال الطلب، تم إعادة المبلغ لرصيدك.");
+                }
+                
+                btn.innerText = "تأكيد وطلب السحب";
+                btn.disabled = false;
+            });
+        }
     });
 }
-        
+
 
 function updatePublisherStats(userId) {
         db.ref('users/' + userId + '/stats').on('value', snap => {
