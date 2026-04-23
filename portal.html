@@ -1503,21 +1503,29 @@ function copyRefLink() {
 
 // دالة المشاركة الفيروسية عبر تليجرام
 function shareToTelegram() {
+    // 1. جلب رابط الإحالة الخاص بالمستخدم
     const refLink = document.getElementById('myRefLink').value;
-    const shareText = encodeURIComponent(
-        "🚀 هل تملك قناة تليجرام؟ ابدأ بجني الأرباح الآن مع Ads Pro!\n" +
-        "💰 نظام إحالة عالمي بـ 3 مستويات أرباح.\n" +
-        "🔗 سجل من هنا وابدأ رحلتك:"
-    );
-    const tgUrl = `https://t.me/share/url?url=${refLink}&text=${shareText}`;
     
-    // فتح واجهة المشاركة في تليجرام
+    // 2. النص الاحترافي الموحد (الذي اخترته أنت)
+    const shareText = encodeURIComponent(
+        `🌟 انضم إلى شبكة telega.ads وحقق نجاحك الإعلاني! 🌟\n` +
+        `🔗 ${refLink}\n\n` + 
+        `👥 للمعلنين: استهدف جمهورك بدقة وحقق نتائج مذهلة!\n\n` +
+        `💰 للناشرين: اجني الأموال بسهولة من قناتك مع محتوى ملائم!\n\n` +
+        `🚀 انضم إلينا الآن وابدأ رحلتك نحو النجاح!`
+    );
+
+    // 3. الرابط البرمجي للمشاركة
+    const tgUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${shareText}`;
+    
+    // 4. تنفيذ الفتح الذكي داخل تليجرام
     if (window.Telegram && window.Telegram.WebApp) {
         window.Telegram.WebApp.openTelegramLink(tgUrl);
     } else {
         window.open(tgUrl, '_blank');
     }
 }
+        
 
 // دالة سحب أرباح الإحالة إلى المحفظة الرئيسية
 async function withdrawRefEarnings() {
