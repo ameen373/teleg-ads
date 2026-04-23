@@ -377,18 +377,6 @@ html, body {
     max-width: 100% !important;
     box-sizing: border-box;
 }
-            select.input-premium option {
-    background: #0f172a;
-    color: #fff;
-    padding: 10px;
-}
-
-/* إضافة تأثير عند اختيار الفئة */
-select.input-premium:focus {
-    border-color: #38bdf8;
-    box-shadow: 0 0 10px rgba(56, 189, 248, 0.2);
-    outline: none;
-}
             
           
     </style>
@@ -419,13 +407,19 @@ select.input-premium:focus {
 <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
 <script>eruda.init();</script>
 
-<div class="main-content" style="margin-top:60px; margin-bottom:80px;">
-
 <div class="bottom-nav">
   
   <div class="nav-item" onclick="openTab('admin', this)">
     <div>👤</div>
     <span>الإدارة</span>
+  </div>
+
+  <div class="nav-item" onclick="openTab('referrals', this)">
+    <div style="position: relative;">
+        💰
+        <span style="position: absolute; top: -5px; right: -5px; background: #f1c40f; width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 5px #f1c40f;"></span>
+    </div>
+    <span>الإحالة</span>
   </div>
 
   <div class="nav-item active" onclick="openTab('promo', this)">
@@ -444,6 +438,7 @@ select.input-premium:focus {
   </div>
 
 </div>
+
     
     <div id="section-home" class="section" style="display: none;">
         <div class="card" style="text-align: center; border: 1px solid var(--accent);">
@@ -552,22 +547,13 @@ select.input-premium:focus {
             <select id="adv-country" class="input-premium" style="width: 100%;"><option value="all">كل الدول</option></select>
         </div>
 
-        <label class="label-small" style="color:#94a3b8; font-size: 11px;">🎯 استهداف فئة القنوات:</label>
-<select id="adv-interests" class="input-premium" style="margin-bottom: 15px; width: 100%; background:#1e293b; border:1px solid #334155; color:white; border-radius:10px; padding:12px; font-weight: 500;">
-    <option value="all">🌍 وصول شامل (جميع الفئات)</option>
-    <option value="entertainment">🎭 الترفيه</option>
-    <option value="news">📰 الأخبار ووسائل الإعلام</option>
-    <option value="movies">🎬 الأفلام والمسلسلات</option>
-    <option value="fashion">💄 الموضة والجمال</option>
-    <option value="art">🎨 الفن والتصوير</option>
-    <option value="crypto">🪙 العملات المشفرة</option>
-    <option value="tech">📱 التقنيات</option>
-    <option value="education">🎓 تعليم</option>
-    <option value="food">🍳 الطعام والطبخ</option>
-    <option value="health">💪 الصحة والرياضة</option>
-    <option value="other">⚙️ آخر</option>
-</select>
-            
+        <label class="label-small">🎯 استهداف الاهتمامات:</label>
+        <select id="adv-interests" class="input-premium" style="margin-bottom: 15px; width: 100%;">
+            <option value="all">كل الاهتمامات (عام) 🌍</option>
+            <option value="crypto">العملات المشفره 🪙</option>
+            <option value="movies">الأفلام والمسلسلات 🎬</option>
+            <option value="tech">التكنولوجيا والتقنية 📱</option>
+        </select>
 
         <label class="label-small">💳 نظام المحاسبة:</label>
         <div class="target-goal-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 15px;">
@@ -687,21 +673,14 @@ select.input-premium:focus {
     <h4 style="color: #38bdf8; font-size: 13px; margin-bottom: 12px;">🛠️ إعدادات استقبال الإعلانات:</h4>
 
             
-    <label class="label-small" style="color:#94a3b8; font-size: 11px;">🗂️ تصنيف محتوى قناتك:</label>
-<select id="target-category" class="input-premium" style="margin-bottom: 15px; width: 100%; background:#1e293b; border:1px solid #334155; color:white; border-radius:10px; padding:12px; font-weight: 500;">
-    <option value="" disabled selected>اختر تخصص القناة...</option>
-    <option value="entertainment">🎭 الترفيه</option>
-    <option value="news">📰 الأخبار ووسائل الإعلام</option>
-    <option value="movies">🎬 الأفلام والمسلسلات</option>
-    <option value="fashion">💄 الموضة والجمال</option>
-    <option value="art">🎨 الفن والتصوير</option>
-    <option value="crypto">🪙 العملات المشفرة</option>
-    <option value="tech">📱 التقنيات</option>
-    <option value="education">🎓 تعليم</option>
-    <option value="food">🍳 الطعام والطبخ</option>
-    <option value="health">💪 الصحة والرياضة</option>
-    <option value="other">⚙️ آخر</option>
-</select>
+    <label class="label-small">🎯 تخصص محتوى القناة:</label>
+    <select id="pub-ch-category" class="input-premium">
+        <option value="all">عام 🌍</option>
+        <option value="crypto">العملات المشفره 🪙</option>
+        <option value="movies">الأفلام والمسلسلات 🎬</option>
+        <option value="tech">التكنولوجيا والتقنية 📱</option>
+        <option value="coding">التطبيقات والبرمجة 💻</option>
+    </select>
 
     <label class="label-small">🌍 الجمهور الغالب في القناة:</label>
     <select id="pub-ch-region" class="input-premium">
@@ -778,6 +757,57 @@ select.input-premium:focus {
         </button>
     </div>
 </div>
+
+        <div id="section-referrals-pro" class="section-container" style="padding: 15px; background: #0b0f1a;">
+    
+    <div class="global-stats-card" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-radius: 25px; padding: 25px; border: 1.5px solid #f1c40f; position: relative; overflow: hidden;">
+        <div style="position: absolute; top: -20px; right: -20px; font-size: 100px; opacity: 0.05; color: #f1c40f;"><i class="fas fa-globe"></i></div>
+        
+        <div style="text-align: center;">
+            <p style="color: #94a3b8; font-size: 12px; margin-bottom: 5px;">أرباحك المعلقة (قيد السحب)</p>
+            <h2 style="color: #fff; font-size: 35px; font-weight: 900; margin: 0;">$<span id="ref-balance">0.00</span></h2>
+            <div style="display: flex; justify-content: center; gap: 10px; margin-top: 15px;">
+                <div style="background: rgba(46, 204, 113, 0.1); padding: 5px 15px; border-radius: 50px; color: #2ecc71; font-size: 10px; font-weight: bold; border: 1px solid #2ecc71;">
+                    <i class="fas fa-chart-line"></i> +12% اليوم
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top: 25px;">
+        <h4 style="color: #fff; font-size: 14px; margin-bottom: 15px;"><i class="fas fa-magic" style="color: #f1c40f;"></i> أدوات الانتشار السريع</h4>
+        
+        <div class="share-box" style="background: #161b22; border-radius: 15px; padding: 15px; border: 1px solid #30363d;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <span style="color: #8b949e; font-size: 11px;">رابط الدعوة الخاص بك</span>
+                <span onclick="copyLink()" style="color: #58a6ff; font-size: 11px; cursor: pointer;"><i class="fas fa-copy"></i> نسخ</span>
+            </div>
+            <input type="text" id="myRefLink" value="https://t.me/AdsProBot?start=ref_8821" readonly style="width: 100%; background: transparent; border: none; color: #fff; font-size: 13px; font-family: monospace; outline: none;">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px;">
+            <button onclick="shareToTelegram()" style="background: #0088cc; color: white; border: none; padding: 12px; border-radius: 12px; font-weight: bold; font-size: 12px; cursor: pointer;">
+                <i class="fab fa-telegram-plane"></i> مشاركة في تلجرام
+            </button>
+            <button onclick="generateQRCode()" style="background: #fff; color: #000; border: none; padding: 12px; border-radius: 12px; font-weight: bold; font-size: 12px; cursor: pointer;">
+                <i class="fas fa-qrcode"></i> إنشاء كود QR
+            </button>
+        </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px;">
+        <div style="background: #161b22; padding: 15px; border-radius: 15px; border: 1px solid #30363d;">
+            <small style="color: #8b949e; font-size: 9px; display: block;">إجمالي فريقك</small>
+            <b id="total-team" style="color: #fff; font-size: 18px;">0</b>
+        </div>
+        <div style="background: #161b22; padding: 15px; border-radius: 15px; border: 1px solid #30363d;">
+            <small style="color: #8b949e; font-size: 9px; display: block;">أرباح الأمس</small>
+            <b id="yesterday-earn" style="color: #2ecc71; font-size: 18px;">+$0.00</b>
+        </div>
+    </div>
+
+</div>
+
 
 <div id="section-admin" class="section" style="display: none; padding: 15px; background: #0f172a; min-height: 100vh;">
     
@@ -888,14 +918,23 @@ function startApp() {
         // 4. مراقبة الحملات الإعلانية (للمعلن)
         startCampaignsMonitor(userId); 
         
-        // 5. التحقق من صلاحيات الإدمن
+        // 5. مراقبة نظام الإحالة العالمي (المحرك الفيروسي للنمو)
+        // أضفنا هذا الجزء لضمان تحديث أرباح "الجيش التسويقي" لحظياً
+        if (typeof startReferralMonitor === "function") {
+            startReferralMonitor(userId);
+        }
+
+        // 6. التحقق من صلاحيات الإدمن
         if (userId === ADMIN_ID) {
             startAdminMonitor();
         }
+
+        console.log("🚀 تم تشغيل جميع محركات Ads Pro بنجاح");
     } else {
         console.error("❌ فشل الحصول على بيانات المستخدم من Telegram");
     }
 }
+
 
 function checkBotStatus() {
     tg.showAlert('🔍 يتم الآن التحقق من الصلاحيات ووجود البوت كمسؤول... يرجى الانتظار');
@@ -1444,6 +1483,79 @@ function getInterestName(cat) {
 }
 
 // ==========================================
+// 4.5 نظام الإحالة العالمي (Referral System)
+// ==========================================
+
+// دالة نسخ الرابط مع تأثير بصري
+function copyRefLink() {
+    const linkInput = document.getElementById('myRefLink');
+    linkInput.select();
+    linkInput.setSelectionRange(0, 99999); // للهواتف
+    
+    try {
+        document.execCommand('copy');
+        showToast("✅ تم نسخ رابطك العالمي.. انشره الآن!");
+    } catch (err) {
+        console.error('فشل النسخ', err);
+    }
+}
+
+// دالة المشاركة الفيروسية عبر تليجرام
+function shareToTelegram() {
+    const refLink = document.getElementById('myRefLink').value;
+    const shareText = encodeURIComponent(
+        "🚀 هل تملك قناة تليجرام؟ ابدأ بجني الأرباح الآن مع Ads Pro!\n" +
+        "💰 نظام إحالة عالمي بـ 3 مستويات أرباح.\n" +
+        "🔗 سجل من هنا وابدأ رحلتك:"
+    );
+    const tgUrl = `https://t.me/share/url?url=${refLink}&text=${shareText}`;
+    
+    // فتح واجهة المشاركة في تليجرام
+    if (window.Telegram && window.Telegram.WebApp) {
+        window.Telegram.WebApp.openTelegramLink(tgUrl);
+    } else {
+        window.open(tgUrl, '_blank');
+    }
+}
+
+// دالة سحب أرباح الإحالة إلى المحفظة الرئيسية
+async function withdrawRefEarnings() {
+    const balance = parseFloat(document.getElementById('ref-balance').innerText);
+    
+    if (balance <= 0) {
+        showToast("⚠️ ليس لديك أرباح كافية للسحب حالياً.");
+        return;
+    }
+
+    webApp.showConfirm(`هل تريد تحويل $${balance} من أرباح الإحالة إلى محفظتك الرئيسية؟`, (confirmed) => {
+        if (confirmed) {
+            // هنا يتم إرسال طلب للباك إند (API) لنقل الرصيد
+            console.log("جاري تحويل الأرباح...");
+            showToast("⏳ جاري معالجة التحويل..");
+            
+            // مثال لتحديث الواجهة بعد النجاح:
+            // document.getElementById('ref-balance').innerText = "0.00";
+            // startBalanceMonitor(); // لتحديث المحفظة الرئيسية
+        }
+    });
+}
+
+// تحديث بيانات الإحالة من قاعدة البيانات
+function updateReferralData(data) {
+    if(!data) return;
+    
+    // تحديث أعداد المستويات
+    if(data.tier1) document.getElementById('tier1-count').innerText = data.tier1;
+    if(data.tier2) document.getElementById('tier2-count').innerText = data.tier2;
+    if(data.tier3) document.getElementById('tier3-count').innerText = data.tier3;
+    
+    // تحديث الرصيد بتأثير أنيميشن
+    const currentBal = parseFloat(document.getElementById('ref-balance').innerText);
+    animateValue("ref-balance", currentBal, data.balance, 1000);
+        }
+        
+        
+// ==========================================
 // 5. نظام التنقل والواجهة (UI & Navigation)
 // ==========================================
 
@@ -1947,6 +2059,43 @@ async function loadWithdrawalRequests() {
     });
 }
 
+        // دالة مراقبة نظام الإحالة وتحديث البيانات لحظياً
+function startReferralMonitor() {
+    // تحديث أولي عند تشغيل التطبيق
+    fetchReferralStats();
+
+    // إعداد مؤقت للتحديث الدوري كل 30 ثانية (أو حسب ضغط السيرفر لديك)
+    setInterval(() => {
+        if (document.getElementById('section-referrals').style.display !== 'none') {
+            fetchReferralStats();
+        }
+    }, 30000); 
+}
+
+// جلب البيانات من السيرفر
+async function fetchReferralStats() {
+    try {
+        // نرسل الـ user_id الخاص بتليجرام للتأكد من الهوية
+        const userId = webApp.initDataUnsafe.user.id;
+        
+        // استبدل الرابط برابط الـ API الخاص بك
+        const response = await fetch(`https://your-api.com/get-ref-stats?userId=${userId}`);
+        const data = await response.json();
+
+        if (data.success) {
+            // تحديث الواجهة باستخدام الدالة التي وضعناها في القسم 4.5
+            updateReferralData({
+                tier1: data.tiers.t1,
+                tier2: data.tiers.t2,
+                tier3: data.tiers.t3,
+                balance: data.currentBalance
+            });
+        }
+    } catch (error) {
+        console.error("خطأ في جلب بيانات الإحالة:", error);
+    }
+        }
+        
 
 // ==========================================
 // 7. لوحة الإدارة (Admin Actions) - النسخة الاحترافية
