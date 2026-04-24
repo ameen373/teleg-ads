@@ -1046,19 +1046,18 @@ if (!firebase.apps.length) {
 }
 const db = firebase.database();
 
-function startApp() {
-    // 1. استدعاء واجهة تليجرام
-    const webApp = window.Telegram.WebApp;
+function startApp() { // تم تصحيح حرف F الصغير
+    // 1. استدعاء واجهة تليجرام (بدون كلمة const لأننا عرفناه بالأعلى)
     webApp.ready();
     webApp.expand();
-    webApp.setHeaderColor('#0f172a');
+    if (webApp.setHeaderColor) webApp.setHeaderColor('#0f172a');
 
     // 2. العناصر المرئية للتحميل
     const loader = document.getElementById('app-loader');
     const loaderBar = document.getElementById('loader-bar');
     const loaderText = document.getElementById('loader-text');
 
-    // 3. محرك الأمان (إخفاء اللودر مهما حدث)
+    // 3. محرك الأمان (إخفاء اللودر)
     const hideLoadingScreen = () => {
         if (loader) {
             loader.style.opacity = '0';
@@ -1066,42 +1065,32 @@ function startApp() {
         }
     };
 
-    // 4. تنفيذ العمليات (التي كانت موجودة عندك سابقاً)
+    // 4. تنفيذ العمليات
     try {
-        const user = webApp.initDataUnsafe.user;
+        const user = webApp.initDataUnsafe?.user;
         if (user) {
             const userId = user.id;
 
-            // --- المراقبات الستة (محركات التطبيق) ---
-            // نستخدم try catch لكل واحدة لضمان عدم توقف التطبيق لو فشلت واحدة
-            try { startBalanceMonitor(userId); } catch(e) { console.log("BalanceMonitor wait..."); }
-            try { startTransactionMonitor(userId); } catch(e) { console.log("TxMonitor wait..."); }
+            // تشغيل المحركات (تأكد أن الدوال موجودة في ملفك)
+            try { if (typeof startBalanceMonitor === "function") startBalanceMonitor(userId); } catch(e) {}
+            try { if (typeof startTransactionMonitor === "function") startTransactionMonitor(userId); } catch(e) {}
             
-            if (typeof startPublisherMonitor === "function") {
-                try { startPublisherMonitor(userId); } catch(e) {}
-            }
+            if (typeof startPublisherMonitor === "function") try { startPublisherMonitor(userId); } catch(e) {}
+            if (typeof startCampaignsMonitor === "function") try { startCampaignsMonitor(userId); } catch(e) {}
 
-            if (typeof startCampaignsMonitor === "function") {
-                try { startCampaignsMonitor(userId); } catch(e) {}
-            }
+            // نظام الإحالة
+            if (typeof initReferralSystem === "function") try { initReferralSystem(user); } catch(e) {}
+            if (typeof startReferralMonitor === "function") try { startReferralMonitor(userId); } catch(e) {}
 
-            // نظام الإحالة (توليد الرابط والمراقبة)
-            if (typeof initReferralSystem === "function") {
-                try { initReferralSystem(user); } catch(e) {}
-            }
-            if (typeof startReferralMonitor === "function") {
-                try { startReferralMonitor(userId); } catch(e) {}
-            }
-
-            // --- فحص صلاحيات أمين ---
-            if (userId === AM_ADMIN_ID) {
+            // --- فحص صلاحيات أمين (استخدام ADMIN_ID الموحد) ---
+            if (userId === ADMIN_ID) {
                 console.log("👑 الملك أمين متصل");
                 if (typeof startAdminMonitor === "function") startAdminMonitor();
                 const adminBtn = document.getElementById('main-admin-nav-btn');
                 if (adminBtn) adminBtn.style.display = 'block';
             }
 
-            // تفعيل الاهتزاز للأزرار
+            // تفعيل الاهتزاز
             document.querySelectorAll('button').forEach(btn => {
                 btn.addEventListener('click', () => {
                     if (webApp.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
@@ -1112,16 +1101,14 @@ function startApp() {
         console.error("Critical Error in startApp:", err);
     }
 
-    // 5. تحريك شريط التحميل ثم الدخول
+    // 5. تحريك شريط التحميل
     if (loaderBar) loaderBar.style.width = '100%';
     if (loaderText) loaderText.innerText = "اكتمل التشفير.. دخول";
     
-    // الدخول الفعلي بعد 1.5 ثانية
     setTimeout(hideLoadingScreen, 1500);
 }
 
-
-// دالة مساعدة لتهيئة رابط الإحالة فور الدخول
+// دالة تهيئة رابط الإحالة (سليمة تماماً)
 function initReferralSystem(user) {
     const refLinkInput = document.getElementById('myRefLink');
     if (refLinkInput) {
@@ -1129,6 +1116,7 @@ function initReferralSystem(user) {
         refLinkInput.value = refLink;
     }
 }
+
         
 
 function checkBotStatus() {
@@ -1136,18 +1124,26 @@ function checkBotStatus() {
     // هنا يمكنك إضافة كود API مستقبلاً للتحقق الفعلي
 }
 
-function checkAdminPrivileges(user) {
-    if (user && user.id === MY_ADMIN_ID) {
-        // إذا كان المستخدم هو أمين، نظهر له قسم الإدارة
-        document.getElementById('sec-admin').style.display = 'block';
-        // تشغيل نظام المراقبة الحية للطلبات
-        initAdminRealtime();
+function checkAdminPrivileges() {
+    const user = webApp?.initDataUnsafe?.user;
+    
+    // استخدمنا ADMIN_ID الموحد
+    if (user && user.id === ADMIN_ID) {
+        console.log("🔓 تم تفعيل صلاحيات الإدارة للأخ أمين");
+        
+        // إظهار زر الإدارة إذا كان مخفياً
+        const adminBtn = document.querySelector('.nav-item[onclick*="admin"]');
+        if (adminBtn) adminBtn.style.display = 'flex';
+        
+        // تشغيل نظام المراقبة الحية إذا كان موجوداً
+        if (typeof initAdminRealtime === "function") initAdminRealtime();
     } else {
-        // لأي مستخدم آخر، نحذف القسم تماماً لزيادة الأمان
-        const adminSec = document.getElementById('sec-admin');
-        if (adminSec) adminSec.remove();
+        // إخفاء زر الإدارة للمستخدمين العاديين بدلاً من حذفه نهائياً
+        const adminBtn = document.querySelector('.nav-item[onclick*="admin"]');
+        if (adminBtn) adminBtn.style.display = 'none';
     }
 }
+    
 
 // ==========================================
 // 2. دوال السحب والأرباح (Publisher)
