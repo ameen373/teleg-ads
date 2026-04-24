@@ -2363,14 +2363,14 @@ async function loadWithdrawalRequests() {
     });
 }
 
-        // دالة مراقبة نظام الإحالة وتحديث البيانات لحظياً
+// دالة مراقبة نظام الإحالة وتحديث البيانات لحظياً
 function startReferralMonitor() {
-    // تحديث أولي عند تشغيل التطبيق
     fetchReferralStats();
 
-    // إعداد مؤقت للتحديث الدوري كل 30 ثانية (أو حسب ضغط السيرفر لديك)
+    // تحديث كل 30 ثانية فقط إذا كان المستخدم واقفاً في صفحة الإحالات
     setInterval(() => {
-        if (document.getElementById('section-referrals').style.display !== 'none') {
+        const refSection = document.getElementById('section-referrals') || document.getElementById('referrals');
+        if (refSection && refSection.style.display !== 'none') {
             fetchReferralStats();
         }
     }, 30000); 
@@ -2378,27 +2378,29 @@ function startReferralMonitor() {
 
 // جلب البيانات من السيرفر
 async function fetchReferralStats() {
+    const userId = webApp?.initDataUnsafe?.user?.id;
+    if (!userId) return;
+
     try {
-        // نرسل الـ user_id الخاص بتليجرام للتأكد من الهوية
-        const userId = webApp.initDataUnsafe.user.id;
-        
-        // استبدل الرابط برابط الـ API الخاص بك
+        // تنبيه: تأكد من تغيير الرابط لرابط السيرفر الفعلي الخاص بك لاحقاً
         const response = await fetch(`https://your-api.com/get-ref-stats?userId=${userId}`);
         const data = await response.json();
 
         if (data.success) {
-            // تحديث الواجهة باستخدام الدالة التي وضعناها في القسم 4.5
             updateReferralData({
-                tier1: data.tiers.t1,
-                tier2: data.tiers.t2,
-                tier3: data.tiers.t3,
-                balance: data.currentBalance
+                tier1: data.tiers.t1 || 0,
+                tier2: data.tiers.t2 || 0,
+                tier3: data.tiers.t3 || 0,
+                tier4: data.tiers.t4 || 0, // أضفنا الرابع
+                tier5: data.tiers.t5 || 0, // أضفنا الخامس
+                balance: data.currentBalance || 0
             });
         }
     } catch (error) {
-        console.error("خطأ في جلب بيانات الإحالة:", error);
+        console.error("⚠️ ملاحظة: لم يتم الاتصال بالسيرفر بعد (هذا طبيعي إذا لم تربط الـ API):", error);
     }
-        }
+} // تم حذف القوس الزائد الذي كان هنا
+
         
 
 // ==========================================
