@@ -2531,16 +2531,6 @@ function sendMessageToUser(userId, message) {
     fetch(url).catch(e => console.error("Notification Error:", e));
 }
 
-// دالة حفظ سجل العمليات لكي يراها المستخدم في حسابه
-function saveTransaction(userId, type, title, amount, status) {
-    db.ref('transactions/' + userId).push({
-        type: type,
-        title: title,
-        amount: amount,
-        status: status,
-        timestamp: Date.now()
-    });
-}
 
         
 // --- [ نهاية دالة adminAction ] ---
