@@ -1021,47 +1021,73 @@ const AM_ADMIN_ID = 549686235;
 
 
 function startApp() {
+    // 1. تعريف المتغيرات الأساسية
     const webApp = window.Telegram.WebApp;
+    const AM_ADMIN_ID = 549686235;
+    
+    // 2. تهيئة بيئة تليجرام
     webApp.ready();
     webApp.expand();
+    webApp.setHeaderColor('#0f172a');
 
+    // 3. جلب عنصر صفحة التحميل
     const loader = document.getElementById('app-loader');
-    
-    // وظيفة إخفاء شاشة التحميل فوراً في حال حدوث أي خطأ
-    const hideLoader = () => {
+    const loaderBar = document.getElementById('loader-bar');
+
+    // 4. وظيفة الإخفاء القسري (تُنفذ بعد 1.5 ثانية مهما حدث)
+    const forceEntry = () => {
         if (loader) {
             loader.style.opacity = '0';
-            setTimeout(() => loader.style.display = 'none', 500);
+            setTimeout(() => {
+                loader.style.display = 'none';
+            }, 500);
         }
     };
 
+    // 5. محاكاة حركة شريط التحميل (جمالية فقط)
+    if (loaderBar) {
+        loaderBar.style.width = '100%';
+        loaderBar.style.transition = 'width 1.2s ease-in-out';
+    }
+
+    // 6. محرك التشغيل الرئيسي (تشغيل دوال المراقبة)
     try {
         const user = webApp.initDataUnsafe.user;
         if (user) {
             const uid = user.id;
 
-            // تشغيل المحركات الأساسية (بصمت وبدون توقف)
+            // تشغيل جميع المراقبين (مع حماية ضد الأخطاء)
             if (typeof startBalanceMonitor === "function") try { startBalanceMonitor(uid); } catch(e){}
             if (typeof startTransactionMonitor === "function") try { startTransactionMonitor(uid); } catch(e){}
             if (typeof startPublisherMonitor === "function") try { startPublisherMonitor(uid); } catch(e){}
+            if (typeof startCampaignsMonitor === "function") try { startCampaignsMonitor(uid); } catch(e){}
             if (typeof initReferralSystem === "function") try { initReferralSystem(user); } catch(e){}
+            if (typeof startReferralMonitor === "function") try { startReferralMonitor(uid); } catch(e){}
 
-            // فحص صلاحيات أمين
-            if (uid === 549686235) { // وضعنا الآيدي مباشرة لضمان العمل
+            // فحص صلاحيات القائد أمين
+            if (uid === AM_ADMIN_ID) {
+                console.log("👑 الملك متصل: أمين");
                 const adminBtn = document.getElementById('main-admin-nav-btn');
                 if (adminBtn) adminBtn.style.display = 'block';
                 if (typeof startAdminMonitor === "function") try { startAdminMonitor(); } catch(e){}
             }
+
+            // تفعيل الاهتزاز للأزرار (بعد الدخول)
+            setTimeout(() => {
+                document.querySelectorAll('button').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        if (webApp.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
+                    });
+                });
+            }, 2000);
         }
     } catch (err) {
-        console.error("Initialization error:", err);
+        console.error("Critical Start Error:", err);
     }
 
-    // إخفاء صفحة التحميل بعد ثانية واحدة مهما كانت الظروف
-    setTimeout(hideLoader, 1500);
+    // 7. الأمر النهائي: ادخل للتطبيق الآن!
+    setTimeout(forceEntry, 1500);
 }
-
-
 
 // دالة مساعدة لتهيئة رابط الإحالة فور الدخول
 function initReferralSystem(user) {
@@ -1071,7 +1097,7 @@ function initReferralSystem(user) {
         refLinkInput.value = refLink;
     }
 }
-
+        
 
 function checkBotStatus() {
     tg.showAlert('🔍 يتم الآن التحقق من الصلاحيات ووجود البوت كمسؤول... يرجى الانتظار');
