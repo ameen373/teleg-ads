@@ -1319,43 +1319,51 @@ function refreshPublisherData(newData) {
 }
 
 function withdrawRefEarnings() {
-    // 1. جلب قيمة الرصيد الحالي من الواجهة
+    const webApp = window.Telegram.WebApp;
+    
+    // 1. جلب عنصر الرصيد (تأكد أن id="ref-balance" موجود في الـ HTML)
     const balanceElement = document.getElementById('ref-balance');
-    const balance = parseFloat(balanceElement.innerText);
-
-    // 2. التحقق من وجود رصيد
-    if (isNaN(balance) || balance <= 0) {
-        window.Telegram.WebApp.showAlert("⚠️ عذراً أمين، لا يوجد أرباح قابلة للسحب حالياً في محفظة الإحالة.");
+    
+    if (!balanceElement) {
+        console.error("⚠️ لم يتم العثور على عنصر ref-balance");
         return;
     }
 
-    // 3. رسالة تأكيد احترافية
-    window.Telegram.WebApp.showConfirm(`هل أنت متأكد من تحويل $${balance.toFixed(2)} إلى محفظتك الرئيسية؟`, (confirmed) => {
+    const balance = parseFloat(balanceElement.innerText);
+
+    // 2. التحقق من وجود رصيد حقيقي
+    if (isNaN(balance) || balance <= 0) {
+        webApp.showAlert("⚠️ عذراً، لا يوجد أرباح قابلة للسحب حالياً.");
+        return;
+    }
+
+    // 3. رسالة التأكيد
+    webApp.showConfirm(`هل أنت متأكد من تحويل $${balance.toFixed(2)} إلى محفظتك الرئيسية؟`, (confirmed) => {
         if (confirmed) {
-            // تأثير بصري: جاري المعالجة
-            window.Telegram.WebApp.showScanQrPopup({ text: "جاري معالجة الطلب عبر الشبكة..." }); // مجرد تأثير بصري سريع
-            
+            // تأثير بصري خفيف (Haptic)
+            if (webApp.HapticFeedback) webApp.HapticFeedback.notificationOccurred('success');
+
+            // محاكاة الاتصال بالسيرفر
             setTimeout(() => {
-                window.Telegram.WebApp.closeScanQrPopup();
-                
-                // تحديث الرصيد بصرياً (تصفيره بعد السحب)
+                // تحديث الرصيد بصرياً (تصفيره)
                 if (typeof animateValue === "function") {
                     animateValue("ref-balance", balance, 0, 1000);
                 } else {
                     balanceElement.innerText = "0.00";
                 }
 
-                window.Telegram.WebApp.showAlert("✅ تمت عملية التحويل بنجاح! ستظهر الأرباح في محفظتك الرئيسية خلال دقائق.");
+                webApp.showAlert("✅ تمت عملية التحويل بنجاح! ستظهر الأرباح في محفظتك الرئيسية قريباً.");
                 
-                // تحديث المحفظة الرئيسية إذا كانت دالتها موجودة
-                if (typeof startBalanceMonitor === "function") {
-                    const user = window.Telegram.WebApp.initDataUnsafe.user;
+                // تحديث المحفظة الرئيسية فوراً
+                const user = webApp.initDataUnsafe.user;
+                if (user && typeof startBalanceMonitor === "function") {
                     startBalanceMonitor(user.id);
                 }
-            }, 1500);
+            }, 1000);
         }
     });
 }
+
 
         
 // ==========================================
