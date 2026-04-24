@@ -1805,12 +1805,6 @@ document.addEventListener('DOMContentLoaded', () => {
 // ==========================================
 
 function openTab(tabName, element) {
-    // 1. تعريف واجهة تليجرام وحماية البيانات
-    const webApp = window.Telegram?.WebApp;
-    const user = webApp?.initDataUnsafe?.user;
-    const userId = user ? user.id : null;
-
-    // 2. تنظيف الواجهة (إخفاء كل الأقسام النشطة)
     const allSections = document.querySelectorAll('.section, .app-section');
     allSections.forEach(s => {
         s.style.display = 'none';
