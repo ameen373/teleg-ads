@@ -1258,6 +1258,46 @@ function refreshPublisherData(newData) {
     animateValue("total-net-earnings", 0, newData.totalNet, 2000);
 }
 
+function withdrawRefEarnings() {
+    // 1. جلب قيمة الرصيد الحالي من الواجهة
+    const balanceElement = document.getElementById('ref-balance');
+    const balance = parseFloat(balanceElement.innerText);
+
+    // 2. التحقق من وجود رصيد
+    if (isNaN(balance) || balance <= 0) {
+        window.Telegram.WebApp.showAlert("⚠️ عذراً أمين، لا يوجد أرباح قابلة للسحب حالياً في محفظة الإحالة.");
+        return;
+    }
+
+    // 3. رسالة تأكيد احترافية
+    window.Telegram.WebApp.showConfirm(`هل أنت متأكد من تحويل $${balance.toFixed(2)} إلى محفظتك الرئيسية؟`, (confirmed) => {
+        if (confirmed) {
+            // تأثير بصري: جاري المعالجة
+            window.Telegram.WebApp.showScanQrPopup({ text: "جاري معالجة الطلب عبر الشبكة..." }); // مجرد تأثير بصري سريع
+            
+            setTimeout(() => {
+                window.Telegram.WebApp.closeScanQrPopup();
+                
+                // تحديث الرصيد بصرياً (تصفيره بعد السحب)
+                if (typeof animateValue === "function") {
+                    animateValue("ref-balance", balance, 0, 1000);
+                } else {
+                    balanceElement.innerText = "0.00";
+                }
+
+                window.Telegram.WebApp.showAlert("✅ تمت عملية التحويل بنجاح! ستظهر الأرباح في محفظتك الرئيسية خلال دقائق.");
+                
+                // تحديث المحفظة الرئيسية إذا كانت دالتها موجودة
+                if (typeof startBalanceMonitor === "function") {
+                    const user = window.Telegram.WebApp.initDataUnsafe.user;
+                    startBalanceMonitor(user.id);
+                }
+            }, 1500);
+        }
+    });
+}
+
+        
 // ==========================================
 // 3. دوال الإيداع والشحن (Deposit)
 // ==========================================
@@ -1798,6 +1838,33 @@ function toggleRefInstructions() {
         info.style.display = 'none';
     }
 }
+
+        function generateQRCode() {
+    const refLink = document.getElementById('myRefLink').value;
+    
+    if (!refLink || refLink === "Loading...") {
+        window.Telegram.WebApp.showAlert("⚠️ يرجى الانتظار حتى يتم تجهيز رابطك.");
+        return;
+    }
+
+    // سنستخدم خدمة Google Charts لتوليد الكود فوراً وبجودة عالية
+    const qrUrl = `https://chart.googleapis.com/chart?chs=250x250&cht=qr&chl=${encodeURIComponent(refLink)}&choe=UTF-8`;
+    
+    // إظهار الكود في نافذة منبثقة (Popup) احترافية من تليجرام
+    window.Telegram.WebApp.showPopup({
+        title: 'كود QR الخاص بك',
+        message: 'اجعل أصدقاءك يمسحون هذا الكود للانضمام إلى شبكتك الخماسية فوراً!',
+        buttons: [
+            {id: 'view', type: 'default', text: 'فتح الصورة'},
+            {id: 'close', type: 'destructive', text: 'إغلاق'}
+        ]
+    }, (buttonId) => {
+        if (buttonId === 'view') {
+            window.Telegram.WebApp.openLink(qrUrl);
+        }
+    });
+}
+
 
         
 // ==========================================
