@@ -1937,41 +1937,7 @@ function toggleRefInstructions() {
     });
 }
 
-// دالة التنقل السحرية - تجعل الأقسام تظهر وتختفي بسلاسة
-function showSection(sectionId) {
-    // 1. إخفاء جميع الأقسام أولاً
-    const sections = document.querySelectorAll('.app-section');
-    sections.forEach(section => {
-        section.style.display = 'none';
-        section.classList.remove('active');
-    });
 
-    // 2. إظهار القسم المطلوب
-    const targetSection = document.getElementById('section-' + sectionId);
-    if (targetSection) {
-        targetSection.style.display = 'block';
-        setTimeout(() => {
-            targetSection.classList.add('active');
-        }, 10);
-    }
-
-    // 3. تحديث شكل الأزرار في القائمة السفلية (إضاءة الزر النشط)
-    const navItems = document.querySelectorAll('.nav-item');
-    navItems.forEach(item => {
-        item.classList.remove('active');
-        if (item.getAttribute('onclick').includes(sectionId)) {
-            item.classList.add('active');
-        }
-    });
-
-    // 4. اهتزاز خفيف عند التنقل
-    if (window.Telegram.WebApp.HapticFeedback) {
-        window.Telegram.WebApp.HapticFeedback.selectionChanged();
-    }
-    
-    // 5. العودة لأعلى الصفحة تلقائياً
-    window.scrollTo(0, 0);
-}
 
         
 // ==========================================
