@@ -1805,32 +1805,33 @@ document.addEventListener('DOMContentLoaded', () => {
 // ==========================================
 
 function openTab(tabName, element) {
-    // 1. تعريف واجهة تليجرام
-    const webApp = window.Telegram.WebApp;
-    
-    // 2. إخفاء جميع الأقسام النشطة (تنظيف الواجهة)
-    const allSections = document.querySelectorAll('.app-section, .section');
+    // 1. تعريف واجهة تليجرام وحماية البيانات
+    const webApp = window.Telegram?.WebApp;
+    const user = webApp?.initDataUnsafe?.user;
+    const userId = user ? user.id : null;
+
+    // 2. تنظيف الواجهة (إخفاء كل الأقسام النشطة)
+    const allSections = document.querySelectorAll('.section, .app-section');
     allSections.forEach(s => {
         s.style.display = 'none';
         s.classList.remove('active');
     });
 
-    // 3. تحديث حالة أزرار التنقل (Navigation)
+    // 3. تحديث الأزرار (إزالة حالة التفعيل من الجميع)
     document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.remove('active');
     });
 
-    // 4. البحث عن القسم المطلوب وإظهاره
+    // 4. الإظهار الذكي للقسم (يدعم tabName أو section-tabName)
     const target = document.getElementById(tabName) || document.getElementById('section-' + tabName);
     
     if (target) {
         target.style.display = 'block';
-        // أنيميشن دخول ناعم
         setTimeout(() => target.classList.add('active'), 10);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
-        console.error("⚠️ خطأ: القسم '" + tabName + "' غير موجود في الـ HTML");
-        return; // توقف هنا إذا لم يجد القسم
+        console.error("⚠️ خطأ: لم يتم العثور على القسم: " + tabName);
+        return; 
     }
 
     // 5. تفعيل الزر الذي تم الضغط عليه
@@ -1841,47 +1842,36 @@ function openTab(tabName, element) {
         if (autoBtn) autoBtn.classList.add('active');
     }
 
-    // 6. التفاعل اللمسي (Haptic Feedback) - لجعل التطبيق يبدو حقيقياً
+    // 6. التفاعل اللمسي (Haptic Feedback)
     try {
-        if (webApp && webApp.HapticFeedback) {
-            webApp.HapticFeedback.impactOccurred('light');
-        }
-    } catch (e) { 
-        console.warn("Haptic Feedback not supported"); 
-    }
+        if (webApp?.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
+    } catch (e) { }
 
-    // 7. محرك تحديث البيانات (Logic Engine)
-    const user = webApp.initDataUnsafe?.user;
-    const userId = user ? user.id : null;
-
+    // 7. محرك تحديث البيانات الذكي (Logic Engine)
     if (userId) {
         switch(tabName) {
             case 'home':
+                console.log("🏠 تحديث الرئيسية...");
                 if (typeof startBalanceMonitor === "function") startBalanceMonitor(userId);
-                if (typeof startTransactionMonitor === "function") startTransactionMonitor(userId);
                 break;
 
             case 'referrals':
-                console.log("💰 جاري تحديث بيانات الإحالة لأمين...");
+                console.log("💰 تحديث الإحالات...");
                 if (typeof startReferralMonitor === "function") startReferralMonitor(userId);
-                if (typeof fetchReferralStats === "function") fetchReferralStats(userId);
                 break;
 
             case 'channels':
                 if (typeof startPublisherMonitor === "function") startPublisherMonitor(userId);
                 break;
                 
-            case 'promo':
-                if (typeof startCampaignsMonitor === "function") startCampaignsMonitor(userId);
-                break;
-                
             case 'admin':
-                // التحقق من صلاحيات الآدمن
+                // التحقق من أن المستخدم هو أمين (الآدمن)
                 if (userId === AM_ADMIN_ID) {
+                    console.log("👑 أهلاً بك يا آدمن...");
                     if (typeof loadWithdrawalRequests === "function") loadWithdrawalRequests();
                     if (typeof loadDepositRequests === "function") loadDepositRequests();
                 } else {
-                    Telegram.WebApp.showAlert("🚫 عذراً، هذا القسم مخصص للإدارة فقط.");
+                    webApp.showAlert("🚫 عذراً يا " + (user.first_name || 'صديقي') + "، هذا القسم مخصص للإدارة فقط.");
                     openTab('home'); // إعادة المستخدم للرئيسية
                 }
                 break;
@@ -1889,6 +1879,7 @@ function openTab(tabName, element) {
     }
 }
 
+                 
                    
 function showToast(message, type = 'success') {
     const toast = document.createElement('div');
