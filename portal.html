@@ -81,9 +81,9 @@
     </div>
 </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+        <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
     <script>eruda.init();</script>
-        
+    
     <style>
         /* --- التنسيقات المدمجة (القديمة + الجديدة) --- */
         :root {
@@ -1763,15 +1763,12 @@ function copyWalletAddress() {
                 window.open(tgUrl, '_blank');
             }
         }
-    </script>
-</body>
-</html>
 
 // 4. تحديث البيانات لـ 5 مستويات (الأقوى تقنياً)
 function updateReferralData(data) {
-    if(!data) return;
+    if (!data) return;
     
-    // تحديث المستويات الخمسة ديناميكياً
+    // 1. تحديث عدد المستخدمين في المستويات الخمسة ديناميكياً
     for (let i = 1; i <= 5; i++) {
         const element = document.getElementById(`tier${i}-count`);
         if (element && data[`tier${i}`] !== undefined) {
@@ -1779,17 +1776,27 @@ function updateReferralData(data) {
         }
     }
     
-    // تحديث الرصيد مع تأثير الأنيميشن
-    const currentBal = parseFloat(document.getElementById('ref-balance').innerText) || 0;
-    if (typeof animateValue === "function") {
-        animateValue("ref-balance", currentBal, data.balance, 1000);
-    } else {
-        document.getElementById('ref-balance').innerText = data.balance.toFixed(2);
+    // 2. تحديث رصيد الإحالات
+    const balanceElement = document.getElementById('ref-balance');
+    if (balanceElement && data.balance !== undefined) {
+        const currentBal = parseFloat(balanceElement.innerText) || 0;
+        
+        // إذا كانت دالة الأنيميشن موجودة نستخدمها، وإلا نحدث الرقم مباشرة
+        if (typeof animateValue === "function") {
+            animateValue("ref-balance", currentBal, data.balance, 1000);
+        } else {
+            balanceElement.innerText = parseFloat(data.balance).toFixed(2);
+        }
     }
 }
 
-// 5. تشغيل التهيئة عند تحميل الصفحة
-document.addEventListener('DOMContentLoaded', initReferralSystem);
+// 5. تشغيل التهيئة عند تحميل الصفحة لضمان ربط كل شيء
+document.addEventListener('DOMContentLoaded', () => {
+    // نتحقق أولاً إذا كانت دالة التهيئة موجودة لكي لا يظهر خطأ
+    if (typeof initReferralSystem === "function") {
+        initReferralSystem();
+    }
+});
 
         
         
@@ -1797,60 +1804,57 @@ document.addEventListener('DOMContentLoaded', initReferralSystem);
 // 5. نظام التنقل والواجهة (UI & Navigation)
 // ==========================================
 
-/**
- * المحرك الرئيسي للتنقل وتحديث البيانات
- * @param {string} tabName - اسم القسم (home, referrals, admin, etc.)
- * @param {HTMLElement} element - الزر الذي تم الضغط عليه
- */
 function openTab(tabName, element) {
-    // 1. فحص الحماية: التأكد من وجود تليجرام
+    // 1. تعريف واجهة تليجرام
     const webApp = window.Telegram.WebApp;
     
-    // 2. تنظيف الواجهة (إخفاء كل الأقسام النشطة)
+    // 2. إخفاء جميع الأقسام النشطة (تنظيف الواجهة)
     const allSections = document.querySelectorAll('.app-section, .section');
     allSections.forEach(s => {
         s.style.display = 'none';
         s.classList.remove('active');
     });
 
-    // 3. تحديث الأزرار (إزالة حالة التفعيل من الجميع)
+    // 3. تحديث حالة أزرار التنقل (Navigation)
     document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.remove('active');
     });
 
-    // 4. الإظهار الذكي للقسم المطلوب
-    // يبحث عن القسم سواء كان المعرف "home" أو "section-home"
+    // 4. البحث عن القسم المطلوب وإظهاره
     const target = document.getElementById(tabName) || document.getElementById('section-' + tabName);
     
     if (target) {
         target.style.display = 'block';
-        // إضافة أنيميشن بسيط للدخول
+        // أنيميشن دخول ناعم
         setTimeout(() => target.classList.add('active'), 10);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
         console.error("⚠️ خطأ: القسم '" + tabName + "' غير موجود في الـ HTML");
+        return; // توقف هنا إذا لم يجد القسم
     }
 
-    // 5. تفعيل الزر الذي ضغطت عليه
+    // 5. تفعيل الزر الذي تم الضغط عليه
     if (element) {
         element.classList.add('active');
     } else {
-        // محاولة إيجاد الزر برمجياً إذا لم يتم تمرير element
         const autoBtn = document.querySelector(`.nav-item[onclick*="${tabName}"]`);
         if (autoBtn) autoBtn.classList.add('active');
     }
 
-    // 6. التفاعل اللمسي (Haptic Feedback)
+    // 6. التفاعل اللمسي (Haptic Feedback) - لجعل التطبيق يبدو حقيقياً
     try {
-        if (webApp.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
-    } catch (e) { console.warn("Haptic failed"); }
+        if (webApp && webApp.HapticFeedback) {
+            webApp.HapticFeedback.impactOccurred('light');
+        }
+    } catch (e) { 
+        console.warn("Haptic Feedback not supported"); 
+    }
 
     // 7. محرك تحديث البيانات (Logic Engine)
-    // هذا الجزء يضمن أن الأقسام لا تفتح وهي فارغة
-    const user = webApp.initDataUnsafe.user;
-    if (user) {
-        const userId = user.id;
-        
+    const user = webApp.initDataUnsafe?.user;
+    const userId = user ? user.id : null;
+
+    if (userId) {
         switch(tabName) {
             case 'home':
                 if (typeof startBalanceMonitor === "function") startBalanceMonitor(userId);
@@ -1858,9 +1862,8 @@ function openTab(tabName, element) {
                 break;
 
             case 'referrals':
-                console.log("💰 جاري تحديث بيانات الإحالة...");
+                console.log("💰 جاري تحديث بيانات الإحالة لأمين...");
                 if (typeof startReferralMonitor === "function") startReferralMonitor(userId);
-                // إذا كان لديك دالة تجلب الإحصائيات من السيرفر
                 if (typeof fetchReferralStats === "function") fetchReferralStats(userId);
                 break;
 
@@ -1873,10 +1876,13 @@ function openTab(tabName, element) {
                 break;
                 
             case 'admin':
-                // التأكد من أن الداخل هو أمين فقط
+                // التحقق من صلاحيات الآدمن
                 if (userId === AM_ADMIN_ID) {
                     if (typeof loadWithdrawalRequests === "function") loadWithdrawalRequests();
                     if (typeof loadDepositRequests === "function") loadDepositRequests();
+                } else {
+                    Telegram.WebApp.showAlert("🚫 عذراً، هذا القسم مخصص للإدارة فقط.");
+                    openTab('home'); // إعادة المستخدم للرئيسية
                 }
                 break;
         }
