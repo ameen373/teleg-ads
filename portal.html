@@ -2605,10 +2605,6 @@ function adminAction(type) {
     });
 }
 
-
-// أضف هذه الدوال في نهاية القسم 7
-const AM_ADMIN_ID = 549686235; 
-
 function checkAdminAuth() {
     const user = window.Telegram.WebApp.initDataUnsafe.user;
     if (user && user.id === AM_ADMIN_ID) {
