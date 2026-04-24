@@ -2580,64 +2580,63 @@ function adminAction(type) {
     }
 }
 
-        function saveTransaction(userId, type, title, amount, status) {
-    // التأكد من أن المسار صحيح في قاعدة البيانات
+    // --- دالة تسجيل العمليات ---
+function saveTransaction(userId, type, title, amount, status) {
     const transRef = db.ref('transactions/' + userId);
-    
-    // إعداد البيانات بشكل احترافي
     const transactionData = {
-        type: type,               // 'deposit' أو 'withdraw' أو 'admin_gift'
-        title: title,             // عنوان العملية (مثلاً: شحن رصيد USDT)
-        amount: parseFloat(amount), // التأكد من أن المبلغ رقم وليس نص
-        status: status,           // 'approved' أو 'rejected' أو 'pending'
-        timestamp: Date.now(),    // الوقت بصيغة ملي ثانية للترتيب
-        date: new Date().toLocaleString('ar-EG'), // تاريخ مقروء بالعربية
-        orderId: "TRX" + Math.floor(Math.random() * 1000000) // رقم مرجعي عشوائي للعملية
+        type: type,
+        title: title,
+        amount: parseFloat(amount),
+        status: status,
+        timestamp: Date.now(),
+        date: new Date().toLocaleString('ar-EG'),
+        orderId: "TRX" + Math.floor(Math.random() * 1000000)
     };
 
-    // دفع البيانات إلى Firebase
     transRef.push(transactionData)
-    .then(() => {
-        console.log(`✅ تم تسجيل العملية بنجاح للمستخدم: ${userId}`);
-    })
-    .catch((error) => {
-        console.error("❌ فشل في تسجيل العملية:", error);
-    });
+    .then(() => console.log(`✅ تم تسجيل العملية بنجاح: ${userId}`))
+    .catch((error) => console.error("❌ فشل التسجيل:", error));
 }
 
+// --- دالة التحقق من الآدمن ---
 function checkAdminAuth() {
-    const user = window.Telegram.WebApp.initDataUnsafe.user;
-    if (user && user.id === AM_ADMIN_ID) {
+    const user = webApp?.initDataUnsafe?.user;
+    // تم التعديل ليتطابق مع ADMIN_ID
+    if (user && user.id === ADMIN_ID) {
         console.log("Welcome Boss: Ameen");
-        // يمكنك هنا إظهار قسم الإدارة برمجياً إذا أردت
     }
 }
 
+// --- فحص أمان النظام ---
 function checkSystemIntegrity() {
-    window.Telegram.WebApp.showConfirm("جاري فحص عناوين IP والعمليات المتكررة.. هل تريد المتابعة؟", (res) => {
+    webApp?.showConfirm("جاري فحص عناوين IP والعمليات المتكررة.. هل تريد المتابعة؟", (res) => {
         if(res) {
-            window.Telegram.WebApp.showAlert("🛡️ النظام آمن. لم يتم العثور على محاولات إحالة وهمية حالياً.");
+            webApp?.showAlert("🛡️ النظام آمن. لم يتم العثور على محاولات إحالة وهمية.");
         }
     });
 }
 
 // ==========================================
-// إعدادات التشغيل النهائية (توضع مرة واحدة في نهاية الملف)
+// إعدادات التشغيل النهائية
 // ==========================================
 
-// تشغيل الاهتزاز عند تحميل الصفحة (اختياري)
-if (webApp.isVersionAtLeast('6.1') && webApp.HapticFeedback) {
+// تشغيل الاهتزاز بأمان
+if (webApp?.isVersionAtLeast?.('6.1') && webApp?.HapticFeedback) {
     webApp.HapticFeedback.selectionChanged();
 }
-        
 
-// أمر تشغيل التطبيق
-window.onload = startApp;
+// أمر تشغيل التطبيق (تأكد أن دالة startApp موجودة في كودك)
+window.onload = function() {
+    if (typeof startApp === "function") {
+        startApp();
+    }
+    checkAdminAuth(); // فحص الآدمن عند التشغيل
+};
 
 // مراقبة حالة الإنترنت
-window.addEventListener('offline', () => showToast("🔴 انقطع الاتصال بالإنترنت!", "error"));
-window.addEventListener('online', () => showToast("🟢 عاد الاتصال بالإنترنت", "success"));
-        
+window.addEventListener('offline', () => typeof showToast === "function" && showToast("🔴 انقطع الاتصال!", "error"));
+window.addEventListener('online', () => typeof showToast === "function" && showToast("🟢 عاد الاتصال", "success"));
+
 </script>
 </body>
 </html>
