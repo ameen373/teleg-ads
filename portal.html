@@ -1019,137 +1019,48 @@ const db = firebase.database();
 // تأكد أن هذا المتغير موجود في أعلى ملف الـ JS خارج الدالة
 const AM_ADMIN_ID = 549686235;
 
+
 function startApp() {
-    // 1. تهيئة التليجرام
     const webApp = window.Telegram.WebApp;
     webApp.ready();
     webApp.expand();
-    webApp.setHeaderColor('#0f172a');
 
-    const loaderBar = document.getElementById('loader-bar');
-    const loaderText = document.getElementById('loader-text');
-    const appLoader = document.getElementById('app-loader');
-
-    // 2. مؤقت أمان إجباري (لو تعطل الكود، ستختفي الشاشة بعد 4 ثوانٍ)
-    setTimeout(() => {
-        if (appLoader && appLoader.style.display !== 'none') {
-            appLoader.style.opacity = '0';
-            setTimeout(() => appLoader.style.display = 'none', 800);
-            console.warn("⚠️ تم إغلاق صفحة التحميل بمؤقت الأمان");
+    const loader = document.getElementById('app-loader');
+    
+    // وظيفة إخفاء شاشة التحميل فوراً في حال حدوث أي خطأ
+    const hideLoader = () => {
+        if (loader) {
+            loader.style.opacity = '0';
+            setTimeout(() => loader.style.display = 'none', 500);
         }
-    }, 4000);
+    };
 
-    // 3. محرك شريط التحميل البصري
-    let progress = 0;
-    const loadingInterval = setInterval(() => {
-        progress += 10;
-        if (progress > 100) progress = 100;
-        if (loaderBar) loaderBar.style.width = progress + '%';
-        
-        if (progress >= 100) {
-            clearInterval(loadingInterval);
-            // إخفاء التحميل عند الاكتمال
-            setTimeout(() => {
-                if (appLoader) {
-                    appLoader.style.opacity = '0';
-                    setTimeout(() => appLoader.style.display = 'none', 800);
-                }
-            }, 500);
-        }
-    }, 200);
+    try {
+        const user = webApp.initDataUnsafe.user;
+        if (user) {
+            const uid = user.id;
 
-    // 4. تشغيل المحركات الأساسية (بكل حذر)
-    const user = webApp.initDataUnsafe.user;
-    if (user) {
-        const userId = user.id;
+            // تشغيل المحركات الأساسية (بصمت وبدون توقف)
+            if (typeof startBalanceMonitor === "function") try { startBalanceMonitor(uid); } catch(e){}
+            if (typeof startTransactionMonitor === "function") try { startTransactionMonitor(uid); } catch(e){}
+            if (typeof startPublisherMonitor === "function") try { startPublisherMonitor(uid); } catch(e){}
+            if (typeof initReferralSystem === "function") try { initReferralSystem(user); } catch(e){}
 
-        // تنفيذ الدوال الأساسية مع "محاولة/خطأ" لضمان عدم توقف التطبيق
-        try { if (typeof startBalanceMonitor === "function") startBalanceMonitor(userId); } catch(e) { console.error(e); }
-        try { if (typeof startTransactionMonitor === "function") startTransactionMonitor(userId); } catch(e) { console.error(e); }
-        try { if (typeof startPublisherMonitor === "function") startPublisherMonitor(userId); } catch(e) { console.error(e); }
-        try { if (typeof startCampaignsMonitor === "function") startCampaignsMonitor(userId); } catch(e) { console.error(e); }
-        try { if (typeof initReferralSystem === "function") initReferralSystem(user); } catch(e) { console.error(e); }
-        try { if (typeof startReferralMonitor === "function") startReferralMonitor(userId); } catch(e) { console.error(e); }
-
-        // التحقق من صلاحيات المدير أمين
-        if (userId === AM_ADMIN_ID) {
-            try {
-                if (typeof startAdminMonitor === "function") startAdminMonitor();
+            // فحص صلاحيات أمين
+            if (uid === 549686235) { // وضعنا الآيدي مباشرة لضمان العمل
                 const adminBtn = document.getElementById('main-admin-nav-btn');
                 if (adminBtn) adminBtn.style.display = 'block';
-            } catch(e) { console.error("Admin Error:", e); }
-        }
-
-        // تفعيل الاهتزاز للأزرار
-        setTimeout(() => {
-            document.querySelectorAll('button').forEach(btn => {
-                btn.onclick = () => {
-                    if (webApp.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
-                };
-            });
-        }, 1000);
-    }
-}
-
-
-    // 3. تشغيل المحركات الخلفية إذا وجد المستخدم
-    if (user) {
-        const userId = user.id;
-
-        // مراقبة الرصيد والمعاملات المالية
-        if (typeof startBalanceMonitor === "function") startBalanceMonitor(userId);
-        if (typeof startTransactionMonitor === "function") startTransactionMonitor(userId);
-        
-        // محركات الناشر ومعلومات الحملات
-        if (typeof startPublisherMonitor === "function") startPublisherMonitor(userId);
-        if (typeof startCampaignsMonitor === "function") startCampaignsMonitor(userId); 
-        
-        // نظام الإحالة (توليد الرابط والمراقبة)
-        if (typeof initReferralSystem === "function") {
-            initReferralSystem(user);
-        }
-        if (typeof startReferralMonitor === "function") {
-            startReferralMonitor(userId);
-        }
-
-        // 4. صلاحيات المدير (أمين)
-        if (userId === AM_ADMIN_ID) {
-            console.log("👑 صلاحيات القائد مفعلة");
-            if (typeof startAdminMonitor === "function") startAdminMonitor();
-            
-            // إظهار زر الإدارة في القائمة الرئيسية
-            const adminBtn = document.getElementById('main-admin-nav-btn');
-            if (adminBtn) adminBtn.style.display = 'block';
-            
-            // إظهار قسم الإدارة إذا كان مخفياً
-            const adminSection = document.getElementById('section-admin');
-            if (adminSection) {
-                 console.log("Admin section ready");
+                if (typeof startAdminMonitor === "function") try { startAdminMonitor(); } catch(e){}
             }
         }
-
-        // 5. تفعيل نظام الاهتزاز (Haptic Feedback) لكل أزرار التطبيق
-        setTimeout(() => {
-            const allButtons = document.querySelectorAll('button');
-            allButtons.forEach(btn => {
-                btn.addEventListener('click', () => {
-                    if (webApp.HapticFeedback) {
-                        webApp.HapticFeedback.impactOccurred('light');
-                    }
-                });
-            });
-        }, 2000); // تفعيل بعد انتهاء التحميل تماماً
-
-        console.log("🚀 تم إحياء محركات Telega Ads v3.0");
-    } else {
-        // في حال فشل جلب بيانات المستخدم
-        if (typeof showToast === "function") {
-            showToast("⚠️ فشل الاتصال بتليجرام");
-        } else {
-            alert("⚠️ يرجى فتح التطبيق من داخل تليجرام");
-        }
+    } catch (err) {
+        console.error("Initialization error:", err);
     }
-} // نهاية الدالة الكاملة
+
+    // إخفاء صفحة التحميل بعد ثانية واحدة مهما كانت الظروف
+    setTimeout(hideLoader, 1500);
+}
+
 
 
 // دالة مساعدة لتهيئة رابط الإحالة فور الدخول
