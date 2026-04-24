@@ -1020,50 +1020,77 @@ const db = firebase.database();
 const AM_ADMIN_ID = 549686235;
 
 function startApp() {
-    // 1. تهيئة واجهة التليجرام الأساسية
-    if (window.Telegram && window.Telegram.WebApp) {
-        window.Telegram.WebApp.ready();
-        window.Telegram.WebApp.expand();
-        window.Telegram.WebApp.setHeaderColor('#0f172a');
-    } else {
-        console.error("Telegram WebApp undefined");
-        return;
-    }
-
+    // 1. تهيئة التليجرام
     const webApp = window.Telegram.WebApp;
-    const user = webApp.initDataUnsafe.user;
+    webApp.ready();
+    webApp.expand();
+    webApp.setHeaderColor('#0f172a');
 
-    // 2. محرك صفحة التحميل (Splash Screen) مع التوقيت الدقيق
-    let progress = 0;
     const loaderBar = document.getElementById('loader-bar');
     const loaderText = document.getElementById('loader-text');
     const appLoader = document.getElementById('app-loader');
 
+    // 2. مؤقت أمان إجباري (لو تعطل الكود، ستختفي الشاشة بعد 4 ثوانٍ)
+    setTimeout(() => {
+        if (appLoader && appLoader.style.display !== 'none') {
+            appLoader.style.opacity = '0';
+            setTimeout(() => appLoader.style.display = 'none', 800);
+            console.warn("⚠️ تم إغلاق صفحة التحميل بمؤقت الأمان");
+        }
+    }, 4000);
+
+    // 3. محرك شريط التحميل البصري
+    let progress = 0;
     const loadingInterval = setInterval(() => {
-        progress += Math.random() * 20; // سرعة تحميل عشوائية طبيعية
+        progress += 10;
         if (progress > 100) progress = 100;
-        
         if (loaderBar) loaderBar.style.width = progress + '%';
         
-        if (loaderText) {
-            if (progress < 30) loaderText.innerText = "جاري تأمين الاتصال المشفر...";
-            else if (progress < 60) loaderText.innerText = "جاري مزامنة بروتوكولات الأجيال...";
-            else if (progress < 90) loaderText.innerText = "جاري التحقق من هوية القائد...";
-            else loaderText.innerText = "اكتمل الفحص.. مرحباً بك";
-        }
-
         if (progress >= 100) {
             clearInterval(loadingInterval);
+            // إخفاء التحميل عند الاكتمال
             setTimeout(() => {
                 if (appLoader) {
                     appLoader.style.opacity = '0';
-                    setTimeout(() => {
-                        appLoader.style.display = 'none';
-                    }, 800);
+                    setTimeout(() => appLoader.style.display = 'none', 800);
                 }
             }, 500);
         }
-    }, 300);
+    }, 200);
+
+    // 4. تشغيل المحركات الأساسية (بكل حذر)
+    const user = webApp.initDataUnsafe.user;
+    if (user) {
+        const userId = user.id;
+
+        // تنفيذ الدوال الأساسية مع "محاولة/خطأ" لضمان عدم توقف التطبيق
+        try { if (typeof startBalanceMonitor === "function") startBalanceMonitor(userId); } catch(e) { console.error(e); }
+        try { if (typeof startTransactionMonitor === "function") startTransactionMonitor(userId); } catch(e) { console.error(e); }
+        try { if (typeof startPublisherMonitor === "function") startPublisherMonitor(userId); } catch(e) { console.error(e); }
+        try { if (typeof startCampaignsMonitor === "function") startCampaignsMonitor(userId); } catch(e) { console.error(e); }
+        try { if (typeof initReferralSystem === "function") initReferralSystem(user); } catch(e) { console.error(e); }
+        try { if (typeof startReferralMonitor === "function") startReferralMonitor(userId); } catch(e) { console.error(e); }
+
+        // التحقق من صلاحيات المدير أمين
+        if (userId === AM_ADMIN_ID) {
+            try {
+                if (typeof startAdminMonitor === "function") startAdminMonitor();
+                const adminBtn = document.getElementById('main-admin-nav-btn');
+                if (adminBtn) adminBtn.style.display = 'block';
+            } catch(e) { console.error("Admin Error:", e); }
+        }
+
+        // تفعيل الاهتزاز للأزرار
+        setTimeout(() => {
+            document.querySelectorAll('button').forEach(btn => {
+                btn.onclick = () => {
+                    if (webApp.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
+                };
+            });
+        }, 1000);
+    }
+}
+
 
     // 3. تشغيل المحركات الخلفية إذا وجد المستخدم
     if (user) {
