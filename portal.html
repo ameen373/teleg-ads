@@ -1035,74 +1035,83 @@ const db = firebase.database();
 const AM_ADMIN_ID = 549686235;
 
 
+// تعريف الآيدي الخاص بك كمدير (تأكد أنه خارج الدالة)
+const AM_ADMIN_ID = 549686235;
+
 function startApp() {
-    // 1. تعريف المتغيرات الأساسية
+    // 1. استدعاء واجهة تليجرام
     const webApp = window.Telegram.WebApp;
-    const AM_ADMIN_ID = 549686235;
-    
-    // 2. تهيئة بيئة تليجرام
     webApp.ready();
     webApp.expand();
     webApp.setHeaderColor('#0f172a');
 
-    // 3. جلب عنصر صفحة التحميل
+    // 2. العناصر المرئية للتحميل
     const loader = document.getElementById('app-loader');
     const loaderBar = document.getElementById('loader-bar');
+    const loaderText = document.getElementById('loader-text');
 
-    // 4. وظيفة الإخفاء القسري (تُنفذ بعد 1.5 ثانية مهما حدث)
-    const forceEntry = () => {
+    // 3. محرك الأمان (إخفاء اللودر مهما حدث)
+    const hideLoadingScreen = () => {
         if (loader) {
             loader.style.opacity = '0';
-            setTimeout(() => {
-                loader.style.display = 'none';
-            }, 500);
+            setTimeout(() => { loader.style.display = 'none'; }, 800);
         }
     };
 
-    // 5. محاكاة حركة شريط التحميل (جمالية فقط)
-    if (loaderBar) {
-        loaderBar.style.width = '100%';
-        loaderBar.style.transition = 'width 1.2s ease-in-out';
-    }
-
-    // 6. محرك التشغيل الرئيسي (تشغيل دوال المراقبة)
+    // 4. تنفيذ العمليات (التي كانت موجودة عندك سابقاً)
     try {
         const user = webApp.initDataUnsafe.user;
         if (user) {
-            const uid = user.id;
+            const userId = user.id;
 
-            // تشغيل جميع المراقبين (مع حماية ضد الأخطاء)
-            if (typeof startBalanceMonitor === "function") try { startBalanceMonitor(uid); } catch(e){}
-            if (typeof startTransactionMonitor === "function") try { startTransactionMonitor(uid); } catch(e){}
-            if (typeof startPublisherMonitor === "function") try { startPublisherMonitor(uid); } catch(e){}
-            if (typeof startCampaignsMonitor === "function") try { startCampaignsMonitor(uid); } catch(e){}
-            if (typeof initReferralSystem === "function") try { initReferralSystem(user); } catch(e){}
-            if (typeof startReferralMonitor === "function") try { startReferralMonitor(uid); } catch(e){}
-
-            // فحص صلاحيات القائد أمين
-            if (uid === AM_ADMIN_ID) {
-                console.log("👑 الملك متصل: أمين");
-                const adminBtn = document.getElementById('main-admin-nav-btn');
-                if (adminBtn) adminBtn.style.display = 'block';
-                if (typeof startAdminMonitor === "function") try { startAdminMonitor(); } catch(e){}
+            // --- المراقبات الستة (محركات التطبيق) ---
+            // نستخدم try catch لكل واحدة لضمان عدم توقف التطبيق لو فشلت واحدة
+            try { startBalanceMonitor(userId); } catch(e) { console.log("BalanceMonitor wait..."); }
+            try { startTransactionMonitor(userId); } catch(e) { console.log("TxMonitor wait..."); }
+            
+            if (typeof startPublisherMonitor === "function") {
+                try { startPublisherMonitor(userId); } catch(e) {}
             }
 
-            // تفعيل الاهتزاز للأزرار (بعد الدخول)
-            setTimeout(() => {
-                document.querySelectorAll('button').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        if (webApp.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
-                    });
+            if (typeof startCampaignsMonitor === "function") {
+                try { startCampaignsMonitor(userId); } catch(e) {}
+            }
+
+            // نظام الإحالة (توليد الرابط والمراقبة)
+            if (typeof initReferralSystem === "function") {
+                try { initReferralSystem(user); } catch(e) {}
+            }
+            if (typeof startReferralMonitor === "function") {
+                try { startReferralMonitor(userId); } catch(e) {}
+            }
+
+            // --- فحص صلاحيات أمين ---
+            if (userId === AM_ADMIN_ID) {
+                console.log("👑 الملك أمين متصل");
+                if (typeof startAdminMonitor === "function") startAdminMonitor();
+                const adminBtn = document.getElementById('main-admin-nav-btn');
+                if (adminBtn) adminBtn.style.display = 'block';
+            }
+
+            // تفعيل الاهتزاز للأزرار
+            document.querySelectorAll('button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    if (webApp.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
                 });
-            }, 2000);
+            });
         }
     } catch (err) {
-        console.error("Critical Start Error:", err);
+        console.error("Critical Error in startApp:", err);
     }
 
-    // 7. الأمر النهائي: ادخل للتطبيق الآن!
-    setTimeout(forceEntry, 1500);
+    // 5. تحريك شريط التحميل ثم الدخول
+    if (loaderBar) loaderBar.style.width = '100%';
+    if (loaderText) loaderText.innerText = "اكتمل التشفير.. دخول";
+    
+    // الدخول الفعلي بعد 1.5 ثانية
+    setTimeout(hideLoadingScreen, 1500);
 }
+
 
 // دالة مساعدة لتهيئة رابط الإحالة فور الدخول
 function initReferralSystem(user) {
