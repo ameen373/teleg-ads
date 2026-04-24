@@ -1789,47 +1789,52 @@ document.addEventListener('DOMContentLoaded', initReferralSystem);
 // ==========================================
 
 function openTab(tabName, element) {
-    // 1. التنظيف (إخفاء كل الأقسام وإزالة حالة التفعيل من الأزرار)
-    // ملاحظة: تأكد أن قسم الإحالة في الـ HTML يمتلك class="section"
-    document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
+    // 1. التنظيف الشامل (إخفاء كل شيء)
+    // قمنا بدمج البحث عن .section و .app-section لضمان عدم حدوث خطأ
+    document.querySelectorAll('.section, .app-section').forEach(s => {
+        s.style.display = 'none';
+        s.classList.remove('active');
+    });
+    
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
 
-    // 2. الإظهار
-    const target = document.getElementById('section-' + tabName);
+    // 2. الإظهار الذكي
+    // يبحث عن القسم سواء كان اسمه (home) أو (section-home)
+    const target = document.getElementById(tabName) || document.getElementById('section-' + tabName);
+    
     if (target) {
         target.style.display = 'block';
+        setTimeout(() => target.classList.add('active'), 10);
         window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+        console.error("⚠️ القسم غير موجود: " + tabName);
     }
 
     // 3. التفعيل البصري للزر
     if (element) {
         element.classList.add('active');
-    } else {
-        const navBtn = document.querySelector(`.nav-item[onclick*="${tabName}"]`);
-        if (navBtn) navBtn.classList.add('active');
     }
 
-    // 4. التفاعل اللمسي (Haptic Feedback) لراحة المستخدم
+    // 4. التفاعل اللمسي (Haptic Feedback)
     try {
-        if (webApp.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
+        if (window.Telegram.WebApp.HapticFeedback) {
+            window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
+        }
     } catch (e) {}
 
-    // 5. المحرك الذكي (تحديث البيانات بناءً على التبويب المختار)
-    const user = webApp.initDataUnsafe.user;
+    // 5. المحرك الذكي (تحديث البيانات فور الدخول للقسم)
+    // هذا الجزء هو "روح" دالتك القديمة الذي حافظنا عليه
+    const user = window.Telegram.WebApp.initDataUnsafe.user;
     if (user) {
         const userId = user.id;
         
         switch(tabName) {
             case 'referrals':
-                console.log("💰 تحديث إحصائيات الإمبراطورية...");
-                // تحديث بيانات الإحالة فور فتح القسم لضمان دقة الأرقام أمام المسوق
-                if (typeof fetchReferralStats === "function") {
-                    fetchReferralStats(userId);
-                }
+                if (typeof fetchReferralStats === "function") fetchReferralStats(userId);
+                if (typeof startReferralMonitor === "function") startReferralMonitor(userId);
                 break;
 
             case 'admin':
-                console.log("🛠️ تهيئة لوحة القائد...");
                 if (typeof switchAdminView === "function") {
                     switchAdminView('withdraw'); 
                 } else if (typeof loadWithdrawalRequests === "function") {
