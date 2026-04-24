@@ -440,7 +440,27 @@ html, body {
         <button id="main-submit-btn" onclick="processDepositSubmission()" style="width:100%; background:#2ecc71; border:none; padding:18px; border-radius:20px; color:white; font-weight:800; cursor:pointer; font-size:16px; transition: 0.3s;">🚀 إرسال الطلب للمراجعة</button>
     </div>
 </div>
+
+<div id="app-loader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0f172a; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10000; transition: opacity 0.8s ease;">
+    <div style="position: relative; width: 100px; height: 100px;">
+        <div style="position: absolute; width: 100%; height: 100%; border: 4px solid rgba(9, 132, 227, 0.1); border-top: 4px solid #0984e3; border-radius: 50%; animate: spin 1s linear infinite; animation: spin 1s linear infinite;"></div>
+        <div style="position: absolute; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center;">
+            <i class="fas fa-shield-alt" style="font-size: 40px; color: #f1c40f; filter: drop-shadow(0 0 10px rgba(241, 196, 15, 0.5));"></i>
+        </div>
+    </div>
     
+    <h2 style="color: white; margin-top: 20px; font-size: 18px; letter-spacing: 2px; font-weight: 900;">TELEGA<span style="color: #f1c40f;">ADS</span></h2>
+    <div style="width: 150px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 10px; margin-top: 15px; overflow: hidden;">
+        <div id="loader-bar" style="width: 0%; height: 100%; background: linear-gradient(to right, #0984e3, #00cec9); transition: width 0.5s ease;"></div>
+    </div>
+    <p id="loader-text" style="color: #64748b; font-size: 10px; margin-top: 10px;">جاري فحص بروتوكولات الأمان...</p>
+</div>
+
+<style>
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+</style>
+        
+        
 <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
 <script>eruda.init();</script>
 
@@ -996,55 +1016,114 @@ if (!firebase.apps.length) {
 }
 const db = firebase.database();
 
+// تأكد أن هذا المتغير موجود في أعلى ملف الـ JS خارج الدالة
+const AM_ADMIN_ID = 549686235;
 
 function startApp() {
-    webApp.ready();
-    webApp.expand();
-    
-    // التأكد من أن الثيم متناسق مع تليجرام
-    webApp.setHeaderColor('#0f172a'); 
+    // 1. تهيئة واجهة التليجرام الأساسية
+    if (window.Telegram && window.Telegram.WebApp) {
+        window.Telegram.WebApp.ready();
+        window.Telegram.WebApp.expand();
+        window.Telegram.WebApp.setHeaderColor('#0f172a');
+    } else {
+        console.error("Telegram WebApp undefined");
+        return;
+    }
 
+    const webApp = window.Telegram.WebApp;
     const user = webApp.initDataUnsafe.user;
+
+    // 2. محرك صفحة التحميل (Splash Screen) مع التوقيت الدقيق
+    let progress = 0;
+    const loaderBar = document.getElementById('loader-bar');
+    const loaderText = document.getElementById('loader-text');
+    const appLoader = document.getElementById('app-loader');
+
+    const loadingInterval = setInterval(() => {
+        progress += Math.random() * 20; // سرعة تحميل عشوائية طبيعية
+        if (progress > 100) progress = 100;
+        
+        if (loaderBar) loaderBar.style.width = progress + '%';
+        
+        if (loaderText) {
+            if (progress < 30) loaderText.innerText = "جاري تأمين الاتصال المشفر...";
+            else if (progress < 60) loaderText.innerText = "جاري مزامنة بروتوكولات الأجيال...";
+            else if (progress < 90) loaderText.innerText = "جاري التحقق من هوية القائد...";
+            else loaderText.innerText = "اكتمل الفحص.. مرحباً بك";
+        }
+
+        if (progress >= 100) {
+            clearInterval(loadingInterval);
+            setTimeout(() => {
+                if (appLoader) {
+                    appLoader.style.opacity = '0';
+                    setTimeout(() => {
+                        appLoader.style.display = 'none';
+                    }, 800);
+                }
+            }, 500);
+        }
+    }, 300);
+
+    // 3. تشغيل المحركات الخلفية إذا وجد المستخدم
     if (user) {
         const userId = user.id;
 
-        // 1. مراقبة الرصيد العام
-        startBalanceMonitor(userId);
+        // مراقبة الرصيد والمعاملات المالية
+        if (typeof startBalanceMonitor === "function") startBalanceMonitor(userId);
+        if (typeof startTransactionMonitor === "function") startTransactionMonitor(userId);
         
-        // 2. مراقبة أرباح وإحصائيات الناشر
-        if (typeof startPublisherMonitor === "function") {
-            startPublisherMonitor(userId);
+        // محركات الناشر ومعلومات الحملات
+        if (typeof startPublisherMonitor === "function") startPublisherMonitor(userId);
+        if (typeof startCampaignsMonitor === "function") startCampaignsMonitor(userId); 
+        
+        // نظام الإحالة (توليد الرابط والمراقبة)
+        if (typeof initReferralSystem === "function") {
+            initReferralSystem(user);
         }
-
-        // 3. مراقبة المعاملات المالية (سحب/إيداع)
-        startTransactionMonitor(userId);
-        
-        // 4. مراقبة الحملات الإعلانية
-        startCampaignsMonitor(userId); 
-        
-        // 5. تهيئة وتشغيل نظام الإحالة (توليد الرابط والمراقبة)
-        initReferralSystem(user); // لتوليد الرابط فوراً
         if (typeof startReferralMonitor === "function") {
             startReferralMonitor(userId);
         }
 
-        // 6. التحقق من صلاحيات الإدمن (الآيدي الخاص بك)
-        // نستخدم AM_ADMIN_ID الذي حددناه سابقاً 549686235
+        // 4. صلاحيات المدير (أمين)
         if (userId === AM_ADMIN_ID) {
-            console.log("👑 مرحباً أيها القائد أمين");
-            if (typeof startAdminMonitor === "function") {
-                startAdminMonitor();
-            }
-            // إظهار زر الإدارة في الواجهة إذا كان مخفياً
+            console.log("👑 صلاحيات القائد مفعلة");
+            if (typeof startAdminMonitor === "function") startAdminMonitor();
+            
+            // إظهار زر الإدارة في القائمة الرئيسية
             const adminBtn = document.getElementById('main-admin-nav-btn');
             if (adminBtn) adminBtn.style.display = 'block';
+            
+            // إظهار قسم الإدارة إذا كان مخفياً
+            const adminSection = document.getElementById('section-admin');
+            if (adminSection) {
+                 console.log("Admin section ready");
+            }
         }
 
-        console.log("🚀 تم تشغيل جميع محركات Telega Ads بنجاح");
+        // 5. تفعيل نظام الاهتزاز (Haptic Feedback) لكل أزرار التطبيق
+        setTimeout(() => {
+            const allButtons = document.querySelectorAll('button');
+            allButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    if (webApp.HapticFeedback) {
+                        webApp.HapticFeedback.impactOccurred('light');
+                    }
+                });
+            });
+        }, 2000); // تفعيل بعد انتهاء التحميل تماماً
+
+        console.log("🚀 تم إحياء محركات Telega Ads v3.0");
     } else {
-        showToast("❌ فشل الاتصال بتليجرام، يرجى إعادة المحاولة");
+        // في حال فشل جلب بيانات المستخدم
+        if (typeof showToast === "function") {
+            showToast("⚠️ فشل الاتصال بتليجرام");
+        } else {
+            alert("⚠️ يرجى فتح التطبيق من داخل تليجرام");
+        }
     }
-}
+} // نهاية الدالة الكاملة
+
 
 // دالة مساعدة لتهيئة رابط الإحالة فور الدخول
 function initReferralSystem(user) {
