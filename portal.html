@@ -1025,12 +1025,12 @@ html, body {
   // ==========================================
 // 1. إعدادات تليجرام الأساسية والتشغيل
 // ==========================================
-const webApp = window.Telegram.WebApp;
+const webApp = window.Telegram?.WebApp; // أضفنا علامة الاستفهام للحماية
 const ADMIN_ID = 549686235;
 let lastBalance = 0; 
-window.lastViews = 0; // أضف هذا
-window.lastClicks = 0; // أضف هذا
-
+window.lastViews = 0; 
+window.lastClicks = 0;
+    
 const firebaseConfig = {
   apiKey: "AIzaSyB9wJ3RKL9Sc0VqIgOz3HIL6PAZMK1GZos",
   authDomain: "telega-io.firebaseapp.com",
@@ -1864,20 +1864,25 @@ function openTab(tabName, element) {
                 if (typeof startPublisherMonitor === "function") startPublisherMonitor(userId);
                 break;
                 
+            case 'promo':
+                if (typeof startCampaignsMonitor === "function") startCampaignsMonitor(userId);
+                break;
+                
             case 'admin':
-                // التحقق من أن المستخدم هو أمين (الآدمن)
-                if (userId === AM_ADMIN_ID) {
-                    console.log("👑 أهلاً بك يا آدمن...");
+                // تم التعديل هنا ليطابق تعريفك: ADMIN_ID
+                if (userId === ADMIN_ID) {
+                    console.log("👑 أهلاً بك يا آدمن أمين...");
                     if (typeof loadWithdrawalRequests === "function") loadWithdrawalRequests();
                     if (typeof loadDepositRequests === "function") loadDepositRequests();
                 } else {
                     webApp.showAlert("🚫 عذراً يا " + (user.first_name || 'صديقي') + "، هذا القسم مخصص للإدارة فقط.");
-                    openTab('home'); // إعادة المستخدم للرئيسية
+                    openTab('home'); 
                 }
                 break;
         }
     }
 }
+
 
                  
                    
