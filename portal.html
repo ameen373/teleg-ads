@@ -419,20 +419,35 @@ html, body {
     </style>
 </head>
 <body>
-<div id="app-loader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0f172a; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 999999; transition: opacity 0.8s ease; pointer-events: all;">
+<div id="app-loader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0f172a; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 999999; transition: opacity 0.8s ease;">
     <div style="position: relative; width: 100px; height: 100px;">
         <div style="position: absolute; width: 100%; height: 100%; border: 4px solid rgba(9, 132, 227, 0.1); border-top: 4px solid #0984e3; border-radius: 50%; animation: spin 1s linear infinite;"></div>
         <div style="position: absolute; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center;">
-            <i class="fas fa-shield-alt" style="font-size: 40px; color: #f1c40f; filter: drop-shadow(0 0 10px rgba(241, 196, 15, 0.5));"></i>
+            <i class="fas fa-shield-alt" style="font-size: 40px; color: #f1c40f;"></i>
         </div>
     </div>
-    
-    <h2 style="color: white; margin-top: 20px; font-size: 18px; letter-spacing: 2px; font-weight: 900; font-family: sans-serif;">TELEGA<span style="color: #f1c40f;">ADS</span></h2>
+    <h2 style="color: white; margin-top: 20px; font-size: 18px; font-family: sans-serif;">TELEGA<span style="color: #f1c40f;">ADS</span></h2>
     <div style="width: 150px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 10px; margin-top: 15px; overflow: hidden;">
-        <div id="loader-bar" style="width: 0%; height: 100%; background: linear-gradient(to right, #0984e3, #00cec9); transition: width 0.5s ease;"></div>
+        <div id="loader-bar" style="width: 0%; height: 100%; background: linear-gradient(to right, #0984e3, #00cec9); transition: width 2s ease-in-out;"></div>
     </div>
-    <p id="loader-text" style="color: #64748b; font-size: 10px; margin-top: 10px; font-family: sans-serif;">جاري فحص بروتوكولات الأمان...</p>
+    <p id="loader-text" style="color: #64748b; font-size: 10px; margin-top: 10px;">جاري الفحص النهائي...</p>
+
+    <script>
+        // نظام الطوارئ: إذا لم يتم إغلاق الشاشة خلال 3 ثوانٍ، سيتم إغلاقها قسرياً من هنا
+        setTimeout(function() {
+            var ldr = document.getElementById('app-loader');
+            var bar = document.getElementById('loader-bar');
+            if(bar) bar.style.width = '100%';
+            setTimeout(function() {
+                if(ldr && ldr.style.display !== 'none') {
+                    ldr.style.opacity = '0';
+                    setTimeout(function() { ldr.style.display = 'none'; }, 800);
+                }
+            }, 1000);
+        }, 3000);
+    </script>
 </div>
+        
 
 <div id="modal-crypto-deposit" class="modal" style="display: none; position: fixed; z-index: 10000; inset: 0; background: rgba(0,0,0,0.95); align-items: center; justify-content: center; backdrop-filter: blur(8px);">
     <div class="modal-content" style="border: 2px solid #2ecc71; width: 92%; max-width: 400px; background: #0f172a; border-radius: 30px; padding: 25px; position: relative; box-shadow: 0 0 30px rgba(46, 204, 113, 0.2);">
