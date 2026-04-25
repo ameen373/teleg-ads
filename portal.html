@@ -339,6 +339,14 @@
             if (webApp.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
         }
 
+        // مثال: تشغيل الحركة عند الضغط على زر
+function playSuccessAnimation() {
+    const player = document.querySelector("lottie-player");
+    player.play(); // تشغيل
+    // أو player.stop(); للإيقاف
+}
+        
+
         window.onload = initApp;
     </script>
 </body>
