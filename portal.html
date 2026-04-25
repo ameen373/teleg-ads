@@ -109,12 +109,151 @@
     </div>
 
     <div id="publisher" class="section">
-        <div class="card">
-            <h2><i class="fas fa-layer-group"></i> الناشر</h2>
-            <p>أضف قنواتك وابدأ بالربح.</p>
-            <button class="btn" style="background: #10b981;">ربط قناة تليجرام</button>
+         <div class="publisher-header-card">
+        <div style="display: flex; gap: 20px;">
+            <div class="stat-item">
+                <small>إجمالي الأرباح 📈</small>
+                <h3 id="total-earned-display">$0.00</h3>
+            </div> 
+            <div class="stat-item">
+                <small>القابل للسحب 💰</small>
+                <h3 id="withdrawable-balance-display" style="color: #2ecc71;">$0.00</h3>
+            </div> 
+        </div> 
+        <button class="withdraw-trigger-btn" onclick="openTab('withdraw')" style="cursor: pointer;">سحب الآن</button>
+    </div> 
+
+    <div class="stats-grid">
+        <div class="stat-card" style="border-bottom: 4px solid #3498db;">
+            <h4 style="color: #3498db; font-size: 12px; margin: 0;">🖱️ النقرات (CPC)</h4>
+            <p id="stat-clicks" style="font-size: 20px; font-weight: bold; margin: 8px 0;">0</p>
+            <div class="profit-tag">الربح: $<span id="profit-clicks">0.00</span></div>
+        </div>
+
+        <div class="stat-card" style="border-bottom: 4px solid #2ecc71;">
+            <h4 style="color: #2ecc71; font-size: 12px; margin: 0;">🚀 المشاهدات (CPM)</h4>
+            <p id="stat-views" style="font-size: 20px; font-weight: bold; margin: 8px 0;">0</p>
+            <div class="profit-tag">الربح: $<span id="profit-views">0.00</span></div>
+        </div>
+
+        <div class="stat-card" style="border-bottom: 4px solid #9b59b6;">
+            <h4 style="color: #9b59b6; font-size: 12px; margin: 0;">⏰ منشورات (24h)</h4>
+            <p id="stat-timed" style="font-size: 20px; font-weight: bold; margin: 8px 0;">0</p>
+            <div class="profit-tag">الربح: $<span id="profit-timed">0.00</span></div>
+        </div>
+
+        <div class="stat-card" style="background: linear-gradient(135deg, #f1c40f, #f39c12); color: #000; border:none; display: flex; flex-direction: column; justify-content: center;">
+            <h4 style="margin: 0; font-size: 12px; font-weight: 800;">💰 الإجمالي الصافي</h4>
+            <h2 style="margin: 5px 0; font-size: 24px;">$<span id="total-net-earnings">0.00</span></h2>
         </div>
     </div>
+
+    <button class="btn-premium-add" onclick="togglePublisherPanel()" style="margin-top: 20px;">
+        ➕ إضافة قناة جديدة للمنصة
+    </button>
+
+    <div id="publisher-panel" style="display: none; background: #1a1a1a; padding: 20px; border-radius: 15px; margin-top: 20px; border: 1px solid #333;">
+        <h3 style="color: #f1c40f; text-align: center; margin-bottom: 20px; font-weight: 800;">📝 بيانات القناة</h3>
+        
+        <input type="text" id="ch-name" class="input-premium" placeholder="🏷️ اسم قناتك">
+        <input type="text" id="ch-link" class="input-premium" placeholder="🔗 رابط القناة @username">
+        
+        <label style="color: #888; font-size: 12px; display: block; margin-top: 10px;">🌍 استهداف القناة:</label>
+        <select id="ch-continent" class="input-premium" style="margin-bottom: 8px; width: 100%;">
+            <option value="">اختر المنطقة...</option>
+        </select>
+        <select id="ch-country" class="input-premium" style="width: 100%;">
+            <option value="all">كل دول المنطقة</option>
+        </select>
+
+<div class="card" style="background: #1e293b; padding: 15px; border-radius: 20px; margin-top: 15px; border: 1px dashed #334155;">
+    <h4 style="color: #38bdf8; font-size: 13px; margin-bottom: 12px;">🛠️ إعدادات استقبال الإعلانات:</h4>
+
+            
+    <label class="label-small">🎯 تخصص محتوى القناة:</label>
+    <select id="pub-ch-category" class="input-premium">
+        <option value="all">عام 🌍</option>
+        <option value="crypto">العملات المشفره 🪙</option>
+        <option value="movies">الأفلام والمسلسلات 🎬</option>
+        <option value="tech">التكنولوجيا والتقنية 📱</option>
+        <option value="coding">التطبيقات والبرمجة 💻</option>
+    </select>
+
+    <label class="label-small">🌍 الجمهور الغالب في القناة:</label>
+    <select id="pub-ch-region" class="input-premium">
+        <option value="global">عالمي (كل المناطق)</option>
+        <option value="mena">الشرق الأوسط وشمال أفريقيا</option>
+        <option value="gcc">دول الخليج العربي</option>
+        <option value="eu">أوروبا وأمريكا</option>
+    </select>
+
+    <label class="label-small">💳 أنواع الإعلانات التي تقبلها:</label>
+    <div style="display: flex; gap: 8px; margin-top: 5px;">
+        <label style="font-size: 10px; color: #fff; background: rgba(255,255,255,0.05); padding: 5px 10px; border-radius: 8px; flex: 1; text-align: center;">
+            <input type="checkbox" id="pub-accept-fixed" checked> ثابت 1/24
+        </label>
+        <label style="font-size: 10px; color: #fff; background: rgba(255,255,255,0.05); padding: 5px 10px; border-radius: 8px; flex: 1; text-align: center;">
+            <input type="checkbox" id="pub-accept-performance"> أداء (نقرات/مشاهدات)
+        </label>
+    </div>
+</div>
+        <div style="background:rgba(0,0,0,0.6); padding:15px; border-radius:15px; margin: 15px 0; font-size:13px; border:1px solid #444;">
+            <p style="margin-bottom:10px; color: #fff;">⏰ <b>منشور (24h):</b> 
+                               <input type="number" id="price-24h" placeholder="0" style="width:60px; background:none; border:1px solid #f1c40f; color:white; border-radius:5px; text-align: center;"> $ 
+                <small style="color: #888;">(عمولتنا 10%)</small>
+            </p>
+            <p style="margin-bottom:10px; color: #fff;">🖱️ <b>نقرات (CPC):</b> <span style="color:#2ecc71; font-weight: bold;">5$ / 1000</span></p>
+            <p style="margin: 0; color: #fff;">🚀 <b>مشاهدات (CPM):</b> <span style="color:#2ecc71; font-weight: bold;">1$ / 1000</span></p>
+        </div>
+
+                <button class="btn-premium-add" style="width:100%; background:#0088cc; color:white; border-radius: 12px; margin-bottom: 10px; padding: 12px; border: none; cursor: pointer;" onclick="window.open('https://t.me/Ads_telegabot?startchannel=true')">
+            🤖 1. إضافة البوت كمسؤول
+        </button>
+
+        <button onclick="tg.showAlert('🔍 يتم الآن التحقق من الصلاحيات...')" style="width:100%; padding:12px; background:none; border:1px solid #444; color:white; border-radius:12px; margin-bottom:10px; cursor: pointer;">
+            🔍 2. تحقق من الإضافة
+        </button>
+        
+        <button onclick="submitEliteChannel()" style="width:100%; padding:15px; background:#2ecc71; border:none; color:white; border-radius:12px; font-weight:bold; font-size:16px; cursor: pointer;">
+            🚀 3. تقديم القناة للمراجعة
+        </button>
+
+    </div> 
+
+    <h4 style="color:#888; font-size:14px; margin-top: 30px;">📺 قنواتك المسجلة:</h4>
+    <div id="my-elite-channels" style="min-height: 50px;"></div>
+        </div>
+                
+        <div id="section-withdraw" class="section" style="display: none; padding: 15px;">
+    
+    <div class="withdraw-card">
+        <button onclick="openTab('channels')" class="back-btn" style="cursor:pointer;">⬅️ العودة</button>
+        
+        <h2 style="text-align: center; color: #fff; margin: 20px 0;">طلب سحب أرباح</h2>
+        
+        <div class="rules-box">
+            <p>📌 <b>الحد الأدنى:</b> 30$</p>
+            <p>🕒 <b>وقت المعالجة:</b> 24 - 48 ساعة</p>
+            <p>💸 <b>العمولة:</b> 3$ ثابتة (رسوم الشبكة)</p>
+            <p>🌐 <b>الوسيلة:</b> USDT (TRC20)</p>
+        </div>
+
+        <div class="input-container">
+            <label>عنوان المحفظة (USDT TRC20)</label>
+            <input type="text" id="withdraw-wallet" placeholder="T..." class="modern-input">
+        </div>
+
+        <div class="input-container">
+            <label>المبلغ المطلوب</label>
+            <input type="number" id="withdraw-amount" oninput="calculateWithdrawNet()" placeholder="0.00" class="modern-input">
+            <div id="withdraw-summary" class="withdraw-summary" style="color: #2ecc71; margin-top: 5px; font-size: 12px;">ستستلم: 0.00$</div>
+        </div>
+
+        <button id="confirm-withdraw-btn" onclick="executeWithdrawWorkflow()" class="main-withdraw-btn" style="width: 100%; padding: 15px; background: #2ecc71; border: none; border-radius: 12px; color: white; font-weight: bold; margin-top: 15px; cursor: pointer;">
+            تأكيد وطلب السحب
+        </button>
+    </div>
+</div>
 
     <div id="referrals" class="section">
         <div class="card">
