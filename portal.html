@@ -254,6 +254,164 @@
     font-size: 13px;
     cursor: pointer;
 }
+
+
+        /* ===== ULTRA UI - Referrals ===== */
+
+/* دخول الصفحة */
+.ref-main-card {
+    background: rgba(23, 33, 43, 0.75);
+    backdrop-filter: blur(20px);
+    border-radius: 22px;
+    padding: 22px;
+    text-align: center;
+    border: 1px solid rgba(255,255,255,0.05);
+    
+    animation: fadeSlideUp 0.6s ease;
+}
+
+/* أنيميشن دخول */
+@keyframes fadeSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(25px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* الرقم (يتنفس 🔥) */
+.ref-balance-text {
+    font-size: 38px;
+    font-weight: 800;
+    color: #fff;
+    animation: pulseSoft 2.5s infinite;
+}
+
+/* نبض ناعم */
+@keyframes pulseSoft {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.03); }
+    100% { transform: scale(1); }
+}
+
+/* زر رئيسي */
+.btn-main-action {
+    margin-top: 18px;
+    background: linear-gradient(135deg, #2aabee, #1d8cd8);
+    border: none;
+    padding: 14px;
+    border-radius: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    color: #fff;
+    width: 100%;
+    transition: all 0.25s ease;
+}
+
+/* ضغط زر (REAL FEEL) */
+.btn-main-action:active {
+    transform: scale(0.95);
+}
+
+/* Glow خفيف */
+.btn-main-action:hover {
+    box-shadow: 0 10px 25px rgba(42,171,238,0.4);
+}
+
+/* صندوق الرابط */
+.share-container {
+    background: rgba(23, 33, 43, 0.7);
+    backdrop-filter: blur(15px);
+    border-radius: 16px;
+    padding: 14px;
+    margin-top: 18px;
+    animation: fadeSlideUp 0.7s ease;
+}
+
+/* زر النسخ */
+.copy-badge {
+    color: #2aabee;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.copy-badge:active {
+    transform: scale(0.9);
+}
+
+/* المستويات */
+.tiers-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 18px;
+}
+
+/* الكرت */
+.tier-box {
+    background: rgba(23, 33, 43, 0.75);
+    border-radius: 16px;
+    padding: 14px;
+    transition: 0.3s;
+    animation: fadeSlideUp 0.8s ease;
+}
+
+/* Hover احترافي */
+.tier-box:hover {
+    transform: translateY(-4px);
+    background: rgba(30, 45, 60, 0.9);
+}
+
+/* تأثير ضغط */
+.tier-box:active {
+    transform: scale(0.97);
+}
+
+/* الأزرار */
+.btn-tg-share {
+    flex: 1;
+    background: linear-gradient(135deg, #2aabee, #1d8cd8);
+    padding: 14px;
+    border-radius: 14px;
+    color: white;
+    border: none;
+    cursor: pointer;
+    transition: 0.25s;
+}
+
+/* Hover */
+.btn-tg-share:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(42,171,238,0.4);
+}
+
+/* ضغط */
+.btn-tg-share:active {
+    transform: scale(0.95);
+}
+
+/* زر QR */
+.btn-qr {
+    width: 60px;
+    border-radius: 14px;
+    background: rgba(23, 33, 43, 0.8);
+    border: none;
+    cursor: pointer;
+    transition: 0.25s;
+}
+
+/* Hover */
+.btn-qr:hover {
+    background: rgba(40, 55, 70, 0.9);
+}
+
+/* ضغط */
+.btn-qr:active {
+    transform: scale(0.9);
+}
         
     </style>
 </head>
@@ -808,13 +966,43 @@
             if (webApp.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
         }
 
-        // مثال: تشغيل الحركة عند الضغط على زر
-function playSuccessAnimation() {
-    const player = document.querySelector("lottie-player");
-    player.play(); // تشغيل
-    // أو player.stop(); للإيقاف
+        document.querySelectorAll("button").forEach(btn => {
+    btn.addEventListener("click", () => {
+        if (window.Telegram?.WebApp?.HapticFeedback) {
+            Telegram.WebApp.HapticFeedback.impactOccurred("light");
+        }
+    });
+});
+
+        function copyRef() {
+    const input = document.getElementById("myRefLink");
+    navigator.clipboard.writeText(input.value);
+
+    const badge = document.querySelector(".copy-badge");
+    badge.innerText = "✔ تم النسخ";
+
+    setTimeout(() => {
+        badge.innerText = "نسخ";
+    }, 1500);
+        }
+
+        function animateValue(id, start, end, duration) {
+    let range = end - start;
+    let current = start;
+    let increment = end > start ? 1 : -1;
+    let stepTime = Math.abs(Math.floor(duration / range));
+
+    let obj = document.getElementById(id);
+
+    let timer = setInterval(() => {
+        current += increment;
+        obj.innerText = current;
+        if (current == end) clearInterval(timer);
+    }, stepTime);
 }
-        
+
+/* تشغيل */
+animateValue("balance", 0, 120, 1500);
 
         window.onload = initApp;
     </script>
