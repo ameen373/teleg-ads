@@ -1,88 +1,14 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8">
+        <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     
     <title>Telega-IO Extreme v3 - Ameen</title>
 
-    <meta property="og:type" content="website">
-    <meta property="og:site_name" content="Telega.ads">
-    <meta property="og:title" content="Telega.ads | نظام الأرباح العالمي">
-    <meta property="og:description" content="انضم إلى أقوى شبكة إعلانية وحقق أرباحاً من 5 مستويات إحالة! 🚀">
-    <meta property="og:image" content="https://i.ibb.co/Z6qzV2Wk/1777032600480logo.png">
-    <meta property="og:image:type" content="image/png">
-    <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:image" content="https://i.ibb.co/Z6qzV2Wk/1777032600480logo.png">
-
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-
-    <style>
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        body { font-family: sans-serif; background: #0b0e11; color: white; margin: 0; padding: 0; overflow-x: hidden; }
-        .modal { display: none; position: fixed; z-index: 10000; inset: 0; background: rgba(0,0,0,0.95); align-items: center; justify-content: center; backdrop-filter: blur(8px); }
-        .modal-content { border: 2px solid #2ecc71; width: 92%; max-width: 400px; background: #0f172a; border-radius: 30px; padding: 25px; position: relative; box-shadow: 0 0 30px rgba(46, 204, 113, 0.2); }
-    </style>
-</head>
-
-<body>
-
-    <div id="app-loader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0f172a; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 999999; transition: opacity 0.8s ease;">
-        <div style="position: relative; width: 100px; height: 100px;">
-            <div style="position: absolute; width: 100%; height: 100%; border: 4px solid rgba(9, 132, 227, 0.1); border-top: 4px solid #0984e3; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-            <div style="position: absolute; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center;">
-                <i class="fas fa-shield-alt" style="font-size: 40px; color: #f1c40f;"></i>
-            </div>
-        </div>
-        <h2 style="color: white; margin-top: 20px; font-size: 18px; font-family: sans-serif;">TELEGA<span style="color: #f1c40f;">ADS</span></h2>
-        <div style="width: 150px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 10px; margin-top: 15px; overflow: hidden;">
-            <div id="loader-bar" style="width: 0%; height: 100%; background: linear-gradient(to right, #0984e3, #00cec9); transition: width 2s ease-in-out;"></div>
-        </div>
-        <p id="loader-text" style="color: #64748b; font-size: 10px; margin-top: 10px;">جاري الفحص النهائي...</p>
-
-        <script>
-            setTimeout(function() {
-                var ldr = document.getElementById('app-loader');
-                var bar = document.getElementById('loader-bar');
-                if(bar) bar.style.width = '100%';
-                setTimeout(function() {
-                    if(ldr) {
-                        ldr.style.opacity = '0';
-                        setTimeout(function() { ldr.style.display = 'none'; }, 800);
-                    }
-                }, 1000);
-            }, 3000);
-        </script>
-    </div>
-
-    <div id="modal-crypto-deposit" class="modal" style="display: none; position: fixed; z-index: 10000; inset: 0; background: rgba(0,0,0,0.95); align-items: center; justify-content: center; backdrop-filter: blur(8px);">
-    <div class="modal-content" style="border: 2px solid #2ecc71; width: 92%; max-width: 400px; background: #0f172a; border-radius: 30px; padding: 25px; position: relative; box-shadow: 0 0 30px rgba(46, 204, 113, 0.2);">
-        <span style="position: absolute; top: 15px; left: 20px; cursor: pointer; font-size: 24px; color: #64748b;" onclick="closeModal()">✕</span>
-        <h3 style="color:#2ecc71; text-align:center; margin-top:0; font-family: sans-serif;">🪙 شحن USDT (TRC20)</h3>
-        <div style="background: rgba(46, 204, 113, 0.05); padding: 15px; border-radius: 20px; border: 1px dashed #2ecc71; text-align: center; margin: 20px 0;">
-            <small style="color: #94a3b8; display: block; margin-bottom: 8px;">قم بالتحويل إلى العنوان التالي (شبكة TRON):</small>
-            <b id="wallet-addr" style="display:block; color: #fff; font-size: 11px; word-break: break-all; margin-bottom: 15px; font-family: monospace; letter-spacing: 0.5px;">TSiS4tDnUwa5YptcYatRZ8ykPeMwmALLSV</b>
-            <button onclick="copyWalletAddress()" style="width:100%; background:#2ecc71; border:none; padding:12px; border-radius:15px; font-weight:800; cursor:pointer; color:#000;">📋 نسخ عنوان المحفظة</button>
-        </div>
-        <div style="margin-bottom: 15px;">
-            <label style="color: #94a3b8; font-size: 12px; margin-right: 5px;">المبلغ بالدولار ($):</label>
-            <input type="number" id="final-amount" placeholder="مثلاً: 50" style="width:100%; background:#1e293b; color:white; border:1px solid #334155; padding:12px; border-radius:12px; margin-top:5px; outline:none;">
-        </div>
-        <div style="margin-bottom: 20px;">
-            <label style="color: #94a3b8; font-size: 12px; margin-right: 5px;">معرف العملية (TXID):</label>
-            <input type="text" id="final-txid" placeholder="الصق الـ TXID هنا" style="width:100%; background:#1e293b; color:white; border:1px solid #334155; padding:12px; border-radius:12px; margin-top:5px; outline:none;">
-        </div>
-        <button id="main-submit-btn" onclick="processDepositSubmission()" style="width:100%; background:#2ecc71; border:none; padding:18px; border-radius:20px; color:white; font-weight:800; cursor:pointer; font-size:16px; transition: 0.3s;">🚀 إرسال الطلب للمراجعة</button>
-    </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-    <script>eruda.init();</script>
     
     <style>
         /* --- التنسيقات المدمجة (القديمة + الجديدة) --- */
@@ -493,8 +419,65 @@ html, body {
     </style>
 </head>
 <body>
+<div id="app-loader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0f172a; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 999999; transition: opacity 0.8s ease;">
+    <div style="position: relative; width: 100px; height: 100px;">
+        <div style="position: absolute; width: 100%; height: 100%; border: 4px solid rgba(9, 132, 227, 0.1); border-top: 4px solid #0984e3; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+        <div style="position: absolute; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center;">
+            <i class="fas fa-shield-alt" style="font-size: 40px; color: #f1c40f;"></i>
+        </div>
+    </div>
+    <h2 style="color: white; margin-top: 20px; font-size: 18px; font-family: sans-serif;">TELEGA<span style="color: #f1c40f;">ADS</span></h2>
+    <div style="width: 150px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 10px; margin-top: 15px; overflow: hidden;">
+        <div id="loader-bar" style="width: 0%; height: 100%; background: linear-gradient(to right, #0984e3, #00cec9); transition: width 2s ease-in-out;"></div>
+    </div>
+    <p id="loader-text" style="color: #64748b; font-size: 10px; margin-top: 10px;">جاري الفحص النهائي...</p>
 
-    
+    <script>
+        // نظام الطوارئ: إذا لم يتم إغلاق الشاشة خلال 3 ثوانٍ، سيتم إغلاقها قسرياً من هنا
+        setTimeout(function() {
+            var ldr = document.getElementById('app-loader');
+            var bar = document.getElementById('loader-bar');
+            if(bar) bar.style.width = '100%';
+            setTimeout(function() {
+                if(ldr && ldr.style.display !== 'none') {
+                    ldr.style.opacity = '0';
+                    setTimeout(function() { ldr.style.display = 'none'; }, 800);
+                }
+            }, 1000);
+        }, 3000);
+    </script>
+</div>
+        
+
+<div id="modal-crypto-deposit" class="modal" style="display: none; position: fixed; z-index: 10000; inset: 0; background: rgba(0,0,0,0.95); align-items: center; justify-content: center; backdrop-filter: blur(8px);">
+    <div class="modal-content" style="border: 2px solid #2ecc71; width: 92%; max-width: 400px; background: #0f172a; border-radius: 30px; padding: 25px; position: relative; box-shadow: 0 0 30px rgba(46, 204, 113, 0.2);">
+        <span style="position: absolute; top: 15px; left: 20px; cursor: pointer; font-size: 24px; color: #64748b;" onclick="closeModal()">✕</span>
+        <h3 style="color:#2ecc71; text-align:center; margin-top:0; font-family: sans-serif;">🪙 شحن USDT (TRC20)</h3>
+        <div style="background: rgba(46, 204, 113, 0.05); padding: 15px; border-radius: 20px; border: 1px dashed #2ecc71; text-align: center; margin: 20px 0;">
+            <small style="color: #94a3b8; display: block; margin-bottom: 8px;">قم بالتحويل إلى العنوان التالي (شبكة TRON):</small>
+            <b id="wallet-addr" style="display:block; color: #fff; font-size: 11px; word-break: break-all; margin-bottom: 15px; font-family: monospace; letter-spacing: 0.5px;">TSiS4tDnUwa5YptcYatRZ8ykPeMwmALLSV</b>
+            <button onclick="copyWalletAddress()" style="width:100%; background:#2ecc71; border:none; padding:12px; border-radius:15px; font-weight:800; cursor:pointer; color:#000;">📋 نسخ عنوان المحفظة</button>
+        </div>
+        <div style="margin-bottom: 15px;">
+            <label style="color: #94a3b8; font-size: 12px; margin-right: 5px;">المبلغ بالدولار ($):</label>
+            <input type="number" id="final-amount" placeholder="مثلاً: 50" style="width:100%; background:#1e293b; color:white; border:1px solid #334155; padding:12px; border-radius:12px; margin-top:5px; outline:none;">
+        </div>
+        <div style="margin-bottom: 20px;">
+            <label style="color: #94a3b8; font-size: 12px; margin-right: 5px;">معرف العملية (TXID):</label>
+            <input type="text" id="final-txid" placeholder="الصق الـ TXID هنا" style="width:100%; background:#1e293b; color:white; border:1px solid #334155; padding:12px; border-radius:12px; margin-top:5px; outline:none;">
+        </div>
+        <button id="main-submit-btn" onclick="processDepositSubmission()" style="width:100%; background:#2ecc71; border:none; padding:18px; border-radius:20px; color:white; font-weight:800; cursor:pointer; font-size:16px; transition: 0.3s;">🚀 إرسال الطلب للمراجعة</button>
+    </div>
+</div>
+
+<style>
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+</style>
+
+        
+        
+<script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+<script>eruda.init();</script>
 
 <div class="bottom-nav">
   
@@ -1027,12 +1010,12 @@ html, body {
   // ==========================================
 // 1. إعدادات تليجرام الأساسية والتشغيل
 // ==========================================
-const webApp = window.Telegram?.WebApp; // أضفنا علامة الاستفهام للحماية
+const webApp = window.Telegram.WebApp;
 const ADMIN_ID = 549686235;
 let lastBalance = 0; 
-window.lastViews = 0; 
-window.lastClicks = 0;
-    
+window.lastViews = 0; // أضف هذا
+window.lastClicks = 0; // أضف هذا
+
 const firebaseConfig = {
   apiKey: "AIzaSyB9wJ3RKL9Sc0VqIgOz3HIL6PAZMK1GZos",
   authDomain: "telega-io.firebaseapp.com",
@@ -1048,18 +1031,19 @@ if (!firebase.apps.length) {
 }
 const db = firebase.database();
 
-function startApp() { // تم تصحيح حرف F الصغير
-    // 1. استدعاء واجهة تليجرام (بدون كلمة const لأننا عرفناه بالأعلى)
+function startApp() {
+    // 1. استدعاء واجهة تليجرام
+    const webApp = window.Telegram.WebApp;
     webApp.ready();
     webApp.expand();
-    if (webApp.setHeaderColor) webApp.setHeaderColor('#0f172a');
+    webApp.setHeaderColor('#0f172a');
 
     // 2. العناصر المرئية للتحميل
     const loader = document.getElementById('app-loader');
     const loaderBar = document.getElementById('loader-bar');
     const loaderText = document.getElementById('loader-text');
 
-    // 3. محرك الأمان (إخفاء اللودر)
+    // 3. محرك الأمان (إخفاء اللودر مهما حدث)
     const hideLoadingScreen = () => {
         if (loader) {
             loader.style.opacity = '0';
@@ -1067,32 +1051,42 @@ function startApp() { // تم تصحيح حرف F الصغير
         }
     };
 
-    // 4. تنفيذ العمليات
+    // 4. تنفيذ العمليات (التي كانت موجودة عندك سابقاً)
     try {
-        const user = webApp.initDataUnsafe?.user;
+        const user = webApp.initDataUnsafe.user;
         if (user) {
             const userId = user.id;
 
-            // تشغيل المحركات (تأكد أن الدوال موجودة في ملفك)
-            try { if (typeof startBalanceMonitor === "function") startBalanceMonitor(userId); } catch(e) {}
-            try { if (typeof startTransactionMonitor === "function") startTransactionMonitor(userId); } catch(e) {}
+            // --- المراقبات الستة (محركات التطبيق) ---
+            // نستخدم try catch لكل واحدة لضمان عدم توقف التطبيق لو فشلت واحدة
+            try { startBalanceMonitor(userId); } catch(e) { console.log("BalanceMonitor wait..."); }
+            try { startTransactionMonitor(userId); } catch(e) { console.log("TxMonitor wait..."); }
             
-            if (typeof startPublisherMonitor === "function") try { startPublisherMonitor(userId); } catch(e) {}
-            if (typeof startCampaignsMonitor === "function") try { startCampaignsMonitor(userId); } catch(e) {}
+            if (typeof startPublisherMonitor === "function") {
+                try { startPublisherMonitor(userId); } catch(e) {}
+            }
 
-            // نظام الإحالة
-            if (typeof initReferralSystem === "function") try { initReferralSystem(user); } catch(e) {}
-            if (typeof startReferralMonitor === "function") try { startReferralMonitor(userId); } catch(e) {}
+            if (typeof startCampaignsMonitor === "function") {
+                try { startCampaignsMonitor(userId); } catch(e) {}
+            }
 
-            // --- فحص صلاحيات أمين (استخدام ADMIN_ID الموحد) ---
-            if (userId === ADMIN_ID) {
+            // نظام الإحالة (توليد الرابط والمراقبة)
+            if (typeof initReferralSystem === "function") {
+                try { initReferralSystem(user); } catch(e) {}
+            }
+            if (typeof startReferralMonitor === "function") {
+                try { startReferralMonitor(userId); } catch(e) {}
+            }
+
+            // --- فحص صلاحيات أمين ---
+            if (userId === AM_ADMIN_ID) {
                 console.log("👑 الملك أمين متصل");
                 if (typeof startAdminMonitor === "function") startAdminMonitor();
                 const adminBtn = document.getElementById('main-admin-nav-btn');
                 if (adminBtn) adminBtn.style.display = 'block';
             }
 
-            // تفعيل الاهتزاز
+            // تفعيل الاهتزاز للأزرار
             document.querySelectorAll('button').forEach(btn => {
                 btn.addEventListener('click', () => {
                     if (webApp.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
@@ -1103,14 +1097,16 @@ function startApp() { // تم تصحيح حرف F الصغير
         console.error("Critical Error in startApp:", err);
     }
 
-    // 5. تحريك شريط التحميل
+    // 5. تحريك شريط التحميل ثم الدخول
     if (loaderBar) loaderBar.style.width = '100%';
     if (loaderText) loaderText.innerText = "اكتمل التشفير.. دخول";
     
+    // الدخول الفعلي بعد 1.5 ثانية
     setTimeout(hideLoadingScreen, 1500);
 }
 
-// دالة تهيئة رابط الإحالة (سليمة تماماً)
+
+// دالة مساعدة لتهيئة رابط الإحالة فور الدخول
 function initReferralSystem(user) {
     const refLinkInput = document.getElementById('myRefLink');
     if (refLinkInput) {
@@ -1118,7 +1114,6 @@ function initReferralSystem(user) {
         refLinkInput.value = refLink;
     }
 }
-
         
 
 function checkBotStatus() {
@@ -1126,26 +1121,18 @@ function checkBotStatus() {
     // هنا يمكنك إضافة كود API مستقبلاً للتحقق الفعلي
 }
 
-function checkAdminPrivileges() {
-    const user = webApp?.initDataUnsafe?.user;
-    
-    // استخدمنا ADMIN_ID الموحد
-    if (user && user.id === ADMIN_ID) {
-        console.log("🔓 تم تفعيل صلاحيات الإدارة للأخ أمين");
-        
-        // إظهار زر الإدارة إذا كان مخفياً
-        const adminBtn = document.querySelector('.nav-item[onclick*="admin"]');
-        if (adminBtn) adminBtn.style.display = 'flex';
-        
-        // تشغيل نظام المراقبة الحية إذا كان موجوداً
-        if (typeof initAdminRealtime === "function") initAdminRealtime();
+function checkAdminPrivileges(user) {
+    if (user && user.id === MY_ADMIN_ID) {
+        // إذا كان المستخدم هو أمين، نظهر له قسم الإدارة
+        document.getElementById('sec-admin').style.display = 'block';
+        // تشغيل نظام المراقبة الحية للطلبات
+        initAdminRealtime();
     } else {
-        // إخفاء زر الإدارة للمستخدمين العاديين بدلاً من حذفه نهائياً
-        const adminBtn = document.querySelector('.nav-item[onclick*="admin"]');
-        if (adminBtn) adminBtn.style.display = 'none';
+        // لأي مستخدم آخر، نحذف القسم تماماً لزيادة الأمان
+        const adminSec = document.getElementById('sec-admin');
+        if (adminSec) adminSec.remove();
     }
 }
-    
 
 // ==========================================
 // 2. دوال السحب والأرباح (Publisher)
@@ -1488,20 +1475,19 @@ function openModal(id) {
 // دالة إغلاق النوافذ المنبثقة
 // ==========================================
 function closeModal() {
-    // 1. إخفاء كل النوافذ
+    // إخفاء كل النوافذ التي تحمل كلاس modal
     document.querySelectorAll('.modal').forEach(m => {
         m.style.display = 'none';
     });
     
-    // 2. إعادة انسيابية التمرير لكي لا يتجمد التطبيق
+    // 1. إعادة انسيابية التمرير للصفحة (مهم جداً لكي لا يتجمد التطبيق)
     document.body.style.overflow = 'auto';
 
-    // 3. إعادة تفعيل ميزة السحب في تليجرام (مهم جداً لتجربة المستخدم)
+    // 2. إعادة تفعيل ميزة السحب في تليجرام
     if (window.Telegram && window.Telegram.WebApp) {
         window.Telegram.WebApp.enableVerticalSwipe();
     }
 }
-        
         
 
 // ==========================================
@@ -1741,32 +1727,43 @@ function initReferralSystem() {
 }
 
 // 2. دالة النسخ الاحترافية
-function copyWalletAddress() {
-            const addr = document.getElementById('wallet-addr').innerText;
-            navigator.clipboard.writeText(addr).then(() => {
-                Telegram.WebApp.showAlert("✅ تم نسخ العنوان!");
-            });
-        }
+function copyRefLink() {
+    const linkInput = document.getElementById('myRefLink');
+    linkInput.select();
+    document.execCommand('copy');
+    
+    if (window.Telegram && window.Telegram.WebApp) {
+        window.Telegram.WebApp.showAlert("✅ تم نسخ رابط دعوتك العالمي بنجاح!");
+    } else {
+        alert("✅ تم النسخ!");
+    }
+}
 
-        // دالة المشاركة الملكية المدمجة مع اللوجو الجديد
-        function shareToTelegram() {
-            const refLink = document.getElementById('myRefLink')?.value || "جاري التحميل...";
-            const shareText = 🌟 انضم إلى شبكة Telega.ads وحقق نجاحك الإعلاني! 🌟\n\n💰 اربح من 5 مستويات إحالة!\n🚀 سجل الآن وابدأ رحلتك عبر رابطي:\n${refLink};
-            
-            const tgUrl = https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent(shareText)};
-            
-            if (window.Telegram && window.Telegram.WebApp) {
-                window.Telegram.WebApp.openTelegramLink(tgUrl);
-            } else {
-                window.open(tgUrl, '_blank');
-            }
-        }
+// 3. دالة المشاركة الفيروسية (النص الملكي)
+function shareToTelegram() {
+    const refLink = document.getElementById('myRefLink').value;
+    const shareText = encodeURIComponent(
+        `🌟 انضم إلى شبكة telega.ads وحقق نجاحك الإعلاني! 🌟\n` +
+        `🔗 ${refLink}\n\n` + 
+        `👥 للمعلنين: استهدف جمهورك بدقة وحقق نتائج مذهلة!\n\n` +
+        `💰 للناشرين: اجني الأموال بسهولة من موقعك مع محتوى ملائم!\n\n` +
+        `🚀 انضم إلينا الآن وابدأ رحلتك نحو النجاح!`
+    );
+
+    const tgUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${shareText}`;
+    
+    if (window.Telegram && window.Telegram.WebApp) {
+        window.Telegram.WebApp.openTelegramLink(tgUrl);
+    } else {
+        window.open(tgUrl, '_blank');
+    }
+}
 
 // 4. تحديث البيانات لـ 5 مستويات (الأقوى تقنياً)
 function updateReferralData(data) {
-    if (!data) return;
+    if(!data) return;
     
-    // 1. تحديث عدد المستخدمين في المستويات الخمسة ديناميكياً
+    // تحديث المستويات الخمسة ديناميكياً
     for (let i = 1; i <= 5; i++) {
         const element = document.getElementById(`tier${i}-count`);
         if (element && data[`tier${i}`] !== undefined) {
@@ -1774,27 +1771,17 @@ function updateReferralData(data) {
         }
     }
     
-    // 2. تحديث رصيد الإحالات
-    const balanceElement = document.getElementById('ref-balance');
-    if (balanceElement && data.balance !== undefined) {
-        const currentBal = parseFloat(balanceElement.innerText) || 0;
-        
-        // إذا كانت دالة الأنيميشن موجودة نستخدمها، وإلا نحدث الرقم مباشرة
-        if (typeof animateValue === "function") {
-            animateValue("ref-balance", currentBal, data.balance, 1000);
-        } else {
-            balanceElement.innerText = parseFloat(data.balance).toFixed(2);
-        }
+    // تحديث الرصيد مع تأثير الأنيميشن
+    const currentBal = parseFloat(document.getElementById('ref-balance').innerText) || 0;
+    if (typeof animateValue === "function") {
+        animateValue("ref-balance", currentBal, data.balance, 1000);
+    } else {
+        document.getElementById('ref-balance').innerText = data.balance.toFixed(2);
     }
 }
 
-// 5. تشغيل التهيئة عند تحميل الصفحة لضمان ربط كل شيء
-document.addEventListener('DOMContentLoaded', () => {
-    // نتحقق أولاً إذا كانت دالة التهيئة موجودة لكي لا يظهر خطأ
-    if (typeof initReferralSystem === "function") {
-        initReferralSystem();
-    }
-});
+// 5. تشغيل التهيئة عند تحميل الصفحة
+document.addEventListener('DOMContentLoaded', initReferralSystem);
 
         
         
@@ -1802,8 +1789,17 @@ document.addEventListener('DOMContentLoaded', () => {
 // 5. نظام التنقل والواجهة (UI & Navigation)
 // ==========================================
 
+/**
+ * المحرك الرئيسي للتنقل وتحديث البيانات
+ * @param {string} tabName - اسم القسم (home, referrals, admin, etc.)
+ * @param {HTMLElement} element - الزر الذي تم الضغط عليه
+ */
 function openTab(tabName, element) {
-    const allSections = document.querySelectorAll('.section, .app-section');
+    // 1. فحص الحماية: التأكد من وجود تليجرام
+    const webApp = window.Telegram.WebApp;
+    
+    // 2. تنظيف الواجهة (إخفاء كل الأقسام النشطة)
+    const allSections = document.querySelectorAll('.app-section, .section');
     allSections.forEach(s => {
         s.style.display = 'none';
         s.classList.remove('active');
@@ -1814,42 +1810,50 @@ function openTab(tabName, element) {
         item.classList.remove('active');
     });
 
-    // 4. الإظهار الذكي للقسم (يدعم tabName أو section-tabName)
+    // 4. الإظهار الذكي للقسم المطلوب
+    // يبحث عن القسم سواء كان المعرف "home" أو "section-home"
     const target = document.getElementById(tabName) || document.getElementById('section-' + tabName);
     
     if (target) {
         target.style.display = 'block';
+        // إضافة أنيميشن بسيط للدخول
         setTimeout(() => target.classList.add('active'), 10);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
-        console.error("⚠️ خطأ: لم يتم العثور على القسم: " + tabName);
-        return; 
+        console.error("⚠️ خطأ: القسم '" + tabName + "' غير موجود في الـ HTML");
     }
 
-    // 5. تفعيل الزر الذي تم الضغط عليه
+    // 5. تفعيل الزر الذي ضغطت عليه
     if (element) {
         element.classList.add('active');
     } else {
+        // محاولة إيجاد الزر برمجياً إذا لم يتم تمرير element
         const autoBtn = document.querySelector(`.nav-item[onclick*="${tabName}"]`);
         if (autoBtn) autoBtn.classList.add('active');
     }
 
     // 6. التفاعل اللمسي (Haptic Feedback)
     try {
-        if (webApp?.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
-    } catch (e) { }
+        if (webApp.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
+    } catch (e) { console.warn("Haptic failed"); }
 
-    // 7. محرك تحديث البيانات الذكي (Logic Engine)
-    if (userId) {
+    // 7. محرك تحديث البيانات (Logic Engine)
+    // هذا الجزء يضمن أن الأقسام لا تفتح وهي فارغة
+    const user = webApp.initDataUnsafe.user;
+    if (user) {
+        const userId = user.id;
+        
         switch(tabName) {
             case 'home':
-                console.log("🏠 تحديث الرئيسية...");
                 if (typeof startBalanceMonitor === "function") startBalanceMonitor(userId);
+                if (typeof startTransactionMonitor === "function") startTransactionMonitor(userId);
                 break;
 
             case 'referrals':
-                console.log("💰 تحديث الإحالات...");
+                console.log("💰 جاري تحديث بيانات الإحالة...");
                 if (typeof startReferralMonitor === "function") startReferralMonitor(userId);
+                // إذا كان لديك دالة تجلب الإحصائيات من السيرفر
+                if (typeof fetchReferralStats === "function") fetchReferralStats(userId);
                 break;
 
             case 'channels':
@@ -1861,22 +1865,16 @@ function openTab(tabName, element) {
                 break;
                 
             case 'admin':
-                // تم التعديل هنا ليطابق تعريفك: ADMIN_ID
-                if (userId === ADMIN_ID) {
-                    console.log("👑 أهلاً بك يا آدمن أمين...");
+                // التأكد من أن الداخل هو أمين فقط
+                if (userId === AM_ADMIN_ID) {
                     if (typeof loadWithdrawalRequests === "function") loadWithdrawalRequests();
                     if (typeof loadDepositRequests === "function") loadDepositRequests();
-                } else {
-                    webApp.showAlert("🚫 عذراً يا " + (user.first_name || 'صديقي') + "، هذا القسم مخصص للإدارة فقط.");
-                    openTab('home'); 
                 }
                 break;
         }
     }
 }
 
-
-                 
                    
 function showToast(message, type = 'success') {
     const toast = document.createElement('div');
@@ -2361,14 +2359,14 @@ async function loadWithdrawalRequests() {
     });
 }
 
-// دالة مراقبة نظام الإحالة وتحديث البيانات لحظياً
+        // دالة مراقبة نظام الإحالة وتحديث البيانات لحظياً
 function startReferralMonitor() {
+    // تحديث أولي عند تشغيل التطبيق
     fetchReferralStats();
 
-    // تحديث كل 30 ثانية فقط إذا كان المستخدم واقفاً في صفحة الإحالات
+    // إعداد مؤقت للتحديث الدوري كل 30 ثانية (أو حسب ضغط السيرفر لديك)
     setInterval(() => {
-        const refSection = document.getElementById('section-referrals') || document.getElementById('referrals');
-        if (refSection && refSection.style.display !== 'none') {
+        if (document.getElementById('section-referrals').style.display !== 'none') {
             fetchReferralStats();
         }
     }, 30000); 
@@ -2376,29 +2374,27 @@ function startReferralMonitor() {
 
 // جلب البيانات من السيرفر
 async function fetchReferralStats() {
-    const userId = webApp?.initDataUnsafe?.user?.id;
-    if (!userId) return;
-
     try {
-        // تنبيه: تأكد من تغيير الرابط لرابط السيرفر الفعلي الخاص بك لاحقاً
+        // نرسل الـ user_id الخاص بتليجرام للتأكد من الهوية
+        const userId = webApp.initDataUnsafe.user.id;
+        
+        // استبدل الرابط برابط الـ API الخاص بك
         const response = await fetch(`https://your-api.com/get-ref-stats?userId=${userId}`);
         const data = await response.json();
 
         if (data.success) {
+            // تحديث الواجهة باستخدام الدالة التي وضعناها في القسم 4.5
             updateReferralData({
-                tier1: data.tiers.t1 || 0,
-                tier2: data.tiers.t2 || 0,
-                tier3: data.tiers.t3 || 0,
-                tier4: data.tiers.t4 || 0, // أضفنا الرابع
-                tier5: data.tiers.t5 || 0, // أضفنا الخامس
-                balance: data.currentBalance || 0
+                tier1: data.tiers.t1,
+                tier2: data.tiers.t2,
+                tier3: data.tiers.t3,
+                balance: data.currentBalance
             });
         }
     } catch (error) {
-        console.error("⚠️ ملاحظة: لم يتم الاتصال بالسيرفر بعد (هذا طبيعي إذا لم تربط الـ API):", error);
+        console.error("خطأ في جلب بيانات الإحالة:", error);
     }
-} // تم حذف القوس الزائد الذي كان هنا
-
+        }
         
 
 // ==========================================
@@ -2531,6 +2527,16 @@ function sendMessageToUser(userId, message) {
     fetch(url).catch(e => console.error("Notification Error:", e));
 }
 
+// دالة حفظ سجل العمليات لكي يراها المستخدم في حسابه
+function saveTransaction(userId, type, title, amount, status) {
+    db.ref('transactions/' + userId).push({
+        type: type,
+        title: title,
+        amount: amount,
+        status: status,
+        timestamp: Date.now()
+    });
+}
 
         
 // --- [ نهاية دالة adminAction ] ---
@@ -2570,63 +2576,68 @@ function adminAction(type) {
     }
 }
 
-    // --- دالة تسجيل العمليات ---
-function saveTransaction(userId, type, title, amount, status) {
+        function saveTransaction(userId, type, title, amount, status) {
+    // التأكد من أن المسار صحيح في قاعدة البيانات
     const transRef = db.ref('transactions/' + userId);
+    
+    // إعداد البيانات بشكل احترافي
     const transactionData = {
-        type: type,
-        title: title,
-        amount: parseFloat(amount),
-        status: status,
-        timestamp: Date.now(),
-        date: new Date().toLocaleString('ar-EG'),
-        orderId: "TRX" + Math.floor(Math.random() * 1000000)
+        type: type,               // 'deposit' أو 'withdraw' أو 'admin_gift'
+        title: title,             // عنوان العملية (مثلاً: شحن رصيد USDT)
+        amount: parseFloat(amount), // التأكد من أن المبلغ رقم وليس نص
+        status: status,           // 'approved' أو 'rejected' أو 'pending'
+        timestamp: Date.now(),    // الوقت بصيغة ملي ثانية للترتيب
+        date: new Date().toLocaleString('ar-EG'), // تاريخ مقروء بالعربية
+        orderId: "TRX" + Math.floor(Math.random() * 1000000) // رقم مرجعي عشوائي للعملية
     };
 
+    // دفع البيانات إلى Firebase
     transRef.push(transactionData)
-    .then(() => console.log(`✅ تم تسجيل العملية بنجاح: ${userId}`))
-    .catch((error) => console.error("❌ فشل التسجيل:", error));
+    .then(() => {
+        console.log(`✅ تم تسجيل العملية بنجاح للمستخدم: ${userId}`);
+    })
+    .catch((error) => {
+        console.error("❌ فشل في تسجيل العملية:", error);
+    });
 }
 
-// --- دالة التحقق من الآدمن ---
+
+// أضف هذه الدوال في نهاية القسم 7
+const AM_ADMIN_ID = 549686235; 
+
 function checkAdminAuth() {
-    const user = webApp?.initDataUnsafe?.user;
-    // تم التعديل ليتطابق مع ADMIN_ID
-    if (user && user.id === ADMIN_ID) {
+    const user = window.Telegram.WebApp.initDataUnsafe.user;
+    if (user && user.id === AM_ADMIN_ID) {
         console.log("Welcome Boss: Ameen");
+        // يمكنك هنا إظهار قسم الإدارة برمجياً إذا أردت
     }
 }
 
-// --- فحص أمان النظام ---
 function checkSystemIntegrity() {
-    webApp?.showConfirm("جاري فحص عناوين IP والعمليات المتكررة.. هل تريد المتابعة؟", (res) => {
+    window.Telegram.WebApp.showConfirm("جاري فحص عناوين IP والعمليات المتكررة.. هل تريد المتابعة؟", (res) => {
         if(res) {
-            webApp?.showAlert("🛡️ النظام آمن. لم يتم العثور على محاولات إحالة وهمية.");
+            window.Telegram.WebApp.showAlert("🛡️ النظام آمن. لم يتم العثور على محاولات إحالة وهمية حالياً.");
         }
     });
 }
 
 // ==========================================
-// إعدادات التشغيل النهائية
+// إعدادات التشغيل النهائية (توضع مرة واحدة في نهاية الملف)
 // ==========================================
 
-// تشغيل الاهتزاز بأمان
-if (webApp?.isVersionAtLeast?.('6.1') && webApp?.HapticFeedback) {
+// تشغيل الاهتزاز عند تحميل الصفحة (اختياري)
+if (webApp.isVersionAtLeast('6.1') && webApp.HapticFeedback) {
     webApp.HapticFeedback.selectionChanged();
 }
+        
 
-// أمر تشغيل التطبيق (تأكد أن دالة startApp موجودة في كودك)
-window.onload = function() {
-    if (typeof startApp === "function") {
-        startApp();
-    }
-    checkAdminAuth(); // فحص الآدمن عند التشغيل
-};
+// أمر تشغيل التطبيق
+window.onload = startApp;
 
 // مراقبة حالة الإنترنت
-window.addEventListener('offline', () => typeof showToast === "function" && showToast("🔴 انقطع الاتصال!", "error"));
-window.addEventListener('online', () => typeof showToast === "function" && showToast("🟢 عاد الاتصال", "success"));
-
+window.addEventListener('offline', () => showToast("🔴 انقطع الاتصال بالإنترنت!", "error"));
+window.addEventListener('online', () => showToast("🟢 عاد الاتصال بالإنترنت", "success"));
+        
 </script>
 </body>
 </html>
