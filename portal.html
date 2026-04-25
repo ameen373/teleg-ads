@@ -1444,10 +1444,12 @@ function processDepositSubmission() {
 }
         
 function copyWalletAddress() {
-    navigator.clipboard.writeText("TSiS4tDnUwa5YptcYatRZ8ykPeMwmALLSV");
-    showToast("✅ تم نسخ العنوان");
-}
-
+            const addr = document.getElementById('wallet-addr').innerText;
+            navigator.clipboard.writeText(addr).then(() => {
+                Telegram.WebApp.showAlert("✅ تم نسخ العنوان!");
+            });
+        }
+    
 // ==========================================
 // دالة فتح النوافذ المنبثقة (Modals)
 // ==========================================
@@ -1880,24 +1882,20 @@ function openTab(tabName, element) {
     }
 }
 
-                   
-function showToast(message, type = 'success') {
-    const toast = document.createElement('div');
-    toast.style = `
-        position: fixed; top: -100px; left: 50%; transform: translateX(-50%);
-        padding: 14px 28px; border-radius: 50px; color: white; font-weight: bold;
-        z-index: 100000; transition: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-        background: ${type === 'success' ? 'linear-gradient(135deg, #2ecc71, #27ae60)' : 'linear-gradient(135deg, #e74c3c, #c0392b)'};
-        box-shadow: 0 10px 20px rgba(0,0,0,0.3); font-size: 14px;
-    `;
-    toast.innerHTML = message;
-    document.body.appendChild(toast);
-    setTimeout(() => { toast.style.top = '30px'; }, 100);
-    setTimeout(() => { 
-        toast.style.top = '-100px'; 
-        setTimeout(() => toast.remove(), 500); 
-    }, 3500);
-}
+           // دالة المشاركة الملكية المدمجة مع اللوجو الجديد
+        function shareToTelegram() {
+            const refLink = document.getElementById('myRefLink')?.value || "جاري التحميل...";
+            const shareText = 🌟 انضم إلى شبكة Telega.ads وحقق نجاحك الإعلاني! 🌟\n\n💰 اربح من 5 مستويات إحالة!\n🚀 سجل الآن وابدأ رحلتك عبر رابطي:\n${refLink};
+            
+            const tgUrl = https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent(shareText)};
+            
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.openTelegramLink(tgUrl);
+            } else {
+                window.open(tgUrl, '_blank');
+            }
+        }          
+
 
 function animateValue(id, start, end, duration) {
     const obj = document.getElementById(id);
