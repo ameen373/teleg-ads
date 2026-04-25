@@ -72,7 +72,9 @@
             <button id="main-submit-btn" onclick="processDepositSubmission()" style="width:100%; background:#2ecc71; border:none; padding:18px; border-radius:20px; color:white; font-weight:800; cursor:pointer; font-size:16px;">🚀 إرسال الطلب للمراجعة</button>
         </div>
     </div>
-
+    
+<script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+<script>eruda.init();</script>
 
     <style>
         /* --- التنسيقات المدمجة (القديمة + الجديدة) --- */
@@ -485,8 +487,6 @@ html, body {
 <body>
         
         
-<script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-<script>eruda.init();</script>
 
 <div class="bottom-nav">
   
@@ -1089,7 +1089,7 @@ function startApp() {
             }
 
             // --- فحص صلاحيات أمين ---
-            if (userId === AM_ADMIN_ID) {
+            if (userId === ADMIN_ID) {
                 console.log("👑 الملك أمين متصل");
                 if (typeof startAdminMonitor === "function") startAdminMonitor();
                 const adminBtn = document.getElementById('main-admin-nav-btn');
@@ -1874,7 +1874,7 @@ function openTab(tabName, element) {
                 
             case 'admin':
                 // التأكد من أن الداخل هو أمين فقط
-                if (userId === AM_ADMIN_ID) {
+                if (userId === ADMIN_ID) {
                     if (typeof loadWithdrawalRequests === "function") loadWithdrawalRequests();
                     if (typeof loadDepositRequests === "function") loadDepositRequests();
                 }
@@ -2608,13 +2608,9 @@ function adminAction(type) {
     });
 }
 
-
-// أضف هذه الدوال في نهاية القسم 7
-const AM_ADMIN_ID = 549686235; 
-
 function checkAdminAuth() {
     const user = window.Telegram.WebApp.initDataUnsafe.user;
-    if (user && user.id === AM_ADMIN_ID) {
+    if (user && user.id === ADMIN_ID) {
         console.log("Welcome Boss: Ameen");
         // يمكنك هنا إظهار قسم الإدارة برمجياً إذا أردت
     }
