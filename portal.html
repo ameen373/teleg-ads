@@ -256,161 +256,96 @@
 }
 
 
-        /* ===== ULTRA UI - Referrals ===== */
-
-/* دخول الصفحة */
-.ref-main-card {
-    background: rgba(23, 33, 43, 0.75);
-    backdrop-filter: blur(20px);
-    border-radius: 22px;
-    padding: 22px;
-    text-align: center;
-    border: 1px solid rgba(255,255,255,0.05);
-    
-    animation: fadeSlideUp 0.6s ease;
+        /* Skeleton Loader */
+.skeleton {
+    background: linear-gradient(90deg, #1e293b 25%, #2c3e50 50%, #1e293b 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 10px;
 }
 
-/* أنيميشن دخول */
-@keyframes fadeSlideUp {
-    from {
-        opacity: 0;
-        transform: translateY(25px);
-    }
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* أحجام جاهزة */
+.skeleton-text {
+    height: 12px;
+    margin-bottom: 8px;
+}
+
+.skeleton-title {
+    height: 20px;
+    width: 60%;
+    margin-bottom: 10px;
+}
+
+.skeleton-card {
+    height: 80px;
+    border-radius: 16px;
+}
+
+        /* Glow بسيط */
+.glow {
+    position: relative;
+    overflow: hidden;
+}
+
+.glow::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -150%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(120deg, transparent, rgba(255,255,255,0.2), transparent);
+    animation: glowMove 2.5s infinite;
+}
+
+@keyframes glowMove {
+    0% { left: -150%; }
+    100% { left: 150%; }
+}
+
+        /* ضغط واقعي */
+.press {
+    transition: transform 0.15s;
+}
+
+.press:active {
+    transform: scale(0.94);
+}
+
+/* دخول تدريجي للعناصر */
+.fade-in {
+    opacity: 0;
+    transform: translateY(15px);
+    animation: fadeInUp 0.5s forwards;
+}
+
+@keyframes fadeInUp {
     to {
         opacity: 1;
         transform: translateY(0);
     }
 }
 
-/* الرقم (يتنفس 🔥) */
-.ref-balance-text {
-    font-size: 38px;
-    font-weight: 800;
-    color: #fff;
-    animation: pulseSoft 2.5s infinite;
-}
-
-/* نبض ناعم */
-@keyframes pulseSoft {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.03); }
-    100% { transform: scale(1); }
-}
-
-/* زر رئيسي */
-.btn-main-action {
-    margin-top: 18px;
-    background: linear-gradient(135deg, #2aabee, #1d8cd8);
-    border: none;
-    padding: 14px;
-    border-radius: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    color: #fff;
-    width: 100%;
-    transition: all 0.25s ease;
-}
-
-/* ضغط زر (REAL FEEL) */
-.btn-main-action:active {
-    transform: scale(0.95);
-}
-
-/* Glow خفيف */
-.btn-main-action:hover {
-    box-shadow: 0 10px 25px rgba(42,171,238,0.4);
-}
-
-/* صندوق الرابط */
-.share-container {
-    background: rgba(23, 33, 43, 0.7);
-    backdrop-filter: blur(15px);
-    border-radius: 16px;
-    padding: 14px;
-    margin-top: 18px;
-    animation: fadeSlideUp 0.7s ease;
-}
-
-/* زر النسخ */
-.copy-badge {
-    color: #2aabee;
-    cursor: pointer;
-    transition: 0.2s;
-}
-
-.copy-badge:active {
-    transform: scale(0.9);
-}
-
-/* المستويات */
-.tiers-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin-top: 18px;
-}
-
-/* الكرت */
-.tier-box {
-    background: rgba(23, 33, 43, 0.75);
-    border-radius: 16px;
-    padding: 14px;
-    transition: 0.3s;
-    animation: fadeSlideUp 0.8s ease;
-}
-
-/* Hover احترافي */
-.tier-box:hover {
-    transform: translateY(-4px);
-    background: rgba(30, 45, 60, 0.9);
-}
-
-/* تأثير ضغط */
-.tier-box:active {
-    transform: scale(0.97);
-}
-
-/* الأزرار */
-.btn-tg-share {
-    flex: 1;
-    background: linear-gradient(135deg, #2aabee, #1d8cd8);
-    padding: 14px;
-    border-radius: 14px;
+        .toast {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #17212b;
     color: white;
-    border: none;
-    cursor: pointer;
-    transition: 0.25s;
+    padding: 12px 18px;
+    border-radius: 12px;
+    font-size: 13px;
+    opacity: 0;
+    transition: 0.3s;
 }
-
-/* Hover */
-.btn-tg-share:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(42,171,238,0.4);
-}
-
-/* ضغط */
-.btn-tg-share:active {
-    transform: scale(0.95);
-}
-
-/* زر QR */
-.btn-qr {
-    width: 60px;
-    border-radius: 14px;
-    background: rgba(23, 33, 43, 0.8);
-    border: none;
-    cursor: pointer;
-    transition: 0.25s;
-}
-
-/* Hover */
-.btn-qr:hover {
-    background: rgba(40, 55, 70, 0.9);
-}
-
-/* ضغط */
-.btn-qr:active {
-    transform: scale(0.9);
+.toast.show {
+    opacity: 1;
 }
         
     </style>
@@ -742,6 +677,13 @@
 
     <div id="referrals" class="section">
 
+
+<div class="tier-box">
+  <div class="skeleton skeleton-title"></div>
+  <div class="skeleton skeleton-text"></div>
+  <div class="skeleton skeleton-text"></div>
+</div>
+        
 <div class="ref-main-card">
         <div class="glow-effect"></div>
         <div class="card-content">
@@ -966,43 +908,46 @@
             if (webApp.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
         }
 
-        document.querySelectorAll("button").forEach(btn => {
-    btn.addEventListener("click", () => {
-        if (window.Telegram?.WebApp?.HapticFeedback) {
-            Telegram.WebApp.HapticFeedback.impactOccurred("light");
-        }
-    });
-});
+        function liveEarnings(id) {
+    let el = document.getElementById(id);
+    let value = parseFloat(el.innerText);
 
-        function copyRef() {
-    const input = document.getElementById("myRefLink");
-    navigator.clipboard.writeText(input.value);
-
-    const badge = document.querySelector(".copy-badge");
-    badge.innerText = "✔ تم النسخ";
-
-    setTimeout(() => {
-        badge.innerText = "نسخ";
-    }, 1500);
-        }
-
-        function animateValue(id, start, end, duration) {
-    let range = end - start;
-    let current = start;
-    let increment = end > start ? 1 : -1;
-    let stepTime = Math.abs(Math.floor(duration / range));
-
-    let obj = document.getElementById(id);
-
-    let timer = setInterval(() => {
-        current += increment;
-        obj.innerText = current;
-        if (current == end) clearInterval(timer);
-    }, stepTime);
+    setInterval(() => {
+        let increase = (Math.random() * 0.05).toFixed(2);
+        value = (parseFloat(value) + parseFloat(increase)).toFixed(2);
+        el.innerText = value;
+    }, 2000);
 }
 
 /* تشغيل */
-animateValue("balance", 0, 120, 1500);
+liveEarnings("balance");
+
+        function clickEffect() {
+    if (navigator.vibrate) navigator.vibrate(30);
+
+    let audio = new Audio("https://www.soundjay.com/buttons/sounds/button-16.mp3");
+    audio.volume = 0.2;
+    audio.play();
+}
+
+/* ربط */
+document.querySelectorAll("button").forEach(btn => {
+    btn.addEventListener("click", clickEffect);
+});
+
+        function showToast(msg) {
+    let toast = document.createElement("div");
+    toast.className = "toast";
+    toast.innerText = msg;
+
+    document.body.appendChild(toast);
+
+    setTimeout(() => toast.classList.add("show"), 100);
+    setTimeout(() => {
+        toast.classList.remove("show");
+        setTimeout(() => toast.remove(), 300);
+    }, 2000);
+        }
 
         window.onload = initApp;
     </script>
