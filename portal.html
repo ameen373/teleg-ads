@@ -1021,10 +1021,11 @@ html, body {
 // ==========================================
 const webApp = window.Telegram.WebApp;
 const ADMIN_ID = 549686235;
+const LOGO_URL = "https://i.ibb.co/Z6qzV2Wk/1777032600480logo.png";
 let lastBalance = 0; 
 window.lastViews = 0; // أضف هذا
 window.lastClicks = 0; // أضف هذا
-
+    
 const firebaseConfig = {
   apiKey: "AIzaSyB9wJ3RKL9Sc0VqIgOz3HIL6PAZMK1GZos",
   authDomain: "telega-io.firebaseapp.com",
@@ -1883,18 +1884,21 @@ function openTab(tabName, element) {
 }
 
            // دالة المشاركة الملكية المدمجة مع اللوجو الجديد
+        
+        // دالة المشاركة الملكية بالصورة
         function shareToTelegram() {
-            const refLink = document.getElementById('myRefLink')?.value || "جاري التحميل...";
-            const shareText = 🌟 انضم إلى شبكة Telega.ads وحقق نجاحك الإعلاني! 🌟\n\n💰 اربح من 5 مستويات إحالة!\n🚀 سجل الآن وابدأ رحلتك عبر رابطي:\n${refLink};
+            const refLink = document.getElementById('myRefLink')?.value || "https://t.me/your_bot";
+            const shareText = `🌟 انضم إلى شبكة Telega.ads وحقق نجاحك الإعلاني! 🌟\n\n💰 اربح من 5 مستويات إحالة!\n🚀 سجل الآن:\n${refLink}`;
             
-            const tgUrl = https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent(shareText)};
+            // نستخدم رابط الصورة في الـ URL ليقوم تليجرام بسحبها فوراً
+            const tgUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent(shareText)}`;
             
             if (window.Telegram && window.Telegram.WebApp) {
                 window.Telegram.WebApp.openTelegramLink(tgUrl);
             } else {
                 window.open(tgUrl, '_blank');
             }
-        }          
+        }
 
 
 function animateValue(id, start, end, duration) {
