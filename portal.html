@@ -73,80 +73,181 @@
 
         .btn { background: var(--accent-blue); color: white; border: none; padding: 12px; border-radius: 12px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 10px; }
 
-/* تصميم الملف الشخصي الفخم */
-.profile-main-card {
-    background: linear-gradient(145deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95)) !important;
-    border: 1px solid rgba(59, 130, 246, 0.2) !important;
+/* 🌌 الخلفية العامة */
+body {
+    margin: 0;
+    font-family: 'Segoe UI', sans-serif;
+    background: #0f172a;
+    color: #fff;
 }
 
-.profile-header-premium {
+/* 📦 الكروت */
+.card {
+    background: #1e293b;
+    border-radius: 18px;
+    padding: 16px;
+    margin: 15px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+    animation: fadeIn 0.5s ease;
+}
+
+/* ✨ أنيميشن الدخول */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(15px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 👤 الهيدر */
+.profile-header {
     display: flex;
     align-items: center;
     gap: 15px;
-    margin-bottom: 25px;
 }
 
-.avatar-wrapper {
-    position: relative;
+/* 🖼️ الصورة */
+.avatar {
+    width: 65px;
+    height: 65px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #3b82f6, #9333ea);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    font-weight: bold;
+    box-shadow: 0 0 12px rgba(59,130,246,0.4);
+    overflow: hidden;
 }
 
-.user-avatar-premium {
-    width: 70px; height: 70px; border-radius: 20px;
-    background: var(--accent); display: flex; align-items: center; justify-content: center;
-    font-size: 28px; font-weight: bold; border: 2px solid rgba(255,255,255,0.1);
+/* الاسم */
+#user-name {
+    margin: 0;
+    font-size: 18px;
 }
 
-.verify-badge {
-    position: absolute; bottom: -5px; right: -5px;
-    background: #fff; color: #3b82f6; border-radius: 50%;
-    width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
-    font-size: 14px; border: 2px solid #0f172a;
+/* الحالة */
+.status {
+    color: #22c55e;
+    font-size: 13px;
+    margin-top: 4px;
 }
 
-.rank-badge {
-    background: rgba(212, 175, 55, 0.15); color: #d4af37;
-    padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: bold;
+/* 🆔 ID */
+#user-id {
+    font-size: 12px;
+    color: #94a3b8;
 }
 
-/* نظام الليفل */
-.level-container { text-align: right; margin-top: 15px; }
-.level-info { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px; }
-.progress-bar {
-    width: 100%; height: 8px; background: rgba(255,255,255,0.05);
-    border-radius: 10px; overflow: hidden;
-}
-.progress-fill {
-    height: 100%; background: linear-gradient(90deg, #3b82f6, #60a5fa);
-    box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+/* 💰 المحفظة */
+.wallet {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 15px;
+    text-align: center;
 }
 
-/* شبكة الإحصائيات */
-.stats-grid-premium {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 15px;
+.wallet div {
+    flex: 1;
 }
-.stat-card {
-    background: var(--card); padding: 15px; border-radius: 18px;
-    text-align: center; border: 1px solid rgba(255,255,255,0.03);
-}
-.stat-card i { font-size: 20px; margin-bottom: 8px; display: block; }
-.stat-card small { color: #64748b; display: block; font-size: 11px; }
-.stat-card b { font-size: 15px; color: #fff; }
 
-/* القائمة السفلية */
-.profile-menu { margin-top: 15px; background: var(--card); border-radius: 20px; overflow: hidden; }
+.wallet small {
+    color: #94a3b8;
+}
+
+.wallet b {
+    display: block;
+    font-size: 18px;
+    margin-top: 5px;
+}
+
+/* 💸 أزرار المحفظة */
+.wallet-actions {
+    margin-top: 12px;
+    text-align: center;
+}
+
+.wallet-actions button {
+    margin: 5px;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #3b82f6, #6366f1);
+    color: white;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.wallet-actions button:hover {
+    transform: scale(1.05);
+}
+
+/* 📄 المعاملات */
+#transactions {
+    margin-top: 10px;
+}
+
+.tx-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px;
+    border-bottom: 1px solid #334155;
+    font-size: 14px;
+}
+
+/* ⚙️ القائمة */
 .menu-item {
-    display: flex; align-items: center; padding: 15px;
-    border-bottom: 1px solid rgba(255,255,255,0.03); cursor: pointer;
+    padding: 12px;
+    border-bottom: 1px solid #334155;
+    cursor: pointer;
+    transition: 0.25s;
+    font-size: 14px;
 }
-.menu-item:last-child { border-bottom: none; }
-.menu-icon {
-    width: 35px; height: 35px; border-radius: 10px; background: rgba(59, 130, 246, 0.1);
-    color: var(--accent); display: flex; align-items: center; justify-content: center; margin-left: 12px;
+
+.menu-item:hover {
+    background: #334155;
 }
-.menu-text { flex: 1; font-size: 14px; text-align: right; }
-.arrow { color: #334155; font-size: 12px; }
 
+/* زر الخروج */
+.logout {
+    color: #ef4444;
+}
 
+/* 🔔 Toast */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #22c55e;
+    color: white;
+    padding: 10px 18px;
+    border-radius: 12px;
+    font-size: 14px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    animation: fadeIn 0.3s ease;
+}
+
+/* 📱 استجابة للجوال */
+@media (max-width: 480px) {
+    .card {
+        margin: 10px;
+    }
+
+    .wallet {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .wallet-actions button {
+        width: 45%;
+    }
+}
         
     </style>
 </head>
@@ -344,71 +445,75 @@
     </div>
 
     
-    <div id="profile" class="section">
-    <div class="card profile-main-card">
-        <div class="profile-header-premium">
-            <div class="avatar-wrapper">
-                <div id="user-pfp" class="user-avatar-premium">?</div>
-                <div class="verify-badge"><i class="fas fa-check-circle"></i></div>
-            </div>
-            <div class="user-meta">
+    <!-- 👤 قسم الملف الشخصي -->
+<div id="profile" class="section active">
+
+    <!-- 🔷 الكرت الرئيسي -->
+    <div class="card">
+
+        <!-- 👤 الهيدر -->
+        <div class="profile-header">
+
+            <!-- الصورة -->
+            <div id="user-pfp" class="avatar">?</div>
+
+            <!-- البيانات -->
+            <div>
                 <h3 id="user-name">جاري التحميل...</h3>
-                <span id="user-rank-label" class="rank-badge">عضو برونزي</span>
+                <div id="user-id">ID: ...</div>
+                <div class="status">نشط وآمن</div>
             </div>
+
         </div>
 
-        <div class="level-container">
-            <div class="level-info">
-                <span>المستوى الحالي: <b id="current-level-name">1</b></span>
-                <span id="level-percent">40%</span>
+        <!-- 💰 المحفظة -->
+        <div class="wallet">
+
+            <div>
+                <small>الرصيد</small>
+                <b id="balance">0 TRX</b>
             </div>
-            <div class="progress-bar">
-                <div id="level-progress" class="progress-fill" style="width: 40%;"></div>
+
+            <div>
+                <small>إجمالي الأرباح</small>
+                <b id="earned">0 TRX</b>
             </div>
-            <small class="level-hint">تبقّى 60 نقطة للوصول للمستوى الفضي</small>
+
+        </div>
+
+        <!-- 💸 أزرار -->
+        <div class="wallet-actions">
+            <button onclick="deposit()">إيداع</button>
+            <button onclick="withdraw()">سحب</button>
+        </div>
+
+    </div>
+
+    <!-- 📄 سجل المعاملات -->
+    <div class="card">
+        <h4>📄 سجل المعاملات</h4>
+        <div id="transactions">
+            <small>جاري التحميل...</small>
         </div>
     </div>
 
-    <div class="stats-grid-premium">
-        <div class="stat-card">
-            <i class="fas fa-wallet" style="color: #3b82f6;"></i>
-            <small>المحفظة</small>
-            <b id="p-balance">0.00 <small>TRX</small></b>
+    <!-- ⚙️ الإعدادات -->
+    <div class="card">
+
+        <div class="menu-item" onclick="copyId()">
+            📋 نسخ Telegram ID
         </div>
-        <div class="stat-card">
-            <i class="fas fa-chart-line" style="color: #10b981;"></i>
-            <small>الأرباح</small>
-            <b id="p-earned">0.00 <small>TRX</small></b>
+
+        <div class="menu-item" onclick="contact()">
+            📞 الدعم الفني
         </div>
-        <div class="stat-card">
-            <i class="fas fa-users" style="color: #f59e0b;"></i>
-            <small>الفريق</small>
-            <b id="p-refs">0</b>
+
+        <div class="menu-item logout" onclick="logout()">
+            🚪 تسجيل الخروج
         </div>
-        <div class="stat-card">
-            <i class="fas fa-shield-alt" style="color: #ef4444;"></i>
-            <small>الحماية</small>
-            <b style="color: #10b981;">نشط</b>
-        </div>
+
     </div>
 
-    <div class="profile-menu">
-        <div class="menu-item" onclick="copyRefLink()">
-            <div class="menu-icon"><i class="fas fa-link"></i></div>
-            <div class="menu-text">رابط الإحالة الخاص بي</div>
-            <i class="fas fa-chevron-left arrow"></i>
-        </div>
-        <div class="menu-item" onclick="window.Telegram.WebApp.showAlert('سجل نشاطاتك فارغ حالياً')">
-            <div class="menu-icon"><i class="fas fa-history"></i></div>
-            <div class="menu-text">سجل العمليات الأخير</div>
-            <i class="fas fa-chevron-left arrow"></i>
-        </div>
-        <div class="menu-item" onclick="window.Telegram.WebApp.openLink('https://t.me/YourSupport')">
-            <div class="menu-icon"><i class="fas fa-headset"></i></div>
-            <div class="menu-text">الدعم الفني المباشر</div>
-            <i class="fas fa-chevron-left arrow"></i>
-        </div>
-    </div>
 </div>
 
 
@@ -447,130 +552,211 @@
    
 
     <script>
-        // الإعدادات التي قدمتها
-        const webApp = window.Telegram.WebApp;
-        const ADMIN_ID = 549686235;
-        const LOGO_URL = "https://i.ibb.co/Z6qzV2Wk/1777032600480logo.png";
-        
-        const firebaseConfig = {
-            apiKey: "AIzaSyB9wJ3RKL9Sc0VqIgOz3HIL6PAZMK1GZos",
-            authDomain: "telega-io.firebaseapp.com",
-            databaseURL: "https://telega-io-default-rtdb.firebaseio.com",
-            projectId: "telega-io",
-            storageBucket: "telega-io.firebasestorage.app",
-            messagingSenderId: "413242252888",
-            appId: "1:413242252888:web:6055aaa7fcdd256910b42d"
-        };
+        // 🔷 Telegram
+const webApp = window.Telegram.WebApp;
+const ADMIN_ID = 549686235;
 
-        // تشغيل Firebase
-        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
+// 🔷 Firebase
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
-        function initApp() {
-            webApp.ready();
-            webApp.expand();
-            document.getElementById('app-logo').src = LOGO_URL;
-
-            const user = webApp.initDataUnsafe.user;
-            if (user) {
-                // التحقق من الإدارة
-                if (user.id === ADMIN_ID) {
-                    document.getElementById('admin-nav').style.display = 'block';
-                }
-                // تحديث رابط الإحالة
-                document.getElementById('ref-link').innerText = `https://t.me/YourBot?start=${user.id}`;
-            }
-        }
-
-        function showSection(sectionId, element) {
-            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-            document.getElementById(sectionId).classList.add('active');
-            
-            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-            element.classList.add('active');
-
-            if (webApp.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
-        }
-
-        // مثال: تشغيل الحركة عند الضغط على زر
-function playSuccessAnimation() {
-    const player = document.querySelector("lottie-player");
-    player.play(); // تشغيل
-    // أو player.stop(); للإيقاف
-}
-        // وظيفة لجلب بيانات المستخدم وعرضها في الملف الشخصي
-function loadUserProfile() {
-    const user = window.Telegram.WebApp.initDataUnsafe.user;
-    
-    if (user) {
-        // تحديث الاسم والمعرف
-        document.getElementById('user-name').innerText = user.first_name + (user.last_name ? " " + user.last_name : "");
-        document.getElementById('user-id').innerText = "ID: " + user.id;
-        
-        // تحديث الصورة الشخصية
-        const pfpContainer = document.getElementById('user-pfp');
-        if (user.photo_url) {
-            pfpContainer.innerHTML = `<img src="${user.photo_url}" style="width:100%; height:100%; object-fit:cover;">`;
-        } else {
-            pfpContainer.innerText = user.first_name.charAt(0);
-        }
-        
-        // إذا كان هو المدير
-        if (user.id === 549686235) {
-            document.getElementById('user-level').innerText = "المالك";
-            document.getElementById('user-level').style.color = "var(--danger)";
-        }
-    }
-}
-
-// تأكد من استدعاء هذه الوظيفة عند تشغيل التطبيق
-window.onload = function() {
-    // الأوامر الأخرى لديك...
-    loadUserProfile();
+// 👤 بيانات المستخدم
+let currentUser = {
+    id: null,
+    name: ""
 };
-        function setupStrongProfile() {
-    const user = window.Telegram.WebApp.initDataUnsafe.user;
-    
-    if (user) {
-        // تحديث البيانات الأساسية
-        document.getElementById('user-name').innerText = user.first_name + (user.last_name ? " " + user.last_name : "");
-        document.getElementById('user-id').innerText = "ID: " + user.id;
-        
-        // معالجة الصورة الشخصية
-        const pfp = document.getElementById('user-pfp');
-        if (user.photo_url) {
-            pfp.innerHTML = `<img src="${user.photo_url}" style="width:100%; height:100%; object-fit:cover;">`;
-        } else {
-            pfp.innerText = user.first_name.charAt(0);
-        }
 
-        // تمييز رتبة المالك (أمين)
-        if (user.id === 549686235) {
-            document.getElementById('user-rank-label').innerText = "المالك (Owner)";
-            document.getElementById('user-rank-label').style.background = "rgba(239, 68, 68, 0.15)";
-            document.getElementById('user-rank-label').style.color = "#ef4444";
-            document.getElementById('current-level-name').innerText = "MAX";
-            document.getElementById('level-progress').style.width = "100%";
-        }
+
+// 🚀 تشغيل التطبيق
+function initApp() {
+    webApp.ready();
+    webApp.expand();
+
+    const tg = webApp.initDataUnsafe.user;
+
+    if (!tg) return;
+
+    currentUser.id = tg.id;
+    currentUser.name = tg.first_name;
+
+    // 👑 إظهار الأدمن
+    if (tg.id === ADMIN_ID) {
+        const adminNav = document.getElementById('admin-nav');
+        if (adminNav) adminNav.style.display = 'block';
     }
 }
 
-// وظيفة نسخ الرابط مع رسالة تنبيه جميلة
-function copyRefLink() {
-    const user = window.Telegram.WebApp.initDataUnsafe.user;
-    const link = `https://t.me/YourBot?start=${user ? user.id : ''}`;
-    navigator.clipboard.writeText(link);
-    window.Telegram.WebApp.showAlert("✅ تم نسخ رابط الإحالة الخاص بك بنجاح!");
+
+// 👤 إعداد واجهة البروفايل (Telegram UI)
+function setupProfileUI() {
+    const tg = webApp.initDataUnsafe.user;
+    if (!tg) return;
+
+    const fullName = tg.first_name + (tg.last_name ? " " + tg.last_name : "");
+
+    document.getElementById('user-name').innerText = fullName;
+    document.getElementById('user-id').innerText = "ID: " + tg.id;
+
+    const pfp = document.getElementById('user-pfp');
+
+    if (tg.photo_url) {
+        pfp.innerHTML = `<img src="${tg.photo_url}" style="width:100%;height:100%;object-fit:cover;">`;
+    } else {
+        pfp.innerText = tg.first_name.charAt(0);
+    }
+
+    // 👑 تمييز الأدمن
+    if (tg.id === ADMIN_ID) {
+        document.getElementById('user-rank-label').innerText = "المالك";
+    }
 }
 
-// استدعاء الوظيفة عند التشغيل
-window.onload = function() {
-    setupStrongProfile();
-    // بقية وظائف التشغيل الخاصة بك...
+
+// 🔥 إنشاء المستخدم في Firebase
+async function initUser() {
+    const ref = db.ref("users/" + currentUser.id);
+    const snap = await ref.get();
+
+    if (!snap.exists()) {
+        await ref.set({
+            name: currentUser.name,
+            balance: 0,
+            earned: 0,
+            createdAt: Date.now()
+        });
+    }
 }
+
+
+// 📥 تحميل بيانات البروفايل
+async function loadProfileData() {
+    const ref = db.ref("users/" + currentUser.id);
+    const snap = await ref.get();
+
+    if (!snap.exists()) return;
+
+    const data = snap.val();
+
+    document.getElementById("balance").innerText = data.balance + " TRX";
+    document.getElementById("earned").innerText = data.earned + " TRX";
+}
+
+
+// 📄 تحميل المعاملات
+async function loadTransactions() {
+    const ref = db.ref("transactions/" + currentUser.id);
+    const snap = await ref.get();
+
+    const box = document.getElementById("transactions");
+    box.innerHTML = "";
+
+    if (!snap.exists()) {
+        box.innerHTML = "<small>لا توجد عمليات</small>";
+        return;
+    }
+
+    const data = snap.val();
+
+    Object.values(data).reverse().forEach(tx => {
+        box.innerHTML += `
+        <div class="tx-item">
+            <span>${tx.type}</span>
+            <b style="color:${tx.amount > 0 ? '#22c55e' : '#ef4444'}">
+                ${tx.amount} TRX
+            </b>
+        </div>`;
+    });
+}
+
+
+// 💰 سحب
+async function withdraw() {
+    let amount = parseFloat(prompt("كم تريد السحب؟"));
+    if (!amount) return;
+
+    const userRef = db.ref("users/" + currentUser.id);
+    const snap = await userRef.get();
+    const data = snap.val();
+
+    if (amount > data.balance) {
+        toast("رصيد غير كافي ❌");
+        return;
+    }
+
+    await userRef.update({
+        balance: data.balance - amount
+    });
+
+    await db.ref("transactions/" + currentUser.id).push({
+        type: "سحب",
+        amount: -amount,
+        status: "pending",
+        date: Date.now()
+    });
+
+    toast("تم إرسال طلب السحب ✅");
+
+    loadProfileData();
+    loadTransactions();
+}
+
+
+// ➕ إيداع
+function deposit() {
+    alert("أرسل TRX إلى:\nYOUR_WALLET_ADDRESS");
+}
+
+
+// 🔔 إشعار
+function toast(msg) {
+    let t = document.createElement("div");
+    t.className = "toast";
+    t.innerText = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 2000);
+}
+
+
+// 📋 نسخ ID
+function copyId() {
+    navigator.clipboard.writeText(currentUser.id);
+    toast("تم نسخ ID ✅");
+}
+
+
+// 📞 دعم
+function contact() {
+    window.open("https://t.me/YourSupport");
+}
+
+
+// 🚪 خروج
+function logout() {
+    toast("تم تسجيل الخروج");
+}
+
+
+// 🔄 التنقل بين الصفحات
+function showSection(sectionId, element) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.getElementById(sectionId).classList.add('active');
+
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    element.classList.add('active');
+
+    if (webApp.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
+}
+
+
+// 🚀 تشغيل واحد فقط (بدون تكرار)
+window.onload = async function () {
+    initApp();
+    setupProfileUI();
+    await initUser();
+    await loadProfileData();
+    await loadTransactions();
+};
         
-
-        window.onload = initApp;
-    </script>
+           </script>
 </body>
-</html>
+</html
