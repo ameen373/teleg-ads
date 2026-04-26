@@ -848,6 +848,198 @@
         transform: translateY(0);
     }
 }
+
+        /* ========================= */
+/* 👑 Admin Section */
+/* ========================= */
+
+.admin-container {
+    padding: 15px;
+}
+
+/* 🔥 العنوان */
+.admin-header {
+    margin-bottom: 15px;
+}
+
+.admin-header h2 {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+/* ========================= */
+/* 📊 الإحصائيات */
+/* ========================= */
+
+.admin-stats {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.admin-stat {
+    flex: 1;
+    background: var(--card);
+    border-radius: 14px;
+    padding: 12px;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
+
+.admin-stat h4 {
+    font-size: 13px;
+    margin-bottom: 5px;
+    color: var(--muted);
+}
+
+.admin-stat span {
+    font-size: 16px;
+    font-weight: bold;
+    color: var(--primary);
+}
+
+/* ========================= */
+/* 📦 الكروت */
+/* ========================= */
+
+.admin-card {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 12px;
+    margin-bottom: 15px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+}
+
+.admin-card h3 {
+    margin-bottom: 10px;
+    font-size: 14px;
+}
+
+/* ========================= */
+/* 📋 العناصر */
+/* ========================= */
+
+.admin-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    border-radius: 10px;
+    margin-bottom: 6px;
+    background: #1f2937;
+    font-size: 12px;
+    transition: 0.3s;
+}
+
+.admin-item:hover {
+    background: #374151;
+}
+
+/* ========================= */
+/* 🎛️ الأزرار */
+/* ========================= */
+
+.admin-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.admin-btn {
+    padding: 5px 10px;
+    border-radius: 8px;
+    border: none;
+    font-size: 11px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+/* 🗑 حذف */
+.admin-btn.delete {
+    background: #ef4444;
+    color: white;
+}
+
+.admin-btn.delete:hover {
+    opacity: 0.85;
+}
+
+/* ⏸ إيقاف */
+.admin-btn.stop {
+    background: #f59e0b;
+    color: white;
+}
+
+.admin-btn.stop:hover {
+    opacity: 0.85;
+}
+
+/* 🚫 حظر */
+.admin-btn.ban {
+    background: #6b7280;
+    color: white;
+}
+
+.admin-btn.ban:hover {
+    opacity: 0.85;
+}
+
+/* ✔ تأكيد */
+.admin-btn.approve {
+    background: #22c55e;
+    color: white;
+}
+
+.admin-btn.approve:hover {
+    opacity: 0.85;
+}
+
+/* 💸 دفع */
+.admin-btn.pay {
+    background: #3b82f6;
+    color: white;
+}
+
+.admin-btn.pay:hover {
+    opacity: 0.85;
+}
+
+/* ========================= */
+/* 💰 قسم المدفوعات */
+/* ========================= */
+
+.admin-payments {
+    margin-top: 10px;
+}
+
+.admin-payment-item {
+    background: #1f2937;
+    padding: 10px;
+    border-radius: 10px;
+    margin-bottom: 6px;
+    font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+}
+
+/* ========================= */
+/* ✨ Animation */
+/* ========================= */
+
+.admin-card,
+.admin-stat {
+    animation: fadeIn 0.4s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
         
     </style>
 </head>
@@ -1279,29 +1471,117 @@
 
 </div>
 
+<!-- ========================= -->
+<!-- 👑 Admin Section -->
+<!-- ========================= -->
 
+<div id="admin" class="section">
 
-    <div id="admin" class="section">
-        <div class="card" style="border-color: #ef4444;">
-            <h2 style="color: #ef4444;"><i class="fas fa-user-shield"></i> لوحة الإدارة</h2>
-            <p>مرحباً بك يا أمين. التحكم الكامل متاح الآن.</p>
-            <button class="btn" style="background: #475569;">إدارة القنوات المنتظرة</button>
-            <button class="btn" style="background: #475569;">طلبات السحب</button>
+    <div class="admin-container">
 
-            <div class="card" style="border-color: #ef4444; text-align: center;">
-    <lottie-player 
-        src="https://assets3.lottiefiles.com/packages/lf20_ghp9v6m3.json" 
-        background="transparent"  
-        speed="1"  
-        style="width: 100px; height: 100px; margin: 0 auto;"  
-        loop  
-        autoplay>
-    </lottie-player>
-    <h2 style="color: #ef4444;">لوحة التحكم العليا</h2>
-            </div>
-            
+        <!-- 🔥 العنوان -->
+        <div class="admin-header">
+            <h2>👑 لوحة الإدارة</h2>
         </div>
+
+        <!-- ========================= -->
+        <!-- 📊 الإحصائيات -->
+        <!-- ========================= -->
+
+        <div class="admin-stats">
+
+            <div class="admin-stat">
+                <h4>👤 المستخدمين</h4>
+                <span id="admin-users">0</span>
+            </div>
+
+            <div class="admin-stat">
+                <h4>📢 الحملات</h4>
+                <span id="admin-campaigns">0</span>
+            </div>
+
+            <div class="admin-stat">
+                <h4>📣 القنوات</h4>
+                <span id="admin-channels">0</span>
+            </div>
+
+        </div>
+
+        <!-- ========================= -->
+        <!-- 👤 إدارة المستخدمين -->
+        <!-- ========================= -->
+
+        <div class="admin-card">
+
+            <h3>👤 إدارة المستخدمين</h3>
+
+            <div id="admin-users-list">
+                <small>جاري التحميل...</small>
+            </div>
+
+        </div>
+
+        <!-- ========================= -->
+        <!-- 📢 إدارة الحملات -->
+        <!-- ========================= -->
+
+        <div class="admin-card">
+
+            <h3>📢 إدارة الحملات</h3>
+
+            <div id="admin-campaigns-list">
+                <small>جاري التحميل...</small>
+            </div>
+
+        </div>
+
+        <!-- ========================= -->
+        <!-- 📣 إدارة القنوات -->
+        <!-- ========================= -->
+
+        <div class="admin-card">
+
+            <h3>📣 إدارة القنوات</h3>
+
+            <div id="admin-channels-list">
+                <small>جاري التحميل...</small>
+            </div>
+
+        </div>
+
+        <!-- ========================= -->
+        <!-- 💰 الإيداعات -->
+        <!-- ========================= -->
+
+        <div class="admin-card">
+
+            <h3>💰 الإيداعات</h3>
+
+            <div id="admin-deposits">
+                <small>جاري التحميل...</small>
+            </div>
+
+        </div>
+
+        <!-- ========================= -->
+        <!-- 💸 السحب -->
+        <!-- ========================= -->
+
+        <div class="admin-card">
+
+            <h3>💸 طلبات السحب</h3>
+
+            <div id="admin-withdraws">
+                <small>جاري التحميل...</small>
+            </div>
+
+        </div>
+
     </div>
+
+</div>
+
+    
     
 
          <div class="bottom-nav">
@@ -1319,7 +1599,7 @@
 
     <script>
 
- // ===============================
+    // ===============================
 // 🔷 Telegram + Firebase
 // ===============================
 const webApp = window.Telegram.WebApp;
@@ -1350,11 +1630,16 @@ function initApp() {
     currentUser.id = tg.id;
     currentUser.name = tg.first_name;
 
-    // 👑 الإدارة
-    if (String(tg.id) === String(ADMIN_ID)) {
-        const adminNav = document.getElementById("admin-nav");
-        if (adminNav) adminNav.style.display = "flex";
-    }
+    // 👑 إظهار الإدارة (حل نهائي)
+    setTimeout(() => {
+        if (String(tg.id) === String(ADMIN_ID)) {
+            const adminNav = document.getElementById("admin-nav");
+            if (adminNav) {
+                adminNav.style.display = "flex";
+                console.log("✅ ADMIN ENABLED");
+            }
+        }
+    }, 300);
 }
 
 // ===============================
@@ -1365,17 +1650,21 @@ function setupProfileUI() {
     const tg = webApp.initDataUnsafe.user;
     if (!tg) return;
 
-    document.getElementById("user-name").innerText =
-        tg.first_name + (tg.last_name ? " " + tg.last_name : "");
+    const nameEl = document.getElementById("user-name");
+    if (nameEl) {
+        nameEl.innerText = tg.first_name + (tg.last_name ? " " + tg.last_name : "");
+    }
 
-    document.getElementById("user-id").innerText = "ID: " + tg.id;
+    const idEl = document.getElementById("user-id");
+    if (idEl) idEl.innerText = "ID: " + tg.id;
 
     const pfp = document.getElementById("user-pfp");
-
-    if (tg.photo_url) {
-        pfp.innerHTML = `<img src="${tg.photo_url}" style="width:100%;height:100%;object-fit:cover;">`;
-    } else {
-        pfp.innerText = tg.first_name.charAt(0);
+    if (pfp) {
+        if (tg.photo_url) {
+            pfp.innerHTML = `<img src="${tg.photo_url}" style="width:100%;height:100%;object-fit:cover;">`;
+        } else {
+            pfp.innerText = tg.first_name.charAt(0);
+        }
     }
 }
 
@@ -1407,8 +1696,11 @@ async function loadProfileData() {
 
     const data = snap.val();
 
-    document.getElementById("balance").innerText = data.balance + " USDT";
-    document.getElementById("earned").innerText = data.earned + " USDT";
+    const bal = document.getElementById("balance");
+    if (bal) bal.innerText = data.balance + " USDT";
+
+    const earn = document.getElementById("earned");
+    if (earn) earn.innerText = data.earned + " USDT";
 }
 
 // ===============================
@@ -1435,20 +1727,9 @@ function showSection(sectionId, element) {
     document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
     if (element) element.classList.add("active");
 
-    // تشغيل الإحالة عند الدخول
-    if (sectionId === "referrals") {
-        initReferralSystem();
-    }
-
-    // تشغيل القنوات عند الدخول
-    if (sectionId === "publisher") {
-        loadChannels();
-    }
-
-    // تشغيل الحملات عند الدخول
-    if (sectionId === "promo") {
-        loadCampaigns();
-    }
+    if (sectionId === "referrals") initReferralSystem();
+    if (sectionId === "publisher") loadChannels();
+    if (sectionId === "promo") loadCampaigns();
 
     if (window.Telegram?.WebApp?.HapticFeedback) {
         Telegram.WebApp.HapticFeedback.impactOccurred("light");
@@ -1456,7 +1737,7 @@ function showSection(sectionId, element) {
 }
 
 // ===============================
-// 📢 نظام المعلن
+// 📢 المعلن
 // ===============================
 let selectedAdType = "click";
 
@@ -1468,13 +1749,10 @@ function selectAdType(el, type) {
 
 async function createCampaign() {
 
-    const title = document.getElementById("ad-title").value;
-    const link = document.getElementById("ad-link").value;
-    const desc = document.getElementById("ad-desc").value;
-    const country = document.getElementById("ad-country").value;
-    const category = document.getElementById("ad-category").value;
-    const budget = parseFloat(document.getElementById("ad-budget").value);
-    const price = parseFloat(document.getElementById("ad-price").value);
+    const title = document.getElementById("ad-title")?.value;
+    const link = document.getElementById("ad-link")?.value;
+    const budget = parseFloat(document.getElementById("ad-budget")?.value);
+    const price = parseFloat(document.getElementById("ad-price")?.value);
 
     if (!title || !link || !budget || !price) {
         toast("❌ أكمل البيانات");
@@ -1488,21 +1766,16 @@ async function createCampaign() {
         owner: currentUser.id,
         title,
         link,
-        desc,
-        country,
-        category,
         budget,
         price,
         type: selectedAdType,
         clicks: 0,
         views: 0,
         spent: 0,
-        status: "active",
-        createdAt: Date.now()
+        status: "active"
     });
 
     toast("🚀 تم إنشاء الحملة");
-
     loadCampaigns();
 }
 
@@ -1510,7 +1783,6 @@ async function loadCampaigns() {
 
     const snap = await db.ref("campaigns").get();
     const box = document.getElementById("campaigns-list");
-
     if (!box) return;
 
     box.innerHTML = "";
@@ -1519,90 +1791,90 @@ async function loadCampaigns() {
 
     Object.values(snap.val())
         .filter(c => c.owner == currentUser.id)
-        .reverse()
         .forEach(c => {
 
             box.innerHTML += `
-            <div class="ad-campaign-card">
-                <div class="ad-campaign-header">
-                    <div>${c.title}</div>
-                    <div class="ad-status ${c.status}">${c.status}</div>
-                </div>
-                <div class="ad-stats">
-                    <span>👁️ ${c.views}</span>
-                    <span>🖱️ ${c.clicks}</span>
-                    <span>💰 ${c.spent}</span>
-                </div>
+            <div>
+                <b>${c.title}</b>
+                <small>💰 ${c.spent}</small>
             </div>`;
         });
 }
 
 // ===============================
-// 📣 نظام الناشر + الإعلانات
+// 📣 الناشر
 // ===============================
-async function getAdForChannel(channel) {
+async function loadChannels() {
 
-    const snap = await db.ref("campaigns").get();
-    if (!snap.exists()) return null;
-
-    let ads = Object.values(snap.val());
-
-    let filtered = ads.filter(ad =>
-        ad.status === "active" &&
-        ad.budget > ad.spent &&
-        (ad.category === channel.category || ad.category === "all")
-    );
-
-    if (filtered.length === 0) return null;
-
-    return filtered[Math.floor(Math.random() * filtered.length)];
-}
-
-async function renderAdInChannel(channelId, channelData) {
-
-    const ad = await getAdForChannel(channelData);
-    const box = document.getElementById("ad-box-" + channelId);
-
+    const snap = await db.ref("channels").get();
+    const box = document.getElementById("channels-list");
     if (!box) return;
 
-    if (!ad) {
-        box.innerHTML = "<small>لا يوجد إعلان</small>";
-        return;
-    }
+    box.innerHTML = "";
+
+    if (!snap.exists()) return;
+
+    Object.values(snap.val())
+        .filter(c => c.owner == currentUser.id)
+        .forEach(ch => {
+
+            box.innerHTML += `
+            <div>
+                <b>${ch.name}</b>
+                <div id="ad-box-${ch.id}">...</div>
+            </div>
+            `;
+
+            renderAdInChannel(ch.id, ch);
+        });
+}
+
+async function renderAdInChannel(channelId, channel) {
+
+    const snap = await db.ref("campaigns").get();
+    if (!snap.exists()) return;
+
+    const ads = Object.values(snap.val()).filter(a => a.status === "active");
+
+    if (!ads.length) return;
+
+    const ad = ads[Math.floor(Math.random() * ads.length)];
+
+    const box = document.getElementById("ad-box-" + channelId);
+    if (!box) return;
 
     box.innerHTML = `
-        <div class="ad-box-title">📢 إعلان</div>
         <a href="${ad.link}" onclick="trackClick(${ad.id}, ${channelId})">
             ${ad.title}
         </a>
     `;
-
-    trackView(ad.id, channelId);
 }
 
-async function trackView(adId, channelId) {
-
-    await db.ref("campaigns/" + adId).update({
-        views: firebase.database.ServerValue.increment(1)
-    });
-}
-
+// ===============================
+// 💰 النقر (محمي)
+// ===============================
 async function trackClick(adId, channelId) {
+
+    const key = `click_${adId}_${currentUser.id}`;
+    const last = localStorage.getItem(key);
+    const now = Date.now();
+
+    if (last && now - last < 10000) return;
+
+    localStorage.setItem(key, now);
 
     const snap = await db.ref("campaigns/" + adId).get();
     if (!snap.exists()) return;
 
     const ad = snap.val();
-    const cost = ad.price;
-    const share = cost * 0.7;
+    const share = ad.price * 0.7;
 
     await db.ref("campaigns/" + adId).update({
         clicks: firebase.database.ServerValue.increment(1),
-        spent: firebase.database.ServerValue.increment(cost)
+        spent: firebase.database.ServerValue.increment(ad.price)
     });
 
-    const chSnap = await db.ref("channels/" + channelId).get();
-    const ch = chSnap.val();
+    const ch = (await db.ref("channels/" + channelId).get()).val();
 
     await db.ref("users/" + ch.owner).update({
         balance: firebase.database.ServerValue.increment(share),
@@ -1610,49 +1882,6 @@ async function trackClick(adId, channelId) {
     });
 
     toast("💰 +" + share + " USDT");
-}
-
-async function loadChannels() {
-
-    const snap = await db.ref("channels").get();
-    const box = document.getElementById("channels-list");
-
-    if (!box) return;
-
-    box.innerHTML = "";
-
-    if (!snap.exists()) return;
-
-    const channels = Object.values(snap.val())
-        .filter(c => c.owner == currentUser.id);
-
-    for (let ch of channels) {
-
-        box.innerHTML += `
-        <div class="channel-card">
-            <div class="channel-header">
-                <div>${ch.name}</div>
-                <div class="channel-status active">نشطة</div>
-            </div>
-
-            <div class="channel-stats">
-                <span>👥 ${ch.subscribers || 0}</span>
-                <span>👁️ ${ch.views || 0}</span>
-                <span>🖱️ ${ch.clicks || 0}</span>
-            </div>
-
-            <div class="channel-earn">
-                💰 ${ch.earned || 0} USDT
-            </div>
-
-            <div class="ad-box" id="ad-box-${ch.id}">
-                تحميل الإعلان...
-            </div>
-        </div>
-        `;
-
-        renderAdInChannel(ch.id, ch);
-    }
 }
 
 // ===============================
@@ -1676,18 +1905,16 @@ async function loadReferralStats() {
 }
 
 async function initReferralSystem() {
-
-    const el = document.getElementById("ref-link");
-    if (!el) return;
+    if (!document.getElementById("ref-link")) return;
 
     renderRefLink();
     await loadReferralStats();
 }
 
 // ===============================
-// 🚀 تشغيل واحد فقط
+// 🚀 تشغيل (مرة واحدة فقط)
 // ===============================
-window.onload = async function () {
+document.addEventListener("DOMContentLoaded", async () => {
 
     initApp();
     setupProfileUI();
@@ -1696,7 +1923,7 @@ window.onload = async function () {
     await loadProfileData();
 
     showSection("home");
-};
+});
 
         
            </script>
