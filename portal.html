@@ -785,18 +785,28 @@ function initApp() {
     webApp.ready();
     webApp.expand();
 
-    const tg = webApp.initDataUnsafe.user;
+    const tg = webApp.initDataUnsafe?.user;
 
-    if (!tg) return;
+    if (!tg) {
+        console.warn("❌ افتح التطبيق داخل Telegram");
+        return;
+    }
 
     currentUser.id = tg.id;
     currentUser.name = tg.first_name;
 
-    // 👑 إظهار الأدمن (مصّحح)
-    if (Number(tg.id) === Number(ADMIN_ID)) {
+    console.log("USER ID:", tg.id);
+    console.log("ADMIN ID:", ADMIN_ID);
+
+    // 👑 إظهار زر الإدارة
+    if (String(tg.id) === String(ADMIN_ID)) {
         const adminNav = document.getElementById('admin-nav');
+
         if (adminNav) {
-            adminNav.style.display = 'block';
+            adminNav.style.display = 'flex'; // 🔥 أهم سطر
+            console.log("✅ ADMIN VISIBLE");
+        } else {
+            console.error("❌ admin-nav غير موجود في HTML");
         }
     }
 }
