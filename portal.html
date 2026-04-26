@@ -766,7 +766,7 @@ body {
 
     <script>
         // 🔷 Telegram
-const webApp = window.Telegram.WebApp;
+const webApp = window.Telegram?.WebApp;
 const ADMIN_ID = 549686235;
 
 // 🔷 Firebase
@@ -782,35 +782,46 @@ let currentUser = {
 
 // 🚀 تشغيل التطبيق
 function initApp() {
+    const webApp = window.Telegram?.WebApp;
+
+    if (!webApp) {
+        console.warn("❌ افتح التطبيق داخل Telegram");
+        return;
+    }
+
     webApp.ready();
     webApp.expand();
 
     const tg = webApp.initDataUnsafe?.user;
 
     if (!tg) {
-        console.warn("❌ افتح التطبيق داخل Telegram");
+        console.warn("❌ لا يوجد مستخدم Telegram");
         return;
     }
 
+    // حفظ بيانات المستخدم
     currentUser.id = tg.id;
     currentUser.name = tg.first_name;
 
     console.log("USER ID:", tg.id);
     console.log("ADMIN ID:", ADMIN_ID);
 
-    // 👑 إظهار زر الإدارة
+    // 👑 التحقق من الأدمن
     if (String(tg.id) === String(ADMIN_ID)) {
+
         const adminNav = document.getElementById('admin-nav');
 
         if (adminNav) {
-            adminNav.style.display = 'flex'; // 🔥 أهم سطر
+            adminNav.style.display = 'flex'; // 🔥 الحل الصحيح
             console.log("✅ ADMIN VISIBLE");
         } else {
             console.error("❌ admin-nav غير موجود في HTML");
         }
+
+    } else {
+        console.log("❌ هذا المستخدم ليس أدمن");
     }
 }
-
 
 // 👤 إعداد واجهة البروفايل (Telegram UI)
 function setupProfileUI() {
@@ -831,7 +842,7 @@ function setupProfileUI() {
     }
 
     // 👑 تمييز الأدمن
-    if (tg.id === ADMIN_ID) {
+    if (String(tg.id) === String(ADMIN_ID)) {
         document.getElementById('user-rank-label').innerText = "المالك";
     }
 }
@@ -1124,8 +1135,8 @@ async function checkReferralRewards() {
 // 🔥 تشغيل قسم الإحالات
 window.onload = async function () {
 
-    initApp();              // 🔥 مهم للإدارة
-    setupProfileUI();       // البروفايل
+    initApp();
+    setupProfileUI();
 
     await initUser();
     await loadProfileData();
@@ -1133,9 +1144,15 @@ window.onload = async function () {
 
     await initReferralSystem();
 
-    // 🔥 بداية من الصفحة الرئيسية
     showSection('home');
 };
+
+async function initReferralSystem() {
+    renderRefLink();
+    await loadReferralStats();
+    await loadLeaderboard();
+    await checkReferralRewards();
+}
         
            </script>
 </body>
