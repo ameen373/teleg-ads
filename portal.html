@@ -254,14 +254,6 @@ body {
     animation: fadeIn 0.4s ease;
 }
 
-        .section {
-    display: none;
-}
-
-.section.active {
-    display: block;
-}
-
 /* 📦 الكروت */
 #referral .card {
     background: #1e293b;
@@ -762,17 +754,14 @@ body {
     </div>
     
 
-       <div class="bottom-nav">
+         <div class="bottom-nav">
         <div class="nav-item active" onclick="showSection('home', this)"><i class="fas fa-home"></i><span>الرئيسية</span></div>
         <div class="nav-item" onclick="showSection('promo', this)"><i class="fas fa-ad"></i><span>المعلن</span></div>
         <div class="nav-item" onclick="showSection('publisher', this)"><i class="fas fa-bullhorn"></i><span>الناشر</span></div>
-        <div class="nav-item" onclick="showSection('referral', this)">
-    <i class="fas fa-users"></i>
-    <span>الإحالة</span>
-        </div>
+        <div class="nav-item" onclick="showSection('referrals', this)"><i class="fas fa-users"></i><span>الإحالة</span></div>
         <div class="nav-item" onclick="showSection('profile', this)"><i class="fas fa-user-circle"></i><span>الملف</span></div>
         <div class="nav-item" id="admin-nav" style="display: none;" onclick="showSection('admin', this)"><i class="fas fa-user-cog"></i><span>الإدارة</span></div>
-       </div>
+         </div>
    
 
     <script>
@@ -803,10 +792,12 @@ function initApp() {
     currentUser.id = tg.id;
     currentUser.name = tg.first_name;
 
-    // 👑 إظهار الأدمن
-    if (tg.id === ADMIN_ID) {
+    // 👑 إظهار الأدمن (مصّحح)
+    if (Number(tg.id) === Number(ADMIN_ID)) {
         const adminNav = document.getElementById('admin-nav');
-        if (adminNav) adminNav.style.display = 'block';
+        if (adminNav) {
+            adminNav.style.display = 'block';
+        }
     }
 }
 
@@ -1123,15 +1114,17 @@ async function checkReferralRewards() {
 // 🔥 تشغيل قسم الإحالات
 window.onload = async function () {
 
-    initApp();
-    setupProfileUI();
+    initApp();              // 🔥 مهم للإدارة
+    setupProfileUI();       // البروفايل
 
     await initUser();
     await loadProfileData();
     await loadTransactions();
 
-    // 🔥 تشغيل نظام الإحالات
     await initReferralSystem();
+
+    // 🔥 بداية من الصفحة الرئيسية
+    showSection('home');
 };
         
            </script>
