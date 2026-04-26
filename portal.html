@@ -1625,21 +1625,45 @@ function initApp() {
     webApp.expand();
 
     const tg = webApp.initDataUnsafe.user;
-    if (!tg) return;
+
+    console.log("📌 Telegram User:", tg);
+
+    if (!tg) {
+        console.error("❌ لا يوجد مستخدم (شغل التطبيق من داخل Telegram)");
+        return;
+    }
 
     currentUser.id = tg.id;
     currentUser.name = tg.first_name;
 
-    // 👑 إظهار الإدارة (حل نهائي)
+    console.log("🆔 Your ID:", tg.id);
+    console.log("👑 ADMIN ID:", ADMIN_ID);
+
+    // 🔥 اختبار إجباري (لا يعتمد على ID)
+    const adminNav = document.getElementById("admin-nav");
+
+    if (adminNav) {
+        adminNav.style.display = "flex";
+        console.log("✅ زر الإدارة ظهر (اختبار ناجح)");
+    } else {
+        console.error("❌ عنصر admin-nav غير موجود في HTML");
+    }
+
+    // 🔥 اختبار شرط الأدمن الحقيقي
     setTimeout(() => {
+
         if (String(tg.id) === String(ADMIN_ID)) {
-            const adminNav = document.getElementById("admin-nav");
+
             if (adminNav) {
                 adminNav.style.display = "flex";
-                console.log("✅ ADMIN ENABLED");
+                console.log("👑 أنت الأدمن - تم التفعيل");
             }
+
+        } else {
+            console.warn("❌ أنت لست الأدمن");
         }
-    }, 300);
+
+    }, 500);
 }
 
 // ===============================
