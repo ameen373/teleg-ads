@@ -73,43 +73,79 @@
 
         .btn { background: var(--accent-blue); color: white; border: none; padding: 12px; border-radius: 12px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 10px; }
 
-/* تنسيق قسم الملف الشخصي */
-.profile-header { margin-bottom: 20px; text-align: center; }
-
-.user-avatar {
-    width: 85px; height: 85px; border-radius: 50%;
-    border: 3px solid var(--accent); margin: 0 auto 12px;
-    background: #1e293b; display: flex; align-items: center; 
-    justify-content: center; font-size: 32px; font-weight: bold;
-    overflow: hidden; box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
+/* تصميم الملف الشخصي الفخم */
+.profile-main-card {
+    background: linear-gradient(145deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95)) !important;
+    border: 1px solid rgba(59, 130, 246, 0.2) !important;
 }
 
-.user-info h3 { margin: 5px 0; font-size: 18px; color: var(--text); }
-.user-info p { color: #94a3b8; font-size: 13px; margin: 0; }
-
-.profile-grid { 
-    display: grid; grid-template-columns: 1fr 1fr; 
-    gap: 12px; margin-top: 15px; 
+.profile-header-premium {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 25px;
 }
 
-.p-item { 
-    background: rgba(0,0,0,0.2); padding: 12px; 
-    border-radius: 16px; border: 1px solid rgba(255,255,255,0.03); 
-    text-align: center;
+.avatar-wrapper {
+    position: relative;
 }
 
-.p-item small { color: #94a3b8; font-size: 11px; display: block; margin-bottom: 4px; }
-.p-item b { font-size: 14px; color: var(--gold); }
-
-.btn-action {
-    width: 100%; padding: 14px; border-radius: 12px; border: none;
-    background: #1e293b; color: white; font-weight: bold; 
-    margin-top: 10px; cursor: pointer; display: flex; 
-    align-items: center; justify-content: center; gap: 10px;
-    transition: 0.3s;
+.user-avatar-premium {
+    width: 70px; height: 70px; border-radius: 20px;
+    background: var(--accent); display: flex; align-items: center; justify-content: center;
+    font-size: 28px; font-weight: bold; border: 2px solid rgba(255,255,255,0.1);
 }
 
-.btn-action:active { transform: scale(0.98); background: #2a374a; }
+.verify-badge {
+    position: absolute; bottom: -5px; right: -5px;
+    background: #fff; color: #3b82f6; border-radius: 50%;
+    width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+    font-size: 14px; border: 2px solid #0f172a;
+}
+
+.rank-badge {
+    background: rgba(212, 175, 55, 0.15); color: #d4af37;
+    padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: bold;
+}
+
+/* نظام الليفل */
+.level-container { text-align: right; margin-top: 15px; }
+.level-info { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px; }
+.progress-bar {
+    width: 100%; height: 8px; background: rgba(255,255,255,0.05);
+    border-radius: 10px; overflow: hidden;
+}
+.progress-fill {
+    height: 100%; background: linear-gradient(90deg, #3b82f6, #60a5fa);
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+}
+
+/* شبكة الإحصائيات */
+.stats-grid-premium {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 15px;
+}
+.stat-card {
+    background: var(--card); padding: 15px; border-radius: 18px;
+    text-align: center; border: 1px solid rgba(255,255,255,0.03);
+}
+.stat-card i { font-size: 20px; margin-bottom: 8px; display: block; }
+.stat-card small { color: #64748b; display: block; font-size: 11px; }
+.stat-card b { font-size: 15px; color: #fff; }
+
+/* القائمة السفلية */
+.profile-menu { margin-top: 15px; background: var(--card); border-radius: 20px; overflow: hidden; }
+.menu-item {
+    display: flex; align-items: center; padding: 15px;
+    border-bottom: 1px solid rgba(255,255,255,0.03); cursor: pointer;
+}
+.menu-item:last-child { border-bottom: none; }
+.menu-icon {
+    width: 35px; height: 35px; border-radius: 10px; background: rgba(59, 130, 246, 0.1);
+    color: var(--accent); display: flex; align-items: center; justify-content: center; margin-left: 12px;
+}
+.menu-text { flex: 1; font-size: 14px; text-align: right; }
+.arrow { color: #334155; font-size: 12px; }
+
 
         
     </style>
@@ -120,6 +156,7 @@
         <img id="app-logo" src="" alt="Logo">
     </div>
 
+    // ==========================================
     <div id="home" class="section active">
         <div class="card">
             <h2><i class="fas fa-wallet"></i> الرئيسية</h2>
@@ -140,6 +177,7 @@
         </div>
     </div>
 
+    // ==========================================
     <div id="promo" class="section">
         <div class="card">
             <h2><i class="fas fa-rocket"></i> المعلن</h2>
@@ -148,6 +186,7 @@
         </div>
     </div>
 
+    // ==========================================
     <div id="publisher" class="section">
          <div class="publisher-header-card">
         <div style="display: flex; gap: 20px;">
@@ -295,6 +334,7 @@
     </div>
 </div>
 
+    // ==========================================
     <div id="referrals" class="section">
         <div class="card">
             <h2><i class="fas fa-user-plus"></i> الإحالة</h2>
@@ -303,35 +343,76 @@
         </div>
     </div>
 
+    // ==========================================
     <div id="profile" class="section">
-    <div class="card">
-        <div class="profile-header">
-            <div id="user-pfp" class="user-avatar">?</div>
-            <div class="user-info">
+    <div class="card profile-main-card">
+        <div class="profile-header-premium">
+            <div class="avatar-wrapper">
+                <div id="user-pfp" class="user-avatar-premium">?</div>
+                <div class="verify-badge"><i class="fas fa-check-circle"></i></div>
+            </div>
+            <div class="user-meta">
                 <h3 id="user-name">جاري التحميل...</h3>
-                <p id="user-id">ID: 000000000</p>
+                <span id="user-rank-label" class="rank-badge">عضو برونزي</span>
             </div>
         </div>
 
-        <div class="profile-grid">
-            <div class="p-item"><small>إجمالي الأرباح</small><b id="total-earned">0.00 TRX</b></div>
-            <div class="p-item"><small>إجمالي المصاريف</small><b id="total-spent">0.00 TRX</b></div>
-            <div class="p-item"><small>الإحالات</small><b id="total-refs">0</b></div>
-            <div class="p-item"><small>المستوى</small><b id="user-level">عادي</b></div>
+        <div class="level-container">
+            <div class="level-info">
+                <span>المستوى الحالي: <b id="current-level-name">1</b></span>
+                <span id="level-percent">40%</span>
+            </div>
+            <div class="progress-bar">
+                <div id="level-progress" class="progress-fill" style="width: 40%;"></div>
+            </div>
+            <small class="level-hint">تبقّى 60 نقطة للوصول للمستوى الفضي</small>
         </div>
     </div>
 
-    <div class="card">
-        <button class="btn-action" onclick="window.Telegram.WebApp.openLink('https://t.me/YourChannel')">
-            <i class="fas fa-paper-plane"></i> قناة التحديثات
-        </button>
-        <button class="btn-action" onclick="window.Telegram.WebApp.openLink('https://t.me/YourSupport')">
-            <i class="fas fa-headset"></i> الدعم الفني
-        </button>
+    <div class="stats-grid-premium">
+        <div class="stat-card">
+            <i class="fas fa-wallet" style="color: #3b82f6;"></i>
+            <small>المحفظة</small>
+            <b id="p-balance">0.00 <small>TRX</small></b>
+        </div>
+        <div class="stat-card">
+            <i class="fas fa-chart-line" style="color: #10b981;"></i>
+            <small>الأرباح</small>
+            <b id="p-earned">0.00 <small>TRX</small></b>
+        </div>
+        <div class="stat-card">
+            <i class="fas fa-users" style="color: #f59e0b;"></i>
+            <small>الفريق</small>
+            <b id="p-refs">0</b>
+        </div>
+        <div class="stat-card">
+            <i class="fas fa-shield-alt" style="color: #ef4444;"></i>
+            <small>الحماية</small>
+            <b style="color: #10b981;">نشط</b>
+        </div>
+    </div>
+
+    <div class="profile-menu">
+        <div class="menu-item" onclick="copyRefLink()">
+            <div class="menu-icon"><i class="fas fa-link"></i></div>
+            <div class="menu-text">رابط الإحالة الخاص بي</div>
+            <i class="fas fa-chevron-left arrow"></i>
+        </div>
+        <div class="menu-item" onclick="window.Telegram.WebApp.showAlert('سجل نشاطاتك فارغ حالياً')">
+            <div class="menu-icon"><i class="fas fa-history"></i></div>
+            <div class="menu-text">سجل العمليات الأخير</div>
+            <i class="fas fa-chevron-left arrow"></i>
+        </div>
+        <div class="menu-item" onclick="window.Telegram.WebApp.openLink('https://t.me/YourSupport')">
+            <div class="menu-icon"><i class="fas fa-headset"></i></div>
+            <div class="menu-text">الدعم الفني المباشر</div>
+            <i class="fas fa-chevron-left arrow"></i>
+        </div>
     </div>
 </div>
 
 
+// ==========================================
     <div id="admin" class="section">
         <div class="card" style="border-color: #ef4444;">
             <h2 style="color: #ef4444;"><i class="fas fa-user-shield"></i> لوحة الإدارة</h2>
@@ -353,7 +434,8 @@
             
         </div>
     </div>
-
+    
+// ==========================================
        <div class="bottom-nav">
         <div class="nav-item active" onclick="showSection('home', this)"><i class="fas fa-home"></i><span>الرئيسية</span></div>
         <div class="nav-item" onclick="showSection('promo', this)"><i class="fas fa-ad"></i><span>المعلن</span></div>
@@ -362,7 +444,7 @@
         <div class="nav-item" onclick="showSection('profile', this)"><i class="fas fa-user-circle"></i><span>الملف</span></div>
         <div class="nav-item" id="admin-nav" style="display: none;" onclick="showSection('admin', this)"><i class="fas fa-user-cog"></i><span>الإدارة</span></div>
        </div>
-    
+    // ==========================================
 
     <script>
         // الإعدادات التي قدمتها
@@ -446,6 +528,46 @@ window.onload = function() {
     // الأوامر الأخرى لديك...
     loadUserProfile();
 };
+        function setupStrongProfile() {
+    const user = window.Telegram.WebApp.initDataUnsafe.user;
+    
+    if (user) {
+        // تحديث البيانات الأساسية
+        document.getElementById('user-name').innerText = user.first_name + (user.last_name ? " " + user.last_name : "");
+        document.getElementById('user-id').innerText = "ID: " + user.id;
+        
+        // معالجة الصورة الشخصية
+        const pfp = document.getElementById('user-pfp');
+        if (user.photo_url) {
+            pfp.innerHTML = `<img src="${user.photo_url}" style="width:100%; height:100%; object-fit:cover;">`;
+        } else {
+            pfp.innerText = user.first_name.charAt(0);
+        }
+
+        // تمييز رتبة المالك (أمين)
+        if (user.id === 549686235) {
+            document.getElementById('user-rank-label').innerText = "المالك (Owner)";
+            document.getElementById('user-rank-label').style.background = "rgba(239, 68, 68, 0.15)";
+            document.getElementById('user-rank-label').style.color = "#ef4444";
+            document.getElementById('current-level-name').innerText = "MAX";
+            document.getElementById('level-progress').style.width = "100%";
+        }
+    }
+}
+
+// وظيفة نسخ الرابط مع رسالة تنبيه جميلة
+function copyRefLink() {
+    const user = window.Telegram.WebApp.initDataUnsafe.user;
+    const link = `https://t.me/YourBot?start=${user ? user.id : ''}`;
+    navigator.clipboard.writeText(link);
+    window.Telegram.WebApp.showAlert("✅ تم نسخ رابط الإحالة الخاص بك بنجاح!");
+}
+
+// استدعاء الوظيفة عند التشغيل
+window.onload = function() {
+    setupStrongProfile();
+    // بقية وظائف التشغيل الخاصة بك...
+}
         
 
         window.onload = initApp;
