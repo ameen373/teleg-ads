@@ -1631,41 +1631,41 @@ function initApp() {
     console.log("📌 Telegram User:", tg);
 
     if (!tg) {
-        console.error("❌ لا يوجد مستخدم (شغل التطبيق من داخل Telegram)");
+        console.error("❌ التطبيق ليس داخل Telegram");
         return;
     }
 
     currentUser.id = tg.id;
     currentUser.name = tg.first_name;
 
-    console.log("🆔 Your ID:", tg.id);
+    console.log("🆔 YOUR ID:", tg.id);
     console.log("👑 ADMIN ID:", ADMIN_ID);
 
-    // 🔥 اختبار إجباري (لا يعتمد على ID)
-    const adminNav = document.getElementById("admin-nav");
-
-    if (adminNav) {
-        adminNav.style.display = "flex";
-        console.log("✅ زر الإدارة ظهر (اختبار ناجح)");
-    } else {
-        console.error("❌ عنصر admin-nav غير موجود في HTML");
-    }
-
-    // 🔥 اختبار شرط الأدمن الحقيقي
+    // 🔥 حل نهائي لظهور زر الإدارة (مع تأخير لضمان تحميل HTML)
     setTimeout(() => {
 
-        if (String(tg.id) === String(ADMIN_ID)) {
+        const adminNav = document.getElementById("admin-nav");
 
-            if (adminNav) {
-                adminNav.style.display = "flex";
-                console.log("👑 أنت الأدمن - تم التفعيل");
-            }
-
-        } else {
-            console.warn("❌ أنت لست الأدمن");
+        if (!adminNav) {
+            console.error("❌ admin-nav غير موجود في HTML");
+            return;
         }
 
-    }, 500);
+        // 🔥 اختبار إجباري (تأكد أن الزر يظهر)
+        adminNav.style.display = "flex";
+        console.log("✅ زر الإدارة ظهر (اختبار)");
+
+        // 🔥 تحقق الأدمن الحقيقي
+        if (String(tg.id) === String(ADMIN_ID)) {
+            adminNav.style.display = "flex";
+            console.log("👑 تم تفعيل وضع الإدارة");
+        } else {
+            console.warn("❌ هذا المستخدم ليس أدمن");
+            // ممكن تخليه مخفي إذا تريد:
+            // adminNav.style.display = "none";
+        }
+
+    }, 800); // ⏳ تأخير أطول لضمان تحميل الصفحة
 }
 
 // ===============================
