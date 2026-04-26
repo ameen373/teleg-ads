@@ -248,7 +248,152 @@ body {
         width: 45%;
     }
 }
-        
+
+/* 👥 قسم الإحالات */
+#referral {
+    animation: fadeIn 0.4s ease;
+}
+
+/* 📦 الكروت */
+#referral .card {
+    background: #1e293b;
+    border-radius: 18px;
+    padding: 16px;
+    margin: 15px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+}
+
+/* 🧾 العناوين */
+#referral h3,
+#referral h4 {
+    margin: 0 0 10px 0;
+}
+
+/* 💬 النص */
+#referral p {
+    font-size: 14px;
+    color: #94a3b8;
+    margin: 5px 0;
+}
+
+/* 💰 الإحصائيات */
+#referral .wallet {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 10px;
+    text-align: center;
+}
+
+#referral .wallet div {
+    flex: 1;
+}
+
+#referral .wallet small {
+    color: #94a3b8;
+}
+
+#referral .wallet b {
+    display: block;
+    font-size: 18px;
+    margin-top: 5px;
+}
+
+/* 🔗 رابط الإحالة */
+#referral #ref-link {
+    display: block;
+    background: #0f172a;
+    padding: 10px;
+    border-radius: 10px;
+    margin-top: 6px;
+    font-size: 12px;
+    word-break: break-all;
+    border: 1px solid #334155;
+}
+
+/* 📋 زر النسخ */
+#referral .wallet-actions {
+    margin-top: 12px;
+    text-align: center;
+}
+
+#referral .wallet-actions button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #10b981, #22c55e);
+    color: white;
+    cursor: pointer;
+    transition: 0.3s;
+    font-size: 14px;
+}
+
+#referral .wallet-actions button:hover {
+    transform: scale(1.05);
+}
+
+/* 🎁 المكافآت */
+#referral ul {
+    margin: 0;
+    padding: 0;
+}
+
+#referral ul li {
+    padding: 8px 0;
+    border-bottom: 1px solid #334155;
+    font-size: 14px;
+}
+
+/* 🏆 Leaderboard */
+#leaderboard {
+    margin-top: 10px;
+}
+
+#leaderboard div {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    border-bottom: 1px solid #334155;
+    font-size: 14px;
+}
+
+/* 🥇 تمييز أول 3 */
+#leaderboard div:nth-child(1) {
+    color: gold;
+    font-weight: bold;
+}
+
+#leaderboard div:nth-child(2) {
+    color: silver;
+}
+
+#leaderboard div:nth-child(3) {
+    color: #cd7f32;
+}
+
+/* ✨ تأثير Hover */
+#leaderboard div:hover {
+    background: #334155;
+    border-radius: 8px;
+}
+
+/* 📊 الشرح */
+#referral .card:last-child p {
+    line-height: 1.8;
+}
+
+/* 📱 موبايل */
+@media (max-width: 480px) {
+    #referral .wallet {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    #referral .wallet-actions button {
+        width: 100%;
+    }
+}
+    
     </style>
 </head>
 <body>
@@ -435,14 +580,82 @@ body {
     </div>
 </div>
 
-    
-    <div id="referrals" class="section">
-        <div class="card">
-            <h2><i class="fas fa-user-plus"></i> الإحالة</h2>
-            <p>رابط الإحالة الخاص بك:</p>
-            <div style="background:rgba(0,0,0,0.2); padding:10px; border-radius:10px; word-break:break-all;" id="ref-link">جاري التحميل...</div>
+    <!-- 👥 قسم الإحالات -->
+<div id="referral" class="section">
+
+    <!-- 🔷 كرت الإحالات الرئيسي -->
+    <div class="card">
+
+        <h3>👥 نظام الإحالات</h3>
+
+        <p>ادعُ أصدقاءك واربح عمولات مستمرة 💰</p>
+
+        <div class="wallet">
+            <div>
+                <small>عدد الإحالات</small>
+                <b id="ref-count">0</b>
+            </div>
+
+            <div>
+                <small>أرباح الإحالة</small>
+                <b id="ref-earnings">0 TRX</b>
+            </div>
         </div>
+
+        <!-- 🔗 رابط الإحالة -->
+        <div style="margin-top:15px;">
+            <small>رابط الدعوة الخاص بك:</small>
+            <div style="background:#0f172a; padding:10px; border-radius:10px; margin-top:5px; font-size:12px; word-break:break-all;">
+                <span id="ref-link">جاري التحميل...</span>
+            </div>
+        </div>
+
+        <!-- 📋 زر النسخ -->
+        <div class="wallet-actions">
+            <button onclick="copyRef()">📋 نسخ الرابط</button>
+        </div>
+
     </div>
+
+    <!-- 🎁 المكافآت -->
+    <div class="card">
+
+        <h4>🎁 مكافآت الإحالة</h4>
+
+        <ul style="padding:0; list-style:none; line-height:2;">
+            <li>🎯 5 إحالات → <b>10 TRX</b></li>
+            <li>🎯 20 إحالة → <b>50 TRX</b></li>
+            <li>🎯 50 إحالة → <b>200 TRX</b></li>
+        </ul>
+
+    </div>
+
+    <!-- 🏆 المتصدرين -->
+    <div class="card">
+
+        <h4>🏆 أفضل المسوّقين</h4>
+
+        <div id="leaderboard">
+            <small>جاري التحميل...</small>
+        </div>
+
+    </div>
+
+    <!-- 📊 شرح بسيط -->
+    <div class="card">
+
+        <h4>📢 كيف تعمل الإحالات؟</h4>
+
+        <p style="font-size:14px; color:#94a3b8;">
+            🔹 احصل على عمولة من كل معلن أو ناشر تقوم بدعوته<br>
+            🔹 كلما زاد نشاطهم، زادت أرباحك 💰<br>
+            🔹 يمكنك بناء شبكة وتحقيق دخل مستمر 🚀
+        </p>
+
+    </div>
+
+</div>
+    
 
     
     <!-- 👤 قسم الملف الشخصي -->
@@ -757,6 +970,155 @@ window.onload = async function () {
     await loadProfileData();
     await loadTransactions();
 };
+
+// ===============================
+// 👥 نظام الإحالات الكامل
+// ===============================
+
+// 🔷 رابط الإحالة
+function getRefLink() {
+    return `https://t.me/YourBot?start=${currentUser.id}`;
+}
+
+
+// 🔗 عرض الرابط في الصفحة
+function renderRefLink() {
+    const el = document.getElementById("ref-link");
+    if (el) {
+        el.innerText = getRefLink();
+    }
+}
+
+
+// 📋 نسخ الرابط
+function copyRef() {
+    const link = getRefLink();
+    navigator.clipboard.writeText(link);
+    toast("🔥 تم نسخ رابط الإحالة");
+}
+
+
+// 📊 تحميل إحصائيات الإحالة
+async function loadReferralStats() {
+
+    // عدد الإحالات
+    const snap = await db.ref("referrals/" + currentUser.id).get();
+
+    let count = snap.exists() ? Object.keys(snap.val()).length : 0;
+
+    const countEl = document.getElementById("ref-count");
+    if (countEl) countEl.innerText = count;
+
+    // 💰 أرباح الإحالة
+    const txSnap = await db.ref("transactions/" + currentUser.id).get();
+
+    let total = 0;
+
+    if (txSnap.exists()) {
+        Object.values(txSnap.val()).forEach(tx => {
+            if (tx.type && tx.type.includes("عمولة")) {
+                total += tx.amount;
+            }
+        });
+    }
+
+    const earnEl = document.getElementById("ref-earnings");
+    if (earnEl) earnEl.innerText = total + " TRX";
+}
+
+
+// 🏆 Leaderboard (أفضل المسوقين)
+async function loadLeaderboard() {
+
+    const snap = await db.ref("referrals").get();
+    const box = document.getElementById("leaderboard");
+
+    if (!box) return;
+
+    box.innerHTML = "";
+
+    if (!snap.exists()) {
+        box.innerHTML = "<small>لا يوجد بيانات</small>";
+        return;
+    }
+
+    let data = snap.val();
+    let ranking = [];
+
+    Object.keys(data).forEach(userId => {
+        let count = Object.keys(data[userId]).length;
+
+        ranking.push({
+            userId,
+            count
+        });
+    });
+
+    // ترتيب تنازلي
+    ranking.sort((a, b) => b.count - a.count);
+
+    ranking.slice(0, 10).forEach((u, i) => {
+        box.innerHTML += `
+        <div>
+            <span>🏅 #${i + 1}</span>
+            <span>${u.userId}</span>
+            <b>${u.count} إحالة</b>
+        </div>`;
+    });
+}
+
+
+// 🎁 نظام المكافآت
+async function checkReferralRewards() {
+
+    const snap = await db.ref("referrals/" + currentUser.id).get();
+
+    if (!snap.exists()) return;
+
+    let count = Object.keys(snap.val()).length;
+
+    let reward = 0;
+
+    if (count >= 50) reward = 200;
+    else if (count >= 20) reward = 50;
+    else if (count >= 5) reward = 10;
+
+    if (reward > 0) {
+
+        // ⚠️ منع التكرار (مهم)
+        const rewardRef = db.ref("rewards/" + currentUser.id + "/" + count);
+        const rewardSnap = await rewardRef.get();
+
+        if (rewardSnap.exists()) return;
+
+        // إضافة الرصيد
+        await db.ref("users/" + currentUser.id).update({
+            balance: firebase.database.ServerValue.increment(reward)
+        });
+
+        // تسجيل العملية
+        await db.ref("transactions/" + currentUser.id).push({
+            type: "مكافأة إحالة",
+            amount: reward,
+            date: Date.now()
+        });
+
+        // تسجيل أنه استلمها
+        await rewardRef.set(true);
+
+        toast("🎁 حصلت على مكافأة " + reward + " TRX");
+    }
+}
+
+
+// 🔥 تشغيل قسم الإحالات
+async function initReferralSystem() {
+
+    renderRefLink();
+    await loadReferralStats();
+    await loadLeaderboard();
+    await checkReferralRewards();
+}
         
            </script>
 </body>
