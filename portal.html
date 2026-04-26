@@ -1626,40 +1626,42 @@ function initApp() {
     webApp.ready();
     webApp.expand();
 
-    // 🔥 ننتظر Telegram يجهز البيانات
-    setTimeout(() => {
+    const user = webApp.initDataUnsafe.user;
 
-        const tg = webApp.initDataUnsafe.user;
+    console.log("USER:", user);
 
-        console.log("📌 TG USER:", tg);
+    if (!user) {
+        console.error("❌ Telegram غير جاهز");
+        return;
+    }
 
-        if (!tg) {
-            console.error("❌ Telegram لم يجهز بعد");
-            return;
-        }
+    currentUser.id = user.id;
+    currentUser.name = user.first_name;
 
-        currentUser.id = tg.id;
-        currentUser.name = tg.first_name;
-
-        console.log("🆔 YOUR ID:", tg.id);
-        console.log("👑 ADMIN ID:", ADMIN_ID);
+    // 👑 الإدارة (نفس الكود القديم 100%)
+    if (user.id === ADMIN_ID) {
 
         const adminNav = document.getElementById("admin-nav");
 
-        if (!adminNav) {
-            console.error("❌ admin-nav غير موجود");
-            return;
-        }
-
-        // 👑 التحقق الصحيح
-        if (String(tg.id) === String(ADMIN_ID)) {
-            adminNav.style.display = "flex";
-            console.log("👑 ADMIN ACTIVATED");
+        if (adminNav) {
+            adminNav.style.display = "flex"; // أو block
+            console.log("👑 ADMIN SHOWN");
         } else {
-            console.warn("❌ ليس أدمن");
+            console.error("❌ admin-nav غير موجود");
         }
+    }
 
-    }, 1000); // ⏳ انتظار 1 ثانية (مهم جداً)
+    // 👤 الملف الشخصي
+    setupProfileUI();
+
+    // 🔥 إنشاء المستخدم
+    initUser();
+
+    // 💰 تحميل البيانات
+    loadProfileData();
+
+    // 🧭 فتح الصفحة الرئيسية
+    showSection("home");
 }
 // ===============================
 // 👤 واجهة المستخدم
