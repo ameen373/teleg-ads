@@ -123,7 +123,6 @@
     <div id="home" class="section active">
         <div class="card">
             <h2><i class="fas fa-wallet"></i> الرئيسية</h2>
-        
             <p id="balance-display">رصيدك: 0.00 TRX</p>
 
             <div class="card" style="text-align: center;">
@@ -355,7 +354,16 @@
         </div>
     </div>
 
+       <div class="bottom-nav">
+        <div class="nav-item active" onclick="showSection('home', this)"><i class="fas fa-home"></i><span>الرئيسية</span></div>
+        <div class="nav-item" onclick="showSection('promo', this)"><i class="fas fa-ad"></i><span>المعلن</span></div>
+        <div class="nav-item" onclick="showSection('publisher', this)"><i class="fas fa-bullhorn"></i><span>الناشر</span></div>
+        <div class="nav-item" onclick="showSection('referrals', this)"><i class="fas fa-users"></i><span>الإحالة</span></div>
+        <div class="nav-item" onclick="showSection('profile', this)"><i class="fas fa-user-circle"></i><span>الملف</span></div>
+        <div class="nav-item" id="admin-nav" style="display: none;" onclick="showSection('admin', this)"><i class="fas fa-user-cog"></i><span>الإدارة</span></div>
+       </div>
     
+
     <script>
         // الإعدادات التي قدمتها
         const webApp = window.Telegram.WebApp;
@@ -388,15 +396,7 @@
                     document.getElementById('admin-nav').style.display = 'block';
                 }
                 // تحديث رابط الإحالة
-                document.getElementById('ref-link').innerTex   <div class="bottom-nav">
-        <div class="nav-item active" onclick="showSection('home', this)"><i class="fas fa-home"></i><span>الرئيسية</span></div>
-        <div class="nav-item" onclick="showSection('promo', this)"><i class="fas fa-ad"></i><span>المعلن</span></div>
-        <div class="nav-item" onclick="showSection('publisher', this)"><i class="fas fa-bullhorn"></i><span>الناشر</span></div>
-        <div class="nav-item" onclick="showSection('referrals', this)"><i class="fas fa-users"></i><span>الإحالة</span></div>
-        <div class="nav-item" onclick="showSection('profile', this)"><i class="fas fa-user-circle"></i><span>الملف</span></div>
-        <div class="nav-item" id="admin-nav" style="display: none;" onclick="showSection('admin', this)"><i class="fas fa-user-cog"></i><span>الإدارة</span></div>
-    </div>
-t = `https://t.me/YourBot?start=${user.id}`;
+                document.getElementById('ref-link').innerText = `https://t.me/YourBot?start=${user.id}`;
             }
         }
 
@@ -446,7 +446,7 @@ window.onload = function() {
     // الأوامر الأخرى لديك...
     loadUserProfile();
 };
-                    
+        
 
         window.onload = initApp;
     </script>
