@@ -959,15 +959,22 @@ function logout() {
 
 // 🔄 التنقل بين الصفحات
 function showSection(sectionId, element) {
+
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     document.getElementById(sectionId).classList.add('active');
 
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    element.classList.add('active');
+    if (element) element.classList.add('active');
 
-    if (webApp.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
+    // 🔥 إذا دخل الإحالات
+    if (sectionId === "referral") {
+        initReferralSystem();
+    }
+
+    if (window.Telegram?.WebApp?.HapticFeedback) {
+        Telegram.WebApp.HapticFeedback.impactOccurred('light');
+    }
 }
-
 
 // 🚀 تشغيل واحد فقط (بدون تكرار)
 window.onload = async function () {
@@ -1119,13 +1126,18 @@ async function checkReferralRewards() {
 
 
 // 🔥 تشغيل قسم الإحالات
-async function initReferralSystem() {
+window.onload = async function () {
 
-    renderRefLink();
-    await loadReferralStats();
-    await loadLeaderboard();
-    await checkReferralRewards();
-}
+    initApp();
+    setupProfileUI();
+
+    await initUser();
+    await loadProfileData();
+    await loadTransactions();
+
+    // 🔥 تشغيل نظام الإحالات
+    await initReferralSystem();
+};
         
            </script>
 </body>
