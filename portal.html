@@ -976,12 +976,20 @@ function logout() {
 function showSection(sectionId, element) {
 
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-    document.getElementById(sectionId).classList.add('active');
+
+    const target = document.getElementById(sectionId);
+
+    if (target) {
+        target.classList.add('active');
+    } else {
+        console.error("❌ Section not found:", sectionId);
+        return;
+    }
 
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     if (element) element.classList.add('active');
 
-    // 🔥 إذا دخل الإحالات
+    // 🔥 تشغيل الإحالة فقط عند الدخول
     if (sectionId === "referral") {
         initReferralSystem();
     }
@@ -1142,12 +1150,20 @@ window.onload = async function () {
     await loadProfileData();
     await loadTransactions();
 
-    await initReferralSystem();
+    // ❌ احذف هذا
+    // await initReferralSystem();
 
     showSection('home');
 };
 
 async function initReferralSystem() {
+
+    const refEl = document.getElementById("ref-link");
+    if (!refEl) {
+        console.warn("❌ عناصر الإحالة غير موجودة");
+        return;
+    }
+
     renderRefLink();
     await loadReferralStats();
     await loadLeaderboard();
