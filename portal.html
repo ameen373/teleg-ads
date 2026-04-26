@@ -765,7 +765,8 @@ body {
    
 
     <script>
-        // 🔷 Telegram
+
+// 🔷 Telegram
 const webApp = window.Telegram?.WebApp;
 const ADMIN_ID = 549686235;
 
@@ -779,10 +780,23 @@ let currentUser = {
     name: ""
 };
 
+// 🚀 تشغيل التطبيق (مرة واحدة فقط)
+window.onload = async function () {
 
-// 🚀 تشغيل التطبيق
+    console.log("✅ APP START");
+
+    initApp();
+    setupProfileUI();
+
+    await initUser();
+    await loadProfileData();
+    await loadTransactions();
+
+    showSection('home');
+};
+
+// 🔥 تهيئة Telegram + الأدمن
 function initApp() {
-    const webApp = window.Telegram?.WebApp;
 
     if (!webApp) {
         console.warn("❌ افتح التطبيق داخل Telegram");
@@ -795,37 +809,29 @@ function initApp() {
     const tg = webApp.initDataUnsafe?.user;
 
     if (!tg) {
-        console.warn("❌ لا يوجد مستخدم Telegram");
+        console.warn("❌ لا يوجد مستخدم");
         return;
     }
 
-    // حفظ بيانات المستخدم
     currentUser.id = tg.id;
     currentUser.name = tg.first_name;
 
-    console.log("USER ID:", tg.id);
-    console.log("ADMIN ID:", ADMIN_ID);
+    console.log("USER:", tg.id);
+    console.log("ADMIN:", ADMIN_ID);
 
-    // 👑 التحقق من الأدمن
+    // 👑 إظهار زر الإدارة
     if (String(tg.id) === String(ADMIN_ID)) {
-
         const adminNav = document.getElementById('admin-nav');
-
         if (adminNav) {
-            adminNav.style.display = 'flex'; // 🔥 الحل الصحيح
-            console.log("✅ ADMIN VISIBLE");
-        } else {
-            console.error("❌ admin-nav غير موجود في HTML");
+            adminNav.style.display = 'flex';
+            console.log("✅ ADMIN ENABLED");
         }
-
-    } else {
-        console.log("❌ هذا المستخدم ليس أدمن");
     }
 }
 
-// 👤 إعداد واجهة البروفايل (Telegram UI)
+// 👤 واجهة البروفايل
 function setupProfileUI() {
-    const tg = webApp.initDataUnsafe.user;
+    const tg = webApp?.initDataUnsafe?.user;
     if (!tg) return;
 
     const fullName = tg.first_name + (tg.last_name ? " " + tg.last_name : "");
@@ -840,16 +846,13 @@ function setupProfileUI() {
     } else {
         pfp.innerText = tg.first_name.charAt(0);
     }
-
-    // 👑 تمييز الأدمن
-    if (String(tg.id) === String(ADMIN_ID)) {
-        document.getElementById('user-rank-label').innerText = "المالك";
-    }
 }
 
-
-// 🔥 إنشاء المستخدم في Firebase
+// 🔥 إنشاء المستخدم
 async function initUser() {
+
+    if (!currentUser.id) return;
+
     const ref = db.ref("users/" + currentUser.id);
     const snap = await ref.get();
 
@@ -863,9 +866,11 @@ async function initUser() {
     }
 }
 
-
-// 📥 تحميل بيانات البروفايل
+// 📊 بيانات البروفايل
 async function loadProfileData() {
+
+    if (!currentUser.id) return;
+
     const ref = db.ref("users/" + currentUser.id);
     const snap = await ref.get();
 
@@ -873,17 +878,21 @@ async function loadProfileData() {
 
     const data = snap.val();
 
-    document.getElementById("balance").innerText = data.balance + " TRX";
-    document.getElementById("earned").innerText = data.earned + " TRX";
+    document.getElementById("p-balance").innerText = data.balance + " TRX";
+    document.getElementById("p-earned").innerText = data.earned + " TRX";
 }
 
-
-// 📄 تحميل المعاملات
+// 📄 المعاملات
 async function loadTransactions() {
+
+    if (!currentUser.id) return;
+
     const ref = db.ref("transactions/" + currentUser.id);
     const snap = await ref.get();
 
     const box = document.getElementById("transactions");
+    if (!box) return;
+
     box.innerHTML = "";
 
     if (!snap.exists()) {
@@ -891,9 +900,7 @@ async function loadTransactions() {
         return;
     }
 
-    const data = snap.val();
-
-    Object.values(data).reverse().forEach(tx => {
+    Object.values(snap.val()).reverse().forEach(tx => {
         box.innerHTML += `
         <div class="tx-item">
             <span>${tx.type}</span>
@@ -904,44 +911,129 @@ async function loadTransactions() {
     });
 }
 
+// 🔄 التنقل
+function showSection(sectionId, element) {
 
-// 💰 سحب
-async function withdraw() {
-    let amount = parseFloat(prompt("كم تريد السحب؟"));
-    if (!amount) return;
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
 
-    const userRef = db.ref("users/" + currentUser.id);
-    const snap = await userRef.get();
-    const data = snap.val();
+    const target = document.getElementById(sectionId);
+    if (!target) return;
 
-    if (amount > data.balance) {
-        toast("رصيد غير كافي ❌");
-        return;
+    target.classList.add('active');
+
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    if (element) element.classList.add('active');
+
+    // 🔥 تشغيل الإحالة عند الدخول فقط
+    if (sectionId === "referral") {
+        initReferralSystem();
     }
 
-    await userRef.update({
-        balance: data.balance - amount
-    });
-
-    await db.ref("transactions/" + currentUser.id).push({
-        type: "سحب",
-        amount: -amount,
-        status: "pending",
-        date: Date.now()
-    });
-
-    toast("تم إرسال طلب السحب ✅");
-
-    loadProfileData();
-    loadTransactions();
+    if (webApp?.HapticFeedback) {
+        webApp.HapticFeedback.impactOccurred('light');
+    }
 }
 
+// ===============================
+// 👥 نظام الإحالات
+// ===============================
 
-// ➕ إيداع
-function deposit() {
-    alert("أرسل TRX إلى:\nYOUR_WALLET_ADDRESS");
+// 🔗 رابط الإحالة
+function getRefLink() {
+    return `https://t.me/YourBot?start=${currentUser.id}`;
 }
 
+// عرض الرابط
+function renderRefLink() {
+    const el = document.getElementById("ref-link");
+    if (el) el.innerText = getRefLink();
+}
+
+// نسخ الرابط
+function copyRef() {
+    navigator.clipboard.writeText(getRefLink());
+    toast("🔥 تم نسخ الرابط");
+}
+
+// تحميل الإحصائيات
+async function loadReferralStats() {
+
+    const snap = await db.ref("referrals/" + currentUser.id).get();
+    const count = snap.exists() ? Object.keys(snap.val()).length : 0;
+
+    const el = document.getElementById("ref-count");
+    if (el) el.innerText = count;
+}
+
+// Leaderboard
+async function loadLeaderboard() {
+
+    const snap = await db.ref("referrals").get();
+    const box = document.getElementById("leaderboard");
+    if (!box) return;
+
+    box.innerHTML = "";
+
+    if (!snap.exists()) return;
+
+    let ranking = [];
+
+    Object.keys(snap.val()).forEach(uid => {
+        ranking.push({
+            id: uid,
+            count: Object.keys(snap.val()[uid]).length
+        });
+    });
+
+    ranking.sort((a, b) => b.count - a.count);
+
+    ranking.slice(0, 10).forEach((u, i) => {
+        box.innerHTML += `
+        <div>
+            <span>#${i + 1}</span>
+            <span>${u.id}</span>
+            <b>${u.count}</b>
+        </div>`;
+    });
+}
+
+// مكافآت
+async function checkReferralRewards() {
+
+    const snap = await db.ref("referrals/" + currentUser.id).get();
+    if (!snap.exists()) return;
+
+    const count = Object.keys(snap.val()).length;
+
+    let reward = 0;
+    if (count >= 50) reward = 200;
+    else if (count >= 20) reward = 50;
+    else if (count >= 5) reward = 10;
+
+    if (!reward) return;
+
+    await db.ref("users/" + currentUser.id).update({
+        balance: firebase.database.ServerValue.increment(reward)
+    });
+
+    toast("🎁 مكافأة " + reward + " TRX");
+}
+
+// تشغيل الإحالة
+async function initReferralSystem() {
+
+    const refEl = document.getElementById("ref-link");
+    if (!refEl) return;
+
+    try {
+        renderRefLink();
+        await loadReferralStats();
+        await loadLeaderboard();
+        await checkReferralRewards();
+    } catch (e) {
+        console.error("Referral Error:", e);
+    }
+}
 
 // 🔔 إشعار
 function toast(msg) {
@@ -950,224 +1042,6 @@ function toast(msg) {
     t.innerText = msg;
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 2000);
-}
-
-
-// 📋 نسخ ID
-function copyId() {
-    navigator.clipboard.writeText(currentUser.id);
-    toast("تم نسخ ID ✅");
-}
-
-
-// 📞 دعم
-function contact() {
-    window.open("https://t.me/YourSupport");
-}
-
-
-// 🚪 خروج
-function logout() {
-    toast("تم تسجيل الخروج");
-}
-
-
-// 🔄 التنقل بين الصفحات
-function showSection(sectionId, element) {
-
-    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-
-    const target = document.getElementById(sectionId);
-
-    if (target) {
-        target.classList.add('active');
-    } else {
-        console.error("❌ Section not found:", sectionId);
-        return;
-    }
-
-    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    if (element) element.classList.add('active');
-
-    // 🔥 تشغيل الإحالة فقط عند الدخول
-    if (sectionId === "referral") {
-        initReferralSystem();
-    }
-
-    if (window.Telegram?.WebApp?.HapticFeedback) {
-        Telegram.WebApp.HapticFeedback.impactOccurred('light');
-    }
-}
-
-
-// ===============================
-// 👥 نظام الإحالات الكامل
-// ===============================
-
-// 🔷 رابط الإحالة
-function getRefLink() {
-    return `https://t.me/YourBot?start=${currentUser.id}`;
-}
-
-
-// 🔗 عرض الرابط في الصفحة
-function renderRefLink() {
-    const el = document.getElementById("ref-link");
-    if (el) {
-        el.innerText = getRefLink();
-    }
-}
-
-
-// 📋 نسخ الرابط
-function copyRef() {
-    const link = getRefLink();
-    navigator.clipboard.writeText(link);
-    toast("🔥 تم نسخ رابط الإحالة");
-}
-
-
-// 📊 تحميل إحصائيات الإحالة
-async function loadReferralStats() {
-
-    // عدد الإحالات
-    const snap = await db.ref("referrals/" + currentUser.id).get();
-
-    let count = snap.exists() ? Object.keys(snap.val()).length : 0;
-
-    const countEl = document.getElementById("ref-count");
-    if (countEl) countEl.innerText = count;
-
-    // 💰 أرباح الإحالة
-    const txSnap = await db.ref("transactions/" + currentUser.id).get();
-
-    let total = 0;
-
-    if (txSnap.exists()) {
-        Object.values(txSnap.val()).forEach(tx => {
-            if (tx.type && tx.type.includes("عمولة")) {
-                total += tx.amount;
-            }
-        });
-    }
-
-    const earnEl = document.getElementById("ref-earnings");
-    if (earnEl) earnEl.innerText = total + " TRX";
-}
-
-
-// 🏆 Leaderboard (أفضل المسوقين)
-async function loadLeaderboard() {
-
-    const snap = await db.ref("referrals").get();
-    const box = document.getElementById("leaderboard");
-
-    if (!box) return;
-
-    box.innerHTML = "";
-
-    if (!snap.exists()) {
-        box.innerHTML = "<small>لا يوجد بيانات</small>";
-        return;
-    }
-
-    let data = snap.val();
-    let ranking = [];
-
-    Object.keys(data).forEach(userId => {
-        let count = Object.keys(data[userId]).length;
-
-        ranking.push({
-            userId,
-            count
-        });
-    });
-
-    // ترتيب تنازلي
-    ranking.sort((a, b) => b.count - a.count);
-
-    ranking.slice(0, 10).forEach((u, i) => {
-        box.innerHTML += `
-        <div>
-            <span>🏅 #${i + 1}</span>
-            <span>${u.userId}</span>
-            <b>${u.count} إحالة</b>
-        </div>`;
-    });
-}
-
-
-// 🎁 نظام المكافآت
-async function checkReferralRewards() {
-
-    const snap = await db.ref("referrals/" + currentUser.id).get();
-
-    if (!snap.exists()) return;
-
-    let count = Object.keys(snap.val()).length;
-
-    let reward = 0;
-
-    if (count >= 50) reward = 200;
-    else if (count >= 20) reward = 50;
-    else if (count >= 5) reward = 10;
-
-    if (reward > 0) {
-
-        // ⚠️ منع التكرار (مهم)
-        const rewardRef = db.ref("rewards/" + currentUser.id + "/" + count);
-        const rewardSnap = await rewardRef.get();
-
-        if (rewardSnap.exists()) return;
-
-        // إضافة الرصيد
-        await db.ref("users/" + currentUser.id).update({
-            balance: firebase.database.ServerValue.increment(reward)
-        });
-
-        // تسجيل العملية
-        await db.ref("transactions/" + currentUser.id).push({
-            type: "مكافأة إحالة",
-            amount: reward,
-            date: Date.now()
-        });
-
-        // تسجيل أنه استلمها
-        await rewardRef.set(true);
-
-        toast("🎁 حصلت على مكافأة " + reward + " TRX");
-    }
-}
-
-
-// 🔥 تشغيل قسم الإحالات
-window.onload = async function () {
-
-    initApp();
-    setupProfileUI();
-
-    await initUser();
-    await loadProfileData();
-    await loadTransactions();
-
-    // ❌ احذف هذا
-    // await initReferralSystem();
-
-    showSection('home');
-};
-
-async function initReferralSystem() {
-
-    const refEl = document.getElementById("ref-link");
-    if (!refEl) {
-        console.warn("❌ عناصر الإحالة غير موجودة");
-        return;
-    }
-
-    renderRefLink();
-    await loadReferralStats();
-    await loadLeaderboard();
-    await checkReferralRewards();
 }
         
            </script>
