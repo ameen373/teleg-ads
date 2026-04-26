@@ -823,23 +823,16 @@ function initApp() {
     console.log("ADMIN:", ADMIN_ID);
 
     // 👑 التحقق من الأدمن
-console.log("TG ID:", tg.id);
-console.log("ADMIN ID:", ADMIN_ID);
 
 if (String(tg.id) === String(ADMIN_ID)) {
-
-    const adminNav = document.getElementById('admin-nav');
-
-    if (adminNav) {
-        adminNav.style.display = 'flex';
-        console.log("✅ ADMIN ENABLED");
-    } else {
-        console.error("❌ admin-nav غير موجود");
-    }
-
-} else {
-    console.warn("❌ هذا المستخدم ليس أدمن");
+const adminNav = document.getElementById('admin-nav');
+if (adminNav) {
+adminNav.style.display = 'flex';
+console.log("✅ ADMIN ENABLED");
 }
+}
+}
+        
 // 👤 واجهة البروفايل
 function setupProfileUI() {
     const tg = webApp?.initDataUnsafe?.user;
