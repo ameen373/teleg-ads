@@ -1759,6 +1759,8 @@ function showSection(sectionId, element) {
 // ===============================
 function loadCountries() {
 
+    console.log("🔥 loadCountries اشتغلت");
+
     const continent = document.getElementById("ad-continent").value;
     const countrySelect = document.getElementById("ad-country");
 
@@ -1766,11 +1768,15 @@ function loadCountries() {
 
     if (continent === "all") return;
 
+    if (!countriesByContinent[continent]) {
+        console.error("❌ القارة غير موجودة:", continent);
+        return;
+    }
+
     countriesByContinent[continent].forEach(c => {
         countrySelect.innerHTML += `<option value="${c.code}">${c.name}</option>`;
     });
 }
-
 // ===============================
 // 📢 نوع الإعلان
 // ===============================
