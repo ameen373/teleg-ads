@@ -1590,6 +1590,43 @@ if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 // ===============================
+// 🌍 القارات + الدول
+// ===============================
+const countriesByContinent = {
+
+    asia: [
+        {code:"sa", name:"🇸🇦 السعودية"},
+        {code:"ae", name:"🇦🇪 الإمارات"},
+        {code:"ye", name:"🇾🇪 اليمن"},
+        {code:"iq", name:"🇮🇶 العراق"}
+    ],
+
+    africa: [
+        {code:"eg", name:"🇪🇬 مصر"},
+        {code:"dz", name:"🇩🇿 الجزائر"},
+        {code:"ma", name:"🇲🇦 المغرب"}
+    ],
+
+    europe: [
+        {code:"de", name:"🇩🇪 ألمانيا"},
+        {code:"fr", name:"🇫🇷 فرنسا"}
+    ],
+
+    north_america: [
+        {code:"us", name:"🇺🇸 أمريكا"},
+        {code:"ca", name:"🇨🇦 كندا"}
+    ],
+
+    south_america: [
+        {code:"br", name:"🇧🇷 البرازيل"}
+    ],
+
+    australia: [
+        {code:"au", name:"🇦🇺 أستراليا"}
+    ]
+};
+        
+// ===============================
 // 👤 المستخدم
 // ===============================
 let currentUser = {
