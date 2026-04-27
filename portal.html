@@ -1091,111 +1091,86 @@
                 <div class="ad-type" onclick="selectAdType(this, 'post')">📌 منشور ثابت</div>
             </div>
 
-            <!-- 🧾 عنوان الإعلان -->
+            <!-- 🧾 عنوان -->
             <div class="ad-form-group">
                 <label>عنوان الإعلان</label>
                 <input type="text" id="ad-title" placeholder="مثال: أفضل بوت ربح 💰">
             </div>
 
-            <!-- 🔗 الرابط -->
+            <!-- 🔗 رابط -->
             <div class="ad-form-group">
                 <label>رابط الإعلان</label>
                 <input type="text" id="ad-link" placeholder="https://t.me/...">
             </div>
 
-            <!-- 📝 الوصف -->
+            <!-- 📝 وصف -->
             <div class="ad-form-group">
                 <label>وصف الإعلان</label>
-                <textarea id="ad-desc" placeholder="اكتب وصف جذاب للإعلان..."></textarea>
+                <textarea id="ad-desc" placeholder="وصف اختياري"></textarea>
             </div>
 
-            <!-- 🌍 الاستهداف -->
-            <div class="ad-target">
-
-                <div class="ad-form-group">
-                    <label>🌍 القارة</label>
-                    <select id="ad-continent">
-                        <option value="all">كل القارات</option>
-                        <option value="asia">آسيا</option>
-                        <option value="europe">أوروبا</option>
-                        <option value="africa">أفريقيا</option>
-                        <option value="north_america">أمريكا الشمالية</option>
-                        <option value="south_america">أمريكا الجنوبية</option>
-                    </select>
-                </div>
-
-                <div class="ad-form-group">
-                    <label>🌐 الدولة</label>
-                    <select id="ad-country">
-                        <option value="all">كل الدول</option>
-                        <option value="sa">السعودية</option>
-                        <option value="eg">مصر</option>
-                        <option value="ae">الإمارات</option>
-                        <option value="ye">اليمن</option>
-                        <option value="us">أمريكا</option>
-                    </select>
-                </div>
-
-            </div>
-
-            <!-- 📂 التصنيف -->
+            <!-- 🌍 القارة -->
             <div class="ad-form-group">
-                <label>📂 التصنيف</label>
+                <label>🌍 القارة</label>
+                <select id="ad-continent" onchange="loadCountries()">
+                    <option value="all">🌍 جميع القارات</option>
+                    <option value="asia">آسيا</option>
+                    <option value="africa">أفريقيا</option>
+                    <option value="europe">أوروبا</option>
+                    <option value="north_america">أمريكا الشمالية</option>
+                    <option value="south_america">أمريكا الجنوبية</option>
+                    <option value="australia">أستراليا</option>
+                </select>
+            </div>
+
+            <!-- 🌎 الدولة -->
+            <div class="ad-form-group">
+                <label>🌎 الدولة</label>
+                <select id="ad-country">
+                    <option value="all">🌍 جميع الدول</option>
+                </select>
+            </div>
+
+            <!-- 🎯 التصنيف -->
+            <div class="ad-form-group">
+                <label>🎯 الاهتمام</label>
                 <select id="ad-category">
-                    <option value="all">كل التصنيفات</option>
-                    <option value="crypto">💰 كريبتو</option>
-                    <option value="earn">📈 ربح</option>
-                    <option value="games">🎮 ألعاب</option>
-                    <option value="tech">💻 تقنية</option>
-                    <option value="services">🛠️ خدمات</option>
+                    <option value="all">🌍 عام</option>
+                    <option value="crypto">💰 عملات رقمية</option>
+                    <option value="beauty">💄 جمال</option>
+                    <option value="movies">🎬 أفلام</option>
+                    <option value="sports">⚽ رياضة</option>
+                    <option value="entertainment">🎭 ترفيه</option>
+                    <option value="news">📰 أخبار</option>
+                    <option value="programming">💻 برمجة</option>
+                    <option value="gaming">🎮 ألعاب</option>
+                    <option value="cooking">🍳 طبخ</option>
+                    <option value="tech">📱 تقنية</option>
                 </select>
             </div>
 
             <!-- 💰 الميزانية -->
             <div class="ad-budget">
                 <input type="number" id="ad-budget" placeholder="الميزانية (USDT)">
-                <input type="number" id="ad-price" placeholder="سعر النقرة">
+                <input type="number" id="ad-price" placeholder="السعر لكل نقرة/مشاهدة">
             </div>
 
-            <!-- 🚀 زر إنشاء -->
+            <!-- 🚀 زر -->
             <button class="ad-submit-btn" onclick="createCampaign()">
                 🚀 إطلاق الحملة
             </button>
 
         </div>
 
-        <!-- ========================= -->
-        <!-- 📊 الحملات -->
-        <!-- ========================= -->
-
+        <!-- 📊 عرض الحملات -->
         <div class="ad-campaigns" id="campaigns-list">
-
-            <!-- مثال حملة -->
-            <div class="ad-campaign-card">
-
-                <div class="ad-campaign-header">
-                    <div class="ad-campaign-title">📢 إعلان تجريبي</div>
-                    <div class="ad-status active">نشط</div>
-                </div>
-
-                <div class="ad-stats">
-                    <span>👁️ 1200</span>
-                    <span>🖱️ 230</span>
-                    <span>💰 15 USDT</span>
-                </div>
-
-                <div class="ad-actions">
-                    <button class="ad-btn pause">⏸ إيقاف</button>
-                    <button class="ad-btn delete">🗑 حذف</button>
-                </div>
-
-            </div>
-
+            <!-- يتم ملؤه تلقائياً -->
         </div>
 
     </div>
 
 </div>
+
 
     <!-- ========================= -->
 <!-- 📣 Publisher Section -->
@@ -1205,81 +1180,85 @@
 
     <div class="publisher-container">
 
+        <h2>📣 إدارة قنواتك</h2>
+
         <!-- 🔥 إضافة قناة -->
         <div class="channel-add-card">
 
-            <h3>📣 إضافة قناة</h3>
+            <h3>➕ إضافة قناة جديدة</h3>
 
+            <!-- اسم القناة -->
             <div class="channel-form-group">
                 <label>اسم القناة</label>
                 <input type="text" id="channel-name" placeholder="@channel_name">
             </div>
 
+            <!-- رابط القناة -->
+            <div class="channel-form-group">
+                <label>رابط القناة</label>
+                <input type="text" id="channel-link" placeholder="https://t.me/...">
+            </div>
+
+            <!-- عدد المشتركين -->
             <div class="channel-form-group">
                 <label>عدد المشتركين</label>
                 <input type="number" id="channel-subs" placeholder="1000">
             </div>
 
+            <!-- 🌍 القارة -->
             <div class="channel-form-group">
-                <label>📂 التصنيف</label>
-                <select id="channel-category">
-                    <option value="crypto">💰 كريبتو</option>
-                    <option value="earn">📈 ربح</option>
-                    <option value="games">🎮 ألعاب</option>
-                    <option value="tech">💻 تقنية</option>
-                    <option value="services">🛠️ خدمات</option>
+                <label>🌍 القارة</label>
+                <select id="channel-continent" onchange="loadPublisherCountries()">
+                    <option value="asia">آسيا</option>
+                    <option value="africa">أفريقيا</option>
+                    <option value="europe">أوروبا</option>
+                    <option value="north_america">أمريكا الشمالية</option>
+                    <option value="south_america">أمريكا الجنوبية</option>
+                    <option value="australia">أستراليا</option>
                 </select>
             </div>
 
+            <!-- 🌎 الدولة -->
+            <div class="channel-form-group">
+                <label>🌎 الدولة</label>
+                <select id="channel-country">
+                    <option value="">اختر الدولة</option>
+                </select>
+            </div>
+
+            <!-- 🎯 التصنيف -->
+            <div class="channel-form-group">
+                <label>🎯 التصنيف</label>
+                <select id="channel-category">
+                    <option value="crypto">💰 عملات رقمية</option>
+                    <option value="beauty">💄 جمال</option>
+                    <option value="movies">🎬 أفلام</option>
+                    <option value="sports">⚽ رياضة</option>
+                    <option value="entertainment">🎭 ترفيه</option>
+                    <option value="news">📰 أخبار</option>
+                    <option value="programming">💻 برمجة</option>
+                    <option value="gaming">🎮 ألعاب</option>
+                    <option value="cooking">🍳 طبخ</option>
+                    <option value="tech">📱 تقنية</option>
+                </select>
+            </div>
+
+            <!-- زر الإضافة -->
             <button class="channel-submit-btn" onclick="addChannel()">
                 ➕ إضافة القناة
             </button>
 
         </div>
 
-        <!-- ========================= -->
-        <!-- 📊 قائمة القنوات -->
-        <!-- ========================= -->
-
+        <!-- 📊 عرض القنوات -->
         <div class="channels-list" id="channels-list">
-
-            <!-- مثال قناة -->
-            <div class="channel-card">
-
-                <div class="channel-header">
-                    <div class="channel-name">@example_channel</div>
-                    <div class="channel-status active">نشطة</div>
-                </div>
-
-                <div class="channel-stats">
-                    <span>👥 10K</span>
-                    <span>👁️ 5000</span>
-                    <span>🖱️ 800</span>
-                </div>
-
-                <div class="channel-earn">
-                    💰 25 USDT
-                </div>
-
-                <!-- 🎯 إعلان -->
-                <div class="ad-box">
-                    <div class="ad-box-title">📢 إعلان</div>
-                    <a href="#">https://t.me/example</a>
-                </div>
-
-                <div class="channel-actions">
-                    <button class="channel-btn disable">⏸ تعطيل</button>
-                    <button class="channel-btn delete">🗑 حذف</button>
-                </div>
-
-            </div>
-
+            <!-- يتم ملؤها تلقائياً من JavaScript -->
         </div>
 
     </div>
 
 </div>
-
+                    
     
 <!-- ========================= -->
 <!-- 🔗 Referral Section -->
@@ -1760,6 +1739,74 @@ function showSection(sectionId, element) {
 // ===============================
 // 📢 المعلن
 // ===============================
+// ===============================
+// 🌍 القارات + الدول + الأعلام
+// ===============================
+const countriesByContinent = {
+
+    asia: [
+        {code:"sa", name:"🇸🇦 السعودية"},
+        {code:"ae", name:"🇦🇪 الإمارات"},
+        {code:"ye", name:"🇾🇪 اليمن"},
+        {code:"iq", name:"🇮🇶 العراق"},
+        {code:"tr", name:"🇹🇷 تركيا"},
+        {code:"in", name:"🇮🇳 الهند"},
+        {code:"cn", name:"🇨🇳 الصين"},
+        {code:"jp", name:"🇯🇵 اليابان"}
+    ],
+
+    africa: [
+        {code:"eg", name:"🇪🇬 مصر"},
+        {code:"dz", name:"🇩🇿 الجزائر"},
+        {code:"ma", name:"🇲🇦 المغرب"},
+        {code:"ng", name:"🇳🇬 نيجيريا"},
+        {code:"za", name:"🇿🇦 جنوب أفريقيا"}
+    ],
+
+    europe: [
+        {code:"de", name:"🇩🇪 ألمانيا"},
+        {code:"fr", name:"🇫🇷 فرنسا"},
+        {code:"it", name:"🇮🇹 إيطاليا"},
+        {code:"es", name:"🇪🇸 إسبانيا"}
+    ],
+
+    north_america: [
+        {code:"us", name:"🇺🇸 الولايات المتحدة"},
+        {code:"ca", name:"🇨🇦 كندا"},
+        {code:"mx", name:"🇲🇽 المكسيك"}
+    ],
+
+    south_america: [
+        {code:"br", name:"🇧🇷 البرازيل"},
+        {code:"ar", name:"🇦🇷 الأرجنتين"}
+    ],
+
+    australia: [
+        {code:"au", name:"🇦🇺 أستراليا"},
+        {code:"nz", name:"🇳🇿 نيوزيلندا"}
+    ]
+};
+
+// ===============================
+// 🌎 تحميل الدول حسب القارة
+// ===============================
+function loadCountries() {
+
+    const continent = document.getElementById("ad-continent").value;
+    const countrySelect = document.getElementById("ad-country");
+
+    countrySelect.innerHTML = `<option value="all">🌍 جميع الدول</option>`;
+
+    if (continent === "all") return;
+
+    countriesByContinent[continent].forEach(c => {
+        countrySelect.innerHTML += `<option value="${c.code}">${c.name}</option>`;
+    });
+}
+
+// ===============================
+// 📢 نوع الإعلان
+// ===============================
 let selectedAdType = "click";
 
 function selectAdType(el, type) {
@@ -1768,16 +1815,33 @@ function selectAdType(el, type) {
     selectedAdType = type;
 }
 
+// ===============================
+// 🚀 إنشاء حملة (مع الاستهداف الكامل)
+// ===============================
 async function createCampaign() {
 
-    const title = document.getElementById("ad-title")?.value;
-    const link = document.getElementById("ad-link")?.value;
-    const budget = parseFloat(document.getElementById("ad-budget")?.value);
-    const price = parseFloat(document.getElementById("ad-price")?.value);
+    const title = document.getElementById("ad-title").value.trim();
+    const link = document.getElementById("ad-link").value.trim();
+    const desc = document.getElementById("ad-desc").value.trim();
+
+    const continent = document.getElementById("ad-continent").value;
+    const country = document.getElementById("ad-country").value;
+    const category = document.getElementById("ad-category").value;
+
+    const budget = parseFloat(document.getElementById("ad-budget").value);
+    const price = parseFloat(document.getElementById("ad-price").value);
 
     if (!title || !link || !budget || !price) {
-        toast("❌ أكمل البيانات");
+        alert("❌ أكمل جميع البيانات");
         return;
+    }
+
+    // 🧠 اسم الدولة
+    let countryName = "🌍 الجميع";
+
+    if (continent !== "all" && country !== "all") {
+        const countryObj = countriesByContinent[continent].find(c => c.code === country);
+        if (countryObj) countryName = countryObj.name;
     }
 
     const id = Date.now();
@@ -1785,25 +1849,43 @@ async function createCampaign() {
     await db.ref("campaigns/" + id).set({
         id,
         owner: currentUser.id,
+
         title,
         link,
+        desc,
+
+        // 🎯 الاستهداف
+        continent,
+        country,
+        countryName,
+        category,
+
+        // 💰 البيانات
         budget,
         price,
         type: selectedAdType,
+
         clicks: 0,
         views: 0,
         spent: 0,
-        status: "active"
+
+        status: "active",
+        createdAt: Date.now()
     });
 
-    toast("🚀 تم إنشاء الحملة");
+    alert("🚀 تم إنشاء الحملة بنجاح");
+
     loadCampaigns();
 }
 
+// ===============================
+// 📊 عرض الحملات
+// ===============================
 async function loadCampaigns() {
 
     const snap = await db.ref("campaigns").get();
     const box = document.getElementById("campaigns-list");
+
     if (!box) return;
 
     box.innerHTML = "";
@@ -1812,63 +1894,257 @@ async function loadCampaigns() {
 
     Object.values(snap.val())
         .filter(c => c.owner == currentUser.id)
+        .reverse()
         .forEach(c => {
 
             box.innerHTML += `
-            <div>
-                <b>${c.title}</b>
-                <small>💰 ${c.spent}</small>
-            </div>`;
+            <div class="ad-campaign-card">
+
+                <div class="ad-campaign-header">
+                    <div>${c.title}</div>
+                    <div class="ad-status">${c.status}</div>
+                </div>
+
+                <div class="ad-stats">
+                    <span>🌍 ${c.continent}</span>
+                    <span>🌎 ${c.countryName}</span>
+                    <span>🎯 ${c.category}</span>
+                </div>
+
+                <div class="ad-stats">
+                    <span>👁️ ${c.views}</span>
+                    <span>🖱️ ${c.clicks}</span>
+                    <span>💰 ${c.spent}/${c.budget}</span>
+                </div>
+
+            </div>
+            `;
         });
+}
+        
+// ===============================
+// 📣 الناشر
+// ===============================
+// ===============================
+// 🌎 تحميل الدول حسب القارة (للناشر)
+// ===============================
+function loadPublisherCountries() {
+
+    const continent = document.getElementById("channel-continent").value;
+    const countrySelect = document.getElementById("channel-country");
+
+    countrySelect.innerHTML = `<option value="">اختر الدولة</option>`;
+
+    if (!continent) return;
+
+    countriesByContinent[continent].forEach(c => {
+        countrySelect.innerHTML += `<option value="${c.code}">${c.name}</option>`;
+    });
 }
 
 // ===============================
-// 📣 الناشر
+// ➕ إضافة قناة
+// ===============================
+async function addChannel() {
+
+    const name = document.getElementById("channel-name").value.trim();
+    const link = document.getElementById("channel-link").value.trim();
+    const subs = parseInt(document.getElementById("channel-subs").value);
+
+    const continent = document.getElementById("channel-continent").value;
+    const country = document.getElementById("channel-country").value;
+    const category = document.getElementById("channel-category").value;
+
+    if (!name || !link || !subs || !country) {
+        alert("❌ أكمل جميع البيانات");
+        return;
+    }
+
+    // 🧠 اسم الدولة
+    const countryObj = countriesByContinent[continent].find(c => c.code === country);
+    const countryName = countryObj ? countryObj.name : "غير محدد";
+
+    const id = Date.now();
+
+    await db.ref("channels/" + id).set({
+        id,
+        owner: currentUser.id,
+
+        name,
+        link,
+        subscribers: subs,
+
+        // 🌍 الاستهداف
+        continent,
+        country,
+        countryName,
+        category,
+
+        // 📊 إحصائيات
+        views: 0,
+        clicks: 0,
+        earned: 0,
+
+        createdAt: Date.now()
+    });
+
+    alert("✅ تم إضافة القناة");
+
+    loadChannels();
+}
+
+// ===============================
+// 📊 عرض القنوات
 // ===============================
 async function loadChannels() {
 
     const snap = await db.ref("channels").get();
     const box = document.getElementById("channels-list");
+
     if (!box) return;
 
     box.innerHTML = "";
 
     if (!snap.exists()) return;
 
-    Object.values(snap.val())
+    const channels = Object.values(snap.val())
         .filter(c => c.owner == currentUser.id)
-        .forEach(ch => {
+        .reverse();
 
-            box.innerHTML += `
-            <div>
-                <b>${ch.name}</b>
-                <div id="ad-box-${ch.id}">...</div>
+    for (let ch of channels) {
+
+        box.innerHTML += `
+        <div class="channel-card">
+
+            <div class="channel-header">
+                <div>${ch.name}</div>
+                <div class="channel-status active">نشطة</div>
             </div>
-            `;
 
-            renderAdInChannel(ch.id, ch);
-        });
+            <div class="channel-stats">
+                <span>👥 ${ch.subscribers}</span>
+                <span>🌍 ${ch.continent}</span>
+                <span>🌎 ${ch.countryName}</span>
+                <span>🎯 ${ch.category}</span>
+            </div>
+
+            <div class="channel-earn">
+                💰 ${ch.earned} USDT
+            </div>
+
+            <div class="ad-box" id="ad-box-${ch.id}">
+                تحميل الإعلان...
+            </div>
+
+        </div>
+        `;
+
+        // 🔥 ربط الإعلان
+        renderAdInChannel(ch.id, ch);
+    }
 }
 
-async function renderAdInChannel(channelId, channel) {
+// ===============================
+// 📢 جلب إعلان مناسب (مطابقة كاملة)
+// ===============================
+async function getAdForChannel(channel) {
 
     const snap = await db.ref("campaigns").get();
-    if (!snap.exists()) return;
+    if (!snap.exists()) return null;
 
-    const ads = Object.values(snap.val()).filter(a => a.status === "active");
+    let ads = Object.values(snap.val());
 
-    if (!ads.length) return;
+    let filtered = ads.filter(ad =>
+        ad.status === "active" &&
+        ad.budget > ad.spent &&
 
-    const ad = ads[Math.floor(Math.random() * ads.length)];
+        // 🎯 التصنيف
+        (ad.category === channel.category || ad.category === "all") &&
 
+        // 🌍 القارة
+        (ad.continent === channel.continent || ad.continent === "all") &&
+
+        // 🌎 الدولة
+        (ad.country === channel.country || ad.country === "all")
+    );
+
+    if (filtered.length === 0) return null;
+
+    // حالياً عشوائي (نطوره لاحقاً)
+    return filtered[Math.floor(Math.random() * filtered.length)];
+}
+
+// ===============================
+// 🎯 عرض الإعلان داخل القناة
+// ===============================
+async function renderAdInChannel(channelId, channelData) {
+
+    const ad = await getAdForChannel(channelData);
     const box = document.getElementById("ad-box-" + channelId);
+
     if (!box) return;
 
+    if (!ad) {
+        box.innerHTML = "<small>لا يوجد إعلان مناسب</small>";
+        return;
+    }
+
     box.innerHTML = `
-        <a href="${ad.link}" onclick="trackClick(${ad.id}, ${channelId})">
-            ${ad.title}
+        <div class="ad-box-title">📢 إعلان موجه</div>
+        <a href="${ad.link}" target="_blank"
+           onclick="trackClick(${ad.id}, ${channelId})">
+           ${ad.title}
         </a>
     `;
+
+    trackView(ad.id);
+}
+
+// ===============================
+// 👁️ تسجيل مشاهدة
+// ===============================
+async function trackView(adId) {
+
+    await db.ref("campaigns/" + adId).update({
+        views: firebase.database.ServerValue.increment(1)
+    });
+}
+
+// ===============================
+// 🖱️ تسجيل نقرة + ربح
+// ===============================
+async function trackClick(adId, channelId) {
+
+    const snap = await db.ref("campaigns/" + adId).get();
+    if (!snap.exists()) return;
+
+    const ad = snap.val();
+    const cost = ad.price;
+    const share = cost * 0.7;
+
+    // تحديث الإعلان
+    await db.ref("campaigns/" + adId).update({
+        clicks: firebase.database.ServerValue.increment(1),
+        spent: firebase.database.ServerValue.increment(cost)
+    });
+
+    // جلب القناة
+    const chSnap = await db.ref("channels/" + channelId).get();
+    const ch = chSnap.val();
+
+    // تحديث المستخدم
+    await db.ref("users/" + ch.owner).update({
+        balance: firebase.database.ServerValue.increment(share),
+        earned: firebase.database.ServerValue.increment(share)
+    });
+
+    // تحديث القناة
+    await db.ref("channels/" + channelId).update({
+        earned: firebase.database.ServerValue.increment(share),
+        clicks: firebase.database.ServerValue.increment(1)
+    });
+
+    alert("💰 +" + share + " USDT");
 }
 
 // ===============================
