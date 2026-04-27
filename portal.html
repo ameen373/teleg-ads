@@ -1592,6 +1592,8 @@ const db = firebase.database();
 // ===============================
 // 🌍 القارات + الدول
 // ===============================
+console.log("🔥 JS شغال");
+
 const countriesByContinent = {
     asia: [
         {code:"sa", name:"🇸🇦 السعودية"},
@@ -1759,10 +1761,17 @@ function showSection(sectionId, element) {
 // ===============================
 function loadCountries() {
 
-    console.log("🔥 loadCountries اشتغلت");
+    console.log("🔥 تم تغيير القارة");
 
-    const continent = document.getElementById("ad-continent").value;
+    const continentEl = document.getElementById("ad-continent");
     const countrySelect = document.getElementById("ad-country");
+
+    if (!continentEl || !countrySelect) {
+        console.error("❌ عنصر غير موجود");
+        return;
+    }
+
+    const continent = continentEl.value;
 
     countrySelect.innerHTML = `<option value="all">🌍 جميع الدول</option>`;
 
@@ -2195,7 +2204,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     showSection("home");
 });
 
-        
-           </script>
+<script src="app.js"></script>
+</body>
+</html>
 </body>
 </html
