@@ -10,7 +10,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-
+    
     <style>
         :root {
             --bg-color: #0b0e14;
@@ -19,6 +19,7 @@
             --glass-border: rgba(255, 255, 255, 0.1);
             --text-main: #ffffff;
             --text-dim: #94a3b8;
+            --card: rgba(30, 41, 59, 0.5);
         }
 
         body {
@@ -30,10 +31,11 @@
             direction: rtl;
         }
 
-        /* تنسيق اللوجو */
+        /* الهيدر */
         .app-header { text-align: center; margin-bottom: 25px; }
-        .app-header img { width: 80px; height: 80px; border-radius: 50%; border: 2px solid var(--accent-blue); box-shadow: 0 0 15px rgba(59, 130, 246, 0.5); }
+        .app-header img { width: 80px; height: 80px; border-radius: 50%; border: 2px solid var(--accent-blue); }
 
+        /* الأقسام */
         .section { display: none; animation: fadeIn 0.4s ease; }
         .section.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -41,112 +43,159 @@
         .card {
             background: var(--glass-bg);
             backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
             border: 1px solid var(--glass-border);
             border-radius: 20px;
             padding: 20px;
             margin-bottom: 20px;
         }
 
-        /* القائمة السفلية العائمة */
+        /* القائمة السفلية */
         .bottom-nav {
-            position: fixed;
-            bottom: 15px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 92%;
-            max-width: 500px;
-            background: rgba(15, 23, 42, 0.9);
-            backdrop-filter: blur(20px);
-            display: flex;
-            justify-content: space-around;
-            padding: 12px 5px;
-            border-radius: 25px;
-            border: 1px solid var(--glass-border);
-            z-index: 1000;
+            position: fixed; bottom: 15px; left: 50%; transform: translateX(-50%);
+            width: 92%; max-width: 500px; background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(20px); display: flex; justify-content: space-around;
+            padding: 12px 5px; border-radius: 25px; border: 1px solid var(--glass-border); z-index: 1000;
         }
 
         .nav-item { color: var(--text-dim); text-align: center; flex: 1; font-size: 10px; cursor: pointer; transition: 0.3s; }
         .nav-item i { font-size: 20px; display: block; margin-bottom: 4px; }
         .nav-item.active { color: var(--accent-blue); }
-        .nav-item.active i { transform: translateY(-5px); text-shadow: 0 0 10px var(--accent-blue); }
 
-        .btn { background: var(--accent-blue); color: white; border: none; padding: 12px; border-radius: 12px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        /* الملف الشخصي */
+        .profile-header-premium { display: flex; align-items: center; gap: 15px; margin-bottom: 25px; }
+        .user-avatar-premium { width: 70px; height: 70px; border-radius: 20px; background: var(--accent-blue); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: bold; }
+        .progress-bar { width: 100%; height: 8px; background: rgba(255,255,255,0.05); border-radius: 10px; overflow: hidden; margin-top: 10px; }
+        .progress-fill { height: 100%; background: var(--accent-blue); width: 0%; transition: 0.5s; }
+        
+        .stats-grid-premium { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .stat-card { background: var(--glass-bg); padding: 15px; border-radius: 18px; text-align: center; }
+        
+        .btn { background: var(--accent-blue); color: white; border: none; padding: 12px; border-radius: 12px; width: 100%; font-weight: bold; cursor: pointer; }
 
-/* تصميم الملف الشخصي الفخم */
-.profile-main-card {
-    background: linear-gradient(145deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95)) !important;
-    border: 1px solid rgba(59, 130, 246, 0.2) !important;
+   /* Reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
-.profile-header-premium {
+/* الخط العام */
+body {
+    font-family: "Segoe UI", Tahoma, sans-serif;
+    background: #0e1621;
+    color: #fff;
+}
+
+/* الحاوية */
+.container {
+    max-width: 500px;
+    margin: auto;
+    padding: 20px;
+}
+
+/* العنوان */
+.header {
+    font-size: 22px;
+    font-weight: bold;
+    margin-bottom: 20px;
+}
+
+/* القائمة */
+.menu {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* عنصر القائمة */
+.menu-item {
+    background: #17212b;
+    border-radius: 14px;
+    padding: 16px;
     display: flex;
     align-items: center;
-    gap: 15px;
-    margin-bottom: 25px;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: 0.3s;
+    border: 1px solid transparent;
 }
 
-.avatar-wrapper {
-    position: relative;
+/* تأثير hover */
+.menu-item:hover {
+    background: #1f2c3a;
+    border-color: #2a3b4d;
+    transform: translateY(-2px);
 }
 
-.user-avatar-premium {
-    width: 70px; height: 70px; border-radius: 20px;
-    background: var(--accent); display: flex; align-items: center; justify-content: center;
-    font-size: 28px; font-weight: bold; border: 2px solid rgba(255,255,255,0.1);
+/* الجهة اليسرى (أيقونة + نص) */
+.menu-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
 }
 
-.verify-badge {
-    position: absolute; bottom: -5px; right: -5px;
-    background: #fff; color: #3b82f6; border-radius: 50%;
-    width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
-    font-size: 14px; border: 2px solid #0f172a;
-}
-
-.rank-badge {
-    background: rgba(212, 175, 55, 0.15); color: #d4af37;
-    padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: bold;
-}
-
-/* نظام الليفل */
-.level-container { text-align: right; margin-top: 15px; }
-.level-info { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px; }
-.progress-bar {
-    width: 100%; height: 8px; background: rgba(255,255,255,0.05);
-    border-radius: 10px; overflow: hidden;
-}
-.progress-fill {
-    height: 100%; background: linear-gradient(90deg, #3b82f6, #60a5fa);
-    box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
-}
-
-/* شبكة الإحصائيات */
-.stats-grid-premium {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 15px;
-}
-.stat-card {
-    background: var(--card); padding: 15px; border-radius: 18px;
-    text-align: center; border: 1px solid rgba(255,255,255,0.03);
-}
-.stat-card i { font-size: 20px; margin-bottom: 8px; display: block; }
-.stat-card small { color: #64748b; display: block; font-size: 11px; }
-.stat-card b { font-size: 15px; color: #fff; }
-
-/* القائمة السفلية */
-.profile-menu { margin-top: 15px; background: var(--card); border-radius: 20px; overflow: hidden; }
-.menu-item {
-    display: flex; align-items: center; padding: 15px;
-    border-bottom: 1px solid rgba(255,255,255,0.03); cursor: pointer;
-}
-.menu-item:last-child { border-bottom: none; }
+/* الأيقونة */
 .menu-icon {
-    width: 35px; height: 35px; border-radius: 10px; background: rgba(59, 130, 246, 0.1);
-    color: var(--accent); display: flex; align-items: center; justify-content: center; margin-left: 12px;
+    font-size: 20px;
+    width: 36px;
+    height: 36px;
+    background: #2a3b4d;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
-.menu-text { flex: 1; font-size: 14px; text-align: right; }
-.arrow { color: #334155; font-size: 12px; }
 
+/* النص */
+.menu-text {
+    font-size: 15px;
+}
 
+/* السهم */
+.menu-arrow {
+    font-size: 14px;
+    color: #8899a6;
+}
+
+/* قسم المحفظة (تمييز خاص) */
+.wallet-item {
+    background: linear-gradient(135deg, #1d2b3a, #243447);
+    border: 1px solid #2f4b63;
+}
+
+.wallet-item:hover {
+    background: linear-gradient(135deg, #243447, #2f4b63);
+}
+
+/* قسم العروض */
+.offers-item {
+    background: linear-gradient(135deg, #2b1f3a, #3a294d);
+    border: 1px solid #4a3b63;
+}
+
+.offers-item:hover {
+    background: linear-gradient(135deg, #3a294d, #4a3b63);
+}
+
+/* زر إشعار صغير (اختياري) */
+.badge {
+    background: #2a9df4;
+    color: white;
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 8px;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    .container {
+        padding: 15px;
+    }
+
+    .menu-item {
+        padding: 14px;
+    }
+}
         
     </style>
 </head>
@@ -156,421 +205,145 @@
         <img id="app-logo" src="" alt="Logo">
     </div>
 
+<div id="home" class="section active">
     
-    <div id="home" class="section active">
-        <div class="card">
-            <h2><i class="fas fa-wallet"></i> الرئيسية</h2>
-            <p id="balance-display">رصيدك: 0.00 TRX</p>
+    <div class="card" style="display: flex; justify-content: space-around; padding: 10px; background: var(--glass-bg);">
+        <div class="menu-item-quick" onclick="toggleSubPage('offersPage')" style="cursor: pointer; text-align: center;">
+            <span style="font-size: 20px; display: block;">🎟️</span>
+            <span style="font-size: 12px; color: var(--text-dim);">العروض</span>
+        </div>
+        <div class="menu-item-quick" onclick="toggleSubPage('walletPage')" style="cursor: pointer; text-align: center;">
+            <span style="font-size: 20px; display: block;">💰</span>
+            <span style="font-size: 12px; color: var(--text-dim);">المحفظة</span>
+        </div>
+    </div>
 
-            <div class="card" style="text-align: center;">
-    <lottie-player 
-        src="https://fonts.gstatic.com/s/i/short-term/release/googlestyleremix/gold_coin/default/24px.svg" 
-        background="transparent"  
-        speed="1"  
-        style="width: 120px; height: 120px; margin: 0 auto;"  
-        loop  
-        autoplay>
-    </lottie-player>
-    <p id="balance-display" style="font-size: 1.5rem; font-weight: bold;">0.00 TRX</p>
+    <div id="offersPage" class="sub-page" style="display: none;">
+        <div class="card">
+            <h3 style="margin-top: 0;"><i class="fas fa-ticket-alt"></i> العروض المتاحة</h3>
+            <div id="offers-container">
+                <p style="text-align: center; color: var(--text-dim); font-size: 13px;">لا توجد عروض نشطة حالياً</p>
             </div>
-            
         </div>
     </div>
 
-    
-    <div id="promo" class="section">
+    <div id="walletPage" class="sub-page">
+        <div class="card" style="text-align: center; background: linear-gradient(145deg, rgba(59, 130, 246, 0.1), rgba(15, 23, 42, 0.8));">
+            <small style="color: var(--text-dim);">الرصيد الحالي</small>
+            <h2 id="current-balance" style="font-size: 2rem; margin: 10px 0;">$0.00</h2>
+            
+            <div style="display: flex; gap: 8px;">
+                <button class="btn" style="flex: 1; font-size: 12px;">إيداع</button>
+                <button class="btn" style="flex: 1; font-size: 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);">سحب</button>
+                <button class="btn" style="flex: 1; font-size: 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);">تحويل</button>
+            </div>
+        </div>
+
         <div class="card">
-            <h2><i class="fas fa-rocket"></i> المعلن</h2>
-            <p>أنشئ حملاتك الإعلانية هنا.</p>
-            <button class="btn">إضافة إعلان جديد</button>
+            <h4 style="margin-top: 0; font-size: 14px;"><i class="fas fa-history"></i> سجل العمليات</h4>
+            <div id="transactions-list">
+                <p style="text-align: center; color: var(--text-dim); font-size: 12px;">لا توجد عمليات سابقة</p>
+            </div>
         </div>
     </div>
 
-    
+</div>
+        
+
+    <div id="promo" class="section">
+        
+
     <div id="publisher" class="section">
-         <div class="publisher-header-card">
-        <div style="display: flex; gap: 20px;">
-            <div class="stat-item">
-                <small>إجمالي الأرباح 📈</small>
-                <h3 id="total-earned-display">$0.00</h3>
-            </div> 
-            <div class="stat-item">
-                <small>القابل للسحب 💰</small>
-                <h3 id="withdrawable-balance-display" style="color: #2ecc71;">$0.00</h3>
-            </div> 
-        </div> 
-        <button class="withdraw-trigger-btn" onclick="openTab('withdraw')" style="cursor: pointer;">سحب الآن</button>
-    </div> 
-
-    <div class="stats-grid">
-        <div class="stat-card" style="border-bottom: 4px solid #3498db;">
-            <h4 style="color: #3498db; font-size: 12px; margin: 0;">🖱️ النقرات (CPC)</h4>
-            <p id="stat-clicks" style="font-size: 20px; font-weight: bold; margin: 8px 0;">0</p>
-            <div class="profit-tag">الربح: $<span id="profit-clicks">0.00</span></div>
-        </div>
-
-        <div class="stat-card" style="border-bottom: 4px solid #2ecc71;">
-            <h4 style="color: #2ecc71; font-size: 12px; margin: 0;">🚀 المشاهدات (CPM)</h4>
-            <p id="stat-views" style="font-size: 20px; font-weight: bold; margin: 8px 0;">0</p>
-            <div class="profit-tag">الربح: $<span id="profit-views">0.00</span></div>
-        </div>
-
-        <div class="stat-card" style="border-bottom: 4px solid #9b59b6;">
-            <h4 style="color: #9b59b6; font-size: 12px; margin: 0;">⏰ منشورات (24h)</h4>
-            <p id="stat-timed" style="font-size: 20px; font-weight: bold; margin: 8px 0;">0</p>
-            <div class="profit-tag">الربح: $<span id="profit-timed">0.00</span></div>
-        </div>
-
-        <div class="stat-card" style="background: linear-gradient(135deg, #f1c40f, #f39c12); color: #000; border:none; display: flex; flex-direction: column; justify-content: center;">
-            <h4 style="margin: 0; font-size: 12px; font-weight: 800;">💰 الإجمالي الصافي</h4>
-            <h2 style="margin: 5px 0; font-size: 24px;">$<span id="total-net-earnings">0.00</span></h2>
-        </div>
-    </div>
-
-    <button class="btn-premium-add" onclick="togglePublisherPanel()" style="margin-top: 20px;">
-        ➕ إضافة قناة جديدة للمنصة
-    </button>
-
-    <div id="publisher-panel" style="display: none; background: #1a1a1a; padding: 20px; border-radius: 15px; margin-top: 20px; border: 1px solid #333;">
-        <h3 style="color: #f1c40f; text-align: center; margin-bottom: 20px; font-weight: 800;">📝 بيانات القناة</h3>
         
-        <input type="text" id="ch-name" class="input-premium" placeholder="🏷️ اسم قناتك">
-        <input type="text" id="ch-link" class="input-premium" placeholder="🔗 رابط القناة @username">
-        
-        <label style="color: #888; font-size: 12px; display: block; margin-top: 10px;">🌍 استهداف القناة:</label>
-        <select id="ch-continent" class="input-premium" style="margin-bottom: 8px; width: 100%;">
-            <option value="">اختر المنطقة...</option>
-        </select>
-        <select id="ch-country" class="input-premium" style="width: 100%;">
-            <option value="all">كل دول المنطقة</option>
-        </select>
 
-<div class="card" style="background: #1e293b; padding: 15px; border-radius: 20px; margin-top: 15px; border: 1px dashed #334155;">
-    <h4 style="color: #38bdf8; font-size: 13px; margin-bottom: 12px;">🛠️ إعدادات استقبال الإعلانات:</h4>
-
-            
-    <label class="label-small">🎯 تخصص محتوى القناة:</label>
-    <select id="pub-ch-category" class="input-premium">
-        <option value="all">عام 🌍</option>
-        <option value="crypto">العملات المشفره 🪙</option>
-        <option value="movies">الأفلام والمسلسلات 🎬</option>
-        <option value="tech">التكنولوجيا والتقنية 📱</option>
-        <option value="coding">التطبيقات والبرمجة 💻</option>
-    </select>
-
-    <label class="label-small">🌍 الجمهور الغالب في القناة:</label>
-    <select id="pub-ch-region" class="input-premium">
-        <option value="global">عالمي (كل المناطق)</option>
-        <option value="mena">الشرق الأوسط وشمال أفريقيا</option>
-        <option value="gcc">دول الخليج العربي</option>
-        <option value="eu">أوروبا وأمريكا</option>
-    </select>
-
-    <label class="label-small">💳 أنواع الإعلانات التي تقبلها:</label>
-    <div style="display: flex; gap: 8px; margin-top: 5px;">
-        <label style="font-size: 10px; color: #fff; background: rgba(255,255,255,0.05); padding: 5px 10px; border-radius: 8px; flex: 1; text-align: center;">
-            <input type="checkbox" id="pub-accept-fixed" checked> ثابت 1/24
-        </label>
-        <label style="font-size: 10px; color: #fff; background: rgba(255,255,255,0.05); padding: 5px 10px; border-radius: 8px; flex: 1; text-align: center;">
-            <input type="checkbox" id="pub-accept-performance"> أداء (نقرات/مشاهدات)
-        </label>
-    </div>
-</div>
-        <div style="background:rgba(0,0,0,0.6); padding:15px; border-radius:15px; margin: 15px 0; font-size:13px; border:1px solid #444;">
-            <p style="margin-bottom:10px; color: #fff;">⏰ <b>منشور (24h):</b> 
-                               <input type="number" id="price-24h" placeholder="0" style="width:60px; background:none; border:1px solid #f1c40f; color:white; border-radius:5px; text-align: center;"> $ 
-                <small style="color: #888;">(عمولتنا 10%)</small>
-            </p>
-            <p style="margin-bottom:10px; color: #fff;">🖱️ <b>نقرات (CPC):</b> <span style="color:#2ecc71; font-weight: bold;">5$ / 1000</span></p>
-            <p style="margin: 0; color: #fff;">🚀 <b>مشاهدات (CPM):</b> <span style="color:#2ecc71; font-weight: bold;">1$ / 1000</span></p>
-        </div>
-
-                <button class="btn-premium-add" style="width:100%; background:#0088cc; color:white; border-radius: 12px; margin-bottom: 10px; padding: 12px; border: none; cursor: pointer;" onclick="window.open('https://t.me/Ads_telegabot?startchannel=true')">
-            🤖 1. إضافة البوت كمسؤول
-        </button>
-
-        <button onclick="tg.showAlert('🔍 يتم الآن التحقق من الصلاحيات...')" style="width:100%; padding:12px; background:none; border:1px solid #444; color:white; border-radius:12px; margin-bottom:10px; cursor: pointer;">
-            🔍 2. تحقق من الإضافة
-        </button>
-        
-        <button onclick="submitEliteChannel()" style="width:100%; padding:15px; background:#2ecc71; border:none; color:white; border-radius:12px; font-weight:bold; font-size:16px; cursor: pointer;">
-            🚀 3. تقديم القناة للمراجعة
-        </button>
-
-    </div> 
-
-    <h4 style="color:#888; font-size:14px; margin-top: 30px;">📺 قنواتك المسجلة:</h4>
-    <div id="my-elite-channels" style="min-height: 50px;"></div>
-        </div>
-                
-        <div id="section-withdraw" class="section" style="display: none; padding: 15px;">
-    
-    <div class="withdraw-card">
-        <button onclick="openTab('channels')" class="back-btn" style="cursor:pointer;">⬅️ العودة</button>
-        
-        <h2 style="text-align: center; color: #fff; margin: 20px 0;">طلب سحب أرباح</h2>
-        
-        <div class="rules-box">
-            <p>📌 <b>الحد الأدنى:</b> 30$</p>
-            <p>🕒 <b>وقت المعالجة:</b> 24 - 48 ساعة</p>
-            <p>💸 <b>العمولة:</b> 3$ ثابتة (رسوم الشبكة)</p>
-            <p>🌐 <b>الوسيلة:</b> USDT (TRC20)</p>
-        </div>
-
-        <div class="input-container">
-            <label>عنوان المحفظة (USDT TRC20)</label>
-            <input type="text" id="withdraw-wallet" placeholder="T..." class="modern-input">
-        </div>
-
-        <div class="input-container">
-            <label>المبلغ المطلوب</label>
-            <input type="number" id="withdraw-amount" oninput="calculateWithdrawNet()" placeholder="0.00" class="modern-input">
-            <div id="withdraw-summary" class="withdraw-summary" style="color: #2ecc71; margin-top: 5px; font-size: 12px;">ستستلم: 0.00$</div>
-        </div>
-
-        <button id="confirm-withdraw-btn" onclick="executeWithdrawWorkflow()" class="main-withdraw-btn" style="width: 100%; padding: 15px; background: #2ecc71; border: none; border-radius: 12px; color: white; font-weight: bold; margin-top: 15px; cursor: pointer;">
-            تأكيد وطلب السحب
-        </button>
-    </div>
-</div>
-
-    
     <div id="referrals" class="section">
         <div class="card">
-            <h2><i class="fas fa-user-plus"></i> الإحالة</h2>
-            <p>رابط الإحالة الخاص بك:</p>
-            <div style="background:rgba(0,0,0,0.2); padding:10px; border-radius:10px; word-break:break-all;" id="ref-link">جاري التحميل...</div>
+            <h3>نظام الإحالة</h3>
+            <p id="ref-link">جاري توليد الرابط...</p>
         </div>
     </div>
 
-    
     <div id="profile" class="section">
-    <div class="card profile-main-card">
-        <div class="profile-header-premium">
-            <div class="avatar-wrapper">
-                <div id="user-pfp" class="user-avatar-premium">?</div>
-                <div class="verify-badge"><i class="fas fa-check-circle"></i></div>
-            </div>
-            <div class="user-meta">
-                <h3 id="user-name">جاري التحميل...</h3>
-                <span id="user-rank-label" class="rank-badge">عضو برونزي</span>
-            </div>
-        </div>
-
-        <div class="level-container">
-            <div class="level-info">
-                <span>المستوى الحالي: <b id="current-level-name">1</b></span>
-                <span id="level-percent">40%</span>
-            </div>
-            <div class="progress-bar">
-                <div id="level-progress" class="progress-fill" style="width: 40%;"></div>
-            </div>
-            <small class="level-hint">تبقّى 60 نقطة للوصول للمستوى الفضي</small>
-        </div>
-    </div>
-
-    <div class="stats-grid-premium">
-        <div class="stat-card">
-            <i class="fas fa-wallet" style="color: #3b82f6;"></i>
-            <small>المحفظة</small>
-            <b id="p-balance">0.00 <small>TRX</small></b>
-        </div>
-        <div class="stat-card">
-            <i class="fas fa-chart-line" style="color: #10b981;"></i>
-            <small>الأرباح</small>
-            <b id="p-earned">0.00 <small>TRX</small></b>
-        </div>
-        <div class="stat-card">
-            <i class="fas fa-users" style="color: #f59e0b;"></i>
-            <small>الفريق</small>
-            <b id="p-refs">0</b>
-        </div>
-        <div class="stat-card">
-            <i class="fas fa-shield-alt" style="color: #ef4444;"></i>
-            <small>الحماية</small>
-            <b style="color: #10b981;">نشط</b>
-        </div>
-    </div>
-
-    <div class="profile-menu">
-        <div class="menu-item" onclick="copyRefLink()">
-            <div class="menu-icon"><i class="fas fa-link"></i></div>
-            <div class="menu-text">رابط الإحالة الخاص بي</div>
-            <i class="fas fa-chevron-left arrow"></i>
-        </div>
-        <div class="menu-item" onclick="window.Telegram.WebApp.showAlert('سجل نشاطاتك فارغ حالياً')">
-            <div class="menu-icon"><i class="fas fa-history"></i></div>
-            <div class="menu-text">سجل العمليات الأخير</div>
-            <i class="fas fa-chevron-left arrow"></i>
-        </div>
-        <div class="menu-item" onclick="window.Telegram.WebApp.openLink('https://t.me/YourSupport')">
-            <div class="menu-icon"><i class="fas fa-headset"></i></div>
-            <div class="menu-text">الدعم الفني المباشر</div>
-            <i class="fas fa-chevron-left arrow"></i>
-        </div>
-    </div>
-</div>
-
-
+        
+        
 
     <div id="admin" class="section">
-        <div class="card" style="border-color: #ef4444;">
-            <h2 style="color: #ef4444;"><i class="fas fa-user-shield"></i> لوحة الإدارة</h2>
-            <p>مرحباً بك يا أمين. التحكم الكامل متاح الآن.</p>
-            <button class="btn" style="background: #475569;">إدارة القنوات المنتظرة</button>
-            <button class="btn" style="background: #475569;">طلبات السحب</button>
+        
 
-            <div class="card" style="border-color: #ef4444; text-align: center;">
-    <lottie-player 
-        src="https://assets3.lottiefiles.com/packages/lf20_ghp9v6m3.json" 
-        background="transparent"  
-        speed="1"  
-        style="width: 100px; height: 100px; margin: 0 auto;"  
-        loop  
-        autoplay>
-    </lottie-player>
-    <h2 style="color: #ef4444;">لوحة التحكم العليا</h2>
-            </div>
-            
-        </div>
-    </div>
-    
-
-       <div class="bottom-nav">
+    <div class="bottom-nav">
         <div class="nav-item active" onclick="showSection('home', this)"><i class="fas fa-home"></i><span>الرئيسية</span></div>
         <div class="nav-item" onclick="showSection('promo', this)"><i class="fas fa-ad"></i><span>المعلن</span></div>
         <div class="nav-item" onclick="showSection('publisher', this)"><i class="fas fa-bullhorn"></i><span>الناشر</span></div>
         <div class="nav-item" onclick="showSection('referrals', this)"><i class="fas fa-users"></i><span>الإحالة</span></div>
         <div class="nav-item" onclick="showSection('profile', this)"><i class="fas fa-user-circle"></i><span>الملف</span></div>
         <div class="nav-item" id="admin-nav" style="display: none;" onclick="showSection('admin', this)"><i class="fas fa-user-cog"></i><span>الإدارة</span></div>
-       </div>
-   
+    </div>
 
     <script>
-        // الإعدادات التي قدمتها
-        const webApp = window.Telegram.WebApp;
-        const ADMIN_ID = 549686235;
-        const LOGO_URL = "https://i.ibb.co/Z6qzV2Wk/1777032600480logo.png";
-        
-        const firebaseConfig = {
-            apiKey: "AIzaSyB9wJ3RKL9Sc0VqIgOz3HIL6PAZMK1GZos",
-            authDomain: "telega-io.firebaseapp.com",
-            databaseURL: "https://telega-io-default-rtdb.firebaseio.com",
-            projectId: "telega-io",
-            storageBucket: "telega-io.firebasestorage.app",
-            messagingSenderId: "413242252888",
-            appId: "1:413242252888:web:6055aaa7fcdd256910b42d"
-        };
 
-        // تشغيل Firebase
-        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
+// 1. الإعدادات الأساسية (لا تحذفها)
+const webApp = window.Telegram.WebApp;
+const ADMIN_ID = 549686235; // معرف أمين
+const LOGO_URL = "https://i.ibb.co/Z6qzV2Wk/1777032600480logo.png";
 
-        function initApp() {
-            webApp.ready();
-            webApp.expand();
-            document.getElementById('app-logo').src = LOGO_URL;
-
-            const user = webApp.initDataUnsafe.user;
-            if (user) {
-                // التحقق من الإدارة
-                if (user.id === ADMIN_ID) {
-                    document.getElementById('admin-nav').style.display = 'block';
-                }
-                // تحديث رابط الإحالة
-                document.getElementById('ref-link').innerText = `https://t.me/YourBot?start=${user.id}`;
-            }
-        }
-
-        function showSection(sectionId, element) {
-            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-            document.getElementById(sectionId).classList.add('active');
-            
-            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-            element.classList.add('active');
-
-            if (webApp.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
-        }
-
-        // مثال: تشغيل الحركة عند الضغط على زر
-function playSuccessAnimation() {
-    const player = document.querySelector("lottie-player");
-    player.play(); // تشغيل
-    // أو player.stop(); للإيقاف
-}
-        // وظيفة لجلب بيانات المستخدم وعرضها في الملف الشخصي
-function loadUserProfile() {
-    const user = window.Telegram.WebApp.initDataUnsafe.user;
-    
-    if (user) {
-        // تحديث الاسم والمعرف
-        document.getElementById('user-name').innerText = user.first_name + (user.last_name ? " " + user.last_name : "");
-        document.getElementById('user-id').innerText = "ID: " + user.id;
-        
-        // تحديث الصورة الشخصية
-        const pfpContainer = document.getElementById('user-pfp');
-        if (user.photo_url) {
-            pfpContainer.innerHTML = `<img src="${user.photo_url}" style="width:100%; height:100%; object-fit:cover;">`;
-        } else {
-            pfpContainer.innerText = user.first_name.charAt(0);
-        }
-        
-        // إذا كان هو المدير
-        if (user.id === 549686235) {
-            document.getElementById('user-level').innerText = "المالك";
-            document.getElementById('user-level').style.color = "var(--danger)";
-        }
-    }
-}
-
-// تأكد من استدعاء هذه الوظيفة عند تشغيل التطبيق
-window.onload = function() {
-    // الأوامر الأخرى لديك...
-    loadUserProfile();
+const firebaseConfig = {
+    apiKey: "AIzaSyB9wJ3RKL9Sc0VqIgOz3HIL6PAZMK1GZos",
+    authDomain: "telega-io.firebaseapp.com",
+    databaseURL: "https://telega-io-default-rtdb.firebaseio.com",
+    projectId: "telega-io",
+    storageBucket: "telega-io.firebasestorage.app",
+    messagingSenderId: "413242252888",
+    appId: "1:413242252888:web:6055aaa7fcdd256910b42d"
 };
-        function setupStrongProfile() {
-    const user = window.Telegram.WebApp.initDataUnsafe.user;
-    
-    if (user) {
-        // تحديث البيانات الأساسية
-        document.getElementById('user-name').innerText = user.first_name + (user.last_name ? " " + user.last_name : "");
-        document.getElementById('user-id').innerText = "ID: " + user.id;
-        
-        // معالجة الصورة الشخصية
-        const pfp = document.getElementById('user-pfp');
-        if (user.photo_url) {
-            pfp.innerHTML = `<img src="${user.photo_url}" style="width:100%; height:100%; object-fit:cover;">`;
-        } else {
-            pfp.innerText = user.first_name.charAt(0);
-        }
 
-        // تمييز رتبة المالك (أمين)
-        if (user.id === 549686235) {
-            document.getElementById('user-rank-label').innerText = "المالك (Owner)";
-            document.getElementById('user-rank-label').style.background = "rgba(239, 68, 68, 0.15)";
-            document.getElementById('user-rank-label').style.color = "#ef4444";
-            document.getElementById('current-level-name').innerText = "MAX";
-            document.getElementById('level-progress').style.width = "100%";
+// تشغيل Firebase
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// 2. دالة التشغيل عند تحميل الصفحة
+function initApp() {
+    webApp.ready();
+    webApp.expand();
+    document.getElementById('app-logo').src = LOGO_URL;
+
+    const user = webApp.initDataUnsafe.user;
+    if (user) {
+        // تحديث اسم المستخدم ورابط الإحالة
+        if(document.getElementById('user-name')) document.getElementById('user-name').innerText = user.first_name;
+        if(document.getElementById('ref-link')) document.getElementById('ref-link').innerText = `https://t.me/YourBot?start=${user.id}`;
+        
+        // إظهار لوحة الإدارة إذا كان المستخدم هو أمين
+        if (user.id === ADMIN_ID) {
+            const adminNav = document.getElementById('admin-nav');
+            if(adminNav) adminNav.style.display = 'block';
         }
     }
 }
 
-// وظيفة نسخ الرابط مع رسالة تنبيه جميلة
-function copyRefLink() {
-    const user = window.Telegram.WebApp.initDataUnsafe.user;
-    const link = `https://t.me/YourBot?start=${user ? user.id : ''}`;
-    navigator.clipboard.writeText(link);
-    window.Telegram.WebApp.showAlert("✅ تم نسخ رابط الإحالة الخاص بك بنجاح!");
+// 3. التنقل بين الأقسام الرئيسية (الرئيسية، المعلن، إلخ)
+function showSection(sectionId, element) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.getElementById(sectionId).classList.add('active');
+    
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    element.classList.add('active');
+
+    if (webApp.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
 }
 
-// استدعاء الوظيفة عند التشغيل
-window.onload = function() {
-    setupStrongProfile();
-    // بقية وظائف التشغيل الخاصة بك...
+// 4. التنقل بين الصفحات الفرعية (المحفظة والعروض) داخل القسم الرئيسي
+function toggleSubPage(pageId) {
+    document.querySelectorAll('.sub-page').forEach(p => p.style.display = 'none');
+    const targetPage = document.getElementById(pageId);
+    if (targetPage) {
+        targetPage.style.display = 'block';
+        if (webApp.HapticFeedback) webApp.HapticFeedback.impactOccurred('medium');
+    }
 }
+
+window.onload = initApp;
+
         
-
-        window.onload = initApp;
     </script>
 </body>
 </html>
