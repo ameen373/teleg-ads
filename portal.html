@@ -73,973 +73,80 @@
 
         .btn { background: var(--accent-blue); color: white; border: none; padding: 12px; border-radius: 12px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 10px; }
 
-
-    /* ========================= */
-/* 👤 Profile Section */
-/* ========================= */
-
-.profile-container {
-    padding: 15px;
+/* تصميم الملف الشخصي الفخم */
+.profile-main-card {
+    background: linear-gradient(145deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95)) !important;
+    border: 1px solid rgba(59, 130, 246, 0.2) !important;
 }
 
-/* 🔥 كرت البروفايل */
-.profile-card {
-    background: var(--card);
-    border-radius: 18px;
-    padding: 20px;
-    text-align: center;
-    margin-bottom: 15px;
-    box-shadow: 0 6px 25px rgba(0,0,0,0.3);
-}
-
-/* 🖼️ الصورة */
-.profile-pfp {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    background: #1f2937;
-    margin: 0 auto 10px;
+.profile-header-premium {
     display: flex;
     align-items: center;
-    justify-content: center;
-    font-size: 28px;
-    font-weight: bold;
-    overflow: hidden;
+    gap: 15px;
+    margin-bottom: 25px;
 }
 
-/* 🧑 الاسم */
-.profile-name {
-    font-size: 16px;
-    font-weight: bold;
+.avatar-wrapper {
+    position: relative;
 }
 
-/* 🆔 ID */
-.profile-id {
-    font-size: 12px;
-    color: var(--muted);
-    margin-bottom: 8px;
+.user-avatar-premium {
+    width: 70px; height: 70px; border-radius: 20px;
+    background: var(--accent); display: flex; align-items: center; justify-content: center;
+    font-size: 28px; font-weight: bold; border: 2px solid rgba(255,255,255,0.1);
 }
 
-/* 👑 الرتبة */
-.profile-rank {
-    display: inline-block;
-    padding: 4px 10px;
-    border-radius: 20px;
-    font-size: 11px;
-    background: rgba(59,130,246,0.15);
-    color: var(--primary);
+.verify-badge {
+    position: absolute; bottom: -5px; right: -5px;
+    background: #fff; color: #3b82f6; border-radius: 50%;
+    width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+    font-size: 14px; border: 2px solid #0f172a;
 }
 
-/* ========================= */
-/* 💰 الإحصائيات */
-/* ========================= */
-
-.profile-stats {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 15px;
-}
-
-.profile-stat {
-    flex: 1;
-    background: var(--card);
-    border-radius: 14px;
-    padding: 12px;
-    text-align: center;
-}
-
-.profile-stat h4 {
-    font-size: 13px;
-    margin-bottom: 5px;
-}
-
-.profile-stat span {
-    font-size: 16px;
-    font-weight: bold;
-    color: var(--primary);
-}
-
-/* ========================= */
-/* ⚙️ الأزرار */
-/* ========================= */
-
-.profile-actions {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 15px;
-}
-
-.profile-btn {
-    flex: 1;
-    padding: 10px;
-    border-radius: 10px;
-    border: none;
-    font-size: 13px;
-    cursor: pointer;
-}
-
-/* 💰 سحب */
-.profile-btn.withdraw {
-    background: #22c55e;
-    color: white;
-}
-
-/* ➕ إيداع */
-.profile-btn.deposit {
-    background: #3b82f6;
-    color: white;
-}
-
-/* 📋 نسخ */
-.profile-btn.copy {
-    background: #6b7280;
-    color: white;
-}
-
-/* ========================= */
-/* 📄 المعاملات */
-/* ========================= */
-
-.transactions-card {
-    background: var(--card);
-    border-radius: 16px;
-    padding: 12px;
-}
-
-.transactions-card h3 {
-    font-size: 14px;
-    margin-bottom: 10px;
-}
-
-/* 📦 عنصر */
-.tx-item {
-    display: flex;
-    justify-content: space-between;
-    padding: 8px;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
-    font-size: 12px;
-}
-
-.tx-item:last-child {
-    border-bottom: none;
-}
-
-/* ========================= */
-/* 🔗 أدوات إضافية */
-/* ========================= */
-
-.profile-links {
-    margin-top: 10px;
-}
-
-.profile-link {
-    display: block;
-    background: #1f2937;
-    padding: 10px;
-    border-radius: 10px;
-    margin-bottom: 6px;
-    font-size: 12px;
-    text-decoration: none;
-    color: var(--text);
-    transition: 0.3s;
-}
-
-.profile-link:hover {
-    background: #374151;
-}
-
-/* ========================= */
-/* ✨ Animation */
-/* ========================= */
-
-.profile-card,
-.profile-stat,
-.transactions-card {
-    animation: fadeIn 0.4s ease;
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(8px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-
-/* ========================= */
-/* 🔗 Referral Section */
-/* ========================= */
-
-.referral-container {
-    padding: 15px;
-}
-
-/* 🔥 كرت الإحالة */
-.ref-card {
-    background: var(--card);
-    border-radius: 16px;
-    padding: 15px;
-    text-align: center;
-    margin-bottom: 15px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-}
-
-/* 👑 العنوان */
-.ref-card h3 {
-    margin-bottom: 8px;
-}
-
-/* 💡 وصف */
-.ref-card p {
-    font-size: 13px;
-    color: var(--muted);
-    margin-bottom: 12px;
-}
-
-/* 🔗 رابط الإحالة */
-.ref-link-box {
-    background: #1f2937;
-    padding: 10px;
-    border-radius: 10px;
-    font-size: 12px;
-    word-break: break-all;
-    margin-bottom: 10px;
-}
-
-/* 📋 زر النسخ */
-.ref-copy-btn {
-    width: 100%;
-    padding: 10px;
-    border-radius: 10px;
-    border: none;
-    background: linear-gradient(90deg, #3b82f6, #9333ea);
-    color: white;
-    font-weight: bold;
-    cursor: pointer;
-    transition: 0.3s;
-}
-
-.ref-copy-btn:hover {
-    opacity: 0.9;
-}
-
-/* ========================= */
-/* 📊 الإحصائيات */
-/* ========================= */
-
-.ref-stats {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 15px;
-}
-
-.ref-stat-card {
-    flex: 1;
-    background: var(--card);
-    border-radius: 14px;
-    padding: 12px;
-    text-align: center;
-}
-
-.ref-stat-card h4 {
-    font-size: 14px;
-    margin-bottom: 5px;
-}
-
-.ref-stat-card span {
-    font-size: 16px;
-    font-weight: bold;
-    color: var(--primary);
-}
-
-/* ========================= */
-/* 🏆 Leaderboard */
-/* ========================= */
-
-.ref-leaderboard {
-    background: var(--card);
-    border-radius: 16px;
-    padding: 12px;
-}
-
-.ref-leaderboard h3 {
-    margin-bottom: 10px;
-    font-size: 14px;
-}
-
-/* 📋 عنصر */
-.ref-user {
-    display: flex;
-    justify-content: space-between;
-    padding: 8px;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
-    font-size: 12px;
-}
-
-.ref-user:last-child {
-    border-bottom: none;
-}
-
-/* 🥇 تمييز أول 3 */
-.ref-user.top {
-    color: #facc15;
-    font-weight: bold;
-}
-
-/* ========================= */
-/* 🎁 المكافآت */
-/* ========================= */
-
-.ref-rewards {
-    margin-top: 15px;
-}
-
-.ref-rewards h3 {
-    margin-bottom: 8px;
-    font-size: 14px;
-}
-
-.ref-reward-item {
-    background: #1f2937;
-    padding: 10px;
-    border-radius: 10px;
-    margin-bottom: 6px;
-    font-size: 12px;
-    display: flex;
-    justify-content: space-between;
-}
-
-/* ========================= */
-/* ✨ Animation */
-/* ========================= */
-
-.ref-card,
-.ref-stat-card,
-.ref-leaderboard {
-    animation: fadeIn 0.4s ease;
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(8px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-
-/* ========================= */
-/* 📢 Advertiser Section */
-/* ========================= */
-
-.advertiser-container {
-    padding: 15px;
-}
-
-/* 🔥 كرت إنشاء حملة */
-.ad-create-card {
-    background: var(--card);
-    border-radius: 16px;
-    padding: 15px;
-    margin-bottom: 15px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-}
-
-.ad-create-card h3 {
-    margin-bottom: 10px;
-    font-size: 16px;
-}
-
-/* 🧾 الحقول */
-.ad-form-group {
-    margin-bottom: 12px;
-}
-
-.ad-form-group label {
-    font-size: 13px;
-    color: var(--muted);
-    display: block;
-    margin-bottom: 5px;
-}
-
-.ad-form-group input,
-.ad-form-group select,
-.ad-form-group textarea {
-    width: 100%;
-    padding: 10px;
-    border-radius: 10px;
-    border: none;
-    outline: none;
-    background: #1f2937;
-    color: var(--text);
-    font-size: 14px;
-}
-
-/* ✨ عند التركيز */
-.ad-form-group input:focus,
-.ad-form-group select:focus,
-.ad-form-group textarea:focus {
-    border: 1px solid var(--primary);
-}
-
-/* 📝 textarea */
-.ad-form-group textarea {
-    resize: none;
-    min-height: 80px;
-}
-
-/* 🎯 خيارات الإعلان */
-.ad-types {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 10px;
-}
-
-.ad-type {
-    flex: 1;
-    padding: 10px;
-    border-radius: 10px;
-    background: #1f2937;
-    text-align: center;
-    font-size: 12px;
-    cursor: pointer;
-    transition: 0.3s;
-}
-
-.ad-type.active {
-    background: var(--primary);
-    color: white;
-}
-
-/* 🌍 الاستهداف */
-.ad-target {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-}
-
-/* 💰 الميزانية */
-.ad-budget {
-    display: flex;
-    gap: 10px;
-}
-
-.ad-budget input {
-    flex: 1;
-}
-
-/* 🚀 زر الإطلاق */
-.ad-submit-btn {
-    width: 100%;
-    padding: 12px;
-    border-radius: 12px;
-    background: linear-gradient(90deg, #3b82f6, #9333ea);
-    border: none;
-    color: white;
-    font-weight: bold;
-    cursor: pointer;
-    transition: 0.3s;
-}
-
-.ad-submit-btn:hover {
-    opacity: 0.9;
-}
-
-/* ========================= */
-/* 📊 قائمة الحملات */
-/* ========================= */
-
-.ad-campaigns {
-    margin-top: 10px;
-}
-
-.ad-campaign-card {
-    background: var(--card);
-    border-radius: 14px;
-    padding: 12px;
-    margin-bottom: 10px;
-}
-
-.ad-campaign-header {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 8px;
-}
-
-.ad-campaign-title {
-    font-size: 14px;
-    font-weight: bold;
+.rank-badge {
+    background: rgba(212, 175, 55, 0.15); color: #d4af37;
+    padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: bold;
 }
 
-.ad-status {
-    font-size: 11px;
-    padding: 3px 8px;
-    border-radius: 20px;
+/* نظام الليفل */
+.level-container { text-align: right; margin-top: 15px; }
+.level-info { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px; }
+.progress-bar {
+    width: 100%; height: 8px; background: rgba(255,255,255,0.05);
+    border-radius: 10px; overflow: hidden;
 }
-
-.ad-status.active {
-    background: rgba(34,197,94,0.2);
-    color: #22c55e;
-}
-
-.ad-status.paused {
-    background: rgba(239,68,68,0.2);
-    color: #ef4444;
-}
-
-/* 📊 الإحصائيات */
-.ad-stats {
-    display: flex;
-    justify-content: space-between;
-    font-size: 12px;
-    margin-top: 8px;
-}
-
-.ad-stats span {
-    color: var(--muted);
-}
-
-/* 🎛️ أزرار التحكم */
-.ad-actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 10px;
-}
-
-.ad-btn {
-    flex: 1;
-    padding: 8px;
-    border-radius: 8px;
-    border: none;
-    font-size: 12px;
-    cursor: pointer;
-}
-
-.ad-btn.pause {
-    background: #f59e0b;
-    color: white;
-}
-
-.ad-btn.delete {
-    background: #ef4444;
-    color: white;
-}
-
-/* ========================= */
-/* ✨ Animation */
-/* ========================= */
-
-.ad-campaign-card {
-    animation: fadeIn 0.4s ease;
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(8px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-        /* ========================= */
-/* 📣 Publisher Section */
-/* ========================= */
-
-.publisher-container {
-    padding: 15px;
-}
-
-/* 🔥 كرت إضافة قناة */
-.channel-add-card {
-    background: var(--card);
-    border-radius: 16px;
-    padding: 15px;
-    margin-bottom: 15px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-}
-
-.channel-add-card h3 {
-    margin-bottom: 10px;
-    font-size: 16px;
-}
-
-/* 🧾 الحقول */
-.channel-form-group {
-    margin-bottom: 12px;
-}
-
-.channel-form-group label {
-    font-size: 13px;
-    color: var(--muted);
-    display: block;
-    margin-bottom: 5px;
-}
-
-.channel-form-group input,
-.channel-form-group select {
-    width: 100%;
-    padding: 10px;
-    border-radius: 10px;
-    border: none;
-    outline: none;
-    background: #1f2937;
-    color: var(--text);
-    font-size: 14px;
-}
-
-.channel-form-group input:focus,
-.channel-form-group select:focus {
-    border: 1px solid var(--primary);
-}
-
-/* 🚀 زر إضافة */
-.channel-submit-btn {
-    width: 100%;
-    padding: 12px;
-    border-radius: 12px;
-    background: linear-gradient(90deg, #22c55e, #3b82f6);
-    border: none;
-    color: white;
-    font-weight: bold;
-    cursor: pointer;
-    transition: 0.3s;
-}
-
-.channel-submit-btn:hover {
-    opacity: 0.9;
-}
-
-/* ========================= */
-/* 📊 قائمة القنوات */
-/* ========================= */
-
-.channels-list {
-    margin-top: 10px;
-}
-
-/* 📦 كرت القناة */
-.channel-card {
-    background: var(--card);
-    border-radius: 14px;
-    padding: 12px;
-    margin-bottom: 10px;
-    animation: fadeIn 0.4s ease;
-}
-
-/* 🔝 الهيدر */
-.channel-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.channel-name {
-    font-size: 14px;
-    font-weight: bold;
-}
-
-/* 🟢 الحالة */
-.channel-status {
-    font-size: 11px;
-    padding: 3px 8px;
-    border-radius: 20px;
-}
-
-.channel-status.active {
-    background: rgba(34,197,94,0.2);
-    color: #22c55e;
-}
-
-.channel-status.pending {
-    background: rgba(245,158,11,0.2);
-    color: #f59e0b;
-}
-
-/* 📊 الإحصائيات */
-.channel-stats {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 8px;
-    font-size: 12px;
-}
-
-.channel-stats span {
-    color: var(--muted);
-}
-
-/* 💰 الأرباح */
-.channel-earn {
-    margin-top: 6px;
-    font-size: 13px;
-    color: #22c55e;
-}
-
-/* 🎛️ أزرار التحكم */
-.channel-actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 10px;
-}
-
-.channel-btn {
-    flex: 1;
-    padding: 8px;
-    border-radius: 8px;
-    border: none;
-    font-size: 12px;
-    cursor: pointer;
-}
-
-/* 🔴 حذف */
-.channel-btn.delete {
-    background: #ef4444;
-    color: white;
-}
-
-/* ⚪ تعطيل */
-.channel-btn.disable {
-    background: #6b7280;
-    color: white;
-}
-
-/* ========================= */
-/* 🎯 صندوق الإعلانات */
-/* ========================= */
-
-.ad-box {
-    margin-top: 12px;
-    background: #1f2937;
-    padding: 10px;
-    border-radius: 10px;
-}
-
-.ad-box-title {
-    font-size: 13px;
-    margin-bottom: 5px;
-}
-
-.ad-box a {
-    color: var(--primary);
-    font-size: 12px;
-    word-break: break-all;
-}
-
-/* ========================= */
-/* ✨ Animation */
-/* ========================= */
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(8px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-        /* ========================= */
-/* 👑 Admin Section */
-/* ========================= */
-
-.admin-container {
-    padding: 15px;
-}
-
-/* 🔥 العنوان */
-.admin-header {
-    margin-bottom: 15px;
-}
-
-.admin-header h2 {
-    font-size: 18px;
-    font-weight: bold;
-}
-
-/* ========================= */
-/* 📊 الإحصائيات */
-/* ========================= */
-
-.admin-stats {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 15px;
-}
-
-.admin-stat {
-    flex: 1;
-    background: var(--card);
-    border-radius: 14px;
-    padding: 12px;
-    text-align: center;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-}
-
-.admin-stat h4 {
-    font-size: 13px;
-    margin-bottom: 5px;
-    color: var(--muted);
-}
-
-.admin-stat span {
-    font-size: 16px;
-    font-weight: bold;
-    color: var(--primary);
-}
-
-/* ========================= */
-/* 📦 الكروت */
-/* ========================= */
-
-.admin-card {
-    background: var(--card);
-    border-radius: 16px;
-    padding: 12px;
-    margin-bottom: 15px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
-}
-
-.admin-card h3 {
-    margin-bottom: 10px;
-    font-size: 14px;
-}
-
-/* ========================= */
-/* 📋 العناصر */
-/* ========================= */
-
-.admin-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px;
-    border-radius: 10px;
-    margin-bottom: 6px;
-    background: #1f2937;
-    font-size: 12px;
-    transition: 0.3s;
-}
-
-.admin-item:hover {
-    background: #374151;
-}
-
-/* ========================= */
-/* 🎛️ الأزرار */
-/* ========================= */
-
-.admin-actions {
-    display: flex;
-    gap: 6px;
-}
-
-.admin-btn {
-    padding: 5px 10px;
-    border-radius: 8px;
-    border: none;
-    font-size: 11px;
-    cursor: pointer;
-    transition: 0.2s;
-}
-
-/* 🗑 حذف */
-.admin-btn.delete {
-    background: #ef4444;
-    color: white;
-}
-
-.admin-btn.delete:hover {
-    opacity: 0.85;
-}
-
-/* ⏸ إيقاف */
-.admin-btn.stop {
-    background: #f59e0b;
-    color: white;
-}
-
-.admin-btn.stop:hover {
-    opacity: 0.85;
-}
-
-/* 🚫 حظر */
-.admin-btn.ban {
-    background: #6b7280;
-    color: white;
-}
-
-.admin-btn.ban:hover {
-    opacity: 0.85;
-}
-
-/* ✔ تأكيد */
-.admin-btn.approve {
-    background: #22c55e;
-    color: white;
-}
-
-.admin-btn.approve:hover {
-    opacity: 0.85;
+.progress-fill {
+    height: 100%; background: linear-gradient(90deg, #3b82f6, #60a5fa);
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
 }
 
-/* 💸 دفع */
-.admin-btn.pay {
-    background: #3b82f6;
-    color: white;
+/* شبكة الإحصائيات */
+.stats-grid-premium {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 15px;
 }
-
-.admin-btn.pay:hover {
-    opacity: 0.85;
+.stat-card {
+    background: var(--card); padding: 15px; border-radius: 18px;
+    text-align: center; border: 1px solid rgba(255,255,255,0.03);
 }
+.stat-card i { font-size: 20px; margin-bottom: 8px; display: block; }
+.stat-card small { color: #64748b; display: block; font-size: 11px; }
+.stat-card b { font-size: 15px; color: #fff; }
 
-/* ========================= */
-/* 💰 قسم المدفوعات */
-/* ========================= */
-
-.admin-payments {
-    margin-top: 10px;
+/* القائمة السفلية */
+.profile-menu { margin-top: 15px; background: var(--card); border-radius: 20px; overflow: hidden; }
+.menu-item {
+    display: flex; align-items: center; padding: 15px;
+    border-bottom: 1px solid rgba(255,255,255,0.03); cursor: pointer;
 }
-
-.admin-payment-item {
-    background: #1f2937;
-    padding: 10px;
-    border-radius: 10px;
-    margin-bottom: 6px;
-    font-size: 12px;
-    display: flex;
-    justify-content: space-between;
+.menu-item:last-child { border-bottom: none; }
+.menu-icon {
+    width: 35px; height: 35px; border-radius: 10px; background: rgba(59, 130, 246, 0.1);
+    color: var(--accent); display: flex; align-items: center; justify-content: center; margin-left: 12px;
 }
+.menu-text { flex: 1; font-size: 14px; text-align: right; }
+.arrow { color: #334155; font-size: 12px; }
 
-/* ========================= */
-/* ✨ Animation */
-/* ========================= */
 
-.admin-card,
-.admin-stat {
-    animation: fadeIn 0.4s ease;
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(8px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
         
     </style>
 </head>
@@ -1071,1139 +178,399 @@
     </div>
 
     
-    <!-- ========================= -->
-<!-- 📢 Advertiser Section -->
-<!-- ========================= -->
-
-<div id="promo" class="section">
-
-    <div class="advertiser-container">
-
-        <!-- 🔥 إنشاء حملة -->
-        <div class="ad-create-card">
-
-            <h3>🚀 إنشاء حملة إعلانية</h3>
-
-            <!-- 🎯 نوع الإعلان -->
-            <div class="ad-types">
-                <div class="ad-type active" onclick="selectAdType(this, 'click')">🖱️ نقرات</div>
-                <div class="ad-type" onclick="selectAdType(this, 'view')">👁️ مشاهدات</div>
-                <div class="ad-type" onclick="selectAdType(this, 'post')">📌 منشور ثابت</div>
-            </div>
-
-            <!-- 🧾 عنوان -->
-            <div class="ad-form-group">
-                <label>عنوان الإعلان</label>
-                <input type="text" id="ad-title" placeholder="مثال: أفضل بوت ربح 💰">
-            </div>
-
-            <!-- 🔗 رابط -->
-            <div class="ad-form-group">
-                <label>رابط الإعلان</label>
-                <input type="text" id="ad-link" placeholder="https://t.me/...">
-            </div>
-
-            <!-- 📝 وصف -->
-            <div class="ad-form-group">
-                <label>وصف الإعلان</label>
-                <textarea id="ad-desc" placeholder="وصف اختياري"></textarea>
-            </div>
-
-            <!-- 🌍 القارة -->
-            <div class="ad-form-group">
-                <label>🌍 القارة</label>
-                <select id="ad-continent" onchange="loadCountries()">
-                    <option value="all">🌍 جميع القارات</option>
-                    <option value="asia">آسيا</option>
-                    <option value="africa">أفريقيا</option>
-                    <option value="europe">أوروبا</option>
-                    <option value="north_america">أمريكا الشمالية</option>
-                    <option value="south_america">أمريكا الجنوبية</option>
-                    <option value="australia">أستراليا</option>
-                </select>
-            </div>
-
-            <!-- 🌎 الدولة -->
-            <div class="ad-form-group">
-                <label>🌎 الدولة</label>
-                <select id="ad-country">
-                    <option value="all">🌍 جميع الدول</option>
-                </select>
-            </div>
-
-            <!-- 🎯 التصنيف -->
-            <div class="ad-form-group">
-                <label>🎯 الاهتمام</label>
-                <select id="ad-category">
-                    <option value="all">🌍 عام</option>
-                    <option value="crypto">💰 عملات رقمية</option>
-                    <option value="beauty">💄 جمال</option>
-                    <option value="movies">🎬 أفلام</option>
-                    <option value="sports">⚽ رياضة</option>
-                    <option value="entertainment">🎭 ترفيه</option>
-                    <option value="news">📰 أخبار</option>
-                    <option value="programming">💻 برمجة</option>
-                    <option value="gaming">🎮 ألعاب</option>
-                    <option value="cooking">🍳 طبخ</option>
-                    <option value="tech">📱 تقنية</option>
-                </select>
-            </div>
-
-            <!-- 💰 الميزانية -->
-            <div class="ad-budget">
-                <input type="number" id="ad-budget" placeholder="الميزانية (USDT)">
-                <input type="number" id="ad-price" placeholder="السعر لكل نقرة/مشاهدة">
-            </div>
-
-            <!-- 🚀 زر -->
-            <button class="ad-submit-btn" onclick="createCampaign()">
-                🚀 إطلاق الحملة
-            </button>
-
+    <div id="promo" class="section">
+        <div class="card">
+            <h2><i class="fas fa-rocket"></i> المعلن</h2>
+            <p>أنشئ حملاتك الإعلانية هنا.</p>
+            <button class="btn">إضافة إعلان جديد</button>
         </div>
-
-        <!-- 📊 عرض الحملات -->
-        <div class="ad-campaigns" id="campaigns-list">
-            <!-- يتم ملؤه تلقائياً -->
-        </div>
-
     </div>
 
-</div>
-
-
-    <!-- ========================= -->
-<!-- 📣 Publisher Section -->
-<!-- ========================= -->
-
-<div id="publisher" class="section">
-
-    <div class="publisher-container">
-
-        <h2>📣 إدارة قنواتك</h2>
-
-        <!-- 🔥 إضافة قناة -->
-        <div class="channel-add-card">
-
-            <h3>➕ إضافة قناة جديدة</h3>
-
-            <!-- اسم القناة -->
-            <div class="channel-form-group">
-                <label>اسم القناة</label>
-                <input type="text" id="channel-name" placeholder="@channel_name">
-            </div>
-
-            <!-- رابط القناة -->
-            <div class="channel-form-group">
-                <label>رابط القناة</label>
-                <input type="text" id="channel-link" placeholder="https://t.me/...">
-            </div>
-
-            <!-- عدد المشتركين -->
-            <div class="channel-form-group">
-                <label>عدد المشتركين</label>
-                <input type="number" id="channel-subs" placeholder="1000">
-            </div>
-
-            <!-- 🌍 القارة -->
-            <div class="channel-form-group">
-                <label>🌍 القارة</label>
-                <select id="channel-continent" onchange="loadPublisherCountries()">
-                    <option value="asia">آسيا</option>
-                    <option value="africa">أفريقيا</option>
-                    <option value="europe">أوروبا</option>
-                    <option value="north_america">أمريكا الشمالية</option>
-                    <option value="south_america">أمريكا الجنوبية</option>
-                    <option value="australia">أستراليا</option>
-                </select>
-            </div>
-
-            <!-- 🌎 الدولة -->
-            <div class="channel-form-group">
-                <label>🌎 الدولة</label>
-                <select id="channel-country">
-                    <option value="">اختر الدولة</option>
-                </select>
-            </div>
-
-            <!-- 🎯 التصنيف -->
-            <div class="channel-form-group">
-                <label>🎯 التصنيف</label>
-                <select id="channel-category">
-                    <option value="crypto">💰 عملات رقمية</option>
-                    <option value="beauty">💄 جمال</option>
-                    <option value="movies">🎬 أفلام</option>
-                    <option value="sports">⚽ رياضة</option>
-                    <option value="entertainment">🎭 ترفيه</option>
-                    <option value="news">📰 أخبار</option>
-                    <option value="programming">💻 برمجة</option>
-                    <option value="gaming">🎮 ألعاب</option>
-                    <option value="cooking">🍳 طبخ</option>
-                    <option value="tech">📱 تقنية</option>
-                </select>
-            </div>
-
-            <!-- زر الإضافة -->
-            <button class="channel-submit-btn" onclick="addChannel()">
-                ➕ إضافة القناة
-            </button>
-
-        </div>
-
-        <!-- 📊 عرض القنوات -->
-        <div class="channels-list" id="channels-list">
-            <!-- يتم ملؤها تلقائياً من JavaScript -->
-        </div>
-
-    </div>
-
-</div>
-                    
     
-<!-- ========================= -->
-<!-- 🔗 Referral Section -->
-<!-- ========================= -->
+    <div id="publisher" class="section">
+         <div class="publisher-header-card">
+        <div style="display: flex; gap: 20px;">
+            <div class="stat-item">
+                <small>إجمالي الأرباح 📈</small>
+                <h3 id="total-earned-display">$0.00</h3>
+            </div> 
+            <div class="stat-item">
+                <small>القابل للسحب 💰</small>
+                <h3 id="withdrawable-balance-display" style="color: #2ecc71;">$0.00</h3>
+            </div> 
+        </div> 
+        <button class="withdraw-trigger-btn" onclick="openTab('withdraw')" style="cursor: pointer;">سحب الآن</button>
+    </div> 
 
-<div id="referrals" class="section">
+    <div class="stats-grid">
+        <div class="stat-card" style="border-bottom: 4px solid #3498db;">
+            <h4 style="color: #3498db; font-size: 12px; margin: 0;">🖱️ النقرات (CPC)</h4>
+            <p id="stat-clicks" style="font-size: 20px; font-weight: bold; margin: 8px 0;">0</p>
+            <div class="profit-tag">الربح: $<span id="profit-clicks">0.00</span></div>
+        </div>
 
-    <div class="referrals-container">
+        <div class="stat-card" style="border-bottom: 4px solid #2ecc71;">
+            <h4 style="color: #2ecc71; font-size: 12px; margin: 0;">🚀 المشاهدات (CPM)</h4>
+            <p id="stat-views" style="font-size: 20px; font-weight: bold; margin: 8px 0;">0</p>
+            <div class="profit-tag">الربح: $<span id="profit-views">0.00</span></div>
+        </div>
 
-        <!-- 🔥 كرت الإحالة -->
-        <div class="ref-card">
+        <div class="stat-card" style="border-bottom: 4px solid #9b59b6;">
+            <h4 style="color: #9b59b6; font-size: 12px; margin: 0;">⏰ منشورات (24h)</h4>
+            <p id="stat-timed" style="font-size: 20px; font-weight: bold; margin: 8px 0;">0</p>
+            <div class="profit-tag">الربح: $<span id="profit-timed">0.00</span></div>
+        </div>
 
-            <h3>🔥 نظام الإحالة</h3>
+        <div class="stat-card" style="background: linear-gradient(135deg, #f1c40f, #f39c12); color: #000; border:none; display: flex; flex-direction: column; justify-content: center;">
+            <h4 style="margin: 0; font-size: 12px; font-weight: 800;">💰 الإجمالي الصافي</h4>
+            <h2 style="margin: 5px 0; font-size: 24px;">$<span id="total-net-earnings">0.00</span></h2>
+        </div>
+    </div>
 
-            <p>
-                ادعُ أصدقاءك واربح عمولة عن كل مستخدم جديد 💰
+    <button class="btn-premium-add" onclick="togglePublisherPanel()" style="margin-top: 20px;">
+        ➕ إضافة قناة جديدة للمنصة
+    </button>
+
+    <div id="publisher-panel" style="display: none; background: #1a1a1a; padding: 20px; border-radius: 15px; margin-top: 20px; border: 1px solid #333;">
+        <h3 style="color: #f1c40f; text-align: center; margin-bottom: 20px; font-weight: 800;">📝 بيانات القناة</h3>
+        
+        <input type="text" id="ch-name" class="input-premium" placeholder="🏷️ اسم قناتك">
+        <input type="text" id="ch-link" class="input-premium" placeholder="🔗 رابط القناة @username">
+        
+        <label style="color: #888; font-size: 12px; display: block; margin-top: 10px;">🌍 استهداف القناة:</label>
+        <select id="ch-continent" class="input-premium" style="margin-bottom: 8px; width: 100%;">
+            <option value="">اختر المنطقة...</option>
+        </select>
+        <select id="ch-country" class="input-premium" style="width: 100%;">
+            <option value="all">كل دول المنطقة</option>
+        </select>
+
+<div class="card" style="background: #1e293b; padding: 15px; border-radius: 20px; margin-top: 15px; border: 1px dashed #334155;">
+    <h4 style="color: #38bdf8; font-size: 13px; margin-bottom: 12px;">🛠️ إعدادات استقبال الإعلانات:</h4>
+
+            
+    <label class="label-small">🎯 تخصص محتوى القناة:</label>
+    <select id="pub-ch-category" class="input-premium">
+        <option value="all">عام 🌍</option>
+        <option value="crypto">العملات المشفره 🪙</option>
+        <option value="movies">الأفلام والمسلسلات 🎬</option>
+        <option value="tech">التكنولوجيا والتقنية 📱</option>
+        <option value="coding">التطبيقات والبرمجة 💻</option>
+    </select>
+
+    <label class="label-small">🌍 الجمهور الغالب في القناة:</label>
+    <select id="pub-ch-region" class="input-premium">
+        <option value="global">عالمي (كل المناطق)</option>
+        <option value="mena">الشرق الأوسط وشمال أفريقيا</option>
+        <option value="gcc">دول الخليج العربي</option>
+        <option value="eu">أوروبا وأمريكا</option>
+    </select>
+
+    <label class="label-small">💳 أنواع الإعلانات التي تقبلها:</label>
+    <div style="display: flex; gap: 8px; margin-top: 5px;">
+        <label style="font-size: 10px; color: #fff; background: rgba(255,255,255,0.05); padding: 5px 10px; border-radius: 8px; flex: 1; text-align: center;">
+            <input type="checkbox" id="pub-accept-fixed" checked> ثابت 1/24
+        </label>
+        <label style="font-size: 10px; color: #fff; background: rgba(255,255,255,0.05); padding: 5px 10px; border-radius: 8px; flex: 1; text-align: center;">
+            <input type="checkbox" id="pub-accept-performance"> أداء (نقرات/مشاهدات)
+        </label>
+    </div>
+</div>
+        <div style="background:rgba(0,0,0,0.6); padding:15px; border-radius:15px; margin: 15px 0; font-size:13px; border:1px solid #444;">
+            <p style="margin-bottom:10px; color: #fff;">⏰ <b>منشور (24h):</b> 
+                               <input type="number" id="price-24h" placeholder="0" style="width:60px; background:none; border:1px solid #f1c40f; color:white; border-radius:5px; text-align: center;"> $ 
+                <small style="color: #888;">(عمولتنا 10%)</small>
             </p>
-
-            <!-- 🔗 رابط الإحالة -->
-            <div class="ref-link-box" id="ref-link">
-                جاري التحميل...
-            </div>
-
-            <!-- 📋 زر النسخ -->
-            <button class="ref-copy-btn" onclick="copyRef()">
-                📋 نسخ الرابط
-            </button>
-
+            <p style="margin-bottom:10px; color: #fff;">🖱️ <b>نقرات (CPC):</b> <span style="color:#2ecc71; font-weight: bold;">5$ / 1000</span></p>
+            <p style="margin: 0; color: #fff;">🚀 <b>مشاهدات (CPM):</b> <span style="color:#2ecc71; font-weight: bold;">1$ / 1000</span></p>
         </div>
 
-        <!-- ========================= -->
-        <!-- 📊 الإحصائيات -->
-        <!-- ========================= -->
+                <button class="btn-premium-add" style="width:100%; background:#0088cc; color:white; border-radius: 12px; margin-bottom: 10px; padding: 12px; border: none; cursor: pointer;" onclick="window.open('https://t.me/Ads_telegabot?startchannel=true')">
+            🤖 1. إضافة البوت كمسؤول
+        </button>
 
-        <div class="ref-stats">
+        <button onclick="tg.showAlert('🔍 يتم الآن التحقق من الصلاحيات...')" style="width:100%; padding:12px; background:none; border:1px solid #444; color:white; border-radius:12px; margin-bottom:10px; cursor: pointer;">
+            🔍 2. تحقق من الإضافة
+        </button>
+        
+        <button onclick="submitEliteChannel()" style="width:100%; padding:15px; background:#2ecc71; border:none; color:white; border-radius:12px; font-weight:bold; font-size:16px; cursor: pointer;">
+            🚀 3. تقديم القناة للمراجعة
+        </button>
 
-            <div class="ref-stat-card">
-                <h4>👥 الإحالات</h4>
-                <span id="ref-count">0</span>
-            </div>
+    </div> 
 
-            <div class="ref-stat-card">
-                <h4>💰 الأرباح</h4>
-                <span id="ref-earnings">0 USDT</span>
-            </div>
-
+    <h4 style="color:#888; font-size:14px; margin-top: 30px;">📺 قنواتك المسجلة:</h4>
+    <div id="my-elite-channels" style="min-height: 50px;"></div>
+        </div>
+                
+        <div id="section-withdraw" class="section" style="display: none; padding: 15px;">
+    
+    <div class="withdraw-card">
+        <button onclick="openTab('channels')" class="back-btn" style="cursor:pointer;">⬅️ العودة</button>
+        
+        <h2 style="text-align: center; color: #fff; margin: 20px 0;">طلب سحب أرباح</h2>
+        
+        <div class="rules-box">
+            <p>📌 <b>الحد الأدنى:</b> 30$</p>
+            <p>🕒 <b>وقت المعالجة:</b> 24 - 48 ساعة</p>
+            <p>💸 <b>العمولة:</b> 3$ ثابتة (رسوم الشبكة)</p>
+            <p>🌐 <b>الوسيلة:</b> USDT (TRC20)</p>
         </div>
 
-        <!-- ========================= -->
-        <!-- 🏆 Leaderboard -->
-        <!-- ========================= -->
-
-        <div class="ref-leaderboard">
-
-            <h3>🏆 أفضل المسوقين</h3>
-
-            <div id="leaderboard">
-                <small>جاري التحميل...</small>
-            </div>
-
+        <div class="input-container">
+            <label>عنوان المحفظة (USDT TRC20)</label>
+            <input type="text" id="withdraw-wallet" placeholder="T..." class="modern-input">
         </div>
 
-        <!-- ========================= -->
-        <!-- 🎁 المكافآت -->
-        <!-- ========================= -->
-
-        <div class="ref-rewards">
-
-            <h3>🎁 المكافآت</h3>
-
-            <div class="ref-reward-item">
-                <span>5 إحالات</span>
-                <b>+10 USDT</b>
-            </div>
-
-            <div class="ref-reward-item">
-                <span>20 إحالة</span>
-                <b>+50 USDT</b>
-            </div>
-
-            <div class="ref-reward-item">
-                <span>50 إحالة</span>
-                <b>+200 USDT</b>
-            </div>
-
+        <div class="input-container">
+            <label>المبلغ المطلوب</label>
+            <input type="number" id="withdraw-amount" oninput="calculateWithdrawNet()" placeholder="0.00" class="modern-input">
+            <div id="withdraw-summary" class="withdraw-summary" style="color: #2ecc71; margin-top: 5px; font-size: 12px;">ستستلم: 0.00$</div>
         </div>
 
+        <button id="confirm-withdraw-btn" onclick="executeWithdrawWorkflow()" class="main-withdraw-btn" style="width: 100%; padding: 15px; background: #2ecc71; border: none; border-radius: 12px; color: white; font-weight: bold; margin-top: 15px; cursor: pointer;">
+            تأكيد وطلب السحب
+        </button>
     </div>
-
-</div>
-
-
-    <!-- ========================= -->
-<!-- 👤 Profile Section -->
-<!-- ========================= -->
-
-<div id="profile" class="section">
-
-    <div class="profile-container">
-
-        <!-- 🔥 كرت البروفايل -->
-        <div class="profile-card">
-
-            <div class="profile-pfp" id="user-pfp">U</div>
-
-            <div class="profile-name" id="user-name">
-                User Name
-            </div>
-
-            <div class="profile-id" id="user-id">
-                ID: 000000
-            </div>
-
-            <div class="profile-rank" id="user-rank-label">
-                مستخدم
-            </div>
-
-        </div>
-
-        <!-- ========================= -->
-        <!-- 💰 الإحصائيات -->
-        <!-- ========================= -->
-
-        <div class="profile-stats">
-
-            <div class="profile-stat">
-                <h4>💰 الرصيد</h4>
-                <span id="balance">0 USDT</span>
-            </div>
-
-            <div class="profile-stat">
-                <h4>📈 الأرباح</h4>
-                <span id="earned">0 USDT</span>
-            </div>
-
-        </div>
-
-        <!-- ========================= -->
-        <!-- ⚙️ الأزرار -->
-        <!-- ========================= -->
-
-        <div class="profile-actions">
-
-            <button class="profile-btn withdraw" onclick="withdraw()">
-                💸 سحب
-            </button>
-
-            <button class="profile-btn deposit" onclick="deposit()">
-                ➕ إيداع
-            </button>
-
-            <button class="profile-btn copy" onclick="copyId()">
-                📋 نسخ ID
-            </button>
-
-        </div>
-
-        <!-- ========================= -->
-        <!-- 📄 المعاملات -->
-        <!-- ========================= -->
-
-        <div class="transactions-card">
-
-            <h3>📄 المعاملات</h3>
-
-            <div id="transactions">
-                <small>جاري التحميل...</small>
-            </div>
-
-        </div>
-
-        <!-- ========================= -->
-        <!-- 🔗 روابط إضافية -->
-        <!-- ========================= -->
-
-        <div class="profile-links">
-
-            <a href="#" class="profile-link" onclick="contact()">
-                📞 الدعم الفني
-            </a>
-
-            <a href="#" class="profile-link" onclick="logout()">
-                🚪 تسجيل الخروج
-            </a>
-
-        </div>
-
-    </div>
-
-</div>
-
-<!-- ========================= -->
-<!-- 👑 Admin Section -->
-<!-- ========================= -->
-
-<div id="admin" class="section">
-
-    <div class="admin-container">
-
-        <!-- 🔥 العنوان -->
-        <div class="admin-header">
-            <h2>👑 لوحة الإدارة</h2>
-        </div>
-
-        <!-- ========================= -->
-        <!-- 📊 الإحصائيات -->
-        <!-- ========================= -->
-
-        <div class="admin-stats">
-
-            <div class="admin-stat">
-                <h4>👤 المستخدمين</h4>
-                <span id="admin-users">0</span>
-            </div>
-
-            <div class="admin-stat">
-                <h4>📢 الحملات</h4>
-                <span id="admin-campaigns">0</span>
-            </div>
-
-            <div class="admin-stat">
-                <h4>📣 القنوات</h4>
-                <span id="admin-channels">0</span>
-            </div>
-
-        </div>
-
-        <!-- ========================= -->
-        <!-- 👤 إدارة المستخدمين -->
-        <!-- ========================= -->
-
-        <div class="admin-card">
-
-            <h3>👤 إدارة المستخدمين</h3>
-
-            <div id="admin-users-list">
-                <small>جاري التحميل...</small>
-            </div>
-
-        </div>
-
-        <!-- ========================= -->
-        <!-- 📢 إدارة الحملات -->
-        <!-- ========================= -->
-
-        <div class="admin-card">
-
-            <h3>📢 إدارة الحملات</h3>
-
-            <div id="admin-campaigns-list">
-                <small>جاري التحميل...</small>
-            </div>
-
-        </div>
-
-        <!-- ========================= -->
-        <!-- 📣 إدارة القنوات -->
-        <!-- ========================= -->
-
-        <div class="admin-card">
-
-            <h3>📣 إدارة القنوات</h3>
-
-            <div id="admin-channels-list">
-                <small>جاري التحميل...</small>
-            </div>
-
-        </div>
-
-        <!-- ========================= -->
-        <!-- 💰 الإيداعات -->
-        <!-- ========================= -->
-
-        <div class="admin-card">
-
-            <h3>💰 الإيداعات</h3>
-
-            <div id="admin-deposits">
-                <small>جاري التحميل...</small>
-            </div>
-
-        </div>
-
-        <!-- ========================= -->
-        <!-- 💸 السحب -->
-        <!-- ========================= -->
-
-        <div class="admin-card">
-
-            <h3>💸 طلبات السحب</h3>
-
-            <div id="admin-withdraws">
-                <small>جاري التحميل...</small>
-            </div>
-
-        </div>
-
-    </div>
-
 </div>
 
     
+    <div id="referrals" class="section">
+        <div class="card">
+            <h2><i class="fas fa-user-plus"></i> الإحالة</h2>
+            <p>رابط الإحالة الخاص بك:</p>
+            <div style="background:rgba(0,0,0,0.2); padding:10px; border-radius:10px; word-break:break-all;" id="ref-link">جاري التحميل...</div>
+        </div>
+    </div>
+
+    
+    <div id="profile" class="section">
+    <div class="card profile-main-card">
+        <div class="profile-header-premium">
+            <div class="avatar-wrapper">
+                <div id="user-pfp" class="user-avatar-premium">?</div>
+                <div class="verify-badge"><i class="fas fa-check-circle"></i></div>
+            </div>
+            <div class="user-meta">
+                <h3 id="user-name">جاري التحميل...</h3>
+                <span id="user-rank-label" class="rank-badge">عضو برونزي</span>
+            </div>
+        </div>
+
+        <div class="level-container">
+            <div class="level-info">
+                <span>المستوى الحالي: <b id="current-level-name">1</b></span>
+                <span id="level-percent">40%</span>
+            </div>
+            <div class="progress-bar">
+                <div id="level-progress" class="progress-fill" style="width: 40%;"></div>
+            </div>
+            <small class="level-hint">تبقّى 60 نقطة للوصول للمستوى الفضي</small>
+        </div>
+    </div>
+
+    <div class="stats-grid-premium">
+        <div class="stat-card">
+            <i class="fas fa-wallet" style="color: #3b82f6;"></i>
+            <small>المحفظة</small>
+            <b id="p-balance">0.00 <small>TRX</small></b>
+        </div>
+        <div class="stat-card">
+            <i class="fas fa-chart-line" style="color: #10b981;"></i>
+            <small>الأرباح</small>
+            <b id="p-earned">0.00 <small>TRX</small></b>
+        </div>
+        <div class="stat-card">
+            <i class="fas fa-users" style="color: #f59e0b;"></i>
+            <small>الفريق</small>
+            <b id="p-refs">0</b>
+        </div>
+        <div class="stat-card">
+            <i class="fas fa-shield-alt" style="color: #ef4444;"></i>
+            <small>الحماية</small>
+            <b style="color: #10b981;">نشط</b>
+        </div>
+    </div>
+
+    <div class="profile-menu">
+        <div class="menu-item" onclick="copyRefLink()">
+            <div class="menu-icon"><i class="fas fa-link"></i></div>
+            <div class="menu-text">رابط الإحالة الخاص بي</div>
+            <i class="fas fa-chevron-left arrow"></i>
+        </div>
+        <div class="menu-item" onclick="window.Telegram.WebApp.showAlert('سجل نشاطاتك فارغ حالياً')">
+            <div class="menu-icon"><i class="fas fa-history"></i></div>
+            <div class="menu-text">سجل العمليات الأخير</div>
+            <i class="fas fa-chevron-left arrow"></i>
+        </div>
+        <div class="menu-item" onclick="window.Telegram.WebApp.openLink('https://t.me/YourSupport')">
+            <div class="menu-icon"><i class="fas fa-headset"></i></div>
+            <div class="menu-text">الدعم الفني المباشر</div>
+            <i class="fas fa-chevron-left arrow"></i>
+        </div>
+    </div>
+</div>
+
+
+
+    <div id="admin" class="section">
+        <div class="card" style="border-color: #ef4444;">
+            <h2 style="color: #ef4444;"><i class="fas fa-user-shield"></i> لوحة الإدارة</h2>
+            <p>مرحباً بك يا أمين. التحكم الكامل متاح الآن.</p>
+            <button class="btn" style="background: #475569;">إدارة القنوات المنتظرة</button>
+            <button class="btn" style="background: #475569;">طلبات السحب</button>
+
+            <div class="card" style="border-color: #ef4444; text-align: center;">
+    <lottie-player 
+        src="https://assets3.lottiefiles.com/packages/lf20_ghp9v6m3.json" 
+        background="transparent"  
+        speed="1"  
+        style="width: 100px; height: 100px; margin: 0 auto;"  
+        loop  
+        autoplay>
+    </lottie-player>
+    <h2 style="color: #ef4444;">لوحة التحكم العليا</h2>
+            </div>
+            
+        </div>
+    </div>
     
 
-         <div class="bottom-nav">
+       <div class="bottom-nav">
         <div class="nav-item active" onclick="showSection('home', this)"><i class="fas fa-home"></i><span>الرئيسية</span></div>
         <div class="nav-item" onclick="showSection('promo', this)"><i class="fas fa-ad"></i><span>المعلن</span></div>
         <div class="nav-item" onclick="showSection('publisher', this)"><i class="fas fa-bullhorn"></i><span>الناشر</span></div>
-        <div class="nav-item" onclick="showSection('referrals', this)">
-    <i class="fas fa-users"></i>
-    <span>الإحالة</span>
-        </div>
+        <div class="nav-item" onclick="showSection('referrals', this)"><i class="fas fa-users"></i><span>الإحالة</span></div>
         <div class="nav-item" onclick="showSection('profile', this)"><i class="fas fa-user-circle"></i><span>الملف</span></div>
-        <div class="nav-item" id="admin-nav" style="display: none;" onclick="showSection('admin', this)">
-    <i class="fas fa-user-cog"></i>
-    <span>الإدارة</span>
-        </div>
+        <div class="nav-item" id="admin-nav" style="display: none;" onclick="showSection('admin', this)"><i class="fas fa-user-cog"></i><span>الإدارة</span></div>
+       </div>
    
 
     <script>
-
-    // ===============================
-// 🔷 Telegram + Firebase
-// ===============================
-const webApp = window.Telegram.WebApp;
-const ADMIN_ID = 549686235;
-
-if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
-
-// ===============================
-// 🌍 القارات + الدول
-// ===============================
-console.log("🔥 JS شغال");
-
-const countriesByContinent = {
-    asia: [
-        {code:"sa", name:"🇸🇦 السعودية"},
-        {code:"ae", name:"🇦🇪 الإمارات"}
-    ],
-    africa: [
-        {code:"eg", name:"🇪🇬 مصر"}
-    ]
-};
+        // الإعدادات التي قدمتها
+        const webApp = window.Telegram.WebApp;
+        const ADMIN_ID = 549686235;
+        const LOGO_URL = "https://i.ibb.co/Z6qzV2Wk/1777032600480logo.png";
         
-// ===============================
-// 👤 المستخدم
-// ===============================
-let currentUser = {
-    id: null,
-    name: ""
-};
+        const firebaseConfig = {
+            apiKey: "AIzaSyB9wJ3RKL9Sc0VqIgOz3HIL6PAZMK1GZos",
+            authDomain: "telega-io.firebaseapp.com",
+            databaseURL: "https://telega-io-default-rtdb.firebaseio.com",
+            projectId: "telega-io",
+            storageBucket: "telega-io.firebasestorage.app",
+            messagingSenderId: "413242252888",
+            appId: "1:413242252888:web:6055aaa7fcdd256910b42d"
+        };
 
-// ===============================
-// 🚀 تشغيل التطبيق
-// ===============================
-function initApp() {
+        // تشغيل Firebase
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
 
-    webApp.ready();
-    webApp.expand();
+        function initApp() {
+            webApp.ready();
+            webApp.expand();
+            document.getElementById('app-logo').src = LOGO_URL;
 
-    const user = webApp.initDataUnsafe.user;
-
-    console.log("USER:", user);
-
-    if (!user) {
-        console.error("❌ Telegram غير جاهز");
-        return;
-    }
-
-    currentUser.id = user.id;
-    currentUser.name = user.first_name;
-
-    // 👑 الإدارة (نفس الكود القديم 100%)
-    if (user.id === ADMIN_ID) {
-
-        const adminNav = document.getElementById("admin-nav");
-
-        if (adminNav) {
-            adminNav.style.display = "flex"; // أو block
-            console.log("👑 ADMIN SHOWN");
-        } else {
-            console.error("❌ admin-nav غير موجود");
+            const user = webApp.initDataUnsafe.user;
+            if (user) {
+                // التحقق من الإدارة
+                if (user.id === ADMIN_ID) {
+                    document.getElementById('admin-nav').style.display = 'block';
+                }
+                // تحديث رابط الإحالة
+                document.getElementById('ref-link').innerText = `https://t.me/YourBot?start=${user.id}`;
+            }
         }
-    }
 
-    // 👤 الملف الشخصي
-    setupProfileUI();
+        function showSection(sectionId, element) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.getElementById(sectionId).classList.add('active');
+            
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            element.classList.add('active');
 
-    // 🔥 إنشاء المستخدم
-    initUser();
+            if (webApp.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
+        }
 
-    // 💰 تحميل البيانات
-    loadProfileData();
-
-    // 🧭 فتح الصفحة الرئيسية
-    showSection("home");
+        // مثال: تشغيل الحركة عند الضغط على زر
+function playSuccessAnimation() {
+    const player = document.querySelector("lottie-player");
+    player.play(); // تشغيل
+    // أو player.stop(); للإيقاف
 }
-// ===============================
-// 👤 واجهة المستخدم
-// ===============================
-function setupProfileUI() {
-
-    const tg = webApp.initDataUnsafe.user;
-    if (!tg) return;
-
-    const nameEl = document.getElementById("user-name");
-    if (nameEl) {
-        nameEl.innerText = tg.first_name + (tg.last_name ? " " + tg.last_name : "");
-    }
-
-    const idEl = document.getElementById("user-id");
-    if (idEl) idEl.innerText = "ID: " + tg.id;
-
-    const pfp = document.getElementById("user-pfp");
-    if (pfp) {
-        if (tg.photo_url) {
-            pfp.innerHTML = `<img src="${tg.photo_url}" style="width:100%;height:100%;object-fit:cover;">`;
+        // وظيفة لجلب بيانات المستخدم وعرضها في الملف الشخصي
+function loadUserProfile() {
+    const user = window.Telegram.WebApp.initDataUnsafe.user;
+    
+    if (user) {
+        // تحديث الاسم والمعرف
+        document.getElementById('user-name').innerText = user.first_name + (user.last_name ? " " + user.last_name : "");
+        document.getElementById('user-id').innerText = "ID: " + user.id;
+        
+        // تحديث الصورة الشخصية
+        const pfpContainer = document.getElementById('user-pfp');
+        if (user.photo_url) {
+            pfpContainer.innerHTML = `<img src="${user.photo_url}" style="width:100%; height:100%; object-fit:cover;">`;
         } else {
-            pfp.innerText = tg.first_name.charAt(0);
+            pfpContainer.innerText = user.first_name.charAt(0);
+        }
+        
+        // إذا كان هو المدير
+        if (user.id === 549686235) {
+            document.getElementById('user-level').innerText = "المالك";
+            document.getElementById('user-level').style.color = "var(--danger)";
         }
     }
 }
 
-// ===============================
-// 🔥 إنشاء المستخدم
-// ===============================
-async function initUser() {
+// تأكد من استدعاء هذه الوظيفة عند تشغيل التطبيق
+window.onload = function() {
+    // الأوامر الأخرى لديك...
+    loadUserProfile();
+};
+        function setupStrongProfile() {
+    const user = window.Telegram.WebApp.initDataUnsafe.user;
+    
+    if (user) {
+        // تحديث البيانات الأساسية
+        document.getElementById('user-name').innerText = user.first_name + (user.last_name ? " " + user.last_name : "");
+        document.getElementById('user-id').innerText = "ID: " + user.id;
+        
+        // معالجة الصورة الشخصية
+        const pfp = document.getElementById('user-pfp');
+        if (user.photo_url) {
+            pfp.innerHTML = `<img src="${user.photo_url}" style="width:100%; height:100%; object-fit:cover;">`;
+        } else {
+            pfp.innerText = user.first_name.charAt(0);
+        }
 
-    const ref = db.ref("users/" + currentUser.id);
-    const snap = await ref.get();
-
-    if (!snap.exists()) {
-        await ref.set({
-            name: currentUser.name,
-            balance: 0,
-            earned: 0,
-            createdAt: Date.now()
-        });
+        // تمييز رتبة المالك (أمين)
+        if (user.id === 549686235) {
+            document.getElementById('user-rank-label').innerText = "المالك (Owner)";
+            document.getElementById('user-rank-label').style.background = "rgba(239, 68, 68, 0.15)";
+            document.getElementById('user-rank-label').style.color = "#ef4444";
+            document.getElementById('current-level-name').innerText = "MAX";
+            document.getElementById('level-progress').style.width = "100%";
+        }
     }
 }
 
-// ===============================
-// 📥 بيانات الحساب
-// ===============================
-async function loadProfileData() {
-
-    const snap = await db.ref("users/" + currentUser.id).get();
-    if (!snap.exists()) return;
-
-    const data = snap.val();
-
-    const bal = document.getElementById("balance");
-    if (bal) bal.innerText = data.balance + " USDT";
-
-    const earn = document.getElementById("earned");
-    if (earn) earn.innerText = data.earned + " USDT";
+// وظيفة نسخ الرابط مع رسالة تنبيه جميلة
+function copyRefLink() {
+    const user = window.Telegram.WebApp.initDataUnsafe.user;
+    const link = `https://t.me/YourBot?start=${user ? user.id : ''}`;
+    navigator.clipboard.writeText(link);
+    window.Telegram.WebApp.showAlert("✅ تم نسخ رابط الإحالة الخاص بك بنجاح!");
 }
 
-// ===============================
-// 🔔 إشعار
-// ===============================
-function toast(msg) {
-    let t = document.createElement("div");
-    t.className = "toast";
-    t.innerText = msg;
-    document.body.appendChild(t);
-    setTimeout(() => t.remove(), 2000);
-}
-
-// ===============================
-// 🧭 التنقل
-// ===============================
-function showSection(sectionId, element) {
-
-    document.querySelectorAll(".section").forEach(s => s.classList.remove("active"));
-
-    const sec = document.getElementById(sectionId);
-    if (sec) sec.classList.add("active");
-
-    document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
-    if (element) element.classList.add("active");
-
-    if (sectionId === "referrals") initReferralSystem();
-    if (sectionId === "publisher") loadChannels();
-    if (sectionId === "promo") loadCampaigns();
-
-    if (window.Telegram?.WebApp?.HapticFeedback) {
-        Telegram.WebApp.HapticFeedback.impactOccurred("light");
-    }
-}
-
-// ===============================
-// 📢 المعلن
-// ===============================
-
-
-// ===============================
-// 🌎 تحميل الدول حسب القارة
-// ===============================
-function loadCountries() {
-
-    console.log("🔥 تم تغيير القارة");
-
-    const continentEl = document.getElementById("ad-continent");
-    const countrySelect = document.getElementById("ad-country");
-
-    if (!continentEl || !countrySelect) {
-        console.error("❌ عنصر غير موجود");
-        return;
-    }
-
-    const continent = continentEl.value;
-
-    countrySelect.innerHTML = `<option value="all">🌍 جميع الدول</option>`;
-
-    if (continent === "all") return;
-
-    if (!countriesByContinent[continent]) {
-        console.error("❌ القارة غير موجودة:", continent);
-        return;
-    }
-
-    countriesByContinent[continent].forEach(c => {
-        countrySelect.innerHTML += `<option value="${c.code}">${c.name}</option>`;
-    });
-}
-// ===============================
-// 📢 نوع الإعلان
-// ===============================
-let selectedAdType = "click";
-
-function selectAdType(el, type) {
-    document.querySelectorAll(".ad-type").forEach(x => x.classList.remove("active"));
-    el.classList.add("active");
-    selectedAdType = type;
-}
-
-// ===============================
-// 🚀 إنشاء حملة (مع الاستهداف الكامل)
-// ===============================
-async function createCampaign() {
-
-    const title = document.getElementById("ad-title").value.trim();
-    const link = document.getElementById("ad-link").value.trim();
-    const desc = document.getElementById("ad-desc").value.trim();
-
-    const continent = document.getElementById("ad-continent").value;
-    const country = document.getElementById("ad-country").value;
-    const category = document.getElementById("ad-category").value;
-
-    const budget = parseFloat(document.getElementById("ad-budget").value);
-    const price = parseFloat(document.getElementById("ad-price").value);
-
-    if (!title || !link || !budget || !price) {
-        alert("❌ أكمل جميع البيانات");
-        return;
-    }
-
-    // 🧠 اسم الدولة
-    let countryName = "🌍 الجميع";
-
-    if (continent !== "all" && country !== "all") {
-        const countryObj = countriesByContinent[continent].find(c => c.code === country);
-        if (countryObj) countryName = countryObj.name;
-    }
-
-    const id = Date.now();
-
-    await db.ref("campaigns/" + id).set({
-        id,
-        owner: currentUser.id,
-
-        title,
-        link,
-        desc,
-
-        // 🎯 الاستهداف
-        continent,
-        country,
-        countryName,
-        category,
-
-        // 💰 البيانات
-        budget,
-        price,
-        type: selectedAdType,
-
-        clicks: 0,
-        views: 0,
-        spent: 0,
-
-        status: "active",
-        createdAt: Date.now()
-    });
-
-    alert("🚀 تم إنشاء الحملة بنجاح");
-
-    loadCampaigns();
-}
-
-// ===============================
-// 📊 عرض الحملات
-// ===============================
-async function loadCampaigns() {
-
-    const snap = await db.ref("campaigns").get();
-    const box = document.getElementById("campaigns-list");
-
-    if (!box) return;
-
-    box.innerHTML = "";
-
-    if (!snap.exists()) return;
-
-    Object.values(snap.val())
-        .filter(c => c.owner == currentUser.id)
-        .reverse()
-        .forEach(c => {
-
-            box.innerHTML += `
-            <div class="ad-campaign-card">
-
-                <div class="ad-campaign-header">
-                    <div>${c.title}</div>
-                    <div class="ad-status">${c.status}</div>
-                </div>
-
-                <div class="ad-stats">
-                    <span>🌍 ${c.continent}</span>
-                    <span>🌎 ${c.countryName}</span>
-                    <span>🎯 ${c.category}</span>
-                </div>
-
-                <div class="ad-stats">
-                    <span>👁️ ${c.views}</span>
-                    <span>🖱️ ${c.clicks}</span>
-                    <span>💰 ${c.spent}/${c.budget}</span>
-                </div>
-
-            </div>
-            `;
-        });
+// استدعاء الوظيفة عند التشغيل
+window.onload = function() {
+    setupStrongProfile();
+    // بقية وظائف التشغيل الخاصة بك...
 }
         
-// ===============================
-// 📣 الناشر
-// ===============================
-// ===============================
-// 🌎 تحميل الدول حسب القارة (للناشر)
-// ===============================
-function loadPublisherCountries() {
 
-    const continent = document.getElementById("channel-continent").value;
-    const countrySelect = document.getElementById("channel-country");
-
-    countrySelect.innerHTML = `<option value="">اختر الدولة</option>`;
-
-    if (!continent) return;
-
-    countriesByContinent[continent].forEach(c => {
-        countrySelect.innerHTML += `<option value="${c.code}">${c.name}</option>`;
-    });
-}
-
-// ===============================
-// ➕ إضافة قناة
-// ===============================
-async function addChannel() {
-
-    const name = document.getElementById("channel-name").value.trim();
-    const link = document.getElementById("channel-link").value.trim();
-    const subs = parseInt(document.getElementById("channel-subs").value);
-
-    const continent = document.getElementById("channel-continent").value;
-    const country = document.getElementById("channel-country").value;
-    const category = document.getElementById("channel-category").value;
-
-    if (!name || !link || !subs || !country) {
-        alert("❌ أكمل جميع البيانات");
-        return;
-    }
-
-    // 🧠 اسم الدولة
-    const countryObj = countriesByContinent[continent].find(c => c.code === country);
-    const countryName = countryObj ? countryObj.name : "غير محدد";
-
-    const id = Date.now();
-
-    await db.ref("channels/" + id).set({
-        id,
-        owner: currentUser.id,
-
-        name,
-        link,
-        subscribers: subs,
-
-        // 🌍 الاستهداف
-        continent,
-        country,
-        countryName,
-        category,
-
-        // 📊 إحصائيات
-        views: 0,
-        clicks: 0,
-        earned: 0,
-
-        createdAt: Date.now()
-    });
-
-    alert("✅ تم إضافة القناة");
-
-    loadChannels();
-}
-
-// ===============================
-// 📊 عرض القنوات
-// ===============================
-async function loadChannels() {
-
-    const snap = await db.ref("channels").get();
-    const box = document.getElementById("channels-list");
-
-    if (!box) return;
-
-    box.innerHTML = "";
-
-    if (!snap.exists()) return;
-
-    const channels = Object.values(snap.val())
-        .filter(c => c.owner == currentUser.id)
-        .reverse();
-
-    for (let ch of channels) {
-
-        box.innerHTML += `
-        <div class="channel-card">
-
-            <div class="channel-header">
-                <div>${ch.name}</div>
-                <div class="channel-status active">نشطة</div>
-            </div>
-
-            <div class="channel-stats">
-                <span>👥 ${ch.subscribers}</span>
-                <span>🌍 ${ch.continent}</span>
-                <span>🌎 ${ch.countryName}</span>
-                <span>🎯 ${ch.category}</span>
-            </div>
-
-            <div class="channel-earn">
-                💰 ${ch.earned} USDT
-            </div>
-
-            <div class="ad-box" id="ad-box-${ch.id}">
-                تحميل الإعلان...
-            </div>
-
-        </div>
-        `;
-
-        // 🔥 ربط الإعلان
-        renderAdInChannel(ch.id, ch);
-    }
-}
-
-// ===============================
-// 📢 جلب إعلان مناسب (مطابقة كاملة)
-// ===============================
-async function getAdForChannel(channel) {
-
-    const snap = await db.ref("campaigns").get();
-    if (!snap.exists()) return null;
-
-    let ads = Object.values(snap.val());
-
-    let filtered = ads.filter(ad =>
-        ad.status === "active" &&
-        ad.budget > ad.spent &&
-
-        // 🎯 التصنيف
-        (ad.category === channel.category || ad.category === "all") &&
-
-        // 🌍 القارة
-        (ad.continent === channel.continent || ad.continent === "all") &&
-
-        // 🌎 الدولة
-        (ad.country === channel.country || ad.country === "all")
-    );
-
-    if (filtered.length === 0) return null;
-
-    // حالياً عشوائي (نطوره لاحقاً)
-    return filtered[Math.floor(Math.random() * filtered.length)];
-}
-
-// ===============================
-// 🎯 عرض الإعلان داخل القناة
-// ===============================
-async function renderAdInChannel(channelId, channelData) {
-
-    const ad = await getAdForChannel(channelData);
-    const box = document.getElementById("ad-box-" + channelId);
-
-    if (!box) return;
-
-    if (!ad) {
-        box.innerHTML = "<small>لا يوجد إعلان مناسب</small>";
-        return;
-    }
-
-    box.innerHTML = `
-        <div class="ad-box-title">📢 إعلان موجه</div>
-        <a href="${ad.link}" target="_blank"
-           onclick="trackClick(${ad.id}, ${channelId})">
-           ${ad.title}
-        </a>
-    `;
-
-    trackView(ad.id);
-}
-
-// ===============================
-// 👁️ تسجيل مشاهدة
-// ===============================
-async function trackView(adId) {
-
-    await db.ref("campaigns/" + adId).update({
-        views: firebase.database.ServerValue.increment(1)
-    });
-}
-
-// ===============================
-// 🖱️ تسجيل نقرة + ربح
-// ===============================
-async function trackClick(adId, channelId) {
-
-    const snap = await db.ref("campaigns/" + adId).get();
-    if (!snap.exists()) return;
-
-    const ad = snap.val();
-    const cost = ad.price;
-    const share = cost * 0.7;
-
-    // تحديث الإعلان
-    await db.ref("campaigns/" + adId).update({
-        clicks: firebase.database.ServerValue.increment(1),
-        spent: firebase.database.ServerValue.increment(cost)
-    });
-
-    // جلب القناة
-    const chSnap = await db.ref("channels/" + channelId).get();
-    const ch = chSnap.val();
-
-    // تحديث المستخدم
-    await db.ref("users/" + ch.owner).update({
-        balance: firebase.database.ServerValue.increment(share),
-        earned: firebase.database.ServerValue.increment(share)
-    });
-
-    // تحديث القناة
-    await db.ref("channels/" + channelId).update({
-        earned: firebase.database.ServerValue.increment(share),
-        clicks: firebase.database.ServerValue.increment(1)
-    });
-
-    alert("💰 +" + share + " USDT");
-}
-
-// ===============================
-// 💰 النقر (محمي)
-// ===============================
-async function trackClick(adId, channelId) {
-
-    const key = `click_${adId}_${currentUser.id}`;
-    const last = localStorage.getItem(key);
-    const now = Date.now();
-
-    if (last && now - last < 10000) return;
-
-    localStorage.setItem(key, now);
-
-    const snap = await db.ref("campaigns/" + adId).get();
-    if (!snap.exists()) return;
-
-    const ad = snap.val();
-    const share = ad.price * 0.7;
-
-    await db.ref("campaigns/" + adId).update({
-        clicks: firebase.database.ServerValue.increment(1),
-        spent: firebase.database.ServerValue.increment(ad.price)
-    });
-
-    const ch = (await db.ref("channels/" + channelId).get()).val();
-
-    await db.ref("users/" + ch.owner).update({
-        balance: firebase.database.ServerValue.increment(share),
-        earned: firebase.database.ServerValue.increment(share)
-    });
-
-    toast("💰 +" + share + " USDT");
-}
-
-// ===============================
-// 🔗 الإحالة
-// ===============================
-function getRefLink() {
-    return `https://t.me/TelegaAdsBot?start=${currentUser.id}`;
-}
-
-function renderRefLink() {
-    const el = document.getElementById("ref-link");
-    if (el) el.innerText = getRefLink();
-}
-
-async function loadReferralStats() {
-    const snap = await db.ref("referrals/" + currentUser.id).get();
-    const count = snap.exists() ? Object.keys(snap.val()).length : 0;
-
-    const el = document.getElementById("ref-count");
-    if (el) el.innerText = count;
-}
-
-async function initReferralSystem() {
-    if (!document.getElementById("ref-link")) return;
-
-    renderRefLink();
-    await loadReferralStats();
-}
-
-// ===============================
-// 🚀 تشغيل (مرة واحدة فقط)
-// ===============================
-document.addEventListener("DOMContentLoaded", async () => {
-
-    initApp();
-    setupProfileUI();
-
-    await initUser();
-    await loadProfileData();
-
-    showSection("home");
-});
-
-</script>
+        window.onload = initApp;
+    </script>
 </body>
 </html>
