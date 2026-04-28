@@ -196,6 +196,161 @@ body {
         padding: 14px;
     }
 }
+
+    /* الخط العام */
+body {
+    margin: 0;
+    font-family: "Tahoma", sans-serif;
+    background: #0f172a;
+    color: #fff;
+}
+
+/* الحاوية الرئيسية */
+.profile-container {
+    max-width: 500px;
+    margin: auto;
+    padding: 15px;
+}
+
+/* العناوين */
+h2, h3 {
+    margin-bottom: 10px;
+    font-weight: 600;
+}
+
+/* الأقسام */
+section {
+    background: #1e293b;
+    padding: 15px;
+    border-radius: 14px;
+    margin-bottom: 15px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
+
+/* صورة المستخدم */
+.profile-image {
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+.profile-image img {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    border: 3px solid #3b82f6;
+    object-fit: cover;
+}
+
+/* أزرار */
+button {
+    background: #3b82f6;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 10px;
+    color: #fff;
+    cursor: pointer;
+    transition: 0.3s;
+    margin-top: 5px;
+}
+
+button:hover {
+    background: #2563eb;
+}
+
+/* بيانات المستخدم */
+.user-data p {
+    margin: 5px 0;
+    font-size: 14px;
+}
+
+/* حالة الحساب */
+.status {
+    font-weight: bold;
+}
+
+.status.active {
+    color: #22c55e;
+}
+
+.status.pending {
+    color: #facc15;
+}
+
+.status.rejected {
+    color: #ef4444;
+}
+
+/* الإحصائيات */
+.stats-box {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.stats-box div {
+    background: #0f172a;
+    padding: 10px;
+    border-radius: 10px;
+    text-align: center;
+    font-size: 14px;
+}
+
+/* الإعدادات */
+.setting-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+/* Select */
+select {
+    padding: 5px;
+    border-radius: 8px;
+    border: none;
+    background: #0f172a;
+    color: #fff;
+}
+
+/* Checkbox */
+input[type="checkbox"] {
+    transform: scale(1.2);
+}
+
+/* الأزرار الخطيرة */
+.account-actions .delete {
+    background: #ef4444;
+}
+
+.account-actions .delete:hover {
+    background: #dc2626;
+}
+
+.account-actions .freeze {
+    background: #facc15;
+    color: #000;
+}
+
+.account-actions .freeze:hover {
+    background: #eab308;
+}
+
+/* الروابط */
+a {
+    color: #3b82f6;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* دعم الموبايل */
+@media (max-width: 500px) {
+    .stats-box {
+        grid-template-columns: 1fr;
+    }
+}
         
     </style>
 </head>
@@ -263,8 +418,79 @@ body {
         </div>
     </div>
 
-    <div id="profile" class="section">
-        
+    
+        <div id="profile" class="section">
+    
+    <div class="card">
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <div id="user-pfp" style="width: 70px; height: 70px; border-radius: 20px; background: var(--accent-blue); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; color: white;">
+                ?
+            </div>
+            <div class="user-data">
+                <h3 id="user-name" style="margin: 0; font-size: 18px;">اسم المستخدم</h3>
+                <p id="user-id" style="margin: 5px 0 0; color: var(--text-dim); font-size: 12px;">ID: 000000000</p>
+                <span id="user-rank-label" style="display: inline-block; margin-top: 5px; font-size: 10px; background: rgba(59, 130, 246, 0.1); color: var(--accent-blue); padding: 2px 8px; border-radius: 5px;">مستخدم</span>
+            </div>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 5px;">
+                <span style="color: var(--text-dim);">المستوى</span>
+                <span id="current-level-name">1</span>
+            </div>
+            <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.05); border-radius: 10px; overflow: hidden;">
+                <div id="level-progress" style="height: 100%; background: var(--accent-blue); width: 0%;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
+        <div class="card" style="margin-bottom: 0; text-align: center; padding: 15px;">
+            <small style="color: var(--text-dim); display: block; margin-bottom: 5px;">إجمالي الإنفاق</small>
+            <b id="total-spent">$0.00</b>
+        </div>
+        <div class="card" style="margin-bottom: 0; text-align: center; padding: 15px;">
+            <small style="color: var(--text-dim); display: block; margin-bottom: 5px;">إجمالي الأرباح</small>
+            <b id="total-earned" style="color: #10b981;">$0.00</b>
+        </div>
+    </div>
+
+    <div class="card" style="padding: 5px 0;">
+        <div style="display: flex; justify-content: space-between; padding: 12px 15px; border-bottom: 1px solid var(--glass-border); cursor: pointer;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <i class="fas fa-globe" style="color: var(--accent-blue);"></i>
+                <span style="font-size: 14px;">اللغة</span>
+            </div>
+            <span style="font-size: 12px; color: var(--text-dim);">العربية</span>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; padding: 12px 15px; border-bottom: 1px solid var(--glass-border); cursor: pointer;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <i class="fas fa-bell" style="color: var(--accent-blue);"></i>
+                <span style="font-size: 14px;">الإشعارات</span>
+            </div>
+            <div style="width: 30px; height: 15px; background: var(--accent-blue); border-radius: 10px; position: relative;">
+                <div style="width: 11px; height: 11px; background: white; border-radius: 50%; position: absolute; right: 2px; top: 2px;"></div>
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; padding: 12px 15px; cursor: pointer;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <i class="fas fa-headset" style="color: var(--accent-blue);"></i>
+                <span style="font-size: 14px;">الدعم الفني</span>
+            </div>
+            <i class="fas fa-chevron-left" style="font-size: 12px; color: var(--text-dim);"></i>
+        </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px; padding: 0 5px;">
+        <button style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2); padding: 12px; border-radius: 12px; font-weight: bold; cursor: pointer;">
+            <i class="fas fa-sign-out-alt"></i> تسجيل الخروج من الأجهزة
+        </button>
+    </div>
+
+</div>
+
         
 
     <div id="admin" class="section">
@@ -330,6 +556,110 @@ function showSection(sectionId, element) {
 
     if (webApp.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
 }
+
+// ==========================================
+// 👤 جلب وتوزيع بيانات المستخدم (النظام النظيف)
+// ==========================================
+function loadTelegramUser() {
+    tg.ready();
+    tg.expand();
+
+    const user = tg.initDataUnsafe?.user;
+
+    if (!user) {
+        console.warn("⚠️ لم يتم العثور على بيانات المستخدم (بيئة اختبار؟)");
+        return;
+    }
+
+    // تحديث واجهة الملف الشخصي بالبيانات الحقيقية
+    // نستخدم الأكواد (IDs) التي وضعناها في ملف الـ HTML النظيف
+    const userNameElement = document.getElementById("user-name");
+    const userIdElement = document.getElementById("user-id");
+    const userPfpElement = document.getElementById("user-pfp");
+
+    if (userNameElement) {
+        userNameElement.innerText = user.first_name + " " + (user.last_name || "");
+    }
+
+    if (userIdElement) {
+        userIdElement.innerText = "ID: " + user.id;
+    }
+
+    // معالجة الصورة الشخصية
+    if (userPfpElement) {
+        if (user.photo_url) {
+            userPfpElement.innerHTML = `<img src="${user.photo_url}" style="width:100%; height:100%; border-radius:20px; object-fit:cover;">`;
+        } else {
+            // إذا لم توجد صورة، نضع الحرف الأول من الاسم
+            userPfpElement.innerText = user.first_name.charAt(0);
+        }
+    }
+
+    // تخصيص رتبة "المالك" إذا كان المستخدم هو أنت (أمين)
+    const rankElement = document.getElementById("user-rank-label");
+    if (rankElement && user.id === 549686235) {
+        rankElement.innerText = "المالك (Owner)";
+        rankElement.style.background = "rgba(239, 68, 68, 0.15)";
+        rankElement.style.color = "#ef4444";
+    }
+}
+
+// ==========================================
+// 📳 نظام الاهتزاز واللمس (Haptic)
+// ==========================================
+function triggerHaptic(style = "light") {
+    if (tg.HapticFeedback) {
+        tg.HapticFeedback.impactOccurred(style);
+    }
+}
+
+// ==========================================
+// 🔔 نظام التنبيهات (Toast) - تصميم نظيف
+// ==========================================
+function showToast(msg) {
+    // إزالة التنبيهات السابقة لتجنب الازدحام
+    const existingToasts = document.querySelectorAll('.clean-toast');
+    existingToasts.forEach(t => t.remove());
+
+    let toast = document.createElement("div");
+    toast.className = "clean-toast";
+    toast.innerText = msg;
+
+    // تنسيق التنبيه مباشرة برمجياً لضمان النظافة
+    Object.assign(toast.style, {
+        position: 'fixed',
+        bottom: '100px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        background: 'rgba(0, 0, 0, 0.8)',
+        color: '#fff',
+        padding: '10px 20px',
+        borderRadius: '25px',
+        fontSize: '13px',
+        zIndex: '10000',
+        transition: 'opacity 0.3s'
+    });
+
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    }, 2500);
+}
+
+// ==========================================
+// 🚀 التشغيل عند التحميل
+// ==========================================
+window.addEventListener("DOMContentLoaded", () => {
+    loadTelegramUser();
+    
+    // إضافة اهتزاز تلقائي عند النقر على أي زر في النظام
+    document.querySelectorAll('button, .card, .nav-item').forEach(el => {
+        el.addEventListener('click', () => triggerHaptic('light'));
+    });
+});
+        
 
 // 4. التنقل بين الصفحات الفرعية (المحفظة والعروض) داخل القسم الرئيسي
 function toggleSubPage(pageId) {
