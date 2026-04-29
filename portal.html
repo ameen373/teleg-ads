@@ -496,64 +496,10 @@ hr {
         margin: auto;
     }
 }
-
-        /* إخفاء شريط جوجل العلوي */
-.goog-te-banner-frame.skiptranslate {
-    display: none !important;
-}
-body {
-    top: 0px !important;
-}
-
-/* تحسين شكل القائمة المنسدلة للمترجم لتناسب تصميمك */
-.goog-te-gadget-simple {
-    background-color: rgba(255, 255, 255, 0.1) !important;
-    border: 1px solid rgba(255, 255, 255, 0.2) !important;
-    padding: 8px !important;
-    border-radius: 12px !important;
-    font-family: 'Cairo', sans-serif !important;
-}
-
-.goog-te-gadget-simple img {
-    display: none !important; /* إخفاء شعار جوجل الصغير */
-}
-
-.goog-te-gadget-simple span {
-    color: #fff !important; /* جعل النص أبيض */
-}
-        
         
     </style>
 </head>
 <body>
-
-    <div id="google_translate_element" style="position: absolute; top: -999px; left: -999px; opacity: 0;"></div>
-
-<script type="text/javascript">
-    function googleTranslateElementInit() {
-        new google.translate.TranslateElement({
-            pageLanguage: 'ar', 
-            includedLanguages: 'en,ru,tr,es,ar',
-            layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
-            autoDisplay: false
-        }, 'google_translate_element');
-
-        // محاولة التحويل للإنجليزية بشكل متكرر لضمان النجاح
-        let checkExist = setInterval(function() {
-            var select = document.querySelector('select.goog-te-combo');
-            if (select) {
-                select.value = 'en';
-                select.dispatchEvent(new Event('change'));
-                clearInterval(checkExist); // توقف عن البحث بمجرد النجاح
-            }
-        }, 100); // يفحص كل 100 ملي ثانية
-
-        // إيقاف البحث بعد 5 ثوانٍ إذا لم يجد السكريبت (لتوفير البطارية)
-        setTimeout(() => clearInterval(checkExist), 5000);
-    }
-</script>
-<script type="text/javascript" src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
-    
 
     <div class="app-header">
         <img id="app-logo" src="" alt="Logo">
@@ -562,16 +508,16 @@ body {
     
     <div id="home" class="section active">
     
-    <div class="card" style="display: flex; justify-content: space-around; padding: 10px; background: var(--glass-bg);">
-        <div class="menu-item-quick" onclick="toggleSubPage('offersPage')" style="cursor: pointer; text-align: center;">
-            <span style="font-size: 20px; display: block;">🎟️</span>
-            <span style="font-size: 12px; color: var(--text-dim);">العروض</span>
-        </div>
-        <div class="menu-item-quick" onclick="toggleSubPage('walletPage')" style="cursor: pointer; text-align: center;">
-            <span style="font-size: 20px; display: block;">💰</span>
-            <span style="font-size: 12px; color: var(--text-dim);">المحفظة</span>
-        </div>
-    </div>
+    <div class="menu-item-quick" onclick="toggleSubPage('offersPage')">
+    <span style="font-size: 20px; display: block;">🎟️</span>
+    <span data-key="offers" style="font-size: 12px; color: var(--text-dim);">العروض</span>
+</div>
+
+<div class="menu-item-quick" onclick="toggleSubPage('walletPage')">
+    <span style="font-size: 20px; display: block;">💰</span>
+    <span data-key="wallet" style="font-size: 12px; color: var(--text-dim);">المحفظة</span>
+</div>
+        
 
     <div id="offersPage" class="sub-page" style="display: none;">
         <div class="card">
@@ -852,6 +798,60 @@ function showSection(sectionId, element) {
     if (webApp.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
 }
 
+        // 1. قاموس اللغات (هنا تضع كل الكلمات بدقة)
+const i18n = {
+    en: {
+        offers: "Offers",
+        wallet: "Wallet",
+        balance: "Balance",
+        withdraw: "Withdraw",
+        add_channel: "Add Channel",
+        success: "✅ Success!",
+        error: "❌ Error occurred"
+    },
+    ar: {
+        offers: "العروض",
+        wallet: "المحفظة",
+        balance: "الرصيد",
+        withdraw: "سحب الأرباح",
+        add_channel: "إضافة قناة",
+        success: "✅ تم بنجاح!",
+        error: "❌ حدث خطأ ما"
+    },
+    ru: {
+        offers: "Предложения",
+        wallet: "Кошелек",
+        balance: "Баланс",
+        withdraw: "Вывести"
+    }
+};
+
+// 2. وظيفة التبديل الذكي
+function setLanguage(lang) {
+    // حفظ اختيار المستخدم
+    localStorage.setItem('user_lang', lang);
+    
+    // تطبيق الترجمة على كل العناصر التي تحمل سمة data-key
+    document.querySelectorAll('[data-key]').forEach(el => {
+        const key = el.getAttribute('data-key');
+        if (i18n[lang] && i18n[lang][key]) {
+            el.innerText = i18n[lang][key];
+        }
+    });
+
+    // ضبط اتجاه الصفحة (RTL للعربي فقط)
+    document.body.dir = (lang === 'ar') ? 'rtl' : 'ltr';
+    document.documentElement.lang = lang;
+}
+
+// 3. التشغيل التلقائي (الأولوية للإنجليزية)
+document.addEventListener("DOMContentLoaded", () => {
+    // إذا كان المستخدم قد اختار لغة سابقاً نستخدمها، وإلا نستخدم الإنجليزية افتراضياً
+    const defaultLang = localStorage.getItem('user_lang') || 'en';
+    setLanguage(defaultLang);
+});
+        
+
 // ==========================================
 // 👤 جلب وتوزيع بيانات المستخدم (النظام النظيف)
 // ==========================================
@@ -1022,41 +1022,18 @@ function triggerHaptic(type) {
 // 🚀 التشغيل عند التحميل
 // ==========================================
 document.addEventListener("DOMContentLoaded", () => {
-    // 1. ربط أزرار الناشر (ضروري جداً)
     const submitBtn = document.querySelector("#publisher .btn:last-of-type");
     if (submitBtn) submitBtn.onclick = addChannel;
 
     const withdrawBtn = document.querySelector("#publisher .card .btn");
     if (withdrawBtn) {
         withdrawBtn.onclick = () => {
-            // جوجل سيقوم بترجمة هذه الرسائل للمستخدم تلقائياً
             if (earnings.total <= 0) showToast("❌ لا يوجد رصيد");
             else showToast("⏳ جاري المعالجة");
         };
     }
-
-    // 2. هنا يمكنك إضافة كود المترجم الذكي الذي ذكرناه سابقاً
-    // لضمان تشغيل اللغة الإنجليزية فوراً
 });
-        document.addEventListener("DOMContentLoaded", () => {
-    // مراقبة تغيير اللغة لضبط اتجاه الصفحة (من اليسار لليمين للإنجليزية)
-    const observer = new MutationObserver(() => {
-        const lang = document.documentElement.lang;
-        if (lang !== 'ar') {
-            document.body.dir = 'ltr';
-            document.body.style.textAlign = 'left';
-        } else {
-            document.body.dir = 'rtl';
-            document.body.style.textAlign = 'right';
-        }
-    });
 
-    observer.observe(document.documentElement, {
-        attributes: true,
-        attributeFilter: ['lang']
-    });
-});
-        
         
 // ==========================================
 // 🚀 التشغيل عند التحميل
