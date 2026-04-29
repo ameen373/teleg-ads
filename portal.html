@@ -527,29 +527,32 @@ body {
 </head>
 <body>
 
-    <div id="google_translate_element" style="display:none;"></div>
+    <div id="google_translate_element" style="position: absolute; top: -999px; left: -999px; opacity: 0;"></div>
 
 <script type="text/javascript">
     function googleTranslateElementInit() {
         new google.translate.TranslateElement({
             pageLanguage: 'ar', 
-            // اللغات المتاحة للمستخدم ليختار بينها لاحقاً إذا أراد
             includedLanguages: 'en,ru,tr,es,ar',
             layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
             autoDisplay: false
         }, 'google_translate_element');
 
-        // الحيلة الذكية: تحويل اللغة تلقائياً للإنجليزية بعد 500 ملي ثانية من التحميل
-        setTimeout(function() {
+        // محاولة التحويل للإنجليزية بشكل متكرر لضمان النجاح
+        let checkExist = setInterval(function() {
             var select = document.querySelector('select.goog-te-combo');
             if (select) {
-                select.value = 'en'; // تعيين الإنجليزية
-                select.dispatchEvent(new Event('change')); // تفعيل التغيير
+                select.value = 'en';
+                select.dispatchEvent(new Event('change'));
+                clearInterval(checkExist); // توقف عن البحث بمجرد النجاح
             }
-        }, 500); 
+        }, 100); // يفحص كل 100 ملي ثانية
+
+        // إيقاف البحث بعد 5 ثوانٍ إذا لم يجد السكريبت (لتوفير البطارية)
+        setTimeout(() => clearInterval(checkExist), 5000);
     }
 </script>
-<script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+<script type="text/javascript" src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
     
 
     <div class="app-header">
