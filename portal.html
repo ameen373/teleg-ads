@@ -496,11 +496,63 @@ hr {
         margin: auto;
     }
 }
+
+/* إخفاء شريط جوجل العلوي المزعج */
+.skiptranslate iframe {
+    display: none !important;
+}
+body {
+    top: 0px !important;
+}
+
+/* سكريبت ذكي لضبط اتجاه الصفحة تلقائياً بناءً على اللغة المختارة */
+/* سيقوم بقلب الصفحة إلى LTR إذا كانت اللغة ليست العربية */
+:lang(en) body, :lang(ru) body, :lang(tr) body {
+    direction: ltr !important;
+    text-align: left !important;
+}
+
+/* تحسين شكل التنبيهات (Toast) لكي لا تتأثر بالترجمة بشكل سيئ */
+#toast-container {
+    direction: rtl !important; /* لتبقى الرموز التعبيرية في مكانها الصحيح */
+}
+
         
     </style>
 </head>
 <body>
 
+<div id="google_translate_element" style="position: absolute; top: -999px; left: -999px; opacity: 0;"></div>
+
+<script type="text/javascript">
+    function googleTranslateElementInit() {
+        new google.translate.TranslateElement({
+            pageLanguage: 'ar', // لغة الكود الأصلية
+            // هنا يمكنك إضافة أو إزالة أي لغة تريدها
+            includedLanguages: 'en,ru,tr,es,fr,de,zh-CN,ar', 
+            layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
+            autoDisplay: false
+        }, 'google_translate_element');
+
+        // فحص وجود المحرك وتفعيل الإنجليزية فوراً
+        let autoLangCheck = setInterval(function() {
+            var select = document.querySelector('select.goog-te-combo');
+            if (select) {
+                select.value = 'en'; // تعيين الإنجليزية كخيار افتراضي
+                select.dispatchEvent(new Event('change'));
+                clearInterval(autoLangCheck); // التوقف بعد النجاح
+            }
+        }, 100);
+
+        // حماية: التوقف عن البحث بعد 5 ثوانٍ لتوفير موارد الهاتف
+        setTimeout(() => clearInterval(autoLangCheck), 5000);
+    }
+</script>
+
+<script type="text/javascript" src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+
+
+    
     <div class="app-header">
         <img id="app-logo" src="" alt="Logo">
     </div>
@@ -508,16 +560,16 @@ hr {
     
     <div id="home" class="section active">
     
-    <div class="menu-item-quick" onclick="toggleSubPage('offersPage')">
-    <span style="font-size: 20px; display: block;">🎟️</span>
-    <span data-key="offers" style="font-size: 12px; color: var(--text-dim);">العروض</span>
-</div>
-
-<div class="menu-item-quick" onclick="toggleSubPage('walletPage')">
-    <span style="font-size: 20px; display: block;">💰</span>
-    <span data-key="wallet" style="font-size: 12px; color: var(--text-dim);">المحفظة</span>
-</div>
-        
+    <div class="card" style="display: flex; justify-content: space-around; padding: 10px; background: var(--glass-bg);">
+        <div class="menu-item-quick" onclick="toggleSubPage('offersPage')" style="cursor: pointer; text-align: center;">
+            <span style="font-size: 20px; display: block;">🎟️</span>
+            <span style="font-size: 12px; color: var(--text-dim);">العروض</span>
+        </div>
+        <div class="menu-item-quick" onclick="toggleSubPage('walletPage')" style="cursor: pointer; text-align: center;">
+            <span style="font-size: 20px; display: block;">💰</span>
+            <span style="font-size: 12px; color: var(--text-dim);">المحفظة</span>
+        </div>
+    </div>
 
     <div id="offersPage" class="sub-page" style="display: none;">
         <div class="card">
@@ -753,6 +805,22 @@ const webApp = window.Telegram.WebApp;
 const ADMIN_ID = 549686235; // معرف أمين
 const LOGO_URL = "https://i.ibb.co/Z6qzV2Wk/1777032600480logo.png";
 
+// مراقبة تغييرات اللغة لضبط السمات البرمجية
+const observer = new MutationObserver(() => {
+    const currentLang = document.documentElement.lang;
+    if (currentLang !== 'ar') {
+        document.body.setAttribute('dir', 'ltr');
+    } else {
+        document.body.setAttribute('dir', 'rtl');
+    }
+});
+
+observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['lang']
+});
+        
+        
 const firebaseConfig = {
     apiKey: "AIzaSyB9wJ3RKL9Sc0VqIgOz3HIL6PAZMK1GZos",
     authDomain: "telega-io.firebaseapp.com",
@@ -797,60 +865,6 @@ function showSection(sectionId, element) {
 
     if (webApp.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
 }
-
-        // 1. قاموس اللغات (هنا تضع كل الكلمات بدقة)
-const i18n = {
-    en: {
-        offers: "Offers",
-        wallet: "Wallet",
-        balance: "Balance",
-        withdraw: "Withdraw",
-        add_channel: "Add Channel",
-        success: "✅ Success!",
-        error: "❌ Error occurred"
-    },
-    ar: {
-        offers: "العروض",
-        wallet: "المحفظة",
-        balance: "الرصيد",
-        withdraw: "سحب الأرباح",
-        add_channel: "إضافة قناة",
-        success: "✅ تم بنجاح!",
-        error: "❌ حدث خطأ ما"
-    },
-    ru: {
-        offers: "Предложения",
-        wallet: "Кошелек",
-        balance: "Баланс",
-        withdraw: "Вывести"
-    }
-};
-
-// 2. وظيفة التبديل الذكي
-function setLanguage(lang) {
-    // حفظ اختيار المستخدم
-    localStorage.setItem('user_lang', lang);
-    
-    // تطبيق الترجمة على كل العناصر التي تحمل سمة data-key
-    document.querySelectorAll('[data-key]').forEach(el => {
-        const key = el.getAttribute('data-key');
-        if (i18n[lang] && i18n[lang][key]) {
-            el.innerText = i18n[lang][key];
-        }
-    });
-
-    // ضبط اتجاه الصفحة (RTL للعربي فقط)
-    document.body.dir = (lang === 'ar') ? 'rtl' : 'ltr';
-    document.documentElement.lang = lang;
-}
-
-// 3. التشغيل التلقائي (الأولوية للإنجليزية)
-document.addEventListener("DOMContentLoaded", () => {
-    // إذا كان المستخدم قد اختار لغة سابقاً نستخدمها، وإلا نستخدم الإنجليزية افتراضياً
-    const defaultLang = localStorage.getItem('user_lang') || 'en';
-    setLanguage(defaultLang);
-});
-        
 
 // ==========================================
 // 👤 جلب وتوزيع بيانات المستخدم (النظام النظيف)
