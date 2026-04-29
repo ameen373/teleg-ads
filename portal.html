@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+     <meta charset="UTF-8">
+  <title data-key="app_name">App</title>
     <title>Telega-IO Extreme v3</title>
 
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -501,6 +503,33 @@ hr {
 </head>
 <body>
 
+<!-- اختيار اللغة -->
+<select id="languageSelect">
+  <option value="ar">العربية</option>
+  <option value="en">English</option>
+  <option value="ru">Русский</option>
+  <option value="es">Español</option>
+  <option value="tr">Türkçe</option>
+</select>
+
+<h1 data-key="welcome"></h1>
+
+<nav>
+  <span data-key="home"></span> |
+  <span data-key="wallet"></span> |
+  <span data-key="campaigns"></span>
+</nav>
+
+<section>
+  <h2 data-key="create_campaign"></h2>
+  <button data-key="start"></button>
+</section>
+
+<p data-key="notif_referral"></p>
+
+<script src="translations.js"></script>
+<script src="app.js"></script>
+    
     <div class="app-header">
         <img id="app-logo" src="" alt="Logo">
     </div>
@@ -752,7 +781,64 @@ hr {
 const webApp = window.Telegram.WebApp;
 const ADMIN_ID = 549686235; // معرف أمين
 const LOGO_URL = "https://i.ibb.co/Z6qzV2Wk/1777032600480logo.png";
+const translations = {
 
+  ar: {
+    app_name: "منصة الإعلانات",
+    welcome: "مرحباً بك 👋",
+    home: "الرئيسية",
+    wallet: "المحفظة",
+    campaigns: "الحملات",
+    create_campaign: "إنشاء حملة",
+    start: "ابدأ الآن",
+    notif_referral: "🎉 صديقك سجل!"
+  },
+
+  en: {
+    app_name: "Ad Platform",
+    welcome: "Welcome 👋",
+    home: "Home",
+    wallet: "Wallet",
+    campaigns: "Campaigns",
+    create_campaign: "Create Campaign",
+    start: "Start Now",
+    notif_referral: "🎉 Your friend joined!"
+  },
+
+  ru: {
+    app_name: "Рекламная платформа",
+    welcome: "Добро пожаловать 👋",
+    home: "Главная",
+    wallet: "Кошелек",
+    campaigns: "Кампании",
+    create_campaign: "Создать кампанию",
+    start: "Начать",
+    notif_referral: "🎉 Ваш друг присоединился!"
+  },
+
+  es: {
+    app_name: "Plataforma de anuncios",
+    welcome: "Bienvenido 👋",
+    home: "Inicio",
+    wallet: "Billetera",
+    campaigns: "Campañas",
+    create_campaign: "Crear campaña",
+    start: "Comenzar",
+    notif_referral: "🎉 ¡Tu amigo se unió!"
+  },
+
+  tr: {
+    app_name: "Reklam Platformu",
+    welcome: "Hoş geldiniz 👋",
+    home: "Ana Sayfa",
+    wallet: "Cüzdan",
+    campaigns: "Kampanyalar",
+    create_campaign: "Kampanya Oluştur",
+    start: "Başla",
+    notif_referral: "🎉 Arkadaşın katıldı!"
+  }
+
+};
 const firebaseConfig = {
     apiKey: "AIzaSyB9wJ3RKL9Sc0VqIgOz3HIL6PAZMK1GZos",
     authDomain: "telega-io.firebaseapp.com",
@@ -798,6 +884,58 @@ function showSection(sectionId, element) {
     if (webApp.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
 }
 
+/* ====== تحديد اللغة ====== */
+function detectLanguage() {
+  let lang = "en";
+
+  if (window.Telegram && Telegram.WebApp) {
+    lang = Telegram.WebApp.initDataUnsafe.user?.language_code || "en";
+  } else {
+    lang = navigator.language.slice(0, 2);
+  }
+
+  if (!translations[lang]) lang = "en";
+
+  localStorage.setItem("lang", lang);
+  return lang;
+}
+
+/* ====== تطبيق الترجمة ====== */
+function applyTranslations(lang) {
+  document.querySelectorAll("[data-key]").forEach(el => {
+    const key = el.getAttribute("data-key");
+    if (translations[lang][key]) {
+      el.innerText = translations[lang][key];
+    }
+  });
+
+  // تغيير اتجاه الصفحة
+  if (lang === "ar") {
+    document.body.dir = "rtl";
+    document.getElementById("htmlTag").lang = "ar";
+  } else {
+    document.body.dir = "ltr";
+    document.getElementById("htmlTag").lang = lang;
+  }
+}
+
+/* ====== تغيير اللغة يدوياً ====== */
+document.getElementById("languageSelect").addEventListener("change", (e) => {
+  const lang = e.target.value;
+  localStorage.setItem("lang", lang);
+  applyTranslations(lang);
+});
+
+/* ====== عند تحميل الصفحة ====== */
+document.addEventListener("DOMContentLoaded", () => {
+
+  let lang = localStorage.getItem("lang") || detectLanguage();
+
+  applyTranslations(lang);
+
+  document.getElementById("languageSelect").value = lang;
+});
+        
 // ==========================================
 // 👤 جلب وتوزيع بيانات المستخدم (النظام النظيف)
 // ==========================================
