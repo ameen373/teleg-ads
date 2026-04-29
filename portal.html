@@ -3,8 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta charset="UTF-8">
-  <title data-key="app_name">App</title>
     <title>Telega-IO Extreme v3</title>
 
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -503,30 +501,6 @@ hr {
 </head>
 <body>
 
-    <!-- اختيار اللغة -->
-<select id="languageSelect">
-  <option value="ar">العربية</option>
-  <option value="en">English</option>
-  <option value="ru">Русский</option>
-  <option value="es">Español</option>
-  <option value="tr">Türkçe</option>
-</select>
-
-<h1 data-key="welcome"></h1>
-
-<nav>
-  <span data-key="home"></span> |
-  <span data-key="wallet"></span> |
-  <span data-key="campaigns"></span>
-</nav>
-
-<section>
-  <h2 data-key="create_campaign"></h2>
-  <button data-key="start"></button>
-</section>
-
-<p data-key="notif_referral"></p>
-
     <div class="app-header">
         <img id="app-logo" src="" alt="Logo">
     </div>
@@ -738,24 +712,29 @@ hr {
 
 </div>
 
-<div id="admin" class="section">
-    <div class="card" style="border-color: #ef4444;">
-        <h2 style="color: #ef4444;">
-            <i class="fas fa-user-shield"></i> 
-            <span data-key="admin_panel">لوحة الإدارة</span>
-        </h2>
-        
-        <p data-key="welcome_admin">مرحباً بك يا أمين. التحكم الكامل متاح الآن.</p>
-        
-        <button class="btn" style="background: #475569;" data-key="manage_pending_channels">إدارة القنوات المنتظرة</button>
-        <button class="btn" style="background: #475569;" data-key="withdrawal_requests">طلبات السحب</button>
 
-        <div class="card" style="border-color: #ef4444; text-align: center;">
-            <h2 style="color: #ef4444;" data-key="super_admin_panel">لوحة التحكم العليا</h2>
+
+    <div id="admin" class="section">
+        <div class="card" style="border-color: #ef4444;">
+            <h2 style="color: #ef4444;"><i class="fas fa-user-shield"></i> لوحة الإدارة</h2>
+            <p>مرحباً بك يا أمين. التحكم الكامل متاح الآن.</p>
+            <button class="btn" style="background: #475569;">إدارة القنوات المنتظرة</button>
+            <button class="btn" style="background: #475569;">طلبات السحب</button>
+
+            <div class="card" style="border-color: #ef4444; text-align: center;">
+    <lottie-player 
+        src="https://assets3.lottiefiles.com/packages/lf20_ghp9v6m3.json" 
+        background="transparent"  
+        speed="1"  
+        style="width: 100px; height: 100px; margin: 0 auto;"  
+        loop  
+        autoplay>
+    </lottie-player>
+    <h2 style="color: #ef4444;">لوحة التحكم العليا</h2>
+            </div>
+            
         </div>
     </div>
-</div>
-    
     
 
        <div class="bottom-nav">
@@ -766,75 +745,14 @@ hr {
         <div class="nav-item" onclick="showSection('profile', this)"><i class="fas fa-user-circle"></i><span>الملف</span></div>
         <div class="nav-item" id="admin-nav" style="display: none;" onclick="showSection('admin', this)"><i class="fas fa-user-cog"></i><span>الإدارة</span></div>
        </div>
-    
-   <script src="translations.js"></script>
-<script src="app.js"></script>
-    
+   
 
     <script>
        // 1. الإعدادات الأساسية (لا تحذفها)
 const webApp = window.Telegram.WebApp;
 const ADMIN_ID = 549686235; // معرف أمين
 const LOGO_URL = "https://i.ibb.co/Z6qzV2Wk/1777032600480logo.png";
-const translations = {
 
-  ar: {
-    app_name: "منصة الإعلانات",
-    welcome: "مرحباً بك 👋",
-    home: "الرئيسية",
-    wallet: "المحفظة",
-    campaigns: "الحملات",
-    create_campaign: "إنشاء حملة",
-    start: "ابدأ الآن",
-    notif_referral: "🎉 صديقك سجل!"
-  },
-
-  en: {
-    app_name: "Ad Platform",
-    welcome: "Welcome 👋",
-    home: "Home",
-    wallet: "Wallet",
-    campaigns: "Campaigns",
-    create_campaign: "Create Campaign",
-    start: "Start Now",
-    notif_referral: "🎉 Your friend joined!"
-  },
-
-  ru: {
-    app_name: "Рекламная платформа",
-    welcome: "Добро пожаловать 👋",
-    home: "Главная",
-    wallet: "Кошелек",
-    campaigns: "Кампании",
-    create_campaign: "Создать кампанию",
-    start: "Начать",
-    notif_referral: "🎉 Ваш друг присоединился!"
-  },
-
-  es: {
-    app_name: "Plataforma de anuncios",
-    welcome: "Bienvenido 👋",
-    home: "Inicio",
-    wallet: "Billetera",
-    campaigns: "Campañas",
-    create_campaign: "Crear campaña",
-    start: "Comenzar",
-    notif_referral: "🎉 ¡Tu amigo se unió!"
-  },
-
-  tr: {
-    app_name: "Reklam Platformu",
-    welcome: "Hoş geldiniz 👋",
-    home: "Ana Sayfa",
-    wallet: "Cüzdan",
-    campaigns: "Kampanyalar",
-    create_campaign: "Kampanya Oluştur",
-    start: "Başla",
-    notif_referral: "🎉 Arkadaşın katıldı!"
-  }
-
-};
-        
 const firebaseConfig = {
     apiKey: "AIzaSyB9wJ3RKL9Sc0VqIgOz3HIL6PAZMK1GZos",
     authDomain: "telega-io.firebaseapp.com",
@@ -970,99 +888,6 @@ function showToast(msg) {
         setTimeout(() => toast.remove(), 300);
     }, 2500);
 }
-
-       /* ====== تحديد اللغة ====== */
-function detectLanguage() {
-  let lang = "en";
-
-  if (window.Telegram && Telegram.WebApp) {
-    lang = Telegram.WebApp.initDataUnsafe.user?.language_code || "en";
-  } else {
-    lang = navigator.language.slice(0, 2);
-  }
-
-  if (!translations[lang]) lang = "en";
-
-  localStorage.setItem("lang", lang);
-  return lang;
-}
-
-/* ====== تطبيق الترجمة ====== */
-function applyTranslations(lang) {
-  document.querySelectorAll("[data-key]").forEach(el => {
-    const key = el.getAttribute("data-key");
-    if (translations[lang][key]) {
-      el.innerText = translations[lang][key];
-    }
-  });
-
-  // تغيير اتجاه الصفحة
-  if (lang === "ar") {
-    document.body.dir = "rtl";
-    document.getElementById("htmlTag").lang = "ar";
-  } else {
-    document.body.dir = "ltr";
-    document.getElementById("htmlTag").lang = lang;
-  }
-}
-
-/* ====== تغيير اللغة يدوياً ====== */
-document.getElementById("languageSelect").addEventListener("change", (e) => {
-  const lang = e.target.value;
-  localStorage.setItem("lang", lang);
-  applyTranslations(lang);
-});
-
-/* ====== عند تحميل الصفحة ====== */
-document.addEventListener("DOMContentLoaded", () => {
-
-  let lang = localStorage.getItem("lang") || detectLanguage();
-
-  applyTranslations(lang);
-
-  document.getElementById("languageSelect").value = lang;
-});
-
-
-// 1. القاموس
-const translations = {
-    "ar": {
-        "admin_panel": "لوحة الإدارة",
-        "welcome_admin": "مرحباً بك يا أمين. التحكم الكامل متاح الآن.",
-        "manage_pending_channels": "إدارة القنوات المنتظرة",
-        "withdrawal_requests": "طلبات السحب",
-        "super_admin_panel": "لوحة التحكم العليا"
-    },
-    "en": {
-        "admin_panel": "Admin Panel",
-        "welcome_admin": "Welcome, Ameen. Full control is now available.",
-        "manage_pending_channels": "Manage Pending Channels",
-        "withdrawal_requests": "Withdrawal Requests",
-        "super_admin_panel": "Super Admin Dashboard"
-    }
-};
-
-// 2. دالة الترجمة التي تستخدم data-key
-function applyLanguage(lang) {
-    document.querySelectorAll('[data-key]').forEach(element => {
-        const key = element.getAttribute('data-key');
-        if (translations[lang] && translations[lang][key]) {
-            element.innerText = translations[lang][key];
-        }
-    });
-
-    // ضبط اتجاه الصفحة
-    document.body.dir = (lang === 'ar') ? 'rtl' : 'ltr';
-}
-
-// 3. التنفيذ التلقائي عند التحميل
-window.addEventListener('DOMContentLoaded', () => {
-    // جلب اللغة من التخزين أو جعلها إنجليزية كافتراضية
-    const lang = localStorage.getItem('selected_language') || 'en'; 
-    applyLanguage(lang);
-});
-
-        
 
 // ==========================================
 // 📊 الحالة والبيانات (State)
