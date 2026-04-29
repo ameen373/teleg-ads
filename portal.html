@@ -496,61 +496,21 @@ hr {
         margin: auto;
     }
 }
-
-/* إخفاء شريط جوجل العلوي المزعج */
-.skiptranslate iframe {
-    display: none !important;
-}
-body {
-    top: 0px !important;
-}
-
-/* سكريبت ذكي لضبط اتجاه الصفحة تلقائياً بناءً على اللغة المختارة */
-/* سيقوم بقلب الصفحة إلى LTR إذا كانت اللغة ليست العربية */
-:lang(en) body, :lang(ru) body, :lang(tr) body {
-    direction: ltr !important;
-    text-align: left !important;
-}
-
-/* تحسين شكل التنبيهات (Toast) لكي لا تتأثر بالترجمة بشكل سيئ */
-#toast-container {
-    direction: rtl !important; /* لتبقى الرموز التعبيرية في مكانها الصحيح */
-}
-
         
     </style>
 </head>
 <body>
 
-<div id="google_translate_element" style="position: absolute; top: -999px; left: -999px; opacity: 0;"></div>
-
-<script type="text/javascript">
-    function googleTranslateElementInit() {
-        new google.translate.TranslateElement({
-            pageLanguage: 'ar', // لغة الكود الأصلية
-            // هنا يمكنك إضافة أو إزالة أي لغة تريدها
-            includedLanguages: 'en,ru,tr,es,fr,de,zh-CN,ar', 
-            layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
-            autoDisplay: false
-        }, 'google_translate_element');
-
-        // فحص وجود المحرك وتفعيل الإنجليزية فوراً
-        let autoLangCheck = setInterval(function() {
-            var select = document.querySelector('select.goog-te-combo');
-            if (select) {
-                select.value = 'en'; // تعيين الإنجليزية كخيار افتراضي
-                select.dispatchEvent(new Event('change'));
-                clearInterval(autoLangCheck); // التوقف بعد النجاح
-            }
-        }, 100);
-
-        // حماية: التوقف عن البحث بعد 5 ثوانٍ لتوفير موارد الهاتف
-        setTimeout(() => clearInterval(autoLangCheck), 5000);
-    }
-</script>
-
-<script type="text/javascript" src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
-
+<div id="admin" class="section">
+    <div class="card" style="border: 2px solid #ef4444; padding: 20px; border-radius: 12px;">
+        <h2 style="color: #ef4444;"><i class="fas fa-user-shield"></i> <span data-i18n="admin_panel">لوحة الإدارة</span></h2>
+        <p data-i18n="welcome_admin">مرحباً بك يا أمين. التحكم الكامل متاح الآن.</p>
+        
+        <button onclick="testTranslation()" class="btn" style="background: #475569; color: white; padding: 10px; border: none; border-radius: 8px; cursor: pointer;">
+            اختبار التنبيه المترجم
+        </button>
+    </div>
+</div>
 
     
     <div class="app-header">
@@ -767,26 +727,31 @@ body {
 
 
     <div id="admin" class="section">
-        <div class="card" style="border-color: #ef4444;">
-            <h2 style="color: #ef4444;"><i class="fas fa-user-shield"></i> لوحة الإدارة</h2>
-            <p>مرحباً بك يا أمين. التحكم الكامل متاح الآن.</p>
-            <button class="btn" style="background: #475569;">إدارة القنوات المنتظرة</button>
-            <button class="btn" style="background: #475569;">طلبات السحب</button>
+    <div class="card" style="border-color: #ef4444;">
+        <h2 style="color: #ef4444;">
+            <i class="fas fa-user-shield"></i> 
+            <span data-i18n="admin_panel">لوحة الإدارة</span>
+        </h2>
+        
+        <p data-i18n="welcome_admin">مرحباً بك يا أمين. التحكم الكامل متاح الآن.</p>
+        
+        <button class="btn" style="background: #475569;" data-i18n="manage_pending_channels">إدارة القنوات المنتظرة</button>
+        <button class="btn" style="background: #475569;" data-i18n="withdrawal_requests">طلبات السحب</button>
 
-            <div class="card" style="border-color: #ef4444; text-align: center;">
-    <lottie-player 
-        src="https://assets3.lottiefiles.com/packages/lf20_ghp9v6m3.json" 
-        background="transparent"  
-        speed="1"  
-        style="width: 100px; height: 100px; margin: 0 auto;"  
-        loop  
-        autoplay>
-    </lottie-player>
-    <h2 style="color: #ef4444;">لوحة التحكم العليا</h2>
-            </div>
-            
+        <div class="card" style="border-color: #ef4444; text-align: center;">
+            <lottie-player 
+                src="https://assets3.lottiefiles.com/packages/lf20_ghp9v6m3.json" 
+                background="transparent"  
+                speed="1"  
+                style="width: 100px; height: 100px; margin: 0 auto;"  
+                loop  
+                autoplay>
+            </lottie-player>
+            <h2 style="color: #ef4444;" data-i18n="super_admin_panel">لوحة التحكم العليا</h2>
         </div>
     </div>
+    </div>
+    
     
 
        <div class="bottom-nav">
@@ -798,29 +763,57 @@ body {
         <div class="nav-item" id="admin-nav" style="display: none;" onclick="showSection('admin', this)"><i class="fas fa-user-cog"></i><span>الإدارة</span></div>
        </div>
    
+<script>
+// 1. القاموس (قائمة الكلمات بمختلف اللغات)
+const translations = {
+    "ar": {
+        "admin_panel": "لوحة الإدارة",
+        "welcome_admin": "مرحباً بك يا أمين. التحكم الكامل متاح الآن.",
+        "msg_success": "تمت العملية بنجاح! ✅"
+    },
+    "en": {
+        "admin_panel": "Admin Panel",
+        "welcome_admin": "Welcome, Admin. Full control is now available.",
+        "msg_success": "Action completed successfully! ✅"
+    }
+};
 
+// 2. دالة إظهار التنبيه (التي سألت عنها)
+function showToast(msg) {
+    const existingToasts = document.querySelectorAll('.clean-toast');
+    existingToasts.forEach(t => t.remove());
+
+    let toast = document.createElement("div");
+    toast.className = "clean-toast";
+    toast.innerText = msg;
+
+    Object.assign(toast.style, {
+        position: 'fixed', bottom: '100px', left: '50%', transform: 'translateX(-50%)',
+        background: 'rgba(0, 0, 0, 0.8)', color: '#fff', padding: '10px 20px',
+        borderRadius: '25px', zIndex: '10000', transition: 'opacity 0.3s'
+    });
+
+    document.body.appendChild(toast);
+    setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 2500);
+}
+
+// 3. الدالة التي تشغل كل شيء عند الضغط على الزر
+function testTranslation() {
+    // جلب اللغة المخزنة أو استخدام الإنجليزية كافتراضية
+    const lang = localStorage.getItem('selected_language') || 'ar'; 
+    
+    // استدعاء التنبيه باللغة الصحيحة
+    showToast(translations[lang].msg_success);
+}
+</script>
+
+    
     <script>
        // 1. الإعدادات الأساسية (لا تحذفها)
 const webApp = window.Telegram.WebApp;
 const ADMIN_ID = 549686235; // معرف أمين
 const LOGO_URL = "https://i.ibb.co/Z6qzV2Wk/1777032600480logo.png";
 
-// مراقبة تغييرات اللغة لضبط السمات البرمجية
-const observer = new MutationObserver(() => {
-    const currentLang = document.documentElement.lang;
-    if (currentLang !== 'ar') {
-        document.body.setAttribute('dir', 'ltr');
-    } else {
-        document.body.setAttribute('dir', 'rtl');
-    }
-});
-
-observer.observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ['lang']
-});
-        
-        
 const firebaseConfig = {
     apiKey: "AIzaSyB9wJ3RKL9Sc0VqIgOz3HIL6PAZMK1GZos",
     authDomain: "telega-io.firebaseapp.com",
