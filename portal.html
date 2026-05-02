@@ -496,6 +496,154 @@ hr {
         margin: auto;
     }
 }
+
+    /* 🌙 أساسيات */
+body {
+    margin: 0;
+    font-family: "Tahoma", sans-serif;
+    background-color: #0f172a;
+    color: #e2e8f0;
+    direction: rtl;
+}
+
+/* 📦 الأقسام */
+section {
+    padding: 20px;
+    border-bottom: 1px solid #1e293b;
+}
+
+/* 🔠 العناوين */
+h2 {
+    margin-bottom: 15px;
+    color: #38bdf8;
+}
+
+h3 {
+    margin-top: 20px;
+    color: #cbd5f5;
+}
+
+/* 🔘 الأزرار */
+button {
+    background-color: #2563eb;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    margin: 5px 5px 5px 0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+button:hover {
+    background-color: #1d4ed8;
+}
+
+button:active {
+    transform: scale(0.97);
+}
+
+/* 🧾 الحقول */
+input, textarea, select {
+    width: 100%;
+    padding: 10px;
+    margin-top: 8px;
+    border-radius: 8px;
+    border: 1px solid #334155;
+    background-color: #1e293b;
+    color: white;
+}
+
+input:focus, textarea:focus, select:focus {
+    outline: none;
+    border-color: #38bdf8;
+}
+
+/* 📊 الكروت */
+#campaigns div {
+    background-color: #1e293b;
+    padding: 15px;
+    margin-top: 10px;
+    border-radius: 12px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.3);
+}
+
+/* 📢 المعاينة */
+#create-campaign div {
+    background-color: #020617;
+    border-radius: 12px;
+    padding: 15px;
+    margin-top: 10px;
+}
+
+/* 🔔 الإشعارات */
+#notifications ul {
+    list-style: none;
+    padding: 0;
+}
+
+#notifications li {
+    background-color: #1e293b;
+    padding: 10px;
+    margin-bottom: 8px;
+    border-radius: 8px;
+}
+
+/* 💰 المحفظة */
+#wallet ul {
+    list-style: none;
+    padding: 0;
+}
+
+#wallet li {
+    padding: 8px;
+    border-bottom: 1px solid #334155;
+}
+
+/* 🎯 القنوات */
+#create-campaign div {
+    margin-bottom: 10px;
+}
+
+/* 📈 التحليلات */
+#analytics p {
+    margin: 5px 0;
+}
+
+/* 💳 نافذة الشحن */
+#deposit {
+    background-color: #020617;
+}
+
+/* ✨ حالات الحملات */
+.status-active {
+    color: #22c55e;
+}
+
+.status-pending {
+    color: #facc15;
+}
+
+.status-rejected {
+    color: #ef4444;
+}
+
+/* 🔥 تأثير بسيط */
+section:hover {
+    background-color: #020617;
+    transition: 0.3s;
+}
+
+/* 📱 ريسبونسف */
+@media (max-width: 600px) {
+    section {
+        padding: 15px;
+    }
+
+    button {
+        width: 100%;
+    }
+}
         
     </style>
 </head>
@@ -551,14 +699,72 @@ hr {
 </div>
 
     
-    <div id="promo" class="section">
-        <div class="card">
-            <h2><i class="fas fa-rocket"></i> المعلن</h2>
-            <p>أنشئ حملاتك الإعلانية هنا.</p>
-            <button class="btn">إضافة إعلان جديد</button>
-        </div>
-    </div>
+ 
+<div id="promo" class="section">
+    <div class="card">
+        <h1 style="text-align: center; margin-bottom: 20px;">🚀 لوحة تحكم المعلن</h1>
 
+        <main id="main-container">
+
+            <section id="notifications-section">
+                <h2>🔔 الإشعارات</h2>
+                <ul style="list-style: none;">
+                    <li style="background: #e7f3ff; padding: 10px; margin-bottom: 5px;">✅ تم قبول حملتك الأخيرة</li>
+                    <li style="background: #fff0f0; padding: 10px;">⚠️ رصيدك أوشك على النفاد</li>
+                </ul>
+            </section>
+
+            <section id="wallet-section">
+                <h2>💰 المحفظة</h2>
+                <p>الرصيد الحالي: <strong>50$</strong></p>
+                <button>شحن الرصيد</button>
+                <div style="margin-top: 15px;">
+                    <h4>آخر العمليات</h4>
+                    <small>- إيداع 10$ | - حملة نقرات 2$</small>
+                </div>
+            </section>
+
+            <section id="create-campaign-section">
+                <h2>🚀 إنشاء حملة جديدة</h2>
+                <div class="campaign-details">
+                    <input type="text" placeholder="عنوان الإعلان">
+                    <textarea placeholder="وصف الإعلان"></textarea>
+                    <select>
+                        <option>اختر التصنيف</option>
+                        <option>تقنية</option>
+                        <option>ترفيه</option>
+                    </select>
+                    <input type="number" placeholder="الميزانية">
+                    <button style="background: #28a745; width: 100%;">إطلاق الحملة</button>
+                </div>
+            </section>
+
+            <section id="manage-campaigns-section">
+                <h2>📊 إدارة حملاتك</h2>
+                <div style="border: 1px solid #eee; padding: 10px;">
+                    <p>حملة "تخفيضات العيد" - <strong>نشطة</strong></p>
+                    <progress value="70" max="100" style="width: 100%;"></progress>
+                </div>
+            </section>
+
+            <section id="analytics-section">
+                <h2>📈 إحصائيات عامة</h2>
+                <div class="stats-grid">
+                    <div style="background: #f8f9fa; padding: 10px; border-radius: 5px;">
+                        <p>👁️ مشاهدات</p>
+                        <h3>5,400</h3>
+                    </div>
+                    <div style="background: #f8f9fa; padding: 10px; border-radius: 5px;">
+                        <p>🖱️ نقرات</p>
+                        <h3>320</h3>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+</div>
+          
 
     <div id="publisher" class="section">
 
@@ -963,6 +1169,217 @@ function triggerHaptic(type) {
         else tg.HapticFeedback.impactOccurred(type);
     }
 }
+
+// ===============================
+// 🧠 متغيرات عامة
+// ===============================
+let selectedCampaignType = "views";
+let price = 0.005;
+let selectedChannels = [];
+
+// ===============================
+// 🚀 اختيار نوع الحملة
+// ===============================
+document.querySelectorAll("#create-campaign button").forEach(btn => {
+    btn.addEventListener("click", () => {
+        let text = btn.innerText;
+
+        if (text.includes("مشاهدات")) {
+            selectedCampaignType = "views";
+            price = 0.005;
+        } else if (text.includes("نقرات")) {
+            selectedCampaignType = "clicks";
+            price = 0.01;
+        } else if (text.includes("منشور")) {
+            selectedCampaignType = "post";
+            price = 1;
+        }
+
+        showToast("تم اختيار نوع الحملة");
+        calculate();
+    });
+});
+
+// ===============================
+// 💸 حساب المشاهدات
+// ===============================
+const budgetInput = document.querySelector("input[type='number']");
+const resultText = document.querySelector("#create-campaign p");
+
+budgetInput.addEventListener("input", calculate);
+
+function calculate() {
+    let budget = parseFloat(budgetInput.value) || 0;
+
+    if (selectedCampaignType === "views") {
+        let views = Math.floor(budget / price);
+        resultText.innerText = "ستحصل تقريباً على " + views + " مشاهدة";
+    }
+
+    if (selectedCampaignType === "clicks") {
+        let clicks = Math.floor(budget / price);
+        resultText.innerText = "ستحصل تقريباً على " + clicks + " نقرة";
+    }
+
+    if (selectedCampaignType === "post") {
+        resultText.innerText = "سيتم نشر إعلانك حسب القنوات المختارة";
+    }
+}
+
+// ===============================
+// 👁️ معاينة الإعلان
+// ===============================
+const titleInput = document.querySelector("input[placeholder='عنوان الإعلان']");
+const descInput = document.querySelector("textarea");
+const linkInput = document.querySelector("input[placeholder='رابط الإعلان']");
+const fileInput = document.querySelector("input[type='file']");
+
+const previewBox = document.querySelector("#create-campaign div");
+
+titleInput.addEventListener("input", updatePreview);
+descInput.addEventListener("input", updatePreview);
+linkInput.addEventListener("input", updatePreview);
+fileInput.addEventListener("change", updatePreview);
+
+function updatePreview() {
+    let title = titleInput.value;
+    let desc = descInput.value;
+    let link = linkInput.value;
+
+    let file = fileInput.files[0];
+    let mediaHTML = "";
+
+    if (file) {
+        let url = URL.createObjectURL(file);
+
+        if (file.type.startsWith("image")) {
+            mediaHTML = `<img src="${url}" width="100%">`;
+        } else if (file.type.startsWith("video")) {
+            mediaHTML = `<video src="${url}" controls width="100%"></video>`;
+        }
+    }
+
+    previewBox.innerHTML = `
+        ${mediaHTML}
+        <h4>${title}</h4>
+        <p>${desc}</p>
+        <a href="${link}" target="_blank">${link}</a>
+    `;
+}
+
+// ===============================
+// 🎯 اختيار القنوات
+// ===============================
+document.querySelectorAll("#create-campaign div button").forEach(btn => {
+    btn.addEventListener("click", () => {
+        let channel = btn.parentElement.innerText;
+
+        if (!selectedChannels.includes(channel)) {
+            selectedChannels.push(channel);
+            btn.innerText = "✅ تم الاختيار";
+            showToast("تم اختيار القناة");
+        }
+    });
+});
+
+// ===============================
+// ✅ التحقق قبل إنشاء حملة
+// ===============================
+const launchBtn = document.querySelector("#create-campaign button:last-child");
+
+launchBtn.addEventListener("click", () => {
+    let title = titleInput.value;
+    let link = linkInput.value;
+    let budget = budgetInput.value;
+
+    if (!title || !link || !budget) {
+        showToast("❌ أكمل جميع البيانات");
+        return;
+    }
+
+    if (!link.startsWith("@") && !link.startsWith("http")) {
+        showToast("❌ رابط غير صحيح");
+        return;
+    }
+
+    showToast("🚀 تم إنشاء الحملة بنجاح");
+    addCampaign(title, budget);
+});
+
+// ===============================
+// 📊 إضافة حملة جديدة
+// ===============================
+const campaignsSection = document.querySelector("#campaigns");
+
+function addCampaign(title, budget) {
+    let card = document.createElement("div");
+
+    card.innerHTML = `
+        <h3>📢 ${title}</h3>
+        <p>👁️ 0 مشاهدة</p>
+        <p>🖱️ 0 نقرة</p>
+        <p>💰 الميزانية: ${budget}$</p>
+        <p class="status-active">🟢 Active</p>
+        <button class="pause">⏸ إيقاف</button>
+        <button class="play">▶️ تشغيل</button>
+    `;
+
+    campaignsSection.appendChild(card);
+
+    // أزرار التحكم
+    let pauseBtn = card.querySelector(".pause");
+    let playBtn = card.querySelector(".play");
+    let status = card.querySelector("p:nth-child(5)");
+
+    pauseBtn.addEventListener("click", () => {
+        status.innerText = "⏸ Paused";
+        status.className = "status-pending";
+        showToast("تم إيقاف الحملة");
+    });
+
+    playBtn.addEventListener("click", () => {
+        status.innerText = "🟢 Active";
+        status.className = "status-active";
+        showToast("تم تشغيل الحملة");
+    });
+}
+
+// ===============================
+// 🔔 نظام الإشعارات (Toast)
+// ===============================
+function showToast(message) {
+    let toast = document.createElement("div");
+
+    toast.innerText = message;
+    toast.style.position = "fixed";
+    toast.style.bottom = "20px";
+    toast.style.right = "20px";
+    toast.style.background = "#2563eb";
+    toast.style.color = "#fff";
+    toast.style.padding = "10px 15px";
+    toast.style.borderRadius = "8px";
+    toast.style.zIndex = "999";
+
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
+
+// ===============================
+// 💰 نسخ عنوان المحفظة
+// ===============================
+const copyBtn = document.querySelector("#deposit button");
+
+if (copyBtn) {
+    copyBtn.addEventListener("click", () => {
+        let wallet = document.querySelector("#deposit input");
+        navigator.clipboard.writeText(wallet.value);
+        showToast("تم نسخ العنوان");
+    });
+}
+
 
 // ==========================================
 // 🚀 التشغيل عند التحميل
