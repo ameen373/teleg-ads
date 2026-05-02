@@ -954,9 +954,9 @@ section:hover {
    
 
     <script>
-       // 1. الإعدادات الأساسية (لا تحذفها)
+               // 1. الإعدادات الأساسية
 const webApp = window.Telegram.WebApp;
-const ADMIN_ID = 549686235; // معرف أمين
+const ADMIN_ID = 549686235; 
 const LOGO_URL = "https://i.ibb.co/Z6qzV2Wk/1777032600480logo.png";
 
 const firebaseConfig = {
@@ -969,7 +969,6 @@ const firebaseConfig = {
     appId: "1:413242252888:web:6055aaa7fcdd256910b42d"
 };
 
-// تشغيل Firebase
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
@@ -977,7 +976,9 @@ const db = firebase.database();
 function initApp() {
     webApp.ready();
     webApp.expand();
-    document.getElementById('app-logo').src = LOGO_URL;
+    
+    const logoImg = document.getElementById('app-logo');
+    if(logoImg) logoImg.src = LOGO_URL;
 
     const user = webApp.initDataUnsafe.user;
     if (user) {
@@ -993,16 +994,18 @@ function initApp() {
     }
 }
 
-// 3. التنقل بين الأقسام الرئيسية (الرئيسية، المعلن، إلخ)
+// دالة التنقل بين الأقسام
 function showSection(sectionId, element) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-    document.getElementById(sectionId).classList.add('active');
+    const target = document.getElementById(sectionId);
+    if(target) target.classList.add('active');
     
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    element.classList.add('active');
+    if(element) element.classList.add('active');
 
-    if (webApp.HapticFeedback) webApp.HapticFeedback.impactOccurred('light');
+    triggerHaptic('light');
 }
+
 
 // ==========================================
 // 👤 جلب وتوزيع بيانات المستخدم (النظام النظيف)
@@ -1018,45 +1021,47 @@ function loadTelegramUser() {
         return;
     }
 
-    // تحديث واجهة الملف الشخصي بالبيانات الحقيقية
-    // نستخدم الأكواد (IDs) التي وضعناها في ملف الـ HTML النظيف
-    const userNameElement = document.getElementById("user-name");
-    const userIdElement = document.getElementById("user-id");
-    const userPfpElement = document.getElementById("user-pfp");
+        // تحديث الواجهة
+   const userNameElement = document.getElementById("user-name");
+        const userIdElement = document.getElementById("user-id");
+        const userPfpElement = document.getElementById("user-pfp");
+        const refLinkElement = document.getElementById("ref-link");
 
-    if (userNameElement) {
-        userNameElement.innerText = user.first_name + " " + (user.last_name || "");
-    }
+        if (userNameElement) userNameElement.innerText = `${user.first_name} ${user.last_name || ""}`;
+        if (userIdElement) userIdElement.innerText = `ID: ${user.id}`;
+        if (refLinkElement) refLinkElement.innerText = `https://t.me/YourBot?start=${user.id}`;
+        
+   
+        // الصورة الشخصية
+        if (userPfpElement) {
+            if (user.photo_url) {
+                userPfpElement.innerHTML = `<img src="${user.photo_url}" style="width:100%; height:100%; border-radius:20px; object-fit:cover;">`;
+            } else {
+                userPfpElement.innerText = user.first_name.charAt(0);
+            }
+        }
 
-    if (userIdElement) {
-        userIdElement.innerText = "ID: " + user.id;
-    }
-
-    // معالجة الصورة الشخصية
-    if (userPfpElement) {
-        if (user.photo_url) {
-            userPfpElement.innerHTML = `<img src="${user.photo_url}" style="width:100%; height:100%; border-radius:20px; object-fit:cover;">`;
-        } else {
-            // إذا لم توجد صورة، نضع الحرف الأول من الاسم
-            userPfpElement.innerText = user.first_name.charAt(0);
+        // رتبة المالك
+        const rankElement = document.getElementById("user-rank-label");
+        if (rankElement && user.id === ADMIN_ID) {
+            rankElement.innerText = "المالك (Owner)";
+            rankElement.style.background = "rgba(239, 68, 68, 0.15)";
+            rankElement.style.color = "#ef4444";
+            
+            const adminNav = document.getElementById('admin-nav');
+            if(adminNav) adminNav.style.display = 'block';
         }
     }
-
-    // تخصيص رتبة "المالك" إذا كان المستخدم هو أنت (أمين)
-    const rankElement = document.getElementById("user-rank-label");
-    if (rankElement && user.id === 549686235) {
-        rankElement.innerText = "المالك (Owner)";
-        rankElement.style.background = "rgba(239, 68, 68, 0.15)";
-        rankElement.style.color = "#ef4444";
-    }
-}
+    
 
 // ==========================================
 // 📳 نظام الاهتزاز واللمس (Haptic)
 // ==========================================
 function triggerHaptic(style = "light") {
-    if (tg.HapticFeedback) {
-        tg.HapticFeedback.impactOccurred(style);
+    if (webApp.HapticFeedback) {
+        if (style === 'error') webApp.HapticFeedback.notificationOccurred('error');
+        else if (style === 'success') webApp.HapticFeedback.notificationOccurred('success');
+        else webApp.HapticFeedback.impactOccurred(style);
     }
 }
 
@@ -1064,7 +1069,6 @@ function triggerHaptic(style = "light") {
 // 🔔 نظام التنبيهات (Toast) - تصميم نظيف
 // ==========================================
 function showToast(msg) {
-    // إزالة التنبيهات السابقة لتجنب الازدحام
     const existingToasts = document.querySelectorAll('.clean-toast');
     existingToasts.forEach(t => t.remove());
 
@@ -1072,7 +1076,6 @@ function showToast(msg) {
     toast.className = "clean-toast";
     toast.innerText = msg;
 
-    // تنسيق التنبيه مباشرة برمجياً لضمان النظافة
     Object.assign(toast.style, {
         position: 'fixed',
         bottom: '100px',
@@ -1088,25 +1091,19 @@ function showToast(msg) {
     });
 
     document.body.appendChild(toast);
-
     setTimeout(() => {
         toast.style.opacity = '0';
         setTimeout(() => toast.remove(), 300);
     }, 2500);
 }
-
 // ==========================================
 // 📊 الحالة والبيانات (State)
 // ==========================================
 let channels = [];
 let earnings = { views: 0, clicks: 0, total: 0 };
-
 const VIEW_RATE = 1.5 / 1000;
 const CLICK_RATE = 10 / 1000;
 
-// ==========================================
-// ➕ إضافة قناة
-// ==========================================
 function addChannel() {
     const linkInput = document.querySelector("#publisher input[type='text']");
     const categorySelect = document.querySelector("#publisher select");
@@ -1127,10 +1124,10 @@ function addChannel() {
 
     channels.push(newChannel);
     linkInput.value = ""; 
-    renderChannels();
     showToast("✅ تم الإرسال للمراجعة");
     triggerHaptic('success');
 }
+
 
 // ==========================================
 // 🔄 تحديث الأرباح
@@ -1159,15 +1156,6 @@ function removeChannel(id) {
     renderChannels();
     showToast("🗑️ تم الحذف");
     triggerHaptic('light');
-}
-
-function triggerHaptic(type) {
-    const tg = window.Telegram.WebApp;
-    if (tg && tg.HapticFeedback) {
-        if (type === 'error') tg.HapticFeedback.notificationOccurred('error');
-        else if (type === 'success') tg.HapticFeedback.notificationOccurred('success');
-        else tg.HapticFeedback.impactOccurred(type);
-    }
 }
 
 // ===============================
@@ -1344,28 +1332,6 @@ function addCampaign(title, budget) {
     });
 }
 
-// ===============================
-// 🔔 نظام الإشعارات (Toast)
-// ===============================
-function showToast(message) {
-    let toast = document.createElement("div");
-
-    toast.innerText = message;
-    toast.style.position = "fixed";
-    toast.style.bottom = "20px";
-    toast.style.right = "20px";
-    toast.style.background = "#2563eb";
-    toast.style.color = "#fff";
-    toast.style.padding = "10px 15px";
-    toast.style.borderRadius = "8px";
-    toast.style.zIndex = "999";
-
-    document.body.appendChild(toast);
-
-    setTimeout(() => {
-        toast.remove();
-    }, 3000);
-}
 
 // ===============================
 // 💰 نسخ عنوان المحفظة
@@ -1408,7 +1374,7 @@ window.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll('button, .card, .nav-item').forEach(el => {
         el.addEventListener('click', () => triggerHaptic('light'));
     });
-});
+}
         
 
 // 4. التنقل بين الصفحات الفرعية (المحفظة والعروض) داخل القسم الرئيسي
