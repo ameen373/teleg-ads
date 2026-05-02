@@ -702,68 +702,118 @@ section:hover {
  
 <div id="promo" class="section">
     <div class="card">
-        <h1 style="text-align: center; margin-bottom: 20px;">🚀 لوحة تحكم المعلن</h1>
+        <h2><i class="fas fa-rocket"></i> لوحة تحكم المعلن</h2>
 
         <main id="main-container">
-
             <section id="notifications-section">
                 <h2>🔔 الإشعارات</h2>
-                <ul style="list-style: none;">
-                    <li style="background: #e7f3ff; padding: 10px; margin-bottom: 5px;">✅ تم قبول حملتك الأخيرة</li>
-                    <li style="background: #fff0f0; padding: 10px;">⚠️ رصيدك أوشك على النفاد</li>
-                </ul>
+                <div class="content">
+                    <ul>
+                        <li><i class="fas fa-check-circle" style="color: green;"></i> تم قبول حملتك</li>
+                        <li><i class="fas fa-minus-circle" style="color: red;"></i> تم خصم 2$ من الرصيد</li>
+                    </ul>
+                </div>
             </section>
+
+            <hr>
 
             <section id="wallet-section">
                 <h2>💰 المحفظة</h2>
-                <p>الرصيد الحالي: <strong>50$</strong></p>
-                <button>شحن الرصيد</button>
-                <div style="margin-top: 15px;">
-                    <h4>آخر العمليات</h4>
-                    <small>- إيداع 10$ | - حملة نقرات 2$</small>
+                <div class="wallet-info">
+                    <p>الرصيد الحالي: <strong>0$</strong></p>
+                    <button type="button">شحن الرصيد</button>
+                </div>
+                <div class="history">
+                    <h3>سجل العمليات</h3>
+                    <ul>
+                        <li>+10$ (إيداع)</li>
+                        <li>-2$ (حملة)</li>
+                    </ul>
                 </div>
             </section>
+
+            <hr>
 
             <section id="create-campaign-section">
                 <h2>🚀 إنشاء حملة جديدة</h2>
-                <div class="campaign-details">
-                    <input type="text" placeholder="عنوان الإعلان">
-                    <textarea placeholder="وصف الإعلان"></textarea>
-                    <select>
-                        <option>اختر التصنيف</option>
-                        <option>تقنية</option>
-                        <option>ترفيه</option>
-                    </select>
-                    <input type="number" placeholder="الميزانية">
-                    <button style="background: #28a745; width: 100%;">إطلاق الحملة</button>
+                <div class="campaign-type">
+                    <h3>نوع الحملة</h3>
+                    <button type="button">👁️ مشاهدات</button>
+                    <button type="button">🖱️ نقرات</button>
+                    <button type="button">📌 منشور ثابت</button>
                 </div>
+
+                <div class="campaign-details">
+                    <h3>بيانات الإعلان</h3>
+                    <label for="ad-file">ارفع الملف:</label>
+                    <input type="file" id="ad-file">
+                    <input type="text" placeholder="عنوان الإعلان" id="ad-title">
+                    <textarea placeholder="وصف الإعلان" id="ad-desc" rows="3"></textarea>
+                    <input type="url" placeholder="رابط الإعلان (https://...)" id="ad-link">
+                </div>
+
+                <div class="targeting">
+                    <h3>🎯 الاستهداف</h3>
+                    <select id="target-category">
+                        <option value="sports">رياضة</option>
+                        <option value="tech">تقنية</option>
+                        <option value="news">أخبار</option>
+                        <option value="crypto">عملات رقمية</option>
+                        <option value="fun">ترفيه</option>
+                    </select>
+                </div>
+
+                <div class="distribution">
+                    <h3>طريقة التوزيع</h3>
+                    <label><input type="radio" name="dist" value="auto" checked> تلقائي</label>
+                    <label><input type="radio" name="dist" value="manual"> يدوي</label>
+                </div>
+
+                <div class="marketplace">
+                    <h3>القنوات المتاحة</h3>
+                    <div class="channel-card" style="border: 1px dashed #ccc; padding: 10px;">
+                        <p>📢 قناة 1 (10000 مشترك)</p>
+                        <button type="button">اختيار القناة</button>
+                    </div>
+                </div>
+
+                <div class="budget-calculation">
+                    <h3>💸 الميزانية والحساب</h3>
+                    <input type="number" placeholder="الميزانية بالدولار" id="budget-input">
+                    <p id="calculation-result">التوقعات: ستظهر هنا</p>
+                </div>
+
+                <div class="preview">
+                    <h3>👁️ معاينة فورية</h3>
+                    <div id="ad-preview-box" style="border: 1px solid #ddd; height: 100px; background: #fafafa; display: flex; align-items: center; justify-content: center;">
+                        سيظهر شكل الإعلان هنا
+                    </div>
+                </div>
+
+                <button type="submit" id="submit-campaign" style="margin-top: 20px; width: 100%; background: #28a745;">إطلاق الحملة الآن</button>
             </section>
+
+            <hr>
 
             <section id="manage-campaigns-section">
                 <h2>📊 إدارة حملاتك</h2>
-                <div style="border: 1px solid #eee; padding: 10px;">
-                    <p>حملة "تخفيضات العيد" - <strong>نشطة</strong></p>
-                    <progress value="70" max="100" style="width: 100%;"></progress>
+                <div id="campaigns-list">
+                    <p style="text-align: center; color: #888;">لا توجد حملات نشطة حالياً</p>
                 </div>
             </section>
+
+            <hr>
 
             <section id="analytics-section">
                 <h2>📈 إحصائيات عامة</h2>
-                <div class="stats-grid">
-                    <div style="background: #f8f9fa; padding: 10px; border-radius: 5px;">
-                        <p>👁️ مشاهدات</p>
-                        <h3>5,400</h3>
-                    </div>
-                    <div style="background: #f8f9fa; padding: 10px; border-radius: 5px;">
-                        <p>🖱️ نقرات</p>
-                        <h3>320</h3>
-                    </div>
+                <div class="stats-grid" style="display: flex; justify-content: space-around; background: #e9ecef; padding: 15px; border-radius: 5px;">
+                    <p>👁️ المشاهدات: <strong>5000</strong></p>
+                    <p>🖱️ النقرات: <strong>300</strong></p>
+                    <p>📊 CTR: <strong>6%</strong></p>
                 </div>
             </section>
-
         </main>
-    </div>
-</div>
+    </div> </div> 
           
 
     <div id="publisher" class="section">
