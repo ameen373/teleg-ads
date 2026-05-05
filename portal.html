@@ -1576,918 +1576,504 @@ section:hover {
 
     <script>
 
-    
+    // ==========================================
+// 🚀 SECTION 1: APP ENGINE + STATE
 // ==========================================
-// 🚀 App Engine (Integration Layer)
-// /app/app.js
-// ==========================================
+(function () {
 
-import CONFIG from "../core/config.js";
-import state, { updateUser, setUI } from "../core/state.js";
+    // =========================
+    // 🧠 GLOBAL STATE
+    // =========================
+    const state = {
+        user: {},
+        ui: {},
+        language: "en"
+    };
 
-import { getUser, createUser } from "../core/services/userService.js";
-import { resolveAppLanguage } from "../core/services/intlService.js";
+    function updateUser(user) {
+        state.user = user || {};
+    }
 
-// =========================
-// 🚀 تشغيل التطبيق
-// =========================
-export async function initApp() {
+    function setUI(key, value) {
+        state.ui[key] = value;
+    }
 
-    try {
-
-        setUI("loading", true);
-
-        // =========================
-        // 🌐 تحديد اللغة
-        // =========================
-        const lang = resolveAppLanguage();
-        state.language = lang;
-
-        // =========================
-        // 👤 تهيئة المستخدم (Telegram)
-        // =========================
-        const tg = window.Telegram?.WebApp;
-
-        const userId =
-            tg?.initDataUnsafe?.user?.id ||
-            CONFIG.BOT_CONFIG.ADMIN_ID; // fallback
-
-        const userName =
-            tg?.initDataUnsafe?.user?.first_name ||
-            "Guest";
-
-        // =========================
-        // 📥 جلب المستخدم
-        // =========================
-        let user = await getUser(userId);
-
-        // ➕ إذا غير موجود
-        if (!user) {
-            user = await createUser(userId, {
-                name: userName
-            });
+    // =========================
+    // ⚙️ CONFIG (بديل import)
+    // =========================
+    const CONFIG = {
+        BOT_CONFIG: {
+            ADMIN_ID: 0 // عدلها لاحقًا
         }
-
-        // =========================
-        // 🧠 تحديث الحالة
-        // =========================
-        updateUser(user);
-
-        state.user.id = userId;
-
-        // =========================
-        // 🎯 تشغيل الواجهة
-        // =========================
-        if (tg) {
-            tg.ready();
-            tg.expand();
-        }
-
-        setUI("loading", false);
-
-        console.log("🚀 App Initialized Successfully");
-        console.log("👤 User:", state.user);
-
-        return true;
-
-    } catch (err) {
-
-        console.error("App init error:", err);
-        setUI("loading", false);
-
-        return false;
-    }
-}
-
-// ==========================================
-// 🧭 App Router (Integration Layer)
-// /app/router.js
-// ==========================================
-
-import state, { setUI } from "../core/state.js";
-
-// =========================
-// 📌 الصفحات المتاحة
-// =========================
-const routes = {
-    home: "home-section",
-    profile: "profile-section",
-    campaigns: "campaigns-section",
-    wallet: "wallet-section",
-    admin: "admin-section",
-    channels: "channels-section"
-};
-
-// =========================
-// 🔁 إخفاء كل الصفحات
-// =========================
-function hideAll() {
-    Object.values(routes).forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.style.display = "none";
-    });
-}
-
-// =========================
-// 📍 عرض صفحة معينة
-// =========================
-export function navigateTo(routeName) {
-
-    const route = routes[routeName];
-
-    if (!route) {
-        console.warn("Route not found:", routeName);
-        return false;
-    }
-
-    // 🔒 إخفاء الكل
-    hideAll();
-
-    // 👁️ إظهار الصفحة المطلوبة
-    const page = document.getElementById(route);
-
-    if (page) {
-        page.style.display = "block";
-    }
-
-    // 🧠 تحديث الحالة
-    state.ui.currentSection = routeName;
-
-    setUI("currentSection", routeName);
-
-    return true;
-}
-
-// =========================
-// 🚀 الرجوع للصفحة الرئيسية
-// =========================
-export function goHome() {
-    return navigateTo("home");
-}
-
-// =========================
-// 📱 ربط أزرار التنقل
-// =========================
-export function bindRouterEvents() {
-
-    document.addEventListener("click", (e) => {
-
-        const target = e.target;
-
-        // 🎯 أي عنصر يحمل data-route
-        if (target?.dataset?.route) {
-            navigateTo(target.dataset.route);
-        }
-    });
-}
-
-// =========================
-// 🔄 إعادة تحميل الصفحة الحالية
-// =========================
-export function reloadCurrentRoute() {
-    return navigateTo(state.ui.currentSection || "home");
-}
-
-// ==========================================
-// ⚡ Event System (Integration Layer)
-// /app/events.js
-// ==========================================
-
-import state from "../core/state.js";
-import { navigateTo } from "./router.js";
-
-import { showAlert } from "../core/ui.js";
-
-import { 
-    createCampaign,
-    pauseCampaign,
-    activateCampaign
-} from "../core/services/campaignService.js";
-
-import {
-    updateBalance
-} from "../core/services/userService.js";
-
-// =========================
-// 🎯 Event Dispatcher
-// =========================
-export async function handleAction(action, payload = {}) {
-
-    try {
-
-        switch (action) {
-
-            // =========================
-            // 🧭 Navigation
-            // =========================
-            case "NAVIGATE":
-                navigateTo(payload.route);
-                break;
-
-            // =========================
-            // 📢 إنشاء حملة
-            // =========================
-            case "CREATE_CAMPAIGN":
-
-                const result = await createCampaign(
-                    state.user.id,
-                    payload.data
-                );
-
-                if (result.success) {
-                    showAlert("✅ Campaign Created", "success");
-                } else {
-                    showAlert("❌ Failed to create campaign", "error");
-                }
-
-                break;
-
-            // =========================
-            // ⏸️ إيقاف حملة
-            // =========================
-            case "PAUSE_CAMPAIGN":
-
-                await pauseCampaign(payload.campaignId);
-                showAlert("⏸️ Campaign Paused", "info");
-
-                break;
-
-            // =========================
-            // ▶️ تفعيل حملة
-            // =========================
-            case "ACTIVATE_CAMPAIGN":
-
-                await activateCampaign(payload.campaignId);
-                showAlert("▶️ Campaign Activated", "success");
-
-                break;
-
-            // =========================
-            // 💰 إضافة رصيد (Admin/Test)
-            // =========================
-            case "ADD_BALANCE":
-
-                await updateBalance(state.user.id, payload.amount);
-                showAlert("💰 Balance Updated", "success");
-
-                break;
-
-            // =========================
-            // ⚠️ Default
-            // =========================
-            default:
-                console.warn("Unknown action:", action);
-        }
-
-    } catch (err) {
-        console.error("Action error:", err);
-        showAlert("❌ System Error", "error");
-    }
-}
-
-// =========================
-// 🔗 ربط الأزرار تلقائياً
-// =========================
-export function bindEvents() {
-
-    document.addEventListener("click", (e) => {
-
-        const el = e.target;
-
-        if (!el.dataset.action) return;
-
-        const action = el.dataset.action;
-
-        let payload = {};
-
-        try {
-            payload = JSON.parse(el.dataset.payload || "{}");
-        } catch (err) {
-            payload = {};
-        }
-
-        handleAction(action, payload);
-    });
-}
-
-// ==========================================
-// 🚀 Bootstrap (Integration Layer)
-// /app/bootstrap.js
-// ==========================================
-
-import { initApp } from "./app.js";
-import { bindRouterEvents, navigateTo } from "./router.js";
-import { bindEvents } from "./events.js";
-
-// =========================
-// 🚀 تشغيل النظام بالكامل
-// =========================
-async function bootstrap() {
-
-    try {
-
-        console.log("🚀 Starting Application...");
-
-        // =========================
-        // 🧠 تشغيل التطبيق الأساسي
-        // =========================
-        const appReady = await initApp();
-
-        if (!appReady) {
-            console.error("❌ App failed to initialize");
-            return;
-        }
-
-        // =========================
-        // 🧭 تشغيل Router
-        // =========================
-        bindRouterEvents();
-
-        // =========================
-        // ⚡ تشغيل Event System
-        // =========================
-        bindEvents();
-
-        // =========================
-        // 📍 الصفحة الافتراضية
-        // =========================
-        navigateTo("home");
-
-        // =========================
-        // 📱 Telegram WebApp Ready
-        // =========================
-        const tg = window.Telegram?.WebApp;
-
-        if (tg) {
-            tg.ready();
-            tg.expand();
-        }
-
-        console.log("✅ Application Fully Loaded");
-
-    } catch (err) {
-        console.error("❌ Bootstrap Error:", err);
-    }
-}
-
-// =========================
-// ▶️ تشغيل تلقائي
-// =========================
-document.addEventListener("DOMContentLoaded", bootstrap);
-
-// ==========================================
-// 🛡️ Anti-Fraud Engine (Hybrid AI Layer)
-// /core/security/antiFraud.js
-// ==========================================
-
-import { db } from "../firebase.js";
-
-// =========================
-// 🧠 حساب Risk Score
-// =========================
-export function calculateRiskScore(user) {
-
-    let score = 0;
+    };
 
     // =========================
-    // 📊 CTR غير طبيعي
+    // 🔧 SERVICES (بديل import)
     // =========================
-    const ctr = user.views > 0 ? (user.clicks / user.views) * 100 : 0;
-
-    if (ctr > 70) score += 40;
-    if (ctr > 90) score += 60;
-
-    // =========================
-    // ⚡ نشاط سريع جدًا
-    // =========================
-    if (user.lastActions && user.lastActions.length > 20) {
-        score += 20;
-    }
-
-    // =========================
-    // 🌍 تغييرات IP متكررة
-    // =========================
-    if (user.ipChanges && user.ipChanges > 3) {
-        score += 25;
-    }
-
-    // =========================
-    // 🔗 إحالات مشبوهة
-    // =========================
-    if (user.referrals && user.referrals > 50) {
-        score += 30;
-    }
-
-    // =========================
-    // 💰 سحب سريع بعد التسجيل
-    // =========================
-    if (user.createdAt && user.withdrawals > 0) {
-        const age = Date.now() - user.createdAt;
-
-        // أقل من يوم + سحب = خطر
-        if (age < 24 * 60 * 60 * 1000) {
-            score += 50;
-        }
-    }
-
-    return Math.min(score, 100);
-}
-
-// =========================
-// 🚨 تصنيف المستخدم
-// =========================
-export function classifyUser(riskScore) {
-
-    if (riskScore >= 80) {
-        return "HIGH_RISK";
-    }
-
-    if (riskScore >= 50) {
-        return "MEDIUM_RISK";
-    }
-
-    return "SAFE";
-}
-
-// =========================
-// 🧠 تحديث تقييم المستخدم
-// =========================
-export async function updateUserRisk(userId, userData) {
-
-    try {
-
-        const score = calculateRiskScore(userData);
-        const level = classifyUser(score);
-
-        await db.ref(`users/${userId}`).update({
-            riskScore: score,
-            riskLevel: level,
-            riskUpdatedAt: Date.now()
-        });
-
-        return { score, level };
-
-    } catch (err) {
-        console.error("Risk update error:", err);
+    async function getUser(id) {
+        // TODO: اربطه مع Firebase
         return null;
     }
-}
 
-// =========================
-// 🚫 قرار تلقائي (AI Decision)
-// =========================
-export function shouldBlockUser(riskScore) {
-
-    // AI rule (Hybrid logic)
-    if (riskScore >= 85) return true;
-
-    return false;
-}
-
-// =========================
-// 📊 تحليل سلوك سريع
-// =========================
-export function analyzeBehavior(user) {
-
-    const score = calculateRiskScore(user);
-
-    return {
-        score,
-        level: classifyUser(score),
-        block: shouldBlockUser(score),
-        safeToServeAds: score < 60
-    };
-}
-
-// ==========================================
-// 🧠 Decision Engine (Hybrid AI Layer)
-// /core/ai/decisionEngine.js
-// ==========================================
-
-import { calculateCTR } from "../metrics.js";
-
-// =========================
-// 🎯 تقييم المستخدم للإعلانات
-// =========================
-export function scoreUserForAds(user) {
-
-    let score = 0;
-
-    // 📊 CTR
-    const ctr = calculateCTR(user.clicks || 0, user.views || 0);
-
-    if (ctr >= 10) score += 30;
-    if (ctr >= 30) score += 50;
-
-    // 🧠 Risk (من Anti-Fraud)
-    if (user.riskScore !== undefined) {
-        score -= user.riskScore * 0.5;
-    }
-
-    // ⚡ النشاط
-    if (user.views > 100) score += 20;
-    if (user.clicks > 50) score += 20;
-
-    // 💰 قيمة المستخدم (High value users)
-    if (user.earnings > 50) score += 15;
-
-    return Math.max(0, Math.min(score, 100));
-}
-
-// =========================
-// 📢 قرار عرض إعلان
-// =========================
-export function shouldServeAd(user) {
-
-    const score = scoreUserForAds(user);
-
-    if (score >= 70) return true;
-
-    return false;
-}
-
-// =========================
-// 🎯 اختيار أفضل مستخدمين للإعلانات
-// =========================
-export function selectBestUsers(users = [], limit = 10) {
-
-    return users
-        .map(user => ({
-            ...user,
-            adScore: scoreUserForAds(user)
-        }))
-        .sort((a, b) => b.adScore - a.adScore)
-        .slice(0, limit);
-}
-
-// =========================
-// 📊 اختيار أفضل حملة لعرضها
-// =========================
-export function selectBestCampaign(campaigns = []) {
-
-    if (!campaigns.length) return null;
-
-    return campaigns
-        .map(c => {
-
-            const views = c.stats?.views || 0;
-            const clicks = c.stats?.clicks || 0;
-
-            const ctr = calculateCTR(clicks, views);
-
-            return {
-                ...c,
-                performanceScore: ctr + (c.budget / 10)
-            };
-        })
-        .sort((a, b) => b.performanceScore - a.performanceScore)[0];
-}
-
-// =========================
-// 💡 تحسين توزيع الحملات (Smart Allocation)
-// =========================
-export function allocateImpression(user, campaigns = []) {
-
-    const best = selectBestCampaign(campaigns);
-
-    if (!best) return null;
-
-    const userScore = scoreUserForAds(user);
-
-    // 🚨 إذا المستخدم خطر → لا يتم عرض إعلان عالي القيمة
-    if (userScore < 30) {
+    async function createUser(id, data) {
         return {
-            campaign: best,
-            type: "low_value"
+            id,
+            ...data
         };
     }
 
-    return {
-        campaign: best,
-        type: "normal"
-    };
-}
-
-// =========================
-// 🧠 قرار النظام العام
-// =========================
-export function systemDecision({ user, campaigns }) {
-
-    const canShowAd = shouldServeAd(user);
-    const allocation = allocateImpression(user, campaigns);
-
-    return {
-        allowAd: canShowAd,
-        allocation,
-        riskLevel: user.riskScore || 0
-    };
-}
-
-// ==========================================
-// ⚙️ AI Optimizer (Self-Improving System)
-// /core/ai/optimizer.js
-// ==========================================
-
-import { db } from "../firebase.js";
-import { calculateCTR } from "../metrics.js";
-
-// =========================
-// 📊 تحليل حملة واحدة
-// =========================
-export function analyzeCampaign(campaign) {
-
-    const views = campaign.stats?.views || 0;
-    const clicks = campaign.stats?.clicks || 0;
-
-    const ctr = calculateCTR(clicks, views);
-
-    let score = ctr;
-
-    // 💰 الميزانية
-    if (campaign.budget > 100) score += 10;
-    if (campaign.budget < 10) score -= 10;
-
-    // 📉 ضعف الأداء
-    if (ctr < 1) score -= 20;
-    if (ctr > 20) score += 30;
-
-    return {
-        ctr,
-        score
-    };
-}
-
-// =========================
-// ⚖️ تعديل سعر الإعلان
-// =========================
-export function adjustRate(baseRate, performanceScore) {
-
-    let multiplier = 1;
-
-    // 🚀 أداء عالي → رفع السعر
-    if (performanceScore > 70) {
-        multiplier = 1.5;
+    function resolveAppLanguage() {
+        return "en";
     }
-
-    // ⚠️ أداء متوسط
-    if (performanceScore > 40 && performanceScore <= 70) {
-        multiplier = 1.1;
-    }
-
-    // ❌ أداء ضعيف → تخفيض
-    if (performanceScore <= 40) {
-        multiplier = 0.7;
-    }
-
-    return baseRate * multiplier;
-}
-
-// =========================
-// 📢 تحسين جميع الحملات
-// =========================
-export async function optimizeCampaigns() {
-
-    try {
-
-        const snap = await db.ref("campaigns").once("value");
-        const campaigns = snap.val() || {};
-
-        const updates = [];
-
-        Object.entries(campaigns).forEach(([id, campaign]) => {
-
-            const analysis = analyzeCampaign(campaign);
-
-            const newBid = adjustRate(campaign.bid || 0.01, analysis.score);
-
-            updates.push(
-                db.ref(`campaigns/${id}`).update({
-                    bid: parseFloat(newBid.toFixed(4)),
-                    lastOptimized: Date.now(),
-                    performanceScore: analysis.score
-                })
-            );
-        });
-
-        await Promise.all(updates);
-
-        return true;
-
-    } catch (err) {
-        console.error("Optimizer error:", err);
-        return false;
-    }
-}
-
-// =========================
-// 📊 تحسين مستخدمين النظام
-// =========================
-export async function optimizeUsers() {
-
-    try {
-
-        const snap = await db.ref("users").once("value");
-        const users = snap.val() || {};
-
-        const updates = [];
-
-        Object.entries(users).forEach(([id, user]) => {
-
-            const ctr = calculateCTR(user.clicks || 0, user.views || 0);
-
-            let rewardMultiplier = 1;
-
-            // 🎯 مستخدم جيد
-            if (ctr > 10) rewardMultiplier = 1.2;
-
-            // ⚠️ ضعيف
-            if (ctr < 1) rewardMultiplier = 0.8;
-
-            updates.push(
-                db.ref(`users/${id}`).update({
-                    rewardMultiplier,
-                    lastOptimized: Date.now()
-                })
-            );
-        });
-
-        await Promise.all(updates);
-
-        return true;
-
-    } catch (err) {
-        console.error("User optimizer error:", err);
-        return false;
-    }
-}
-
-// =========================
-// 🧠 قرار تحسين شامل
-// =========================
-export async function runFullOptimization() {
-
-    const campaignsResult = await optimizeCampaigns();
-    const usersResult = await optimizeUsers();
-
-    return {
-        campaignsOptimized: campaignsResult,
-        usersOptimized: usersResult,
-        timestamp: Date.now()
-    };
-}
-
-// ==========================================
-// ⏰ AI Scheduler (Autonomous Engine)
-// /core/ai/scheduler.js
-// ==========================================
-
-import { runFullOptimization } from "./optimizer.js";
-
-// =========================
-// ⚙️ إعدادات الجدولة
-// =========================
-const INTERVALS = {
-    optimization: 5 * 60 * 1000, // كل 5 دقائق
-    heartbeat: 60 * 1000 // كل دقيقة
-};
-
-let schedulerState = {
-    running: false,
-    lastOptimization: null,
-    lastHeartbeat: null
-};
-
-// =========================
-// 🚀 تشغيل النظام الذكي
-// =========================
-export function startAIScheduler() {
-
-    if (schedulerState.running) return;
-
-    schedulerState.running = true;
-
-    console.log("🧠 AI Scheduler Started");
 
     // =========================
-    // ⚙️ Optimization Loop
+    // 🚀 INIT APP
     // =========================
-    setInterval(async () => {
+    async function initApp() {
 
         try {
 
-            console.log("⚙️ Running Auto Optimization...");
+            setUI("loading", true);
 
-            const result = await runFullOptimization();
+            // 🌐 اللغة
+            const lang = resolveAppLanguage();
+            state.language = lang;
 
-            schedulerState.lastOptimization = Date.now();
+            // 👤 Telegram
+            const tg = window.Telegram?.WebApp;
 
-            console.log("✅ Optimization Done:", result);
+            const userId =
+                tg?.initDataUnsafe?.user?.id ??
+                CONFIG?.BOT_CONFIG?.ADMIN_ID ?? 0;
+
+            const userName =
+                tg?.initDataUnsafe?.user?.first_name ??
+                "Guest";
+
+            // 📥 جلب المستخدم
+            let user = await getUser(userId);
+
+            if (!user) {
+                user = await createUser(userId, {
+                    name: userName
+                });
+            }
+
+            // 🧠 تحديث الحالة
+            updateUser(user);
+
+            state.user = state.user || {};
+            state.user.id = userId;
+
+            // 📱 Telegram init
+            if (tg) {
+                tg.ready();
+                tg.expand();
+            }
+
+            setUI("loading", false);
+
+            console.log("🚀 App Initialized Successfully");
+            console.log("👤 User:", state.user);
+
+            return true;
 
         } catch (err) {
-            console.error("❌ Optimization Error:", err);
+
+            console.error("App init error:", err);
+            setUI("loading", false);
+
+            return false;
         }
-
-    }, INTERVALS.optimization);
-
-    // =========================
-    // 💓 Heartbeat (System Check)
-    // =========================
-    setInterval(() => {
-
-        schedulerState.lastHeartbeat = Date.now();
-
-        console.log("💓 System Heartbeat OK");
-
-    }, INTERVALS.heartbeat);
-}
-
-// =========================
-// 📊 حالة النظام
-// =========================
-export function getSchedulerStatus() {
-
-    return {
-        running: schedulerState.running,
-        lastOptimization: schedulerState.lastOptimization,
-        lastHeartbeat: schedulerState.lastHeartbeat
-    };
-}
-
-// =========================
-// ⛔ إيقاف النظام
-// =========================
-export function stopAIScheduler() {
-
-    schedulerState.running = false;
-
-    console.log("⛔ AI Scheduler Stopped");
-}
-
-// ==========================================
-// 🚀 FINAL ENTRY POINT (Production System)
-// /app/entry.js
-// ==========================================
-
-import { initApp } from "./app.js";
-import { bindRouterEvents, navigateTo } from "./router.js";
-import { bindEvents } from "./events.js";
-
-import { startAIScheduler } from "../core/ai/scheduler.js";
-
-import { getSchedulerStatus } from "../core/ai/scheduler.js";
-
-// =========================
-// 🚀 تشغيل النظام الكامل
-// =========================
-async function startSystem() {
-
-    try {
-
-        console.log("🚀 SYSTEM BOOTING...");
-
-        // =========================
-        // 🧠 تشغيل التطبيق الأساسي
-        // =========================
-        const appReady = await initApp();
-
-        if (!appReady) {
-            throw new Error("App initialization failed");
-        }
-
-        // =========================
-        // 🧭 Router
-        // =========================
-        bindRouterEvents();
-
-        // =========================
-        // ⚡ Events
-        // =========================
-        bindEvents();
-
-        // =========================
-        // 🧠 AI SYSTEM
-        // =========================
-        startAIScheduler();
-
-        // =========================
-        // 📍 الصفحة الافتراضية
-        // =========================
-        navigateTo("home");
-
-        console.log("✅ SYSTEM READY");
-
-        console.log("📊 Scheduler Status:", getSchedulerStatus());
-
-    } catch (err) {
-
-        console.error("❌ SYSTEM FAILURE:", err);
     }
-}
 
-// =========================
-// ▶️ تشغيل تلقائي
-// =========================
-document.addEventListener("DOMContentLoaded", startSystem);
+    // =========================
+    // 📌 جعل الدوال متاحة للأقسام القادمة
+    // =========================
+    window.__APP__ = {
+        state,
+        setUI,
+        updateUser,
+        initApp
+    };
+
+})();
+
+// ==========================================
+// 🚀 SECTION 2: ROUTER
+// ==========================================
+(function () {
+
+    // =========================
+    // 🧠 ربط مع النظام الأساسي
+    // =========================
+    const { state, setUI } = window.__APP__;
+
+    // =========================
+    // 📌 الصفحات المتاحة
+    // =========================
+    const routes = {
+        home: "home-section",
+        profile: "profile-section",
+        campaigns: "campaigns-section",
+        wallet: "wallet-section",
+        admin: "admin-section",
+        channels: "channels-section"
+    };
+
+    // =========================
+    // 🔁 إخفاء كل الصفحات
+    // =========================
+    function hideAll() {
+        Object.values(routes).forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = "none";
+        });
+    }
+
+    // =========================
+    // 📍 عرض صفحة معينة
+    // =========================
+    function navigateTo(routeName) {
+
+        const route = routes[routeName];
+
+        if (!route) {
+            console.warn("Route not found:", routeName);
+            return false;
+        }
+
+        hideAll();
+
+        const page = document.getElementById(route);
+
+        if (page) {
+            page.style.display = "block";
+        }
+
+        // تحديث الحالة
+        state.ui = state.ui || {};
+        state.ui.currentSection = routeName;
+
+        setUI("currentSection", routeName);
+
+        return true;
+    }
+
+    // =========================
+    // 🚀 الرجوع للرئيسية
+    // =========================
+    function goHome() {
+        return navigateTo("home");
+    }
+
+    // =========================
+    // 📱 ربط الأزرار (FIXED)
+    // =========================
+    function bindRouterEvents() {
+
+        document.addEventListener("click", (e) => {
+
+            const el = e.target.closest("[data-route]");
+            if (!el) return;
+
+            navigateTo(el.dataset.route);
+        });
+    }
+
+    // =========================
+    // 🔄 إعادة تحميل الصفحة
+    // =========================
+    function reloadCurrentRoute() {
+        return navigateTo(state.ui?.currentSection || "home");
+    }
+
+    // =========================
+    // 📌 تصدير داخلي للنظام
+    // =========================
+    window.__APP__ = {
+        ...window.__APP__,
+        navigateTo,
+        goHome,
+        bindRouterEvents,
+        reloadCurrentRoute
+    };
+
+})();
+
+// ==========================================
+// 🚀 SECTION 3: EVENT SYSTEM
+// ==========================================
+(function () {
+
+    // =========================
+    // 🧠 ربط مع النظام الأساسي
+    // =========================
+    const {
+        state,
+        navigateTo
+    } = window.__APP__;
+
+    // =========================
+    // 🔧 SERVICES (بديل import)
+    // =========================
+    async function createCampaign(userId, data) {
+        // TODO: اربطه مع backend
+        return { success: true };
+    }
+
+    async function pauseCampaign(id) {
+        // TODO
+    }
+
+    async function activateCampaign(id) {
+        // TODO
+    }
+
+    async function updateBalance(userId, amount) {
+        // TODO
+    }
+
+    function showAlert(msg, type = "info") {
+        console.log(type.toUpperCase(), msg);
+    }
+
+    // =========================
+    // 🎯 Event Dispatcher
+    // =========================
+    async function handleAction(action, payload = {}) {
+
+        try {
+
+            switch (action) {
+
+                // 🧭 تنقل
+                case "NAVIGATE":
+                    navigateTo(payload.route);
+                    break;
+
+                // 📢 إنشاء حملة
+                case "CREATE_CAMPAIGN": {
+
+                    const result = await createCampaign(
+                        state.user?.id,
+                        payload.data
+                    );
+
+                    if (result?.success) {
+                        showAlert("✅ Campaign Created", "success");
+                    } else {
+                        showAlert("❌ Failed to create campaign", "error");
+                    }
+
+                    break;
+                }
+
+                // ⏸️ إيقاف حملة
+                case "PAUSE_CAMPAIGN":
+
+                    if (!payload.campaignId) return;
+
+                    await pauseCampaign(payload.campaignId);
+                    showAlert("⏸️ Campaign Paused", "info");
+                    break;
+
+                // ▶️ تفعيل حملة
+                case "ACTIVATE_CAMPAIGN":
+
+                    if (!payload.campaignId) return;
+
+                    await activateCampaign(payload.campaignId);
+                    showAlert("▶️ Campaign Activated", "success");
+                    break;
+
+                // 💰 إضافة رصيد
+                case "ADD_BALANCE":
+
+                    if (!payload.amount) return;
+
+                    await updateBalance(state.user?.id, payload.amount);
+                    showAlert("💰 Balance Updated", "success");
+                    break;
+
+                default:
+                    console.warn("Unknown action:", action);
+            }
+
+        } catch (err) {
+            console.error("Action error:", err);
+            showAlert("❌ System Error", "error");
+        }
+    }
+
+    // =========================
+    // 🔗 ربط الأزرار (FIXED)
+    // =========================
+    function bindEvents() {
+
+        document.addEventListener("click", (e) => {
+
+            const el = e.target.closest("[data-action]");
+            if (!el) return;
+
+            const action = el.dataset.action;
+
+            let payload = {};
+
+            try {
+                payload = JSON.parse(el.dataset.payload || "{}");
+            } catch {
+                payload = {};
+            }
+
+            handleAction(action, payload);
+        });
+    }
+
+    // =========================
+    // 📌 ربط مع النظام العام
+    // =========================
+    window.__APP__ = {
+        ...window.__APP__,
+        handleAction,
+        bindEvents
+    };
+
+})();
+
+// ==========================================
+// 🚀 SECTION 4: ANTI-FRAUD ENGINE
+// ==========================================
+(function () {
+
+    // =========================
+    // 🧠 ربط مع النظام
+    // =========================
+    const { state } = window.__APP__;
+
+    // =========================
+    // 🔧 DATABASE (بديل Firebase)
+    // =========================
+    const db = {
+        async update(path, data) {
+            console.log("DB UPDATE:", path, data);
+            // TODO: اربطه مع Firebase
+        }
+    };
+
+    // =========================
+    // 🧠 حساب Risk Score (SAFE)
+    // =========================
+    function calculateRiskScore(user = {}) {
+
+        let score = 0;
+
+        const views = user.views || 0;
+        const clicks = user.clicks || 0;
+
+        const ctr = views > 0 ? (clicks / views) * 100 : 0;
+
+        // 📊 CTR غير طبيعي
+        if (ctr > 70) score += 40;
+        if (ctr > 90) score += 60;
+
+        // ⚡ نشاط سريع
+        if ((user.lastActions || []).length > 20) {
+            score += 20;
+        }
+
+        // 🌍 تغييرات IP
+        if ((user.ipChanges || 0) > 3) {
+            score += 25;
+        }
+
+        // 🔗 إحالات مشبوهة
+        if ((user.referrals || 0) > 50) {
+            score += 30;
+        }
+
+        // 💰 سحب سريع
+        if (user.createdAt && (user.withdrawals || 0) > 0) {
+            const age = Date.now() - user.createdAt;
+
+            if (age < 24 * 60 * 60 * 1000) {
+                score += 50;
+            }
+        }
+
+        return Math.min(score, 100);
+    }
+
+    // =========================
+    // 🚨 تصنيف المستخدم
+    // =========================
+    function classifyUser(riskScore = 0) {
+
+        if (riskScore >= 80) return "HIGH_RISK";
+        if (riskScore >= 50) return "MEDIUM_RISK";
+
+        return "SAFE";
+    }
+
+    // =========================
+    // 🧠 تحديث تقييم المستخدم
+    // =========================
+    async function updateUserRisk(userId, userData = {}) {
+
+        try {
+
+            const score = calculateRiskScore(userData);
+            const level = classifyUser(score);
+
+            await db.update(`users/${userId}`, {
+                riskScore: score,
+                riskLevel: level,
+                riskUpdatedAt: Date.now()
+            });
+
+            return { score, level };
+
+        } catch (err) {
+            console.error("Risk update error:", err);
+            return null;
+        }
+    }
+
+    // =========================
+    // 🚫 قرار الحظر
+    // =========================
+    function shouldBlockUser(riskScore = 0) {
+        return riskScore >= 85;
+    }
+
+    // =========================
+    // 📊 تحليل السلوك
+    // =========================
+    function analyzeBehavior(user = {}) {
+
+        const score = calculateRiskScore(user);
+
+        return {
+            score,
+            level: classifyUser(score),
+            block: shouldBlockUser(score),
+            safeToServeAds: score < 60
+        };
+    }
+
+    // =========================
+    // 📌 ربط مع النظام العام
+    // =========================
+    window.__APP__ = {
+        ...window.__APP__,
+        calculateRiskScore,
+        classifyUser,
+        updateUserRisk,
+        shouldBlockUser,
+        analyzeBehavior
+    };
+
+})();
 
 
           </script>
