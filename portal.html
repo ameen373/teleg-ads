@@ -62,6 +62,10 @@
         .nav-item i { font-size: 20px; display: block; margin-bottom: 4px; }
         .nav-item.active { color: var(--accent-blue); }
 
+.hidden {
+  display: none;
+}
+        
         /* الملف الشخصي */
         .profile-header-premium { display: flex; align-items: center; gap: 15px; margin-bottom: 25px; }
         .user-avatar-premium { width: 70px; height: 70px; border-radius: 20px; background: var(--accent-blue); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: bold; }
@@ -698,191 +702,169 @@ section:hover {
 
 </div>
 
-    
- 
-<div id="promo" class="section">
-    <div class="card">
-        <h2><i class="fas fa-rocket"></i> لوحة تحكم المعلن</h2>
-
-        <main id="main-container">
-            <section id="notifications-section">
-                <h2>🔔 الإشعارات</h2>
-                <div class="content">
-                    <ul>
-                        <li><i class="fas fa-check-circle" style="color: green;"></i> تم قبول حملتك</li>
-                        <li><i class="fas fa-minus-circle" style="color: red;"></i> تم خصم 2$ من الرصيد</li>
-                    </ul>
-                </div>
-            </section>
-
-            <hr>
-
-            <section id="wallet-section">
-                <h2>💰 المحفظة</h2>
-                <div class="wallet-info">
-                    <p>الرصيد الحالي: <strong>0$</strong></p>
-                    <button type="button">شحن الرصيد</button>
-                </div>
-                <div class="history">
-                    <h3>سجل العمليات</h3>
-                    <ul>
-                        <li>+10$ (إيداع)</li>
-                        <li>-2$ (حملة)</li>
-                    </ul>
-                </div>
-            </section>
-
-            <hr>
-
-            <section id="create-campaign-section">
-                <h2>🚀 إنشاء حملة جديدة</h2>
-                <div class="campaign-type">
-                    <h3>نوع الحملة</h3>
-                    <button type="button">👁️ مشاهدات</button>
-                    <button type="button">🖱️ نقرات</button>
-                    <button type="button">📌 منشور ثابت</button>
-                </div>
-
-                <div class="campaign-details">
-                    <h3>بيانات الإعلان</h3>
-                    <label for="ad-file">ارفع الملف:</label>
-                    <input type="file" id="ad-file">
-                    <input type="text" placeholder="عنوان الإعلان" id="ad-title">
-                    <textarea placeholder="وصف الإعلان" id="ad-desc" rows="3"></textarea>
-                    <input type="url" placeholder="رابط الإعلان (https://...)" id="ad-link">
-                </div>
-
-                <div class="targeting">
-                    <h3>🎯 الاستهداف</h3>
-                    <select id="target-category">
-                        <option value="sports">رياضة</option>
-                        <option value="tech">تقنية</option>
-                        <option value="news">أخبار</option>
-                        <option value="crypto">عملات رقمية</option>
-                        <option value="fun">ترفيه</option>
-                    </select>
-                </div>
-
-                <div class="distribution">
-                    <h3>طريقة التوزيع</h3>
-                    <label><input type="radio" name="dist" value="auto" checked> تلقائي</label>
-                    <label><input type="radio" name="dist" value="manual"> يدوي</label>
-                </div>
-
-                <div class="marketplace">
-                    <h3>القنوات المتاحة</h3>
-                    <div class="channel-card" style="border: 1px dashed #ccc; padding: 10px;">
-                        <p>📢 قناة 1 (10000 مشترك)</p>
-                        <button type="button">اختيار القناة</button>
-                    </div>
-                </div>
-
-                <div class="budget-calculation">
-                    <h3>💸 الميزانية والحساب</h3>
-                    <input type="number" placeholder="الميزانية بالدولار" id="budget-input">
-                    <p id="calculation-result">التوقعات: ستظهر هنا</p>
-                </div>
-
-                <div class="preview">
-                    <h3>👁️ معاينة فورية</h3>
-                    <div id="ad-preview-box" style="border: 1px solid #ddd; height: 100px; background: #fafafa; display: flex; align-items: center; justify-content: center;">
-                        سيظهر شكل الإعلان هنا
-                    </div>
-                </div>
-
-                <button type="submit" id="submit-campaign" style="margin-top: 20px; width: 100%; background: #28a745;">إطلاق الحملة الآن</button>
-            </section>
-
-            <hr>
-
-            <section id="manage-campaigns-section">
-                <h2>📊 إدارة حملاتك</h2>
-                <div id="campaigns-list">
-                    <p style="text-align: center; color: #888;">لا توجد حملات نشطة حالياً</p>
-                </div>
-            </section>
-
-            <hr>
-
-            <section id="analytics-section">
-                <h2>📈 إحصائيات عامة</h2>
-                <div class="stats-grid" style="display: flex; justify-content: space-around; background: #e9ecef; padding: 15px; border-radius: 5px;">
-                    <p>👁️ المشاهدات: <strong>5000</strong></p>
-                    <p>🖱️ النقرات: <strong>300</strong></p>
-                    <p>📊 CTR: <strong>6%</strong></p>
-                </div>
-            </section>
-        </main>
-    </div> </div> 
-          
-
-    <!-- ========================================== -->
-<!-- 📺 Publisher Module -->
+          <!-- ========================================== -->
+<!-- 📢 Advertiser Module -->
 <!-- ========================================== -->
+<section id="promo" class="section">
 
-<section id="publisher" class="section">
+  <!-- ========================= -->
+  <!-- 🔔 الإشعارات -->
+  <!-- ========================= -->
+  <div class="card notifications">
 
-    <!-- ========================= -->
-    <!-- 💼 1. المحفظة -->
-    <!-- ========================= -->
-    <div class="card wallet">
+    <h3>🔔 الإشعارات</h3>
 
-        <h3>💼 المحفظة</h3>
+    <div id="promo-notifications">
+      <!-- يتم تعبئتها ديناميكياً -->
+    </div>
 
-        <p>💰 الرصيد: <span id="pub-balance-val">0.000$</span></p>
+  </div>
 
-        <div class="earnings">
-            <p>📅 اليوم: <span id="earn-today">0$</span></p>
-            <p>📆 الأسبوع: <span id="earn-week">0$</span></p>
-            <p>🗓️ الشهر: <span id="earn-month">0$</span></p>
-        </div>
+  <!-- ========================= -->
+  <!-- 💰 الإيداع -->
+  <!-- ========================= -->
+  <div class="card deposit">
 
-        <button onclick="handleWithdraw()">💸 سحب الأرباح</button>
+    <h3>💰 شحن الرصيد (USDT)</h3>
 
-        <!-- سجل العمليات -->
-        <div class="logs">
-            <h4>📜 سجل العمليات</h4>
-            <div id="log-list"></div>
-        </div>
+    <p>📥 أرسل إلى هذا العنوان:</p>
+    <input id="deposit-address" type="text" readonly value="TSiS4tDnUwa5YptcYatRZ8ykPeMwmALLSV">
+
+    <input id="deposit-amount" type="number" placeholder="المبلغ">
+    <input id="tx-hash" type="text" placeholder="TX Hash">
+
+    <button id="submit-deposit">📤 تأكيد الشحن</button>
+
+  </div>
+
+  <!-- ========================= -->
+  <!-- 🚀 الحملات -->
+  <!-- ========================= -->
+  <div class="card campaign-control">
+
+    <h3>📢 الحملات</h3>
+
+    <div class="campaign-actions">
+      <button id="show-create-campaign">🚀 إنشاء حملة</button>
+      <button id="show-my-campaigns">📊 حملاتي</button>
+    </div>
+
+  </div>
+
+  <!-- ========================= -->
+  <!-- 🚀 إنشاء حملة -->
+  <!-- ========================= -->
+  <div id="create-campaign-box" class="card hidden">
+
+    <h3>🚀 إنشاء حملة جديدة</h3>
+
+    <!-- نوع الحملة -->
+    <div class="campaign-type">
+      <button class="type-btn" data-type="views">👁️ مشاهدات</button>
+      <button class="type-btn" data-type="clicks">🖱️ نقرات</button>
+      <button class="type-btn" data-type="post">📌 منشور ثابت</button>
+    </div>
+
+    <!-- بيانات الإعلان -->
+    <div class="campaign-details">
+
+      <input type="file" id="ad-file">
+
+      <input id="ad-title" type="text" placeholder="عنوان الإعلان">
+
+      <textarea id="ad-desc" placeholder="وصف الإعلان"></textarea>
+
+      <input id="ad-link" type="url" placeholder="رابط الإعلان">
 
     </div>
 
-    <!-- ========================= -->
-    <!-- 📢 2. إدارة القنوات -->
-    <!-- ========================= -->
-    <div class="card channels">
+    <!-- الاستهداف -->
+    <div class="targeting">
 
-        <h3>📢 إدارة القنوات</h3>
+      <h4>🎯 الاستهداف</h4>
 
-        <!-- إضافة قناة -->
-        <div class="add-channel">
-
-            <input type="text" placeholder="اسم القناة">
-            <!-- ⚠️ هذا مهم للجافاسكربت -->
-            <input type="text" placeholder="رابط القناة (https://t.me/...)">
-            <textarea placeholder="وصف القناة (اختياري)"></textarea>
-
-            <button onclick="ChannelManager.add()">➕ إضافة القناة</button>
-
-        </div>
-
-        <!-- ربط البوت -->
-        <div class="bot-connect">
-            <button>➕ إضافة البوت كمسؤول</button>
-            <button>✅ تحقق من البوت</button>
-        </div>
-
-        <!-- قائمة القنوات -->
-        <div id="channels-list"></div>
+      <select id="target-category">
+        <option value="sports">رياضة</option>
+        <option value="tech">تقنية</option>
+        <option value="news">أخبار</option>
+        <option value="crypto">عملات رقمية</option>
+        <option value="fun">ترفيه</option>
+      </select>
 
     </div>
 
-    <!-- ========================= -->
-    <!-- 📥 3. الطلبات (Marketplace) -->
-    <!-- ========================= -->
-    <div class="card marketplace">
+    <!-- التوزيع -->
+    <div class="distribution">
 
-        <h3>📥 الحملات المتاحة</h3>
+      <label><input type="radio" name="dist" value="auto" checked> تلقائي</label>
+      <label><input type="radio" name="dist" value="manual"> يدوي</label>
+
+    </div>
+
+    <!-- القنوات -->
+    <div class="marketplace">
+
+      <h4>📺 القنوات المتاحة</h4>
+
+      <div id="available-channels">
+        <!-- تعبئة ديناميكية -->
+      </div>
+
+    </div>
+
+    <!-- الميزانية -->
+    <div class="budget-calculation">
+
+      <input id="campaign-budget" type="number" placeholder="الميزانية بالدولار">
+
+      <p class="calc-result">التوقعات ستظهر هنا</p>
+
+    </div>
+
+    <!-- المعاينة -->
+    <div class="preview">
+
+      <h4>👁️ المعاينة</h4>
+
+      <div class="preview-area">
+        سيظهر الإعلان هنا
+      </div>
+
+    </div>
+
+    <button id="submit-campaign">🚀 إطلاق الحملة</button>
+
+  </div>
+
+  <!-- ========================= -->
+  <!-- 📊 حملاتي -->
+  <!-- ========================= -->
+  <div id="my-campaigns-box" class="card hidden">
+
+    <h3>📊 حملاتي</h3>
+
+    <div id="promo-campaigns-list">
+      <!-- تعبئة ديناميكية -->
+    </div>
+
+  </div>
+
+  <!-- ========================= -->
+  <!-- 📈 الإحصائيات -->
+  <!-- ========================= -->
+  <div class="card analytics">
+
+    <h3>📈 الإحصائيات</h3>
+
+    <p>👁️ المشاهدات: <span id="promo-views">0</span></p>
+    <p>🖱️ النقرات: <span id="promo-clicks">0</span></p>
+    <p>📊 CTR: <span id="promo-ctr">0%</span></p>
+
+  </div>
+
+</section>
+
+    
 
         <div id="ads-market">
 
@@ -901,35 +883,362 @@ section:hover {
 
     </div>
 
-    <!-- ========================= -->
-    <!-- 📊 4. الإحصائيات -->
-    <!-- ========================= -->
-    <div class="card analytics">
+       <!-- ========================================== -->
+<!-- 📢 Advertiser Module -->
+<!-- ========================================== -->
+<section id="promo" class="section">
 
-        <h3>📊 الإحصائيات</h3>
+  <!-- ========================= -->
+  <!-- 🔔 الإشعارات -->
+  <!-- ========================= -->
+  <div class="card notifications">
 
-        <p>👁️ المشاهدات: <span id="total-views">0</span></p>
-        <p>🖱️ النقرات: <span id="total-clicks">0</span></p>
-        <p>💰 الأرباح: <span id="total-earn">0$</span></p>
-        <p>📈 CTR: <span id="ctr">0%</span></p>
+    <h3>🔔 الإشعارات</h3>
 
-        <!-- مكان الرسوم -->
-        <div id="charts"></div>
+    <div id="promo-notifications">
+      <!-- يتم تعبئتها ديناميكياً -->
+    </div>
+
+  </div>
+
+  <!-- ========================= -->
+  <!-- 💰 الإيداع -->
+  <!-- ========================= -->
+  <div class="card deposit">
+
+    <h3>💰 شحن الرصيد (USDT)</h3>
+
+    <p>📥 أرسل إلى هذا العنوان:</p>
+    <input id="deposit-address" type="text" readonly value="TSiS4tDnUwa5YptcYatRZ8ykPeMwmALLSV">
+
+    <input id="deposit-amount" type="number" placeholder="المبلغ">
+    <input id="tx-hash" type="text" placeholder="TX Hash">
+
+    <button id="submit-deposit">📤 تأكيد الشحن</button>
+
+  </div>
+
+  <!-- ========================= -->
+  <!-- 🚀 الحملات -->
+  <!-- ========================= -->
+  <div class="card campaign-control">
+
+    <h3>📢 الحملات</h3>
+
+    <div class="campaign-actions">
+      <button id="show-create-campaign">🚀 إنشاء حملة</button>
+      <button id="show-my-campaigns">📊 حملاتي</button>
+    </div>
+
+  </div>
+
+  <!-- ========================= -->
+  <!-- 🚀 إنشاء حملة -->
+  <!-- ========================= -->
+  <div id="create-campaign-box" class="card hidden">
+
+    <h3>🚀 إنشاء حملة جديدة</h3>
+
+    <!-- نوع الحملة -->
+    <div class="campaign-type">
+      <button class="type-btn" data-type="views">👁️ مشاهدات</button>
+      <button class="type-btn" data-type="clicks">🖱️ نقرات</button>
+      <button class="type-btn" data-type="post">📌 منشور ثابت</button>
+    </div>
+
+    <!-- بيانات الإعلان -->
+    <div class="campaign-details">
+
+      <input type="file" id="ad-file">
+
+      <input id="ad-title" type="text" placeholder="عنوان الإعلان">
+
+      <textarea id="ad-desc" placeholder="وصف الإعلان"></textarea>
+
+      <input id="ad-link" type="url" placeholder="رابط الإعلان">
 
     </div>
+
+    <!-- الاستهداف -->
+    <div class="targeting">
+
+      <h4>🎯 الاستهداف</h4>
+
+      <select id="target-category">
+        <option value="sports">رياضة</option>
+        <option value="tech">تقنية</option>
+        <option value="news">أخبار</option>
+        <option value="crypto">عملات رقمية</option>
+        <option value="fun">ترفيه</option>
+      </select>
+
+    </div>
+
+    <!-- التوزيع -->
+    <div class="distribution">
+
+      <label><input type="radio" name="dist" value="auto" checked> تلقائي</label>
+      <label><input type="radio" name="dist" value="manual"> يدوي</label>
+
+    </div>
+
+    <!-- القنوات -->
+    <div class="marketplace">
+
+      <h4>📺 القنوات المتاحة</h4>
+
+      <div id="available-channels">
+        <!-- تعبئة ديناميكية -->
+      </div>
+
+    </div>
+
+    <!-- الميزانية -->
+    <div class="budget-calculation">
+
+      <input id="campaign-budget" type="number" placeholder="الميزانية بالدولار">
+
+      <p class="calc-result">التوقعات ستظهر هنا</p>
+
+    </div>
+
+    <!-- المعاينة -->
+    <div class="preview">
+
+      <h4>👁️ المعاينة</h4>
+
+      <div class="preview-area">
+        سيظهر الإعلان هنا
+      </div>
+
+    </div>
+
+    <button id="submit-campaign">🚀 إطلاق الحملة</button>
+
+  </div>
+
+  <!-- ========================= -->
+  <!-- 📊 حملاتي -->
+  <!-- ========================= -->
+  <div id="my-campaigns-box" class="card hidden">
+
+    <h3>📊 حملاتي</h3>
+
+    <div id="promo-campaigns-list">
+      <!-- تعبئة ديناميكية -->
+    </div>
+
+  </div>
+
+  <!-- ========================= -->
+  <!-- 📈 الإحصائيات -->
+  <!-- ========================= -->
+  <div class="card analytics">
+
+    <h3>📈 الإحصائيات</h3>
+
+    <p>👁️ المشاهدات: <span id="promo-views">0</span></p>
+    <p>🖱️ النقرات: <span id="promo-clicks">0</span></p>
+    <p>📊 CTR: <span id="promo-ctr">0%</span></p>
+
+  </div>
+
+</section>
+ 
+          
+<!-- ========================================== -->
+<!-- 📺 Publisher Module -->
+<!-- ========================================== -->
+<section id="publisher" class="section">
+
+  <!-- ========================= -->
+  <!-- 💼 1. المحفظة -->
+  <!-- ========================= -->
+  <div class="card wallet">
+
+    <h3>💼 المحفظة</h3>
+
+    <p>💰 الرصيد: <span id="pub-balance-val">0.000$</span></p>
+
+    <div class="earnings">
+      <p>📅 اليوم: <span id="earn-today">0$</span></p>
+      <p>📆 الأسبوع: <span id="earn-week">0$</span></p>
+      <p>🗓️ الشهر: <span id="earn-month">0$</span></p>
+    </div>
+
+    <button id="open-withdraw">💸 سحب الأرباح</button>
+
+    <!-- 📜 سجل العمليات -->
+    <div class="logs">
+      <h4>📜 سجل العمليات</h4>
+      <div id="log-list"></div>
+    </div>
+
+  </div>
+
+  <!-- ========================= -->
+  <!-- 💸 السحب -->
+  <!-- ========================= -->
+  <div class="card withdraw">
+
+    <h3>💸 طلب سحب</h3>
+
+    <input id="withdraw-amount" type="number" placeholder="المبلغ (الحد الأدنى 30$)">
+    <input id="withdraw-wallet" type="text" placeholder="عنوان محفظة USDT">
+
+    <button id="submit-withdraw">📤 إرسال الطلب</button>
+
+    <p id="withdraw-preview"></p>
+
+  </div>
+
+  <!-- ========================= -->
+  <!-- 📢 2. إدارة القنوات -->
+  <!-- ========================= -->
+  <div class="card channels">
+
+    <h3>📢 إدارة القنوات</h3>
+
+    <!-- 🔘 الأزرار -->
+    <div class="channel-actions">
+      <button id="show-add-channel">➕ إضافة قناة</button>
+      <button id="show-my-channels">📺 قنواتي</button>
+    </div>
+
+    <!-- ➕ نموذج إضافة قناة -->
+    <div id="add-channel-box" class="hidden">
+
+      <div class="add-channel">
+        <input id="channel-name" type="text" placeholder="اسم القناة">
+        <input id="channel-link" type="text" placeholder="رابط القناة (https://t.me/...)">
+        <textarea id="channel-desc" placeholder="وصف القناة (اختياري)"></textarea>
+
+        <button id="add-channel-btn">🚀 إرسال للمراجعة</button>
+      </div>
+
+      <!-- 🤖 ربط البوت -->
+      <div class="bot-connect">
+        <button id="add-bot-btn">➕ إضافة البوت كمسؤول</button>
+        <button id="check-bot-btn">✅ تحقق من البوت</button>
+      </div>
+
+    </div>
+
+    <!-- 📺 القنوات -->
+    <div id="my-channels-box" class="hidden">
+
+      <h4>📺 قنواتي الجاهزة للإعلانات</h4>
+
+      <div id="publisher-channels-list">
+        <!-- يتم تعبئتها من JS -->
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- ========================= -->
+  <!-- 📥 3. Marketplace -->
+  <!-- ========================= -->
+  <div class="card marketplace">
+
+    <h3>📥 الحملات المتاحة</h3>
+
+    <div id="ads-market">
+      <!-- يتم تعبئته ديناميكياً -->
+    </div>
+
+  </div>
+
+  <!-- ========================= -->
+  <!-- 📊 4. الإحصائيات -->
+  <!-- ========================= -->
+  <div class="card analytics">
+
+    <h3>📊 الإحصائيات</h3>
+
+    <p>👁️ المشاهدات: <span id="pub-total-views">0</span></p>
+    <p>🖱️ النقرات: <span id="pub-total-clicks">0</span></p>
+    <p>💰 الأرباح: <span id="pub-total-earn">0$</span></p>
+    <p>📈 CTR: <span id="pub-ctr">0%</span></p>
+
+    <div id="charts"></div>
+
+  </div>
 
 </section>
 
-    
-    
-    <div id="referrals" class="section">
-        <div class="card">
-            <h2><i class="fas fa-user-plus"></i> الإحالة</h2>
-            <p>رابط الإحالة الخاص بك:</p>
-            <div style="background:rgba(0,0,0,0.2); padding:10px; border-radius:10px; word-break:break-all;" id="ref-link">جاري التحميل...</div>
-        </div>
+
+<!-- ========================= -->
+<!-- 🔗 قسم الإحالة -->
+<!-- ========================= -->
+<div id="referrals" class="section">
+
+  <div class="card">
+    <h2>🚀 نظام الإحالة</h2>
+
+    <!-- 🔗 رابط الإحالة -->
+    <div class="referral-box">
+      <label>رابط الإحالة الخاص بك:</label>
+      <input type="text" id="ref-link" readonly placeholder="جاري التحميل...">
+      <button id="copy-ref">📋 نسخ الرابط</button>
     </div>
 
+    <!-- 📊 الإحصائيات -->
+    <div class="referral-stats">
+
+      <div class="stat">
+        <span>👥 عدد الإحالات:</span>
+        <strong id="ref-total">0</strong>
+      </div>
+
+      <div class="stat">
+        <span>✅ إحالات نشطة:</span>
+        <strong id="ref-active">0</strong>
+      </div>
+
+      <div class="stat">
+        <span>🏆 ترتيبك:</span>
+        <strong id="ref-rank">-</strong>
+      </div>
+
+    </div>
+
+    <!-- 📈 التقدم -->
+    <div class="referral-progress">
+      <p id="ref-progress">جاري الحساب...</p>
+    </div>
+
+    <!-- ⏳ العد التنازلي -->
+    <div class="countdown">
+      <h3>⏳ نهاية المسابقة خلال:</h3>
+      <p id="ref-countdown">--</p>
+    </div>
+
+  </div>
+
+  <!-- 🏆 المتصدرين -->
+  <div class="card leaderboard">
+
+    <h3>🏆 أفضل المحيلين</h3>
+
+    <div id="leaderboard-list">
+      <!-- يتم تعبئتها ديناميكياً -->
+    </div>
+
+  </div>
+
+  <!-- 📢 الشروط -->
+  <div class="card rules">
+    <h3>📢 شروط المسابقة</h3>
+    <ul>
+      <li>يجب أن يكون المستخدم نشط</li>
+      <li>لا يتم احتساب الحسابات الوهمية</li>
+      <li>يتم تحديث الترتيب تلقائياً</li>
+    </ul>
+  </div>
+
+</div>
     
     
    <div id="profile" class="section">
@@ -1005,28 +1314,172 @@ section:hover {
 </div>
 
 
+<!-- ========================= -->
+<!-- 👨‍💼 لوحة الإدارة -->
+<!-- ========================= -->
+<div id="admin" class="section">
 
-    <div id="admin" class="section">
-        <div class="card" style="border-color: #ef4444;">
-            <h2 style="color: #ef4444;"><i class="fas fa-user-shield"></i> لوحة الإدارة</h2>
-            <p>مرحباً بك يا أمين. التحكم الكامل متاح الآن.</p>
-            <button class="btn" style="background: #475569;">إدارة القنوات المنتظرة</button>
-            <button class="btn" style="background: #475569;">طلبات السحب</button>
+  <div class="admin-panel">
 
-            <div class="card" style="border-color: #ef4444; text-align: center;">
-    <lottie-player 
-        src="https://assets3.lottiefiles.com/packages/lf20_ghp9v6m3.json" 
-        background="transparent"  
-        speed="1"  
-        style="width: 100px; height: 100px; margin: 0 auto;"  
-        loop  
-        autoplay>
-    </lottie-player>
-    <h2 style="color: #ef4444;">لوحة التحكم العليا</h2>
-            </div>
-            
+    <!-- 🧭 Sidebar -->
+    <aside class="sidebar">
+      <h2>⚙️ الإدارة</h2>
+      <ul>
+        <li data-tab="overview">📊 نظرة عامة</li>
+        <li data-tab="users">👥 المستخدمين</li>
+        <li data-tab="campaigns">📢 الحملات</li>
+        <li data-tab="channels">📺 القنوات</li>
+        <li data-tab="finance">💰 المالية</li>
+        <li data-tab="analytics">📊 التحليلات</li>
+        <li data-tab="security">🛡️ الأمان</li>
+        <li data-tab="notifications">🔔 الإشعارات</li>
+        <li data-tab="settings">⚙️ الإعدادات</li>
+      </ul>
+    </aside>
+
+    <!-- 📄 المحتوى -->
+    <main class="content">
+
+      <!-- 📊 Overview -->
+      <section class="overview">
+        <h3>📊 نظرة عامة</h3>
+
+        <div class="cards">
+          <div class="card">
+            <p>👥 المستخدمين</p>
+            <strong id="total-users">0</strong>
+          </div>
+
+          <div class="card">
+            <p>📢 الحملات</p>
+            <strong id="total-campaigns">0</strong>
+          </div>
+
+          <div class="card">
+            <p>📺 القنوات</p>
+            <strong id="total-channels">0</strong>
+          </div>
+
+          <div class="card">
+            <p>💰 الأرباح</p>
+            <strong id="total-revenue">0$</strong>
+          </div>
         </div>
-    </div>
+
+        <div class="top-performance">
+          <h4>🔥 الأفضل أداءً</h4>
+          <p>👤 <span id="top-user"></span></p>
+          <p>📺 <span id="top-channel"></span></p>
+          <p>📢 <span id="top-campaign"></span></p>
+        </div>
+
+        <div class="live-activity">
+          <h4>⏱️ النشاط</h4>
+          <div id="live-logs"></div>
+        </div>
+      </section>
+
+      <!-- 👥 Users -->
+      <section class="users">
+        <h3>👥 المستخدمين</h3>
+        <div id="users-list"></div>
+
+        <div class="user-details">
+          <p>ID: <span id="user-id"></span></p>
+          <p>الرصيد: <span id="user-balance"></span></p>
+          <p>Clicks: <span id="user-clicks"></span></p>
+          <p>Views: <span id="user-views"></span></p>
+          <p>CTR: <span id="user-ctr"></span></p>
+          <p>Risk: <span id="user-risk"></span></p>
+
+          <button>🚫 حظر</button>
+          <button>♻️ Reset</button>
+        </div>
+      </section>
+
+      <!-- 📢 Campaigns -->
+      <section class="campaigns">
+        <h3>📢 الحملات</h3>
+        <div id="campaigns-list"></div>
+
+        <div class="campaign-details">
+          <p>العنوان: <span id="camp-title"></span></p>
+          <p>الميزانية: <span id="camp-budget"></span></p>
+          <p>CTR: <span id="camp-ctr"></span></p>
+
+          <button>✅ قبول</button>
+          <button>❌ رفض</button>
+          <button>⏸ إيقاف</button>
+        </div>
+      </section>
+
+      <!-- 📺 Channels -->
+      <section class="channels">
+        <h3>📺 القنوات</h3>
+        <div id="channels-list"></div>
+
+        <div class="channel-details">
+          <p>الاسم: <span id="ch-name"></span></p>
+          <p>المشتركين: <span id="ch-subs"></span></p>
+
+          <button>✅ قبول</button>
+          <button>❌ رفض</button>
+          <button>🚫 حظر</button>
+        </div>
+      </section>
+
+      <!-- 💰 Finance -->
+      <section class="finance">
+        <h3>💰 المالية</h3>
+
+        <div class="card">
+          <h4>📥 الإيداعات</h4>
+          <div id="admin-deposits"></div>
+        </div>
+
+        <div class="card">
+          <h4>📤 السحب</h4>
+          <div id="admin-withdrawals"></div>
+        </div>
+
+        <div class="card">
+          <h4>📊 السجلات</h4>
+          <div id="admin-logs"></div>
+        </div>
+      </section>
+
+      <!-- 🛡️ Security -->
+      <section class="security">
+        <h3>🛡️ الأمان</h3>
+
+        <p>⚠️ <span id="fraud-count"></span></p>
+        <p>🚫 <span id="banned-count"></span></p>
+
+        <div id="fraud-list"></div>
+      </section>
+
+      <!-- 🔔 Notifications -->
+      <section class="notifications">
+        <h3>🔔 الإشعارات</h3>
+        <div id="notifications-list"></div>
+      </section>
+
+      <!-- ⚙️ Settings -->
+      <section class="settings">
+        <h3>⚙️ الإعدادات</h3>
+
+        <input id="set-view-rate" placeholder="سعر المشاهدة">
+        <input id="set-click-rate" placeholder="سعر النقرة">
+        <input id="set-fee" placeholder="العمولة">
+
+        <button>💾 حفظ</button>
+      </section>
+
+    </main>
+
+  </div>
+
+</div>
     
 
        <div class="bottom-nav">
