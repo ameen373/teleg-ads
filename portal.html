@@ -816,73 +816,109 @@ section:hover {
     </div> </div> 
           
 
-    <div id="publisher" class="section">
+    <!-- ========================================== -->
+<!-- 📺 Publisher Module -->
+<!-- ========================================== -->
 
-    <div class="card" style="background: linear-gradient(145deg, rgba(16, 185, 129, 0.1), rgba(15, 23, 42, 0.8)); border: 1px solid rgba(16, 185, 129, 0.2);">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div>
-                <small style="color: var(--text-dim); display: block;">أرباحك المتاحة</small>
-                <h2 id="pub-balance-val" style="margin: 5px 0; color: #10b981;">0.00 <span style="font-size: 14px;">USD</span></h2>
-            </div>
-            <button class="btn" style="width: auto; padding: 8px 20px; font-size: 12px; background: #10b981;">سحب الأرباح</button>
+<section id="publisher" class="section">
+
+    <!-- ========================= -->
+    <!-- 💼 1. المحفظة -->
+    <!-- ========================= -->
+    <div class="card wallet">
+
+        <h3>💼 المحفظة</h3>
+
+        <p>💰 الرصيد: <span id="pub-balance-val">0.000$</span></p>
+
+        <div class="earnings">
+            <p>📅 اليوم: <span id="earn-today">0$</span></p>
+            <p>📆 الأسبوع: <span id="earn-week">0$</span></p>
+            <p>🗓️ الشهر: <span id="earn-month">0$</span></p>
         </div>
-        
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; border-top: 1px solid var(--glass-border); padding-top: 12px;">
-            <div style="text-align: center;">
-                <small style="color: var(--text-dim); font-size: 10px; display: block;">مشاهدات (اليوم)</small>
-                <b id="pub-today-views">0</b>
-            </div>
-            <div style="text-align: center; border-right: 1px solid var(--glass-border);">
-                <small style="color: var(--text-dim); font-size: 10px; display: block;">نقرات (اليوم)</small>
-                <b id="pub-today-clicks">0</b>
-            </div>
+
+        <button onclick="handleWithdraw()">💸 سحب الأرباح</button>
+
+        <!-- سجل العمليات -->
+        <div class="logs">
+            <h4>📜 سجل العمليات</h4>
+            <div id="log-list"></div>
         </div>
+
     </div>
 
-    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-        <button class="btn" style="flex: 1; font-size: 13px; background: var(--glass-bg); border: 1px solid var(--glass-border);">
-            <i class="fas fa-plus-circle"></i> إضافة قناة
-        </button>
-        <button class="btn" style="flex: 1; font-size: 13px; background: var(--glass-bg); border: 1px solid var(--glass-border);">
-            <i class="fas fa-list-ul"></i> قنواتي
-        </button>
+    <!-- ========================= -->
+    <!-- 📢 2. إدارة القنوات -->
+    <!-- ========================= -->
+    <div class="card channels">
+
+        <h3>📢 إدارة القنوات</h3>
+
+        <!-- إضافة قناة -->
+        <div class="add-channel">
+
+            <input type="text" placeholder="اسم القناة">
+            <!-- ⚠️ هذا مهم للجافاسكربت -->
+            <input type="text" placeholder="رابط القناة (https://t.me/...)">
+            <textarea placeholder="وصف القناة (اختياري)"></textarea>
+
+            <button onclick="ChannelManager.add()">➕ إضافة القناة</button>
+
+        </div>
+
+        <!-- ربط البوت -->
+        <div class="bot-connect">
+            <button>➕ إضافة البوت كمسؤول</button>
+            <button>✅ تحقق من البوت</button>
+        </div>
+
+        <!-- قائمة القنوات -->
+        <div id="channels-list"></div>
+
     </div>
 
-    <div class="card">
-        <h3 style="margin-top: 0; font-size: 15px;"><i class="fas fa-link"></i> ربط قناة جديدة</h3>
-        <p style="font-size: 11px; color: var(--text-dim); margin-bottom: 15px;">يجب إضافة البوت كمسؤول في قناتك أولاً ليتم التحقق.</p>
-        
-        <input type="text" placeholder="@username أو رابط القناة" style="width: 100%; background: var(--glass-bg); border: 1px solid var(--glass-border); color: white; padding: 12px; border-radius: 12px; outline: none; margin-bottom: 12px; box-sizing: border-box;">
-        
-        <select style="width: 100%; background: var(--glass-bg); border: 1px solid var(--glass-border); color: white; padding: 12px; border-radius: 12px; outline: none; margin-bottom: 15px;">
-            <option>تصنيف المحتوى: تقنية</option>
-            <option>أخبار</option>
-            <option>عملات رقمية</option>
-            <option>ترفيه</option>
-            <option>أخرى</option>
-        </select>
+    <!-- ========================= -->
+    <!-- 📥 3. الطلبات (Marketplace) -->
+    <!-- ========================= -->
+    <div class="card marketplace">
 
-        <button class="btn">إرسال القناة للمراجعة</button>
-    </div>
+        <h3>📥 الحملات المتاحة</h3>
 
-    <div class="card">
-        <h4 style="margin-top: 0; font-size: 14px; color: var(--accent-blue);"><i class="fas fa-bullhorn"></i> إعلانات جاهزة للنشر</h4>
-        <div id="pub-ads-container" style="margin-top: 10px;">
-            <div style="text-align: center; padding: 25px; border: 1px dashed var(--glass-border); border-radius: 15px;">
-                <i class="fas fa-hourglass-start" style="display: block; font-size: 24px; color: var(--text-dim); margin-bottom: 10px;"></i>
-                <span style="color: var(--text-dim); font-size: 12px;">لا توجد إعلانات متاحة حالياً</span>
+        <div id="ads-market">
+
+            <!-- مثال عنصر -->
+            <div class="ad-item">
+                <h4>عنوان الإعلان</h4>
+                <p>وصف الإعلان</p>
+
+                <p>📊 النوع: مشاهدات</p>
+                <p>💰 السعر: 10$</p>
+
+                <button>🎯 قبول</button>
             </div>
+
         </div>
+
     </div>
 
-    <div class="card" style="padding: 10px 15px;">
-        <h4 style="margin: 0; font-size: 14px;"><i class="fas fa-check-circle"></i> قنواتي الموثقة</h4>
-        <div id="verified-channels-list" style="margin-top: 10px;">
-            <p style="text-align: center; color: var(--text-dim); font-size: 11px;">لم يتم توثيق أي قناة بعد</p>
-        </div>
+    <!-- ========================= -->
+    <!-- 📊 4. الإحصائيات -->
+    <!-- ========================= -->
+    <div class="card analytics">
+
+        <h3>📊 الإحصائيات</h3>
+
+        <p>👁️ المشاهدات: <span id="total-views">0</span></p>
+        <p>🖱️ النقرات: <span id="total-clicks">0</span></p>
+        <p>💰 الأرباح: <span id="total-earn">0$</span></p>
+        <p>📈 CTR: <span id="ctr">0%</span></p>
+
+        <!-- مكان الرسوم -->
+        <div id="charts"></div>
+
     </div>
 
-</div>
+</section>
 
     
     
