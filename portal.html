@@ -1004,10 +1004,11 @@ section:hover {
    
 
     <script>
-      // ==========================================
+    // ==========================================
 // 1. الإعدادات والثوابت الموحدة (Single Source of Truth)
 // ==========================================
-const tg = window.Telegram?.WebApp;
+const tg = window.Telegram?.WebApp || null;
+
 const ADMIN_ID = 549686235; 
 const LOGO_URL = "https://i.ibb.co/Z6qzV2Wk/1777032600480logo.png";
 
@@ -1015,7 +1016,13 @@ const LOGO_URL = "https://i.ibb.co/Z6qzV2Wk/1777032600480logo.png";
 const APP_CONFIG = {
     MIN_WITHDRAW: 20,
     MAX_LOGS: 15,
-    COLORS: { success: '#22c55e', error: '#ef4444', info: '#3b82f6', warning: '#f59e0b' }
+    COLORS: { 
+        success: '#22c55e', 
+        error: '#ef4444', 
+        info: '#3b82f6', 
+        warning: '#f59e0b' 
+    },
+    BOT_USERNAME: "YOUR_BOT" // 🔥 مهم لنظام الإحالة
 };
 
 // الأسعار الموحدة (يجب أن تكون الأحرف صغيرة لتطابق منطق الأزرار)
@@ -1032,36 +1039,80 @@ const firebaseConfig = {
     appId: "1:413242252888:web:6055aaa7fcdd256910b42d"
 };
 
-// تهيئة Firebase
-if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+// 🔒 تهيئة Firebase بشكل آمن (بدون كراش)
+let db = null;
+
+if (typeof firebase !== "undefined") {
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+    }
+    db = firebase.database();
+} else {
+    console.warn("Firebase غير محمل!");
+}
 
 // حالة التطبيق الابتدائية
 let appState = {
-    user: { id: 0, name: "Guest", balance: 0, role: "user", interests: {}, seenAds: {} },
+    user: { 
+        id: 0, 
+        name: "Guest", 
+        balance: 0, 
+        role: "user", 
+        interests: {}, 
+        seenAds: {} 
+    },
     logs: [],
-    settings: { selectedCampaignType: "views", currentPrice: 0.005 }
+    settings: { 
+        selectedCampaignType: "views", 
+        currentPrice: 0.005 
+    }
 };
+
+// 🔥 تعريف متغيرات عامة لتجنب الأخطاء في الأجزاء الأخرى
+let ads = [];
+let channels = [];
 
 // ==========================================
 // 2. مدير الشؤون المالية (Finance Manager)
 // ==========================================
 const FinanceManager = {
     updateBalanceUI: () => {
-        const val = appState.user.balance;
+        const val = parseFloat(appState.user.balance) || 0;
+
         const elements = ["pub-balance-val", "balance", "user-balance"];
         elements.forEach(id => {
             const el = document.getElementById(id);
-            if (el) el.innerText = parseFloat(val).toFixed(3) + "$";
+            if (el) {
+                el.innerText = val.toFixed(3) + "$";
+            }
         });
     },
     
-    // حساب المخرجات المتوقعة بناءً على الميزانية (من الملف الجديد)
+    // حساب المخرجات المتوقعة بناءً على الميزانية
     calculateExpected: (budget, type) => {
+        const safeBudget = parseFloat(budget) || 0;
         const price = RATES[type] || 0.01;
-        if (type === "post") return "سيتم النشر حسب القنوات";
-        const count = Math.floor(budget / price);
-        return `ستحصل تقريباً على ${count} ${type === "views" ? "مشاهدة" : "نقرة"}`;
+
+        // حالة المنشورات
+        if (type === "post") {
+            return "سيتم النشر حسب القنوات";
+        }
+
+        // منع القسمة على صفر
+        if (price <= 0) {
+            return "⚠️ سعر غير صالح";
+        }
+
+        const count = Math.floor(safeBudget / price);
+
+        // تحسين النص
+        if (type === "views") {
+            return `📊 ${count} مشاهدة تقريباً`;
+        } else if (type === "clicks") {
+            return `🖱️ ${count} نقرة تقريباً`;
+        } else {
+            return `📈 ${count} نتيجة تقريباً`;
+        }
     }
 };
 
@@ -1071,7 +1122,6 @@ const FinanceManager = {
 
 // --- [1] نظام التنقل (Navigation) ---
 
-// دالة عامة لتبديل الفئات (Classes) بدلاً من تكرار الكود
 function switchActive(selector, targetId, activeClass = 'active') {
     document.querySelectorAll(selector).forEach(el => el.classList.remove(activeClass));
     const target = document.getElementById(targetId);
@@ -1081,16 +1131,15 @@ function switchActive(selector, targetId, activeClass = 'active') {
 function showSection(sectionId, element) {
     switchActive('.section', sectionId);
     
-    // تحديث شريط التنقل إذا وُجد العنصر
     if (element) {
         document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
         element.classList.add('active');
     }
+
     triggerFeedback('light');
 }
 
 function toggleSubPage(pageId) {
-    // استخدام فئة CSS بدلاً من التلاعب بـ .style.display مباشرة لتحسين الأداء
     document.querySelectorAll('.sub-page').forEach(p => p.classList.remove('visible'));
     const target = document.getElementById(pageId);
     if (target) {
@@ -1102,27 +1151,31 @@ function toggleSubPage(pageId) {
 // --- [2] التنبيهات والردود الحركية (Feedback) ---
 
 function showAlert(message, type = 'info') {
-    // إزالة التنبيهات القديمة بأسلوب أسرع
     const existing = document.querySelector('.clean-toast');
     if (existing) existing.remove();
 
     const toast = document.createElement("div");
-    toast.className = `clean-toast toast-${type}`; // استخدام Class للتنسيق
+    toast.className = `clean-toast toast-${type}`;
     toast.innerText = message;
 
-    // تنسيق مبسط (يفضل نقله لملف CSS)
     Object.assign(toast.style, {
-        position: 'fixed', bottom: '100px', left: '50%', transform: 'translateX(-50%)',
-        backgroundColor: APP_CONFIG.COLORS[type], color: '#fff', padding: '12px 24px',
-        borderRadius: '25px', zIndex: '10000', transition: 'opacity 0.3s'
+        position: 'fixed',
+        bottom: '100px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        backgroundColor: APP_CONFIG.COLORS[type] || '#333', // 🔥 حماية
+        color: '#fff',
+        padding: '12px 24px',
+        borderRadius: '25px',
+        zIndex: '10000',
+        transition: 'opacity 0.3s'
     });
 
     document.body.appendChild(toast);
-    
-    // استدعاء الهزاز تلقائياً بناءً على النوع دون تكرار الكود في مكان آخر
+
     const feedbackMap = { success: 'success', error: 'error', info: 'light' };
     triggerFeedback(feedbackMap[type] || 'light');
-    
+
     setTimeout(() => {
         toast.style.opacity = '0';
         setTimeout(() => toast.remove(), 300);
@@ -1130,11 +1183,12 @@ function showAlert(message, type = 'info') {
 }
 
 function triggerFeedback(style = "light") {
-    if (!window.tg?.HapticFeedback) return;
-    
+    // 🔥 إصلاح مهم
+    if (!tg?.HapticFeedback) return;
+
     const haptic = tg.HapticFeedback;
     const notificationStyles = ['error', 'success', 'warning'];
-    
+
     if (notificationStyles.includes(style)) {
         haptic.notificationOccurred(style);
     } else {
@@ -1145,7 +1199,11 @@ function triggerFeedback(style = "light") {
 // --- [3] العمليات المالية (Operations) ---
 
 async function handleWithdraw() {
-    const amount = appState.user.balance;
+    const amount = parseFloat(appState.user.balance) || 0;
+
+    if (!db) {
+        return showAlert("❌ قاعدة البيانات غير متصلة", "error");
+    }
 
     if (amount < APP_CONFIG.MIN_WITHDRAW) {
         return showAlert(`❌ الحد الأدنى للسحب هو ${APP_CONFIG.MIN_WITHDRAW}$`, "error");
@@ -1155,7 +1213,7 @@ async function handleWithdraw() {
         userId: appState.user.id,
         amount,
         status: 'pending',
-        timestamp: firebase.database.ServerValue.TIMESTAMP
+        timestamp: firebase?.database?.ServerValue?.TIMESTAMP || Date.now()
     };
 
     try {
@@ -1170,6 +1228,7 @@ async function handleWithdraw() {
 
 function updatePreview() {
     const getVal = (sel) => document.querySelector(sel)?.value || "";
+
     const title = getVal("input[placeholder='عنوان الإعلان']");
     const desc = getVal("textarea");
     const link = getVal("input[placeholder='رابط الإعلان']");
@@ -1179,15 +1238,18 @@ function updatePreview() {
     if (!previewBox) return;
 
     let mediaHTML = "";
-    if (fileInput?.files[0]) {
-        // إدارة الذاكرة: تنظيف الرابط القديم إذا وجد
-        if (previewBox._oldUrl) URL.revokeObjectURL(previewBox._oldUrl);
-        
-        const url = URL.createObjectURL(fileInput.files[0]);
-        previewBox._oldUrl = url; // حفظه لتنظيفه لاحقاً
-        
-        mediaHTML = fileInput.files[0].type.startsWith("image") 
-            ? `<img src="${url}" class="preview-media">` 
+
+    if (fileInput?.files?.length) {
+        if (previewBox._oldUrl) {
+            URL.revokeObjectURL(previewBox._oldUrl);
+        }
+
+        const file = fileInput.files[0];
+        const url = URL.createObjectURL(file);
+        previewBox._oldUrl = url;
+
+        mediaHTML = file.type.startsWith("image")
+            ? `<img src="${url}" class="preview-media">`
             : `<video src="${url}" controls class="preview-media"></video>`;
     }
 
@@ -1198,86 +1260,131 @@ function updatePreview() {
         <small>${link}</small>
     `;
 }
-        // ربط المعاينة
-        document.querySelectorAll('.watch-input').forEach(input => {
-            input.addEventListener('input', updatePreview);
-        });
+
+// 🔥 تحسين: منع تكرار ربط الأحداث
+function bindPreviewInputs() {
+    document.querySelectorAll('.watch-input').forEach(input => {
+        input.removeEventListener('input', updatePreview);
+        input.addEventListener('input', updatePreview);
+    });
+}
+
+// --- السجلات ---
 
 function addNewLog(text) {
-    const timestamp = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+    const timestamp = new Date().toLocaleTimeString('ar-EG', {
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+
     appState.logs.unshift(`[${timestamp}] ${text}`);
-    if (appState.logs.length > APP_CONFIG.MAX_LOGS) appState.logs.pop();
-    
+
+    if (appState.logs.length > APP_CONFIG.MAX_LOGS) {
+        appState.logs.pop();
+    }
+
     const logContainer = document.getElementById('log-list');
     if (!logContainer) return;
 
-    // استخدام DocumentFragment لتحسين أداء الرسم في المتصفح
-    logContainer.innerHTML = ''; 
-appState.logs.forEach(log => {
-    const div = document.createElement('div');
-    div.className = 'log-item';
-    div.textContent = log; // 🛡️ حماية كاملة هنا
-    logContainer.appendChild(div);
-});
+    const fragment = document.createDocumentFragment();
 
+    appState.logs.forEach(log => {
+        const div = document.createElement('div');
+        div.className = 'log-item';
+        div.textContent = log;
+        fragment.appendChild(div);
+    });
 
+    logContainer.innerHTML = '';
+    logContainer.appendChild(fragment);
+}
+    
 // ==========================================
 // 4. محرك الإعلانات والذكاء (Ad Engine) - النسخة المحسنة
 // ==========================================
 
 const AdEngine = {
-    // تحديث اهتمامات المستخدم بناءً على فئة الإعلان
+    // تحديث اهتمامات المستخدم
     updateUserInterest(ad) {
+        if (!ad?.category) return;
+
         const interests = appState.user.interests;
         interests[ad.category] = (interests[ad.category] || 0) + 1;
     },
 
-    // التنبؤ بنسبة النقر (CTR) مع إضافة وزن للاهتمامات
+    // التنبؤ بنسبة النقر (CTR)
     predictCTR(ad) {
+        if (!ad) return 0;
+
+        const baseCTR = parseFloat(ad.ctr) || 0;
         const interestBoost = (appState.user.interests[ad.category] || 0) * 0.02;
-        return ad.ctr + interestBoost + (Math.random() * 0.02);
+        const randomness = Math.random() * 0.02;
+
+        return baseCTR + interestBoost + randomness;
     },
 
-    // حساب الدرجة النهائية للإعلان (UCB + Expected Value)
+    // حساب الدرجة النهائية
     calculateScore(ad, totalShows) {
-        // 1. القيمة المتوقعة
+        if (!ad) return 0;
+
         const ctr = this.predictCTR(ad);
-        const expectedVal = (ctr * ad.bid) + (ad.conv * 2);
 
-        // 2. خوارزمية UCB للاستكشاف (Exploration)
-        const avgReward = ad.clicks / (ad.shows + 1);
-        const explore = Math.sqrt(Math.log(totalShows + 1) / (ad.shows + 1));
+        const bid = parseFloat(ad.bid) || 0;
+        const conv = parseFloat(ad.conv) || 0;
+        const shows = parseFloat(ad.shows) || 0;
+        const clicks = parseFloat(ad.clicks) || 0;
 
-        // 3. خصم لإعلانات "تمت رؤيتها كثيراً" لتجنب الملل
+        // 1. القيمة المتوقعة
+        const expectedVal = (ctr * bid) + (conv * 2);
+
+        // 2. UCB
+        const avgReward = clicks / (shows + 1);
+        const explore = Math.sqrt(Math.log(totalShows + 1) / (shows + 1));
+
+        // 3. fatigue
         const fatigue = (appState.user.seenAds[ad.id] || 0) * 0.1;
 
         return expectedVal + avgReward + explore - fatigue;
     },
 
-    // اختيار الإعلان الأنسب (أداء أسرع باستخدام reduce)
+    // اختيار أفضل إعلان
     selectBestAd(adsList) {
-        const validAds = adsList.filter(ad => ad.bid > 0);
+        if (!Array.isArray(adsList) || adsList.length === 0) return null;
+
+        const validAds = adsList.filter(ad => ad && ad.bid > 0);
         if (validAds.length === 0) return null;
 
-        const totalShows = validAds.reduce((sum, ad) => sum + ad.shows, 0);
+        const totalShows = validAds.reduce((sum, ad) => {
+            return sum + (parseFloat(ad.shows) || 0);
+        }, 0);
 
-        // اختيار الإعلان صاحب أعلى درجة في مرور واحد فقط على المصفوفة
         return validAds.reduce((best, current) => {
             current.tempScore = this.calculateScore(current, totalShows);
-            return (!best || current.tempScore > best.tempScore) ? current : best;
+
+            if (!best || current.tempScore > best.tempScore) {
+                return current;
+            }
+            return best;
         }, null);
     },
 
     // تسجيل الظهور
     trackView(ad) {
-        ad.shows++;
-        appState.user.seenAds[ad.id] = (appState.user.seenAds[ad.id] || 0) + 1;
+        if (!ad) return;
+
+        ad.shows = (parseFloat(ad.shows) || 0) + 1;
+
+        const seen = appState.user.seenAds;
+        seen[ad.id] = (seen[ad.id] || 0) + 1;
     },
 
     // تسجيل النقرة
     trackClick(ad) {
-        ad.clicks++;
-        ad.ctr += 0.01;
+        if (!ad) return;
+
+        ad.clicks = (parseFloat(ad.clicks) || 0) + 1;
+        ad.ctr = (parseFloat(ad.ctr) || 0) + 0.01;
+
         this.updateUserInterest(ad);
     }
 };
@@ -1285,33 +1392,39 @@ const AdEngine = {
 // --- وظائف التشغيل (Execution) ---
 
 function showAd() {
-    const ad = AdEngine.selectBestAd(ads); // افترضنا وجود مصفوفة ads عالمية
+    if (!Array.isArray(ads) || ads.length === 0) return;
+
+    const ad = AdEngine.selectBestAd(ads);
     const adContainer = document.getElementById("ad");
 
     if (ad && adContainer) {
         AdEngine.trackView(ad);
-        
-        // استخدام textContent للعنوان لزيادة الأمان
-        adContainer.innerHTML = ''; // تنظيف الحاوية
+
+        adContainer.innerHTML = '';
+
         const title = document.createElement('h3');
-        title.textContent = ad.title;
-        
+        title.textContent = ad.title || "إعلان";
+
         const btn = document.createElement('button');
         btn.textContent = "اضغط هنا";
-        btn.onclick = () => handleAdClick(ad.id);
-        
+
+        // 🔥 تحسين: منع إعادة إنشاء function كل مرة
+        btn.addEventListener('click', () => handleAdClick(ad.id));
+
         adContainer.append(title, btn);
     }
 }
 
 function handleAdClick(id) {
+    if (!Array.isArray(ads)) return;
+
     const ad = ads.find(a => a.id === id);
-    if (ad) {
-        AdEngine.trackClick(ad);
-        // استدعاء showAlert من الكود السابق
-        if (typeof showAlert === 'function') {
-            showAlert("✅ تم تسجيل النقرة بنجاح", "success");
-        }
+    if (!ad) return;
+
+    AdEngine.trackClick(ad);
+
+    if (typeof showAlert === 'function') {
+        showAlert("✅ تم تسجيل النقرة بنجاح", "success");
     }
 }
 
@@ -1322,15 +1435,15 @@ function handleAdClick(id) {
 const UserManager = {
     // إعداد بيانات المستخدم من تليجرام
     initialize() {
-        const tgUser = window.tg?.initDataUnsafe?.user;
+        const tgUser = tg?.initDataUnsafe?.user; // 🔥 إصلاح
+
         if (tgUser) {
             Object.assign(appState.user, {
                 id: tgUser.id,
                 name: `${tgUser.first_name} ${tgUser.last_name || ''}`.trim(),
-                photo: tgUser.photo_url
+                photo: tgUser.photo_url || ""
             });
-            
-            // تحديث الواجهة بالكامل مرة واحدة
+
             if (typeof refreshUI === 'function') refreshUI('all');
         }
     },
@@ -1338,25 +1451,34 @@ const UserManager = {
     // تحديث الرصيد مع الحماية من الأخطاء
     updateBalance(newAmount, isAddition = false) {
         const val = parseFloat(newAmount);
-        if (isNaN(val)) return showAlert("❌ يرجى إدخال رقم صحيح", "error");
+
+        if (isNaN(val)) {
+            showAlert("❌ يرجى إدخال رقم صحيح", "error");
+            return false;
+        }
+
+        if (val < 0 && isAddition) {
+            showAlert("❌ لا يمكن إضافة قيمة سالبة", "error");
+            return false;
+        }
 
         if (isAddition) {
-            appState.user.balance += val;
+            appState.user.balance = (parseFloat(appState.user.balance) || 0) + val;
         } else {
             appState.user.balance = val;
         }
 
-        // تحديث الواجهة والسجلات
         if (typeof refreshUI === 'function') refreshUI('wallet');
         return true;
     },
 
     // الربح المحاكي
-   refreshCalculation(val) {
+    refreshCalculation(val) {
         const resultText = document.querySelector("#create-campaign .calc-result");
+
         if (resultText) {
             resultText.innerText = FinanceManager.calculateExpected(
-                parseFloat(val) || 0, 
+                parseFloat(val) || 0,
                 appState.settings.selectedCampaignType
             );
         }
@@ -1365,32 +1487,31 @@ const UserManager = {
 
 // --- وظائف المساعدة العامة ---
 
-/**
- * نسخ النص للحافظة
- * تم إزالة triggerFeedback لأن showAlert تقوم بالمهمة الآن
- */
 function copyToClipboard(text, msg = "تم النسخ بنجاح!") {
-    if (!navigator.clipboard) return;
+    if (!navigator.clipboard) {
+        return showAlert("❌ المتصفح لا يدعم النسخ", "error"); // 🔥 تحسين
+    }
 
-    navigator.clipboard.writeText(text).then(() => {
-        showAlert(msg, "success"); 
-    }).catch(() => {
-        showAlert("❌ فشل النسخ", "error");
-    });
+    navigator.clipboard.writeText(text)
+        .then(() => showAlert(msg, "success"))
+        .catch(() => showAlert("❌ فشل النسخ", "error"));
 }
 
 /**
- * توليد رابط الإحالة وتحديث الحقل مباشرة
+ * توليد رابط الإحالة
  */
 function generateReferralLink(id) {
-    const botUsername = "YOUR_BOT"; // يفضل وضعه في APP_CONFIG
+    const botUsername = APP_CONFIG.BOT_USERNAME || "Ads_telegabot"; // 🔥 تحسين
+
+    if (!id) return "";
+
     const link = `https://t.me/${botUsername}?start=ref_${id}`;
     const input = document.querySelector(".referral-box input");
-    
+
     if (input) {
         input.value = link;
-        return link;
     }
+
     return link;
 }
 
@@ -1399,6 +1520,7 @@ function generateReferralLink(id) {
  */
 function promptUpdateBalance() {
     const amount = prompt("ادخل الرصيد الجديد:");
+
     if (amount !== null) {
         if (UserManager.updateBalance(amount)) {
             showAlert("💰 تم تحديث الرصيد بنجاح", "success");
@@ -1411,57 +1533,66 @@ function promptUpdateBalance() {
 // ==========================================
 
 const CampaignManager = {
-    // إطلاق حملة جديدة (احترافية)
+    // إطلاق حملة جديدة
     async add(title, budget) {
         const cost = parseFloat(budget);
 
-        // 1. التحقق من الرصيد (باستخدام المنطق الموحد)
-        if (isNaN(cost) || cost <= 0) return showAlert("❌ أدخل مبلغاً صحيحاً", "error");
-        if (appState.user.balance < cost) return showAlert("❌ رصيدك غير كافٍ", "error");
+        if (!db) {
+            return showAlert("❌ قاعدة البيانات غير متصلة", "error");
+        }
+
+        if (isNaN(cost) || cost <= 0) {
+            return showAlert("❌ أدخل مبلغاً صحيحاً", "error");
+        }
+
+        if ((parseFloat(appState.user.balance) || 0) < cost) {
+            return showAlert("❌ رصيدك غير كافٍ", "error");
+        }
 
         const campaignId = Date.now();
+
         const campaignData = {
             id: campaignId,
             creatorId: appState.user.id,
-            title: title,
+            title: title || "بدون عنوان",
             budget: cost,
             type: appState.settings?.selectedCampaignType || 'standard',
             status: "active",
             stats: { views: 0, clicks: 0 },
-            createdAt: firebase.database.ServerValue.TIMESTAMP
+            createdAt: firebase?.database?.ServerValue?.TIMESTAMP || Date.now()
         };
 
         try {
-     
-            // تحديث ذري (Atomic Update) للرصيد والحملة معاً لضمان عدم حدوث أخطاء
             const updates = {};
-            updates[`/users/${appState.user.id}/balance`] = appState.user.balance - cost;
+
+            updates[`/users/${appState.user.id}/balance`] =
+                (parseFloat(appState.user.balance) || 0) - cost;
+
             updates[`/campaigns/${campaignId}`] = campaignData;
 
+            // 🔥 إصلاح: حذف التكرار
             await db.ref().update(updates);
 
-                    // ... الكود السابق الخاص بـ db.ref().update(updates)
+            // 🔥 تحسين: تحديث الرصيد محليًا
+            appState.user.balance -= cost;
+            if (typeof FinanceManager !== "undefined") {
+                FinanceManager.updateBalanceUI();
+            }
 
-        await db.ref().update(updates);
+            addNewLog(`🚀 إنشاء حملة: ${campaignData.title} (-${cost}$)`);
+            showAlert("🚀 تم إطلاق الحملة بنجاح!", "success");
 
-        // ✅ لاحظ: حذفنا سطر طرح الرصيد يدوياً لأنه سيحدث تلقائياً
-        
-        // سجل العمليات والتنبيهات تبقى كما هي لأنها ضرورية للمستخدم
-        addNewLog(`🚀 إنشاء حملة: ${title} (-${cost}$)`);
-        showAlert("🚀 تم إطلاق الحملة بنجاح!", "success");
+        } catch (error) {
+            showAlert("❌ فشل في الاتصال بقاعدة البيانات", "error");
+        }
+    },
 
-    } catch (error) {
-        showAlert("❌ فشل في الاتصال بقاعدة البيانات", "error");
-    }
-}
-
-     
-    // معالج حالات الحملات (إيقاف، قبول، رفض)
+    // تحديث حالة الحملة
     updateStatus(id, status) {
         const statusMap = {
-            'paused': { msg: "⏸ تم إيقاف الحملة", type: 'info' },
-            'approved': { msg: "✅ تم قبول الحملة", type: 'success' },
-            'rejected': { msg: "❌ تم رفض الحملة", type: 'error' }
+            paused: { msg: "⏸ تم إيقاف الحملة", type: 'info' },
+            approved: { msg: "✅ تم قبول الحملة", type: 'success' },
+            rejected: { msg: "❌ تم رفض الحملة", type: 'error' }
         };
 
         const config = statusMap[status];
@@ -1470,33 +1601,44 @@ const CampaignManager = {
 };
 
 const ChannelManager = {
-    // إضافة قناة وحفظها في Firebase
+    // إضافة قناة
     async add() {
         const linkInput = document.querySelector("#publisher input[type='text']");
         const categorySelect = document.querySelector("#publisher select");
 
-        if (!linkInput?.value) {
+        const link = linkInput?.value?.trim();
+
+        if (!link) {
             return showAlert("❌ أدخل رابط القناة أولاً", "error");
+        }
+
+        // 🔥 تحسين: تحقق من صحة الرابط
+        if (!link.startsWith("https://t.me/")) {
+            return showAlert("❌ رابط القناة غير صحيح", "error");
         }
 
         const channelData = {
             id: Date.now(),
             ownerId: appState.user.id,
-            link: linkInput.value,
-            category: categorySelect ? categorySelect.value : "عام",
-            subscribers: 0, // القيمة الحقيقية تُحدث عبر البوت
+            link,
+            category: categorySelect?.value || "عام",
+            subscribers: 0,
             status: "pending",
-            createdAt: firebase.database.ServerValue.TIMESTAMP
+            createdAt: firebase?.database?.ServerValue?.TIMESTAMP || Date.now()
         };
 
         try {
             await db.ref('channels/' + channelData.id).set(channelData);
-            
-            channels.push(channelData); // تحديث المصفوفة المحلية
-            if (typeof renderChannels === 'function') renderChannels();
-            
-            linkInput.value = ""; 
+
+            channels.push(channelData);
+
+            if (typeof renderChannels === 'function') {
+                renderChannels();
+            }
+
+            linkInput.value = "";
             showAlert("✅ تم إرسال القناة للمراجعة", "success");
+
         } catch (error) {
             showAlert("❌ خطأ في حفظ البيانات", "error");
         }
@@ -1504,14 +1646,20 @@ const ChannelManager = {
 
     // حذف قناة
     async remove(id) {
+        if (!id) return;
+
         try {
             await db.ref('channels/' + id).remove();
-            
-            // تحديث المصفوفة المحلية بفلترة العنصر المحذوف
-            window.channels = channels.filter(c => c.id !== id);
-            
-            if (typeof renderChannels === 'function') renderChannels();
+
+            // 🔥 إصلاح مهم
+            channels = channels.filter(c => c.id !== id);
+
+            if (typeof renderChannels === 'function') {
+                renderChannels();
+            }
+
             showAlert("🗑️ تم حذف القناة بنجاح", "info");
+
         } catch (error) {
             showAlert("❌ فشل الحذف", "error");
         }
@@ -1523,120 +1671,179 @@ const ChannelManager = {
 // ==========================================
 
 const AppService = {
-    // مؤقت العد التنازلي - محسن للأداء
+    // مؤقت العد التنازلي
     startCountdown() {
         const el = document.querySelector(".countdown p");
         if (!el) return;
 
         const update = () => {
             const now = new Date();
-            // تحديد أول يوم في الشهر القادم
+
             const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
             const diffTime = nextMonth - now;
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            
+
+            // 🔥 حماية من القيم السالبة
+            const diffDays = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+
             el.textContent = `${diffDays} يوم متبقي`;
         };
 
-        update(); // تشغيل فوري
-        setInterval(update, 3600000); // تحديث كل ساعة فقط بدلاً من كل دقيقة (لتوفير البطارية)
+        update();
+
+        // 🔥 تحسين: منع تكرار المؤقت
+        if (this._countdownInterval) {
+            clearInterval(this._countdownInterval);
+        }
+
+        this._countdownInterval = setInterval(update, 3600000);
     },
 
-    // معالج اللغات والترجمة
+    // معالج اللغات
     initI18n() {
-        const lang = window.tg?.initDataUnsafe?.user?.language_code || "ar";
+        const lang = tg?.initDataUnsafe?.user?.language_code || "ar"; // 🔥 إصلاح
+
         document.body.dir = (lang === "ar") ? "rtl" : "ltr";
         document.documentElement.lang = lang;
+
         return lang;
     },
 
-    // عرض القوائم بطريقة آمنة (Safe Rendering)
+    // عرض القوائم بطريقة آمنة
     renderList(containerId, data, emptyMsg = "لا توجد بيانات") {
         const container = document.getElementById(containerId);
         if (!container) return;
 
-        if (!data || data.length === 0) {
+        // 🔥 تحسين: تحقق من المصفوفة
+        if (!Array.isArray(data) || data.length === 0) {
             container.innerHTML = `<div class="empty-state">${emptyMsg}</div>`;
             return;
         }
 
-        // استخدام textContent داخل القالب لمنع ثغرات XSS
         const fragment = document.createDocumentFragment();
+
         data.forEach(item => {
+            if (!item) return; // 🔥 حماية
+
             const div = document.createElement("div");
             div.className = "list-item";
+
+            // 🔥 حماية من القيم undefined
             div.textContent = item.name || item.title || "بدون عنوان";
+
             fragment.appendChild(div);
         });
 
-        container.innerHTML = ""; // تنظيف الحاوية
+        container.innerHTML = "";
         container.appendChild(fragment);
     }
 };
 
 // ==========================================
-// 4. محرك تشغيل التطبيق (الدمج المثالي)
+// 9. محرك تشغيل التطبيق (الدمج المثالي)
 // ==========================================
 const AppController = {
     init() {
-        tg.ready();
-        tg.expand();
+        // 🔥 حماية من عدم وجود Telegram
+        if (tg) {
+            tg.ready();
+            tg.expand();
+        }
+
         this.setupFirebaseSync();
         this.bindEvents();
-        
-        // تشغيل الخدمات الثانوية
-        if (typeof AppService.startCountdown === 'function') AppService.startCountdown();
-        setInterval(() => { if (typeof showAd === 'function') showAd(); }, 5000);
+
+        // تشغيل الخدمات
+        if (typeof AppService?.startCountdown === 'function') {
+            AppService.startCountdown();
+        }
+
+        // 🔥 تحسين: منع تكرار الإعلانات
+        if (this._adInterval) {
+            clearInterval(this._adInterval);
+        }
+
+        this._adInterval = setInterval(() => {
+            if (typeof showAd === 'function') showAd();
+        }, 5000);
     },
 
     setupFirebaseSync() {
-        const user = tg.initDataUnsafe?.user;
-        if (!user) return;
+        const user = tg?.initDataUnsafe?.user; // 🔥 إصلاح
+        if (!user || !db) return;
 
         appState.user.id = user.id;
-        appState.user.name = user.first_name;
+        appState.user.name = user.first_name || "User";
 
-        // جلب الرصيد وتحديث الواجهة
-        db.ref('users/' + user.id + '/balance').on('value', (snapshot) => {
+        // 🔥 تحسين: إزالة listeners القديمة
+        if (this._balanceRef) this._balanceRef.off();
+        if (this._channelsRef) this._channelsRef.off();
+
+        // جلب الرصيد
+        this._balanceRef = db.ref('users/' + user.id + '/balance');
+        this._balanceRef.on('value', (snapshot) => {
             appState.user.balance = snapshot.val() || 0;
-            FinanceManager.updateBalanceUI();
+            if (typeof FinanceManager !== "undefined") {
+                FinanceManager.updateBalanceUI();
+            }
         });
 
         // مراقبة القنوات
-        db.ref('channels').orderByChild('ownerId').equalTo(user.id).on('value', (snapshot) => {
+        this._channelsRef = db.ref('channels')
+            .orderByChild('ownerId')
+            .equalTo(user.id);
+
+        this._channelsRef.on('value', (snapshot) => {
             const data = snapshot.val();
-            window.channels = data ? Object.values(data) : [];
-            if (typeof renderChannels === 'function') renderChannels();
+            channels = data ? Object.values(data) : [];
+
+            if (typeof renderChannels === 'function') {
+                renderChannels();
+            }
         });
     },
 
     bindEvents() {
-        // ربط أنواع الحملات
+        // 🔥 منع تكرار الربط
         document.querySelectorAll(".type-btn").forEach(btn => {
-            btn.onclick = () => {
-                const type = btn.dataset.type;
-                appState.settings.selectedCampaignType = type;
-                showAlert(`✅ تم اختيار: ${type}`, "info");
-                
-                // تحديث الحساب فوراً
-                const budgetInput = document.querySelector("#campaign-budget");
-                // ✅ تصحيح: استدعاء UserManager بدلاً من this
-                if (budgetInput) UserManager.refreshCalculation(budgetInput.value);
-            };
+            btn.replaceWith(btn.cloneNode(true));
         });
 
-        // ربط حقل الميزانية
-        const bInput = document.querySelector("#campaign-budget");
-        // ✅ تصحيح: استدعاء UserManager بدلاً من this
-        if (bInput) {
-            bInput.oninput = (e) => UserManager.refreshCalculation(e.target.value);
-        }
-    } 
-}; // ✅ تم إضافة قوس الإغلاق المفقود للكائن AppController هنا
+        document.querySelectorAll(".type-btn").forEach(btn => {
+            btn.addEventListener("click", () => {
+                const type = btn.dataset.type;
 
-// نقطة الانطلاق الوحيدة - الآن أصبحت خارج الكائن وتعمل بشكل صحيح
-window.addEventListener("DOMContentLoaded", () => AppController.init());
-       
+                appState.settings.selectedCampaignType = type;
+
+                showAlert(`✅ تم اختيار: ${type}`, "info");
+
+                const budgetInput = document.querySelector("#campaign-budget");
+                if (budgetInput) {
+                    UserManager.refreshCalculation(budgetInput.value);
+                }
+            });
+        });
+
+        const bInput = document.querySelector("#campaign-budget");
+
+        if (bInput) {
+            bInput.removeEventListener("input", this._budgetHandler);
+
+            this._budgetHandler = (e) => {
+                UserManager.refreshCalculation(e.target.value);
+            };
+
+            bInput.addEventListener("input", this._budgetHandler);
+        }
+    }
+};
+
+// نقطة الانطلاق
+window.addEventListener("DOMContentLoaded", () => {
+    if (typeof AppController !== "undefined") {
+        AppController.init();
+    }
+});
+            
   
     </script>
 </body>
