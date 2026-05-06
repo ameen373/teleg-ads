@@ -1576,505 +1576,657 @@ section:hover {
 
     <script>
 
-    // ==========================================
-// 🚀 SECTION 1: APP ENGINE + STATE
+    
+                // ==========================================
+// 1. CORE UTILITIES (طبقة الأدوات المشتركة)
 // ==========================================
-(function () {
 
-    // =========================
-    // 🧠 GLOBAL STATE
-    // =========================
-    const state = {
-        user: {},
-        ui: {},
-        language: "en"
-    };
-
-    function updateUser(user) {
-        state.user = user || {};
+// ✅ التحقق من جاهزية قاعدة البيانات
+function isDBReady() {
+    if (typeof db === "undefined") {
+        console.error("❌ Database not initialized");
+        showAlert("❌ خطأ في الاتصال بقاعدة البيانات", "error");
+        return false;
     }
+    return true;
+}
 
-    function setUI(key, value) {
-        state.ui[key] = value;
+// ✅ التحقق من تسجيل المستخدم
+function requireUser() {
+    if (!appState.user || !appState.user.id) {
+        showAlert("❌ يجب تسجيل الدخول أولاً", "error");
+        return false;
     }
+    return true;
+}
 
-    // =========================
-    // ⚙️ CONFIG (بديل import)
-    // =========================
-    const CONFIG = {
-        BOT_CONFIG: {
-            ADMIN_ID: 0 // عدلها لاحقًا
+// ✅ استدعاء دوال الواجهة بشكل آمن
+function safeCall(fn, ...args) {
+    try {
+        if (typeof fn === "function") {
+            fn(...args);
+        } else {
+            console.warn("⚠️ UI function not defined");
+        }
+    } catch (error) {
+        console.error("UI Error:", error);
+    }
+}
+
+// ==========================================
+// 📡 Firebase Helpers
+// ==========================================
+
+// ✅ Listener موحد (مراقبة البيانات)
+function listen(path, callback) {
+    if (!isDBReady()) return null;
+
+    const ref = db.ref(path);
+
+    const handler = snap => {
+        try {
+            callback(snap.val() || {});
+        } catch (error) {
+            console.error("Listener callback error:", error);
         }
     };
 
-    // =========================
-    // 🔧 SERVICES (بديل import)
-    // =========================
-    async function getUser(id) {
-        // TODO: اربطه مع Firebase
+    ref.on("value", handler);
+
+    // 🔥 نرجع دالة إلغاء الاشتراك (مهم جداً)
+    return () => ref.off("value", handler);
+}
+
+// ✅ قراءة مرة واحدة
+async function read(path) {
+    if (!isDBReady()) return null;
+
+    try {
+        const snap = await db.ref(path).once("value");
+        return snap.val();
+    } catch (error) {
+        console.error("Read Error:", error);
         return null;
     }
+}
 
-    async function createUser(id, data) {
-        return {
-            id,
+// ✅ كتابة (استبدال)
+async function write(path, data) {
+    if (!isDBReady()) return;
+
+    try {
+        await db.ref(path).set(data);
+    } catch (error) {
+        console.error("Write Error:", error);
+        throw error;
+    }
+}
+
+// ✅ تحديث جزئي
+async function update(path, data) {
+    if (!isDBReady()) return;
+
+    try {
+        await db.ref(path).update(data);
+    } catch (error) {
+        console.error("Update Error:", error);
+        throw error;
+    }
+}
+
+// ✅ حذف بيانات
+async function remove(path) {
+    if (!isDBReady()) return;
+
+    try {
+        await db.ref(path).remove();
+    } catch (error) {
+        console.error("Remove Error:", error);
+        throw error;
+    }
+}
+
+// ✅ إنشاء عنصر جديد (push)
+async function pushData(path, data) {
+    if (!isDBReady()) return null;
+
+    try {
+        const ref = db.ref(path).push();
+        const newData = {
+            id: ref.key,
             ...data
         };
+
+        await ref.set(newData);
+        return ref.key;
+    } catch (error) {
+        console.error("Push Error:", error);
+        return null;
     }
-
-    function resolveAppLanguage() {
-        return "en";
-    }
-
-    // =========================
-    // 🚀 INIT APP
-    // =========================
-    async function initApp() {
-
-        try {
-
-            setUI("loading", true);
-
-            // 🌐 اللغة
-            const lang = resolveAppLanguage();
-            state.language = lang;
-
-            // 👤 Telegram
-            const tg = window.Telegram?.WebApp;
-
-            const userId =
-                tg?.initDataUnsafe?.user?.id ??
-                CONFIG?.BOT_CONFIG?.ADMIN_ID ?? 0;
-
-            const userName =
-                tg?.initDataUnsafe?.user?.first_name ??
-                "Guest";
-
-            // 📥 جلب المستخدم
-            let user = await getUser(userId);
-
-            if (!user) {
-                user = await createUser(userId, {
-                    name: userName
-                });
-            }
-
-            // 🧠 تحديث الحالة
-            updateUser(user);
-
-            state.user = state.user || {};
-            state.user.id = userId;
-
-            // 📱 Telegram init
-            if (tg) {
-                tg.ready();
-                tg.expand();
-            }
-
-            setUI("loading", false);
-
-            console.log("🚀 App Initialized Successfully");
-            console.log("👤 User:", state.user);
-
-            return true;
-
-        } catch (err) {
-
-            console.error("App init error:", err);
-            setUI("loading", false);
-
-            return false;
-        }
-    }
-
-    // =========================
-    // 📌 جعل الدوال متاحة للأقسام القادمة
-    // =========================
-    window.__APP__ = {
-        state,
-        setUI,
-        updateUser,
-        initApp
-    };
-
-})();
+}
 
 // ==========================================
-// 🚀 SECTION 2: ROUTER
+// 🔁 Transaction Helper (مهم للفلوس)
 // ==========================================
-(function () {
 
-    // =========================
-    // 🧠 ربط مع النظام الأساسي
-    // =========================
-    const { state, setUI } = window.__APP__;
+async function runTransaction(path, updateFunction) {
+    if (!isDBReady()) return { committed: false };
 
-    // =========================
-    // 📌 الصفحات المتاحة
-    // =========================
-    const routes = {
-        home: "home-section",
-        profile: "profile-section",
-        campaigns: "campaigns-section",
-        wallet: "wallet-section",
-        admin: "admin-section",
-        channels: "channels-section"
-    };
+    try {
+        const result = await db.ref(path).transaction(updateFunction);
+        return result;
+    } catch (error) {
+        console.error("Transaction Error:", error);
+        return { committed: false };
+    }
+}
 
-    // =========================
-    // 🔁 إخفاء كل الصفحات
-    // =========================
-    function hideAll() {
-        Object.values(routes).forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.style.display = "none";
+// ==========================================
+// 🧰 أدوات مساعدة عامة
+// ==========================================
+
+// ✅ تحويل رقم بشكل آمن
+function toNumber(value) {
+    const num = parseFloat(value);
+    return isNaN(num) ? 0 : num;
+}
+
+// ✅ تنسيق المال
+function formatMoney(amount) {
+    return toNumber(amount).toFixed(2) + "$";
+}
+
+// ✅ تأخير (للاستخدام عند الحاجة)
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+    
+               // ==========================================
+// 2. DATABASE SERVICE LAYER
+// ==========================================
+
+const DBService = {
+
+    // ==========================================
+    // 👤 USER SERVICE
+    // ==========================================
+
+    async getUser(userId) {
+        if (!userId) return null;
+        return await read(`users/${userId}`);
+    },
+
+    async updateUser(userId, data) {
+        if (!userId) return;
+        return await update(`users/${userId}`, data);
+    },
+
+    async setUserStatus(userId, status) {
+        if (!userId) return;
+        return await write(`users/${userId}/status`, status);
+    },
+
+    async updateUserBalance(userId, amount) {
+        if (!userId) return { committed: false };
+
+        return await runTransaction(`users/${userId}/balance`, current => {
+            return (current || 0) + amount;
         });
-    }
+    },
 
-    // =========================
-    // 📍 عرض صفحة معينة
-    // =========================
-    function navigateTo(routeName) {
+    // ==========================================
+    // 💰 DEPOSIT SERVICE
+    // ==========================================
 
-        const route = routes[routeName];
+    async createDeposit(data) {
+        if (!data || !data.txHash) return false;
 
-        if (!route) {
-            console.warn("Route not found:", routeName);
-            return false;
+        const existing = await read(`deposits/${data.txHash}`);
+        if (existing) return "exists";
+
+        await write(`deposits/${data.txHash}`, data);
+        return true;
+    },
+
+    async getDeposits() {
+        return await read("deposits");
+    },
+
+    // ==========================================
+    // 💸 WITHDRAWAL SERVICE
+    // ==========================================
+
+    async getPendingWithdrawals() {
+        const data = await read("withdrawals");
+        if (!data) return {};
+
+        return Object.fromEntries(
+            Object.entries(data).filter(([_, w]) => w.status === "pending")
+        );
+    },
+
+    async approveWithdrawal(withdrawalId) {
+        const withdrawal = await read(`withdrawals/${withdrawalId}`);
+        if (!withdrawal) throw new Error("Not found");
+
+        if (withdrawal.status !== "pending") {
+            return "already_processed";
         }
 
-        hideAll();
+        // خصم الرصيد
+        const result = await runTransaction(
+            `users/${withdrawal.userId}/balance`,
+            current => {
+                if (!current || current < withdrawal.amount) return;
+                return current - withdrawal.amount;
+            }
+        );
 
-        const page = document.getElementById(route);
-
-        if (page) {
-            page.style.display = "block";
+        if (!result.committed) {
+            return "insufficient_balance";
         }
 
-        // تحديث الحالة
-        state.ui = state.ui || {};
-        state.ui.currentSection = routeName;
-
-        setUI("currentSection", routeName);
+        await update(`withdrawals/${withdrawalId}`, {
+            status: "approved",
+            processedAt: firebase.database.ServerValue.TIMESTAMP
+        });
 
         return true;
-    }
+    },
 
-    // =========================
-    // 🚀 الرجوع للرئيسية
-    // =========================
-    function goHome() {
-        return navigateTo("home");
-    }
+    // ==========================================
+    // 📺 CHANNEL SERVICE
+    // ==========================================
 
-    // =========================
-    // 📱 ربط الأزرار (FIXED)
-    // =========================
-    function bindRouterEvents() {
+    async createChannel(data) {
+        return await pushData("channels", data);
+    },
 
-        document.addEventListener("click", (e) => {
+    async deleteChannel(channelId) {
+        if (!channelId) return;
+        return await remove(`channels/${channelId}`);
+    },
 
-            const el = e.target.closest("[data-route]");
-            if (!el) return;
-
-            navigateTo(el.dataset.route);
+    async approveChannel(channelId) {
+        return await update(`channels/${channelId}`, {
+            status: "approved",
+            verified: true
         });
-    }
+    },
 
-    // =========================
-    // 🔄 إعادة تحميل الصفحة
-    // =========================
-    function reloadCurrentRoute() {
-        return navigateTo(state.ui?.currentSection || "home");
-    }
+    async getUserChannels(userId) {
+        const data = await read("channels");
+        if (!data) return [];
 
-    // =========================
-    // 📌 تصدير داخلي للنظام
-    // =========================
-    window.__APP__ = {
-        ...window.__APP__,
-        navigateTo,
-        goHome,
-        bindRouterEvents,
-        reloadCurrentRoute
-    };
+        return Object.values(data).filter(c => c.ownerId === userId);
+    },
 
-})();
+    // ==========================================
+    // 📢 CAMPAIGN SERVICE
+    // ==========================================
 
-// ==========================================
-// 🚀 SECTION 3: EVENT SYSTEM
-// ==========================================
-(function () {
+    async createCampaign(data) {
+        return await pushData("campaigns", data);
+    },
 
-    // =========================
-    // 🧠 ربط مع النظام الأساسي
-    // =========================
-    const {
-        state,
-        navigateTo
-    } = window.__APP__;
+    async getUserCampaigns(userId) {
+        const data = await read("campaigns");
+        if (!data) return [];
 
-    // =========================
-    // 🔧 SERVICES (بديل import)
-    // =========================
-    async function createCampaign(userId, data) {
-        // TODO: اربطه مع backend
-        return { success: true };
-    }
+        return Object.values(data).filter(c => c.creatorId === userId);
+    },
 
-    async function pauseCampaign(id) {
-        // TODO
-    }
+    async updateCampaignStatus(campaignId, status) {
+        return await write(`campaigns/${campaignId}/status`, status);
+    },
 
-    async function activateCampaign(id) {
-        // TODO
-    }
+    async acceptCampaign(campaignId, userId) {
+        const path = `campaigns/${campaignId}/accepted_by/${userId}`;
 
-    async function updateBalance(userId, amount) {
-        // TODO
-    }
+        const existing = await read(path);
+        if (existing) return "already";
 
-    function showAlert(msg, type = "info") {
-        console.log(type.toUpperCase(), msg);
-    }
-
-    // =========================
-    // 🎯 Event Dispatcher
-    // =========================
-    async function handleAction(action, payload = {}) {
-
-        try {
-
-            switch (action) {
-
-                // 🧭 تنقل
-                case "NAVIGATE":
-                    navigateTo(payload.route);
-                    break;
-
-                // 📢 إنشاء حملة
-                case "CREATE_CAMPAIGN": {
-
-                    const result = await createCampaign(
-                        state.user?.id,
-                        payload.data
-                    );
-
-                    if (result?.success) {
-                        showAlert("✅ Campaign Created", "success");
-                    } else {
-                        showAlert("❌ Failed to create campaign", "error");
-                    }
-
-                    break;
-                }
-
-                // ⏸️ إيقاف حملة
-                case "PAUSE_CAMPAIGN":
-
-                    if (!payload.campaignId) return;
-
-                    await pauseCampaign(payload.campaignId);
-                    showAlert("⏸️ Campaign Paused", "info");
-                    break;
-
-                // ▶️ تفعيل حملة
-                case "ACTIVATE_CAMPAIGN":
-
-                    if (!payload.campaignId) return;
-
-                    await activateCampaign(payload.campaignId);
-                    showAlert("▶️ Campaign Activated", "success");
-                    break;
-
-                // 💰 إضافة رصيد
-                case "ADD_BALANCE":
-
-                    if (!payload.amount) return;
-
-                    await updateBalance(state.user?.id, payload.amount);
-                    showAlert("💰 Balance Updated", "success");
-                    break;
-
-                default:
-                    console.warn("Unknown action:", action);
-            }
-
-        } catch (err) {
-            console.error("Action error:", err);
-            showAlert("❌ System Error", "error");
-        }
-    }
-
-    // =========================
-    // 🔗 ربط الأزرار (FIXED)
-    // =========================
-    function bindEvents() {
-
-        document.addEventListener("click", (e) => {
-
-            const el = e.target.closest("[data-action]");
-            if (!el) return;
-
-            const action = el.dataset.action;
-
-            let payload = {};
-
-            try {
-                payload = JSON.parse(el.dataset.payload || "{}");
-            } catch {
-                payload = {};
-            }
-
-            handleAction(action, payload);
+        await write(path, {
+            timestamp: firebase.database.ServerValue.TIMESTAMP,
+            status: "processing"
         });
-    }
 
-    // =========================
-    // 📌 ربط مع النظام العام
-    // =========================
-    window.__APP__ = {
-        ...window.__APP__,
-        handleAction,
-        bindEvents
-    };
+        return true;
+    },
 
-})();
+    // ==========================================
+    // 📊 ANALYTICS SERVICE
+    // ==========================================
 
-// ==========================================
-// 🚀 SECTION 4: ANTI-FRAUD ENGINE
-// ==========================================
-(function () {
+    async getGlobalStats() {
+        const [users, campaigns, deposits] = await Promise.all([
+            read("users"),
+            read("campaigns"),
+            read("deposits")
+        ]);
 
-    // =========================
-    // 🧠 ربط مع النظام
-    // =========================
-    const { state } = window.__APP__;
+        const totalUsers = Object.keys(users || {}).length;
 
-    // =========================
-    // 🔧 DATABASE (بديل Firebase)
-    // =========================
-    const db = {
-        async update(path, data) {
-            console.log("DB UPDATE:", path, data);
-            // TODO: اربطه مع Firebase
-        }
-    };
+        const totalRevenue = Object.values(deposits || {})
+            .filter(d => d.status === "approved")
+            .reduce((sum, d) => sum + (parseFloat(d.amount) || 0), 0);
 
-    // =========================
-    // 🧠 حساب Risk Score (SAFE)
-    // =========================
-    function calculateRiskScore(user = {}) {
+        let views = 0;
+        let clicks = 0;
 
-        let score = 0;
-
-        const views = user.views || 0;
-        const clicks = user.clicks || 0;
-
-        const ctr = views > 0 ? (clicks / views) * 100 : 0;
-
-        // 📊 CTR غير طبيعي
-        if (ctr > 70) score += 40;
-        if (ctr > 90) score += 60;
-
-        // ⚡ نشاط سريع
-        if ((user.lastActions || []).length > 20) {
-            score += 20;
-        }
-
-        // 🌍 تغييرات IP
-        if ((user.ipChanges || 0) > 3) {
-            score += 25;
-        }
-
-        // 🔗 إحالات مشبوهة
-        if ((user.referrals || 0) > 50) {
-            score += 30;
-        }
-
-        // 💰 سحب سريع
-        if (user.createdAt && (user.withdrawals || 0) > 0) {
-            const age = Date.now() - user.createdAt;
-
-            if (age < 24 * 60 * 60 * 1000) {
-                score += 50;
-            }
-        }
-
-        return Math.min(score, 100);
-    }
-
-    // =========================
-    // 🚨 تصنيف المستخدم
-    // =========================
-    function classifyUser(riskScore = 0) {
-
-        if (riskScore >= 80) return "HIGH_RISK";
-        if (riskScore >= 50) return "MEDIUM_RISK";
-
-        return "SAFE";
-    }
-
-    // =========================
-    // 🧠 تحديث تقييم المستخدم
-    // =========================
-    async function updateUserRisk(userId, userData = {}) {
-
-        try {
-
-            const score = calculateRiskScore(userData);
-            const level = classifyUser(score);
-
-            await db.update(`users/${userId}`, {
-                riskScore: score,
-                riskLevel: level,
-                riskUpdatedAt: Date.now()
-            });
-
-            return { score, level };
-
-        } catch (err) {
-            console.error("Risk update error:", err);
-            return null;
-        }
-    }
-
-    // =========================
-    // 🚫 قرار الحظر
-    // =========================
-    function shouldBlockUser(riskScore = 0) {
-        return riskScore >= 85;
-    }
-
-    // =========================
-    // 📊 تحليل السلوك
-    // =========================
-    function analyzeBehavior(user = {}) {
-
-        const score = calculateRiskScore(user);
+        Object.values(campaigns || {}).forEach(c => {
+            views += (c.stats?.views || 0);
+            clicks += (c.stats?.clicks || 0);
+        });
 
         return {
-            score,
-            level: classifyUser(score),
-            block: shouldBlockUser(score),
-            safeToServeAds: score < 60
+            totalUsers,
+            totalRevenue,
+            views,
+            clicks,
+            ctr: views > 0 ? (clicks / views) * 100 : 0
         };
+    },
+
+    // ==========================================
+    // 🎯 REFERRAL SERVICE
+    // ==========================================
+
+    async getReferralStats(userId) {
+        return await read(`referral_stats/${userId}`);
+    },
+
+    async getLeaderboard() {
+        const data = await read("referral_stats");
+        if (!data) return [];
+
+        return Object.entries(data)
+            .map(([id, stat]) => ({
+                userId: id,
+                totalEarn: parseFloat(stat?.totalEarn) || 0,
+                referrals: stat?.referrals || 0
+            }))
+            .sort((a, b) => b.totalEarn - a.totalEarn)
+            .slice(0, 10);
+    },
+
+    // ==========================================
+    // 🧾 LOGS SERVICE
+    // ==========================================
+
+    async getRecentLogs() {
+        const data = await read("logs");
+        if (!data) return [];
+
+        return Object.values(data).reverse().slice(0, 10);
     }
 
-    // =========================
-    // 📌 ربط مع النظام العام
-    // =========================
-    window.__APP__ = {
-        ...window.__APP__,
-        calculateRiskScore,
-        classifyUser,
-        updateUserRisk,
-        shouldBlockUser,
-        analyzeBehavior
-    };
+};
+        // ==========================================
+// 3. MANAGERS LAYER (Clean Version)
+// ==========================================
 
-})();
+// ==========================================
+// 📺 Publisher Manager
+// ==========================================
 
+const PublisherManager = {
+
+    init() {
+        this.observeMyChannels();
+        this.observeMarketplace();
+    },
+
+    async handleAddChannel(name, link, desc = "") {
+        if (!requireUser()) return false;
+
+        if (!name || !link || !link.includes("t.me/")) {
+            showAlert("❌ بيانات القناة غير صحيحة", "error");
+            return false;
+        }
+
+        const channelId = await DBService.createChannel({
+            ownerId: appState.user.id,
+            name,
+            link,
+            desc,
+            subscribers: 0,
+            status: "pending",
+            verified: false,
+            createdAt: firebase.database.ServerValue.TIMESTAMP
+        });
+
+        if (channelId) {
+            showAlert("✅ تم إرسال القناة للمراجعة", "success");
+            return true;
+        }
+
+        showAlert("❌ فشل الإضافة", "error");
+        return false;
+    },
+
+    observeMyChannels() {
+        if (!requireUser()) return;
+
+        listen("channels", data => {
+            const list = Object.values(data)
+                .filter(c => c.ownerId === appState.user.id)
+                .reverse();
+
+            safeCall(renderUserChannelsUI, list);
+        });
+    },
+
+    observeMarketplace() {
+        listen("campaigns", data => {
+            const ads = Object.entries(data)
+                .filter(([_, c]) => c.status === "approved")
+                .map(([id, c]) => ({ campaignId: id, ...c }))
+                .reverse();
+
+            safeCall(renderMarketplaceUI, ads);
+        });
+    },
+
+    async acceptAdTask(campaignId) {
+        if (!requireUser()) return;
+
+        const channels = await DBService.getUserChannels(appState.user.id);
+        const hasApproved = channels.some(c => c.status === "approved");
+
+        if (!hasApproved) {
+            showAlert("❌ تحتاج قناة مقبولة", "warning");
+            return;
+        }
+
+        const res = await DBService.acceptCampaign(campaignId, appState.user.id);
+
+        if (res === "already") {
+            showAlert("⚠️ تم قبولها مسبقاً", "info");
+            return;
+        }
+
+        showAlert("✅ تم قبول المهمة", "success");
+    },
+
+    async deleteChannel(channelId) {
+        await DBService.deleteChannel(channelId);
+        showAlert("🗑️ تم الحذف", "info");
+    }
+};
+
+
+// ==========================================
+// 📢 Advertiser Manager
+// ==========================================
+
+const AdvertiserManager = {
+
+    init() {
+        this.observeMyCampaigns();
+    },
+
+    calculateExpectedResults(budget, type) {
+        const rate = RATES[type] || 0.01;
+        return (!budget || budget <= 0) ? 0 : Math.floor(budget / rate);
+    },
+
+    async handleCreateCampaign(data) {
+        if (!requireUser()) return false;
+
+        if (!data.title || !data.link || data.budget < 5) {
+            showAlert("❌ بيانات غير صالحة", "error");
+            return false;
+        }
+
+        const result = await runTransaction(
+            `users/${appState.user.id}/balance`,
+            current => {
+                if (!current || current < data.budget) return;
+                return current - data.budget;
+            }
+        );
+
+        if (!result.committed) {
+            showAlert("❌ رصيد غير كافي", "error");
+            return false;
+        }
+
+        await DBService.createCampaign({
+            creatorId: appState.user.id,
+            ...data,
+            status: "pending",
+            stats: { views: 0, clicks: 0 },
+            createdAt: firebase.database.ServerValue.TIMESTAMP
+        });
+
+        showAlert("🚀 تم إنشاء الحملة", "success");
+        return true;
+    },
+
+    observeMyCampaigns() {
+        if (!requireUser()) return;
+
+        listen("campaigns", data => {
+            const list = Object.values(data)
+                .filter(c => c.creatorId === appState.user.id)
+                .reverse();
+
+            safeCall(renderMyCampaignsUI, list);
+        });
+    },
+
+    async toggleCampaignStatus(id, current) {
+        const newStatus = current === "active" ? "paused" : "active";
+        await DBService.updateCampaignStatus(id, newStatus);
+        showAlert(`✅ الحالة: ${newStatus}`, "info");
+    }
+};
+
+
+// ==========================================
+// 🎯 Referral Manager
+// ==========================================
+
+const ReferralManager = {
+
+    getLink() {
+        if (!appState.user.id) return "";
+        return `https://t.me/Ads_telegabot?start=ref_${appState.user.id}`;
+    },
+
+    observeStats() {
+        if (!requireUser()) return;
+
+        listen(`referral_stats/${appState.user.id}`, data => {
+            safeCall(this.updateUI.bind(this), data);
+        });
+    },
+
+    updateUI(data) {
+        safeCall(updateStatsText, "ref-total-val", formatMoney(data.totalEarn));
+        safeCall(updateStatsText, "ref-count-val", data.referrals || 0);
+    },
+
+    observeLeaderboard() {
+        listen("referral_stats", data => {
+            const list = Object.entries(data)
+                .map(([id, s]) => ({
+                    userId: id,
+                    totalEarn: toNumber(s.totalEarn),
+                    referrals: s.referrals || 0
+                }))
+                .sort((a, b) => b.totalEarn - a.totalEarn)
+                .slice(0, 10);
+
+            safeCall(renderLeaderboardUI, list);
+        });
+    }
+};
+
+
+// ==========================================
+// 👤 Profile Manager
+// ==========================================
+
+const ProfileManager = {
+
+    updateUI() {
+        const u = appState.user;
+
+        const map = {
+            "profile-name-val": u.name,
+            "profile-id-val": u.id,
+            "profile-balance-val": formatMoney(u.balance),
+            "profile-earnings-val": formatMoney(u.earnings)
+        };
+
+        Object.entries(map).forEach(([id, val]) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = val;
+        });
+    },
+
+    async savePayment(method) {
+        if (!requireUser() || !method) return;
+
+        await DBService.updateUser(appState.user.id, { paymentMethod: method });
+        showAlert("✅ تم الحفظ", "success");
+    }
+};
+
+
+// ==========================================
+// 🚀 App Initializer
+// ==========================================
+
+function startApplication() {
+
+    const tg = window.tg?.initDataUnsafe?.user;
+
+    appState.user.id = tg?.id ? String(tg.id) : "DEMO";
+    appState.user.name = tg?.first_name || "Guest";
+
+    listen(`users/${appState.user.id}`, data => {
+        appState.user = { ...appState.user, ...data };
+
+        safeCall(updateStatsText, "global-balance-display", formatMoney(appState.user.balance));
+        ProfileManager.updateUI();
+    });
+
+    PublisherManager.init();
+    AdvertiserManager.init();
+    ReferralManager.observeStats();
+    ReferralManager.observeLeaderboard();
+
+    if (appState.user.role === "admin") {
+        safeCall(initAnalyticsModule);
+    }
+
+    console.log("✅ System Ready");
+}
+
+document.addEventListener("DOMContentLoaded", startApplication);
 
           </script>
 </body>
