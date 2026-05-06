@@ -1576,658 +1576,2095 @@ section:hover {
 
     <script>
 
-    
-                // ==========================================
-// 1. CORE UTILITIES (طبقة الأدوات المشتركة)
+           // ==========================================
+// PART 1 / 8
+// CONFIG + STATE + UTILITIES + HOOK SYSTEM
 // ==========================================
 
-// ✅ التحقق من جاهزية قاعدة البيانات
-function isDBReady() {
-    if (typeof db === "undefined") {
-        console.error("❌ Database not initialized");
-        showAlert("❌ خطأ في الاتصال بقاعدة البيانات", "error");
-        return false;
-    }
-    return true;
-}
-
-// ✅ التحقق من تسجيل المستخدم
-function requireUser() {
-    if (!appState.user || !appState.user.id) {
-        showAlert("❌ يجب تسجيل الدخول أولاً", "error");
-        return false;
-    }
-    return true;
-}
-
-// ✅ استدعاء دوال الواجهة بشكل آمن
-function safeCall(fn, ...args) {
-    try {
-        if (typeof fn === "function") {
-            fn(...args);
-        } else {
-            console.warn("⚠️ UI function not defined");
-        }
-    } catch (error) {
-        console.error("UI Error:", error);
-    }
-}
 
 // ==========================================
-// 📡 Firebase Helpers
+// CONFIGURATION
 // ==========================================
+const CONFIG = {
+    APP: {
+        NAME: "AdSmart System",
+        VERSION: "1.0.0",
+        DEBUG: true
+    },
 
-// ✅ Listener موحد (مراقبة البيانات)
-function listen(path, callback) {
-    if (!isDBReady()) return null;
+    BOT_CONFIG: {
+        ADMIN_ID: 123456,
+        BOT_NAME: "AdBot"
+    },
 
-    const ref = db.ref(path);
+    LIMITS: {
+        MAX_CAMPAIGNS_PER_USER: 10,
+        MAX_DAILY_CLICKS: 1000
+    },
 
-    const handler = snap => {
+    AI: {
+        MIN_AD_SCORE: 70,
+        LOW_USER_THRESHOLD: 30,
+        HIGH_RISK_THRESHOLD: 80
+    }
+};
+
+
+// ==========================================
+// GLOBAL STATE
+// ==========================================
+const state = {
+    user: {
+        id: null,
+        name: "",
+        balance: 0,
+        clicks: 0,
+        views: 0,
+        earnings: 0,
+        riskScore: 0
+    },
+
+    ui: {
+        loading: false,
+        currentSection: "home",
+        theme: "light"
+    },
+
+    system: {
+        initialized: false,
+        lastUpdate: null
+    },
+
+    language: "en"
+};
+
+
+// ==========================================
+// HOOK SYSTEM
+// ==========================================
+const Hooks = {
+    onUserUpdate: [],
+    onUIUpdate: [],
+    onSystemInit: []
+};
+
+
+// ==========================================
+// RUN HOOKS
+// ==========================================
+function runHooks(list, payload) {
+    if (!Array.isArray(list)) return;
+
+    for (let i = 0; i < list.length; i++) {
         try {
-            callback(snap.val() || {});
-        } catch (error) {
-            console.error("Listener callback error:", error);
+            list[i](payload);
+        } catch (err) {
+            console.error("Hook error:", err);
         }
+    }
+}
+
+
+// ==========================================
+// STATE MANAGEMENT
+// ==========================================
+
+// 👤 تحديث المستخدم
+function updateUser(userData) {
+
+    if (!userData || typeof userData !== "object") return;
+
+    state.user = {
+        ...state.user,
+        ...userData
     };
 
-    ref.on("value", handler);
+    runHooks(Hooks.onUserUpdate, state.user);
 
-    // 🔥 نرجع دالة إلغاء الاشتراك (مهم جداً)
-    return () => ref.off("value", handler);
+    log("User Updated:", state.user);
 }
 
-// ✅ قراءة مرة واحدة
-async function read(path) {
-    if (!isDBReady()) return null;
+
+// 🔹 تحديث حقل واحد
+function updateUserField(key, value) {
+
+    if (!key) return;
+
+    state.user[key] = value;
+
+    runHooks(Hooks.onUserUpdate, state.user);
+
+    log("User Field Updated:", key, value);
+}
+
+
+// 🎨 UI
+function setUI(key, value) {
+
+    if (!key) return;
+
+    state.ui[key] = value;
+
+    runHooks(Hooks.onUIUpdate, state.ui);
+
+    log("UI Updated:", key, value);
+}
+
+
+// 📥 قراءة من الحالة
+function getState(path) {
+
+    if (!path || typeof path !== "string") return null;
 
     try {
-        const snap = await db.ref(path).once("value");
-        return snap.val();
-    } catch (error) {
-        console.error("Read Error:", error);
+        return path.split(".").reduce((obj, key) => {
+            return obj ? obj[key] : undefined;
+        }, state);
+    } catch (e) {
         return null;
     }
 }
 
-// ✅ كتابة (استبدال)
-async function write(path, data) {
-    if (!isDBReady()) return;
 
-    try {
-        await db.ref(path).set(data);
-    } catch (error) {
-        console.error("Write Error:", error);
-        throw error;
-    }
+// ♻️ إعادة تعيين
+function resetState() {
+
+    state.user = {
+        id: null,
+        name: "",
+        balance: 0,
+        clicks: 0,
+        views: 0,
+        earnings: 0,
+        riskScore: 0
+    };
+
+    state.ui = {
+        loading: false,
+        currentSection: "home",
+        theme: "light"
+    };
+
+    log("State Reset");
 }
 
-// ✅ تحديث جزئي
-async function update(path, data) {
-    if (!isDBReady()) return;
-
-    try {
-        await db.ref(path).update(data);
-    } catch (error) {
-        console.error("Update Error:", error);
-        throw error;
-    }
-}
-
-// ✅ حذف بيانات
-async function remove(path) {
-    if (!isDBReady()) return;
-
-    try {
-        await db.ref(path).remove();
-    } catch (error) {
-        console.error("Remove Error:", error);
-        throw error;
-    }
-}
-
-// ✅ إنشاء عنصر جديد (push)
-async function pushData(path, data) {
-    if (!isDBReady()) return null;
-
-    try {
-        const ref = db.ref(path).push();
-        const newData = {
-            id: ref.key,
-            ...data
-        };
-
-        await ref.set(newData);
-        return ref.key;
-    } catch (error) {
-        console.error("Push Error:", error);
-        return null;
-    }
-}
 
 // ==========================================
-// 🔁 Transaction Helper (مهم للفلوس)
+// METRICS
 // ==========================================
 
-async function runTransaction(path, updateFunction) {
-    if (!isDBReady()) return { committed: false };
-
-    try {
-        const result = await db.ref(path).transaction(updateFunction);
-        return result;
-    } catch (error) {
-        console.error("Transaction Error:", error);
-        return { committed: false };
-    }
+function calculateCTR(clicks, views) {
+    clicks = clicks || 0;
+    views = views || 0;
+    if (views === 0) return 0;
+    return (clicks / views) * 100;
 }
+
+function calculateConversion(actions, clicks) {
+    actions = actions || 0;
+    clicks = clicks || 0;
+    if (clicks === 0) return 0;
+    return (actions / clicks) * 100;
+}
+
+function calculateRPM(earnings, views) {
+    earnings = earnings || 0;
+    views = views || 0;
+    if (views === 0) return 0;
+    return (earnings / views) * 1000;
+}
+
+function clamp(value, min, max) {
+    min = min ?? 0;
+    max = max ?? 100;
+    return Math.max(min, Math.min(value, max));
+}
+
 
 // ==========================================
-// 🧰 أدوات مساعدة عامة
+// HELPERS
 // ==========================================
 
-// ✅ تحويل رقم بشكل آمن
-function toNumber(value) {
-    const num = parseFloat(value);
-    return isNaN(num) ? 0 : num;
-}
-
-// ✅ تنسيق المال
-function formatMoney(amount) {
-    return toNumber(amount).toFixed(2) + "$";
-}
-
-// ✅ تأخير (للاستخدام عند الحاجة)
 function delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    ms = ms || 0;
+    return new Promise(function(resolve) {
+        setTimeout(resolve, ms);
+    });
 }
-    
-               // ==========================================
-// 2. DATABASE SERVICE LAYER
+
+function generateId(prefix) {
+    prefix = prefix || "id";
+    return prefix + "_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+}
+
+function deepClone(obj) {
+    try {
+        return JSON.parse(JSON.stringify(obj));
+    } catch (e) {
+        return null;
+    }
+}
+
+function safeMerge(target, source) {
+    target = target || {};
+    source = source || {};
+    return Object.assign({}, target, source);
+}
+
+
+// ==========================================
+// LOGGER
 // ==========================================
 
-const DBService = {
+function log() {
+    if (CONFIG.APP.DEBUG) {
+        console.log.apply(console, arguments);
+    }
+}
+
+function warn() {
+    console.warn.apply(console, arguments);
+}
+
+function errorLog() {
+    console.error.apply(console, arguments);
+}
+
+
+// ==========================================
+// VALIDATION
+// ==========================================
+
+function isValidUser(user) {
+    return user && typeof user.id !== "undefined";
+}
+
+function isNumber(val) {
+    return typeof val === "number" && !isNaN(val);
+}
+
+function isString(val) {
+    return typeof val === "string";
+}
+
+// ==========================================
+// GLOBAL BINDING
+// ==========================================
+
+window.CONFIG = CONFIG;
+window.state = state;
+
+window.Hooks = Hooks;
+
+window.updateUser = updateUser;
+window.updateUserField = updateUserField;
+window.setUI = setUI;
+window.getState = getState;
+
+window.calculateCTR = calculateCTR;
+window.calculateConversion = calculateConversion;
+window.calculateRPM = calculateRPM;
+window.clamp = clamp;
+
+window.delay = delay;
+window.generateId = generateId;
+window.deepClone = deepClone;
+
+window.log = log;
+window.warn = warn;
+window.errorLog = errorLog;
+
+
+// ==========================================
+// PART 2 / 8
+// DATABASE + SERVICES
+// ==========================================
+
+
+// ==========================================
+// DATABASE LAYER
+// ==========================================
+
+const Database = {
+
+    isFirebase: (typeof db !== "undefined"),
+
+    async get(path) {
+        try {
+
+            if (this.isFirebase) {
+                const snap = await db.ref(path).once("value");
+                return snap.val();
+            }
+
+            return this._getMock(path);
+
+        } catch (err) {
+            errorLog("DB GET ERROR:", err);
+            return null;
+        }
+    },
+
+    async set(path, data) {
+        try {
+
+            if (this.isFirebase) {
+                await db.ref(path).set(data);
+                return true;
+            }
+
+            return this._setMock(path, data);
+
+        } catch (err) {
+            errorLog("DB SET ERROR:", err);
+            return false;
+        }
+    },
+
+    async update(path, data) {
+        try {
+
+            if (this.isFirebase) {
+                await db.ref(path).update(data);
+                return true;
+            }
+
+            return this._updateMock(path, data);
+
+        } catch (err) {
+            errorLog("DB UPDATE ERROR:", err);
+            return false;
+        }
+    },
+
+    async remove(path) {
+        try {
+
+            if (this.isFirebase) {
+                await db.ref(path).remove();
+                return true;
+            }
+
+            return this._removeMock(path);
+
+        } catch (err) {
+            errorLog("DB REMOVE ERROR:", err);
+            return false;
+        }
+    },
+
 
     // ==========================================
-    // 👤 USER SERVICE
+    // MOCK DATABASE
     // ==========================================
+    _mock: {
+        users: {},
+        campaigns: {}
+    },
+
+    _getMock(path) {
+
+        if (!path) return null;
+
+        const keys = path.split("/");
+        let ref = this._mock;
+
+        for (let i = 0; i < keys.length; i++) {
+            const key = keys[i];
+
+            if (!ref || typeof ref !== "object" || !(key in ref)) {
+                return null;
+            }
+
+            ref = ref[key];
+        }
+
+        return deepClone(ref);
+    },
+
+    _setMock(path, data) {
+
+        if (!path) return false;
+
+        const keys = path.split("/");
+        let ref = this._mock;
+
+        for (let i = 0; i < keys.length; i++) {
+
+            const key = keys[i];
+
+            if (i === keys.length - 1) {
+                ref[key] = data;
+            } else {
+                if (!ref[key] || typeof ref[key] !== "object") {
+                    ref[key] = {};
+                }
+                ref = ref[key];
+            }
+        }
+
+        return true;
+    },
+
+    _updateMock(path, data) {
+
+        const existing = this._getMock(path) || {};
+
+        return this._setMock(path, safeMerge(existing, data));
+    },
+
+    _removeMock(path) {
+
+        if (!path) return false;
+
+        const keys = path.split("/");
+        let ref = this._mock;
+
+        for (let i = 0; i < keys.length - 1; i++) {
+
+            const key = keys[i];
+
+            if (!ref[key]) return false;
+
+            ref = ref[key];
+        }
+
+        const lastKey = keys[keys.length - 1];
+
+        if (ref && lastKey in ref) {
+            delete ref[lastKey];
+        }
+
+        return true;
+    }
+};
+
+
+// ==========================================
+// USER SERVICE
+// ==========================================
+
+const UserService = {
 
     async getUser(userId) {
+
         if (!userId) return null;
-        return await read(`users/${userId}`);
+
+        return Database.get("users/" + userId);
     },
 
-    async updateUser(userId, data) {
-        if (!userId) return;
-        return await update(`users/${userId}`, data);
+    async createUser(userId, data) {
+
+        if (!userId) return null;
+
+        data = data || {};
+
+        const user = {
+            id: userId,
+            name: data.name || "Guest",
+            balance: 0,
+            clicks: 0,
+            views: 0,
+            earnings: 0,
+            riskScore: 0,
+            createdAt: Date.now()
+        };
+
+        // دمج البيانات الإضافية
+        Object.assign(user, data);
+
+        await Database.set("users/" + userId, user);
+
+        // 🔥 مهم: تحديث الحالة
+        updateUser(user);
+
+        log("User Created:", user);
+
+        return user;
     },
 
-    async setUserStatus(userId, status) {
-        if (!userId) return;
-        return await write(`users/${userId}/status`, status);
-    },
+    async updateBalance(userId, amount) {
 
-    async updateUserBalance(userId, amount) {
-        if (!userId) return { committed: false };
+        amount = amount || 0;
 
-        return await runTransaction(`users/${userId}/balance`, current => {
-            return (current || 0) + amount;
+        if (!isNumber(amount)) return false;
+
+        const user = await this.getUser(userId);
+        if (!user) return false;
+
+        const newBalance = (user.balance || 0) + amount;
+
+        await Database.update("users/" + userId, {
+            balance: newBalance,
+            lastBalanceUpdate: Date.now()
         });
-    },
 
-    // ==========================================
-    // 💰 DEPOSIT SERVICE
-    // ==========================================
-
-    async createDeposit(data) {
-        if (!data || !data.txHash) return false;
-
-        const existing = await read(`deposits/${data.txHash}`);
-        if (existing) return "exists";
-
-        await write(`deposits/${data.txHash}`, data);
-        return true;
-    },
-
-    async getDeposits() {
-        return await read("deposits");
-    },
-
-    // ==========================================
-    // 💸 WITHDRAWAL SERVICE
-    // ==========================================
-
-    async getPendingWithdrawals() {
-        const data = await read("withdrawals");
-        if (!data) return {};
-
-        return Object.fromEntries(
-            Object.entries(data).filter(([_, w]) => w.status === "pending")
-        );
-    },
-
-    async approveWithdrawal(withdrawalId) {
-        const withdrawal = await read(`withdrawals/${withdrawalId}`);
-        if (!withdrawal) throw new Error("Not found");
-
-        if (withdrawal.status !== "pending") {
-            return "already_processed";
-        }
-
-        // خصم الرصيد
-        const result = await runTransaction(
-            `users/${withdrawal.userId}/balance`,
-            current => {
-                if (!current || current < withdrawal.amount) return;
-                return current - withdrawal.amount;
-            }
-        );
-
-        if (!result.committed) {
-            return "insufficient_balance";
-        }
-
-        await update(`withdrawals/${withdrawalId}`, {
-            status: "approved",
-            processedAt: firebase.database.ServerValue.TIMESTAMP
-        });
+        updateUserField("balance", newBalance);
 
         return true;
-    },
+    }
+};
 
-    // ==========================================
-    // 📺 CHANNEL SERVICE
-    // ==========================================
 
-    async createChannel(data) {
-        return await pushData("channels", data);
-    },
+// ==========================================
+// GLOBAL EXPORTS
+// ==========================================
 
-    async deleteChannel(channelId) {
-        if (!channelId) return;
-        return await remove(`channels/${channelId}`);
-    },
+window.Database = Database;
+window.UserService = UserService;
 
-    async approveChannel(channelId) {
-        return await update(`channels/${channelId}`, {
-            status: "approved",
-            verified: true
-        });
-    },
+// ==========================================
+// CAMPAIGN SERVICE
+// ==========================================
 
-    async getUserChannels(userId) {
-        const data = await read("channels");
-        if (!data) return [];
+const CampaignService = {
 
-        return Object.values(data).filter(c => c.ownerId === userId);
-    },
+    async createCampaign(userId, data) {
 
-    // ==========================================
-    // 📢 CAMPAIGN SERVICE
-    // ==========================================
+        data = data || {};
 
-    async createCampaign(data) {
-        return await pushData("campaigns", data);
-    },
+        const id = generateId("cmp");
 
-    async getUserCampaigns(userId) {
-        const data = await read("campaigns");
-        if (!data) return [];
+        const campaign = {
+            id: id,
+            userId: userId,
+            title: data.title || "Untitled",
+            budget: data.budget || 0,
+            bid: data.bid || 0.01,
+            status: "active",
+            stats: {
+                views: 0,
+                clicks: 0
+            },
+            createdAt: Date.now()
+        };
 
-        return Object.values(data).filter(c => c.creatorId === userId);
-    },
+        await Database.set("campaigns/" + id, campaign);
 
-    async updateCampaignStatus(campaignId, status) {
-        return await write(`campaigns/${campaignId}/status`, status);
-    },
-
-    async acceptCampaign(campaignId, userId) {
-        const path = `campaigns/${campaignId}/accepted_by/${userId}`;
-
-        const existing = await read(path);
-        if (existing) return "already";
-
-        await write(path, {
-            timestamp: firebase.database.ServerValue.TIMESTAMP,
-            status: "processing"
-        });
-
-        return true;
-    },
-
-    // ==========================================
-    // 📊 ANALYTICS SERVICE
-    // ==========================================
-
-    async getGlobalStats() {
-        const [users, campaigns, deposits] = await Promise.all([
-            read("users"),
-            read("campaigns"),
-            read("deposits")
-        ]);
-
-        const totalUsers = Object.keys(users || {}).length;
-
-        const totalRevenue = Object.values(deposits || {})
-            .filter(d => d.status === "approved")
-            .reduce((sum, d) => sum + (parseFloat(d.amount) || 0), 0);
-
-        let views = 0;
-        let clicks = 0;
-
-        Object.values(campaigns || {}).forEach(c => {
-            views += (c.stats?.views || 0);
-            clicks += (c.stats?.clicks || 0);
-        });
+        log("Campaign Created:", campaign);
 
         return {
-            totalUsers,
-            totalRevenue,
-            views,
-            clicks,
-            ctr: views > 0 ? (clicks / views) * 100 : 0
+            success: true,
+            campaign: campaign
         };
     },
 
-    // ==========================================
-    // 🎯 REFERRAL SERVICE
-    // ==========================================
+    async pauseCampaign(id) {
 
-    async getReferralStats(userId) {
-        return await read(`referral_stats/${userId}`);
-    },
+        if (!id) return false;
 
-    async getLeaderboard() {
-        const data = await read("referral_stats");
-        if (!data) return [];
-
-        return Object.entries(data)
-            .map(([id, stat]) => ({
-                userId: id,
-                totalEarn: parseFloat(stat?.totalEarn) || 0,
-                referrals: stat?.referrals || 0
-            }))
-            .sort((a, b) => b.totalEarn - a.totalEarn)
-            .slice(0, 10);
-    },
-
-    // ==========================================
-    // 🧾 LOGS SERVICE
-    // ==========================================
-
-    async getRecentLogs() {
-        const data = await read("logs");
-        if (!data) return [];
-
-        return Object.values(data).reverse().slice(0, 10);
-    }
-
-};
-        // ==========================================
-// 3. MANAGERS LAYER (Clean Version)
-// ==========================================
-
-// ==========================================
-// 📺 Publisher Manager
-// ==========================================
-
-const PublisherManager = {
-
-    init() {
-        this.observeMyChannels();
-        this.observeMarketplace();
-    },
-
-    async handleAddChannel(name, link, desc = "") {
-        if (!requireUser()) return false;
-
-        if (!name || !link || !link.includes("t.me/")) {
-            showAlert("❌ بيانات القناة غير صحيحة", "error");
-            return false;
-        }
-
-        const channelId = await DBService.createChannel({
-            ownerId: appState.user.id,
-            name,
-            link,
-            desc,
-            subscribers: 0,
-            status: "pending",
-            verified: false,
-            createdAt: firebase.database.ServerValue.TIMESTAMP
+        await Database.update("campaigns/" + id, {
+            status: "paused"
         });
 
-        if (channelId) {
-            showAlert("✅ تم إرسال القناة للمراجعة", "success");
-            return true;
-        }
+        log("Campaign Paused:", id);
 
-        showAlert("❌ فشل الإضافة", "error");
-        return false;
-    },
-
-    observeMyChannels() {
-        if (!requireUser()) return;
-
-        listen("channels", data => {
-            const list = Object.values(data)
-                .filter(c => c.ownerId === appState.user.id)
-                .reverse();
-
-            safeCall(renderUserChannelsUI, list);
-        });
-    },
-
-    observeMarketplace() {
-        listen("campaigns", data => {
-            const ads = Object.entries(data)
-                .filter(([_, c]) => c.status === "approved")
-                .map(([id, c]) => ({ campaignId: id, ...c }))
-                .reverse();
-
-            safeCall(renderMarketplaceUI, ads);
-        });
-    },
-
-    async acceptAdTask(campaignId) {
-        if (!requireUser()) return;
-
-        const channels = await DBService.getUserChannels(appState.user.id);
-        const hasApproved = channels.some(c => c.status === "approved");
-
-        if (!hasApproved) {
-            showAlert("❌ تحتاج قناة مقبولة", "warning");
-            return;
-        }
-
-        const res = await DBService.acceptCampaign(campaignId, appState.user.id);
-
-        if (res === "already") {
-            showAlert("⚠️ تم قبولها مسبقاً", "info");
-            return;
-        }
-
-        showAlert("✅ تم قبول المهمة", "success");
-    },
-
-    async deleteChannel(channelId) {
-        await DBService.deleteChannel(channelId);
-        showAlert("🗑️ تم الحذف", "info");
-    }
-};
-
-
-// ==========================================
-// 📢 Advertiser Manager
-// ==========================================
-
-const AdvertiserManager = {
-
-    init() {
-        this.observeMyCampaigns();
-    },
-
-    calculateExpectedResults(budget, type) {
-        const rate = RATES[type] || 0.01;
-        return (!budget || budget <= 0) ? 0 : Math.floor(budget / rate);
-    },
-
-    async handleCreateCampaign(data) {
-        if (!requireUser()) return false;
-
-        if (!data.title || !data.link || data.budget < 5) {
-            showAlert("❌ بيانات غير صالحة", "error");
-            return false;
-        }
-
-        const result = await runTransaction(
-            `users/${appState.user.id}/balance`,
-            current => {
-                if (!current || current < data.budget) return;
-                return current - data.budget;
-            }
-        );
-
-        if (!result.committed) {
-            showAlert("❌ رصيد غير كافي", "error");
-            return false;
-        }
-
-        await DBService.createCampaign({
-            creatorId: appState.user.id,
-            ...data,
-            status: "pending",
-            stats: { views: 0, clicks: 0 },
-            createdAt: firebase.database.ServerValue.TIMESTAMP
-        });
-
-        showAlert("🚀 تم إنشاء الحملة", "success");
         return true;
     },
 
-    observeMyCampaigns() {
-        if (!requireUser()) return;
+    async activateCampaign(id) {
 
-        listen("campaigns", data => {
-            const list = Object.values(data)
-                .filter(c => c.creatorId === appState.user.id)
-                .reverse();
+        if (!id) return false;
 
-            safeCall(renderMyCampaignsUI, list);
+        await Database.update("campaigns/" + id, {
+            status: "active"
         });
+
+        log("Campaign Activated:", id);
+
+        return true;
     },
 
-    async toggleCampaignStatus(id, current) {
-        const newStatus = current === "active" ? "paused" : "active";
-        await DBService.updateCampaignStatus(id, newStatus);
-        showAlert(`✅ الحالة: ${newStatus}`, "info");
+    async getAllCampaigns() {
+
+        const data = await Database.get("campaigns");
+
+        return data || {};
     }
 };
 
 
 // ==========================================
-// 🎯 Referral Manager
+// INTL SERVICE
 // ==========================================
 
-const ReferralManager = {
+const IntlService = {
 
-    getLink() {
-        if (!appState.user.id) return "";
-        return `https://t.me/Ads_telegabot?start=ref_${appState.user.id}`;
-    },
+    resolveAppLanguage() {
 
-    observeStats() {
-        if (!requireUser()) return;
+        var lang = "en";
 
-        listen(`referral_stats/${appState.user.id}`, data => {
-            safeCall(this.updateUI.bind(this), data);
-        });
-    },
+        try {
+            lang = navigator.language || "en";
+        } catch (e) {}
 
-    updateUI(data) {
-        safeCall(updateStatsText, "ref-total-val", formatMoney(data.totalEarn));
-        safeCall(updateStatsText, "ref-count-val", data.referrals || 0);
-    },
+        if (typeof lang !== "string") return "en";
 
-    observeLeaderboard() {
-        listen("referral_stats", data => {
-            const list = Object.entries(data)
-                .map(([id, s]) => ({
-                    userId: id,
-                    totalEarn: toNumber(s.totalEarn),
-                    referrals: s.referrals || 0
-                }))
-                .sort((a, b) => b.totalEarn - a.totalEarn)
-                .slice(0, 10);
-
-            safeCall(renderLeaderboardUI, list);
-        });
+        return lang.indexOf("ar") === 0 ? "ar" : "en";
     }
 };
 
 
 // ==========================================
-// 👤 Profile Manager
+// GLOBAL BINDING (SERVICES)
 // ==========================================
 
-const ProfileManager = {
+window.getUser = function(id) {
+    return UserService.getUser(id);
+};
 
-    updateUI() {
-        const u = appState.user;
+window.createUser = function(id, data) {
+    return UserService.createUser(id, data);
+};
 
-        const map = {
-            "profile-name-val": u.name,
-            "profile-id-val": u.id,
-            "profile-balance-val": formatMoney(u.balance),
-            "profile-earnings-val": formatMoney(u.earnings)
-        };
+window.updateBalance = function(id, amount) {
+    return UserService.updateBalance(id, amount);
+};
 
-        Object.entries(map).forEach(([id, val]) => {
-            const el = document.getElementById(id);
-            if (el) el.textContent = val;
-        });
+window.createCampaign = function(uid, data) {
+    return CampaignService.createCampaign(uid, data);
+};
+
+window.pauseCampaign = function(id) {
+    return CampaignService.pauseCampaign(id);
+};
+
+window.activateCampaign = function(id) {
+    return CampaignService.activateCampaign(id);
+};
+
+window.resolveAppLanguage = function() {
+    return IntlService.resolveAppLanguage();
+};
+
+
+// ==========================================
+// PART 3 / 8
+// UI SYSTEM + DOM ENGINE
+// ==========================================
+
+
+// ==========================================
+// UI CORE
+// ==========================================
+
+const UI = {
+
+    showAlert: function(message, type, duration) {
+
+        message = message || "";
+        type = type || "info";
+        duration = duration || 3000;
+
+        var el = document.createElement("div");
+        el.className = "app-alert " + type;
+        el.innerText = message;
+
+        document.body.appendChild(el);
+
+        setTimeout(function() {
+            el.classList.add("show");
+        }, 50);
+
+        setTimeout(function() {
+            el.classList.remove("show");
+
+            setTimeout(function() {
+                if (el && el.parentNode) {
+                    el.parentNode.removeChild(el);
+                }
+            }, 300);
+
+        }, duration);
+
+        log("Alert:", message);
     },
 
-    async savePayment(method) {
-        if (!requireUser() || !method) return;
 
-        await DBService.updateUser(appState.user.id, { paymentMethod: method });
-        showAlert("✅ تم الحفظ", "success");
+    showToast: function(message, duration) {
+
+        message = message || "";
+        duration = duration || 2000;
+
+        var el = document.createElement("div");
+        el.className = "app-toast";
+        el.innerText = message;
+
+        document.body.appendChild(el);
+
+        setTimeout(function() {
+            el.classList.add("show");
+        }, 50);
+
+        setTimeout(function() {
+            el.classList.remove("show");
+
+            setTimeout(function() {
+                if (el && el.parentNode) {
+                    el.parentNode.removeChild(el);
+                }
+            }, 300);
+
+        }, duration);
+    },
+
+
+    setLoading: function(show) {
+
+        show = !!show;
+
+        var loader = document.getElementById("app-loader");
+
+        if (!loader) {
+            loader = document.createElement("div");
+            loader.id = "app-loader";
+            loader.innerHTML = '<div class="spinner"></div>';
+            document.body.appendChild(loader);
+        }
+
+        loader.style.display = show ? "flex" : "none";
     }
 };
 
 
 // ==========================================
-// 🚀 App Initializer
+// DOM ENGINE
 // ==========================================
 
-function startApplication() {
+const DOM = {
 
-    const tg = window.tg?.initDataUnsafe?.user;
+    get: function(selector) {
+        return document.querySelector(selector);
+    },
 
-    appState.user.id = tg?.id ? String(tg.id) : "DEMO";
-    appState.user.name = tg?.first_name || "Guest";
+    getAll: function(selector) {
+        return document.querySelectorAll(selector);
+    },
 
-    listen(`users/${appState.user.id}`, data => {
-        appState.user = { ...appState.user, ...data };
+    on: function(event, selector, handler) {
 
-        safeCall(updateStatsText, "global-balance-display", formatMoney(appState.user.balance));
-        ProfileManager.updateUI();
-    });
+        if (!event || !selector || !handler) return;
 
-    PublisherManager.init();
-    AdvertiserManager.init();
-    ReferralManager.observeStats();
-    ReferralManager.observeLeaderboard();
+        document.addEventListener(event, function(e) {
 
-    if (appState.user.role === "admin") {
-        safeCall(initAnalyticsModule);
+            var target = e.target;
+
+            while (target && target !== document) {
+
+                if (target.matches && target.matches(selector)) {
+                    handler(target, e);
+                    return;
+                }
+
+                target = target.parentElement;
+            }
+
+        });
+    },
+
+    setText: function(selector, text) {
+
+        var el = this.get(selector);
+
+        if (el) {
+            el.innerText = text;
+        }
     }
+};
 
-    console.log("✅ System Ready");
+
+// ==========================================
+// GLOBAL EXPORTS
+// ==========================================
+
+window.CampaignService = CampaignService;
+window.IntlService = IntlService;
+window.UI = UI;
+window.DOM = DOM;
+
+// ==========================================
+// UI BINDINGS (State → DOM)
+// ==========================================
+
+const UIBindings = {
+
+    // 👤 بيانات المستخدم
+    updateUserUI: function(user) {
+
+        if (!user) return;
+
+        DOM.setText("#user-name", user.name || "Guest");
+        DOM.setText("#user-balance", user.balance || 0);
+    },
+
+    // 📍 الصفحات
+    updateRouteUI: function(ui) {
+
+        if (!ui) return;
+
+        var sections = DOM.getAll("[data-section]");
+
+        for (var i = 0; i < sections.length; i++) {
+
+            var el = sections[i];
+
+            if (!el || !el.dataset) continue;
+
+            el.style.display =
+                el.dataset.section === ui.currentSection
+                    ? "block"
+                    : "none";
+        }
+    },
+
+    // ⏳ Loader
+    updateLoading: function(ui) {
+
+        if (!ui) return;
+
+        UI.setLoading(!!ui.loading);
+    }
+};
+
+
+// ==========================================
+// HOOKS INTEGRATION
+// ==========================================
+
+// عند تحديث المستخدم
+Hooks.onUserUpdate.push(function(user) {
+    UIBindings.updateUserUI(user);
+});
+
+// عند تحديث UI
+Hooks.onUIUpdate.push(function(ui) {
+
+    UIBindings.updateRouteUI(ui);
+    UIBindings.updateLoading(ui);
+});
+
+
+// ==========================================
+// MANUAL REFRESH
+// ==========================================
+
+function refreshUI() {
+
+    UIBindings.updateUserUI(state.user);
+    UIBindings.updateRouteUI(state.ui);
+    UIBindings.updateLoading(state.ui);
+
+    log("UI Refreshed");
 }
 
-document.addEventListener("DOMContentLoaded", startApplication);
 
+// ==========================================
+// GLOBAL BINDING
+// ==========================================
+
+window.showAlert = function(msg, type) {
+    UI.showAlert(msg, type);
+};
+
+window.showToast = function(msg) {
+    UI.showToast(msg);
+};
+
+window.refreshUI = refreshUI;
+
+
+// ==========================================
+// PART 4 / 8
+// APP ENGINE
+// ==========================================
+
+
+// ==========================================
+// APP ENGINE
+// ==========================================
+
+const AppEngine = {
+
+    init: async function() {
+
+        try {
+
+            log("Initializing App...");
+
+            setUI("loading", true);
+
+            // =========================
+            // Language
+            // =========================
+            var lang = resolveAppLanguage();
+            state.language = lang;
+
+            // =========================
+            // Telegram User
+            // =========================
+            var tg = (window.Telegram && window.Telegram.WebApp)
+                ? window.Telegram.WebApp
+                : null;
+
+            var userId = CONFIG.BOT_CONFIG.ADMIN_ID;
+            var userName = "Guest";
+
+            if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
+                userId = tg.initDataUnsafe.user.id || userId;
+                userName = tg.initDataUnsafe.user.first_name || userName;
+            }
+
+            // =========================
+            // Get/Create User
+            // =========================
+            var user = await getUser(userId);
+
+            if (!user) {
+                user = await createUser(userId, {
+                    name: userName
+                });
+            } else {
+                updateUser(user);
+            }
+
+            // =========================
+            // Telegram Ready
+            // =========================
+            if (tg) {
+                try {
+                    if (tg.ready) tg.ready();
+                    if (tg.expand) tg.expand();
+                } catch (e) {
+                    warn("Telegram init failed");
+                }
+            }
+
+            setUI("loading", false);
+
+            // 🔥 Hooks
+            runHooks(Hooks.onSystemInit, state);
+
+            log("App Ready");
+
+            return true;
+
+        } catch (err) {
+
+            errorLog("App Init Error:", err);
+
+            setUI("loading", false);
+
+            return false;
+        }
+    }
+};
+
+
+// ==========================================
+// GLOBAL EXPORT
+// ==========================================
+
+window.UIBindings = UIBindings;
+window.AppEngine = AppEngine;
+
+// ==========================================
+// ROUTER SYSTEM
+// ==========================================
+
+const AppRouter = {
+
+    routes: {
+        home: "home",
+        profile: "profile",
+        campaigns: "campaigns",
+        wallet: "wallet",
+        admin: "admin"
+    },
+
+    navigateTo: function(routeName) {
+
+        if (!this.routes[routeName]) {
+            warn("Route not found:", routeName);
+            return false;
+        }
+
+        setUI("currentSection", routeName);
+
+        log("Navigate:", routeName);
+
+        return true;
+    },
+
+    bindEvents: function() {
+
+        var self = this;
+
+        DOM.on("click", "[data-route]", function(el) {
+
+            var route = el.dataset ? el.dataset.route : null;
+
+            self.navigateTo(route);
+        });
+    }
+};
+
+
+// ==========================================
+// EVENT SYSTEM
+// ==========================================
+
+const AppEvents = {
+
+    handle: async function(action, payload) {
+
+        payload = payload || {};
+
+        try {
+
+            switch (action) {
+
+                // =========================
+                // NAVIGATION
+                // =========================
+                case "NAVIGATE":
+                    AppRouter.navigateTo(payload.route);
+                    break;
+
+
+                // =========================
+                // CREATE CAMPAIGN
+                // =========================
+                case "CREATE_CAMPAIGN": {
+
+                    var result = await createCampaign(
+                        state.user.id,
+                        payload.data
+                    );
+
+                    if (result && result.success) {
+                        showAlert("Campaign Created", "success");
+                    } else {
+                        showAlert("Failed", "error");
+                    }
+
+                    break;
+                }
+
+
+                // =========================
+                // PAUSE
+                // =========================
+                case "PAUSE_CAMPAIGN":
+
+                    await pauseCampaign(payload.id);
+                    showAlert("Campaign Paused", "info");
+
+                    break;
+
+
+                // =========================
+                // ACTIVATE
+                // =========================
+                case "ACTIVATE_CAMPAIGN":
+
+                    await activateCampaign(payload.id);
+                    showAlert("Campaign Activated", "success");
+
+                    break;
+
+
+                // =========================
+                // ADD BALANCE
+                // =========================
+                case "ADD_BALANCE":
+
+                    await updateBalance(
+                        state.user.id,
+                        payload.amount || 0
+                    );
+
+                    showAlert("Balance Updated", "success");
+
+                    break;
+
+
+                // =========================
+                // REFRESH UI
+                // =========================
+                case "REFRESH_UI":
+                    refreshUI();
+                    break;
+
+
+                default:
+                    warn("Unknown action:", action);
+            }
+
+        } catch (err) {
+
+            errorLog("Action Error:", err);
+            showAlert("System Error", "error");
+        }
+    },
+
+    bind: function() {
+
+        var self = this;
+
+        DOM.on("click", "[data-action]", function(el) {
+
+            var action = el.dataset ? el.dataset.action : null;
+
+            var payload = {};
+
+            try {
+                payload = JSON.parse(el.dataset && el.dataset.payload ? el.dataset.payload : "{}");
+            } catch (e) {
+                payload = {};
+            }
+
+            self.handle(action, payload);
+        });
+    }
+};
+
+
+// ==========================================
+// SYSTEM HOOKS
+// ==========================================
+
+Hooks.onSystemInit.push(function() {
+    log("System Initialized Hook Fired");
+});
+
+
+// ==========================================
+// GLOBAL BINDING
+// ==========================================
+
+window.AppRouter = AppRouter;
+window.AppEvents = AppEvents;
+
+// ==========================================
+// PART 5 / 8
+// ANTI-FRAUD + DECISION ENGINE
+// ==========================================
+
+
+// ==========================================
+// ANTI-FRAUD ENGINE
+// ==========================================
+
+const AntiFraud = {
+
+    calculateRiskScore: function(user) {
+
+        user = user || {};
+
+        var score = 0;
+
+        var ctr = calculateCTR(
+            user.clicks || 0,
+            user.views || 0
+        );
+
+        if (ctr > 70) score += 40;
+        if (ctr > 90) score += 60;
+
+        if ((user.lastActions || []).length > 20) {
+            score += 20;
+        }
+
+        if ((user.ipChanges || 0) > 3) {
+            score += 25;
+        }
+
+        if ((user.referrals || 0) > 50) {
+            score += 30;
+        }
+
+        if (user.createdAt && user.withdrawals > 0) {
+
+            var age = Date.now() - user.createdAt;
+
+            if (age < 24 * 60 * 60 * 1000) {
+                score += 50;
+            }
+        }
+
+        return clamp(score, 0, 100);
+    },
+
+
+    classify: function(score) {
+
+        score = score || 0;
+
+        if (score >= CONFIG.AI.HIGH_RISK_THRESHOLD) {
+            return "HIGH_RISK";
+        }
+
+        if (score >= 50) {
+            return "MEDIUM_RISK";
+        }
+
+        return "SAFE";
+    },
+
+
+    shouldBlock: function(score) {
+        score = score || 0;
+        return score >= 85;
+    },
+
+
+    analyze: function(user) {
+
+        user = user || {};
+
+        var score = this.calculateRiskScore(user);
+        var level = this.classify(score);
+
+        return {
+            score: score,
+            level: level,
+            blocked: this.shouldBlock(score),
+            safeToServeAds: score < 60
+        };
+    }
+};
+
+
+// ==========================================
+// DECISION ENGINE
+// ==========================================
+
+const DecisionEngine = {
+
+    scoreUser: function(user) {
+
+        user = user || {};
+
+        var score = 0;
+
+        var ctr = calculateCTR(
+            user.clicks || 0,
+            user.views || 0
+        );
+
+        if (ctr >= 10) score += 30;
+        if (ctr >= 30) score += 50;
+
+        if (typeof user.riskScore !== "undefined") {
+            score -= user.riskScore * 0.5;
+        }
+
+        if ((user.views || 0) > 100) score += 20;
+        if ((user.clicks || 0) > 50) score += 20;
+
+        if ((user.earnings || 0) > 50) score += 15;
+
+        return clamp(score, 0, 100);
+    },
+
+
+    shouldServeAd: function(user) {
+
+        var score = this.scoreUser(user);
+
+        return score >= CONFIG.AI.MIN_AD_SCORE;
+    },
+
+
+    selectBestCampaign: function(campaigns) {
+
+        campaigns = campaigns || [];
+
+        if (!campaigns.length) return null;
+
+        return campaigns
+            .map(function(c) {
+
+                var stats = c.stats || {};
+
+                var ctr = calculateCTR(
+                    stats.clicks || 0,
+                    stats.views || 0
+                );
+
+                return {
+                    id: c.id,
+                    userId: c.userId,
+                    title: c.title,
+                    budget: c.budget,
+                    bid: c.bid,
+                    status: c.status,
+                    stats: stats,
+                    performanceScore: ctr + ((c.budget || 0) / 10)
+                };
+            })
+            .sort(function(a, b) {
+                return b.performanceScore - a.performanceScore;
+            })[0];
+    },
+
+
+    allocate: function(user, campaigns) {
+
+        campaigns = campaigns || [];
+
+        var best = this.selectBestCampaign(campaigns);
+
+        if (!best) return null;
+
+        var userScore = this.scoreUser(user);
+
+        if (userScore < CONFIG.AI.LOW_USER_THRESHOLD) {
+            return {
+                campaign: best,
+                type: "low_value"
+            };
+        }
+
+        return {
+            campaign: best,
+            type: "normal"
+        };
+    },
+
+
+    systemDecision: function(data) {
+
+        data = data || {};
+
+        var user = data.user || {};
+        var campaigns = data.campaigns || [];
+
+        return {
+            allowAd: this.shouldServeAd(user),
+            allocation: this.allocate(user, campaigns),
+            risk: user.riskScore || 0
+        };
+    }
+};
+
+
+// ==========================================
+// HOOK INTEGRATION
+// ==========================================
+
+Hooks.onUserUpdate.push(function(user) {
+
+    if (!user) return;
+
+    var analysis = AntiFraud.analyze(user);
+
+    user.riskScore = analysis.score;
+    user.riskLevel = analysis.level;
+
+    user.adScore = DecisionEngine.scoreUser(user);
+
+    log("AI Updated:", {
+        risk: user.riskScore,
+        level: user.riskLevel,
+        adScore: user.adScore
+    });
+});
+
+
+// ==========================================
+// GLOBAL BINDING
+// ==========================================
+
+window.AntiFraud = AntiFraud;
+window.DecisionEngine = DecisionEngine;
+
+// ==========================================
+// PART 6 / 8
+// AI OPTIMIZER + SELF LEARNING
+// ==========================================
+
+
+// ==========================================
+// AI OPTIMIZER
+// ==========================================
+
+const AIOptimizer = {
+
+    analyzeCampaign: function(campaign) {
+
+        campaign = campaign || {};
+
+        var stats = campaign.stats || {};
+
+        var views = stats.views || 0;
+        var clicks = stats.clicks || 0;
+
+        var ctr = calculateCTR(clicks, views);
+
+        var score = ctr;
+
+        if ((campaign.budget || 0) > 100) score += 10;
+        if ((campaign.budget || 0) < 10) score -= 10;
+
+        if (ctr < 1) score -= 20;
+        if (ctr > 20) score += 30;
+
+        return {
+            ctr: ctr,
+            score: clamp(score, 0, 100)
+        };
+    },
+
+
+    adjustRate: function(baseRate, performanceScore) {
+
+        baseRate = baseRate || 0.01;
+        performanceScore = performanceScore || 0;
+
+        var multiplier = 1;
+
+        if (performanceScore > 70) {
+            multiplier = 1.5;
+        } else if (performanceScore > 40) {
+            multiplier = 1.1;
+        } else {
+            multiplier = 0.7;
+        }
+
+        return parseFloat((baseRate * multiplier).toFixed(4));
+    },
+
+
+    optimizeCampaigns: async function() {
+
+        try {
+
+            var campaigns = await Database.get("campaigns") || {};
+            var updates = [];
+
+            var keys = Object.keys(campaigns);
+
+            for (var i = 0; i < keys.length; i++) {
+
+                var id = keys[i];
+                var campaign = campaigns[id];
+
+                var analysis = this.analyzeCampaign(campaign);
+
+                var newBid = this.adjustRate(
+                    campaign.bid || 0.01,
+                    analysis.score
+                );
+
+                updates.push(
+                    Database.update("campaigns/" + id, {
+                        bid: newBid,
+                        performanceScore: analysis.score,
+                        lastOptimized: Date.now()
+                    })
+                );
+            }
+
+            await Promise.all(updates);
+
+            log("Campaigns Optimized");
+
+            return true;
+
+        } catch (err) {
+            errorLog("Campaign Optimization Error:", err);
+            return false;
+        }
+    },
+
+
+    optimizeUsers: async function() {
+
+        try {
+
+            var users = await Database.get("users") || {};
+            var updates = [];
+
+            var keys = Object.keys(users);
+
+            for (var i = 0; i < keys.length; i++) {
+
+                var id = keys[i];
+                var user = users[id];
+
+                var ctr = calculateCTR(
+                    user.clicks || 0,
+                    user.views || 0
+                );
+
+                var rewardMultiplier = 1;
+
+                if (ctr > 10) rewardMultiplier = 1.2;
+                if (ctr < 1) rewardMultiplier = 0.8;
+                if ((user.riskScore || 0) > 70) rewardMultiplier = 0.5;
+
+                updates.push(
+                    Database.update("users/" + id, {
+                        rewardMultiplier: rewardMultiplier,
+                        lastOptimized: Date.now()
+                    })
+                );
+            }
+
+            await Promise.all(updates);
+
+            log("Users Optimized");
+
+            return true;
+
+        } catch (err) {
+            errorLog("User Optimization Error:", err);
+            return false;
+        }
+    },
+
+
+    runFullOptimization: async function() {
+
+        var campaigns = await this.optimizeCampaigns();
+        var users = await this.optimizeUsers();
+
+        return {
+            campaignsOptimized: campaigns,
+            usersOptimized: users,
+            timestamp: Date.now()
+        };
+    }
+};
+
+
+// ==========================================
+// SELF LEARNING SYSTEM
+// ==========================================
+
+const AILearning = {
+
+    memory: {
+        users: {},
+        campaigns: {}
+    },
+
+
+    trackUser: function(user) {
+
+        user = user || {};
+
+        if (!user.id) return;
+
+        this.memory.users[user.id] = {
+            ctr: calculateCTR(user.clicks || 0, user.views || 0),
+            risk: user.riskScore || 0,
+            adScore: user.adScore || 0,
+            lastSeen: Date.now()
+        };
+    },
+
+
+    trackCampaign: function(campaign) {
+
+        campaign = campaign || {};
+
+        if (!campaign.id) return;
+
+        var stats = campaign.stats || {};
+
+        this.memory.campaigns[campaign.id] = {
+            ctr: calculateCTR(
+                stats.clicks || 0,
+                stats.views || 0
+            ),
+            lastSeen: Date.now()
+        };
+    },
+
+
+    getInsights: function() {
+
+        return {
+            users: Object.keys(this.memory.users).length,
+            campaigns: Object.keys(this.memory.campaigns).length
+        };
+    },
+
+
+    cleanOldData: function(maxAge) {
+
+        maxAge = maxAge || (24 * 60 * 60 * 1000);
+
+        var now = Date.now();
+
+        var userKeys = Object.keys(this.memory.users);
+
+        for (var i = 0; i < userKeys.length; i++) {
+
+            var id = userKeys[i];
+
+            if (now - this.memory.users[id].lastSeen > maxAge) {
+                delete this.memory.users[id];
+            }
+        }
+
+        var campaignKeys = Object.keys(this.memory.campaigns);
+
+        for (var j = 0; j < campaignKeys.length; j++) {
+
+            var cid = campaignKeys[j];
+
+            if (now - this.memory.campaigns[cid].lastSeen > maxAge) {
+                delete this.memory.campaigns[cid];
+            }
+        }
+
+        log("Learning memory cleaned");
+    }
+};
+
+
+// ==========================================
+// HOOK INTEGRATION
+// ==========================================
+
+Hooks.onUserUpdate.push(function(user) {
+    AILearning.trackUser(user);
+});
+
+Hooks.onSystemInit.push(function() {
+    AILearning.cleanOldData();
+});
+
+
+// ==========================================
+// GLOBAL BINDING
+// ==========================================
+
+window.AIOptimizer = AIOptimizer;
+window.AILearning = AILearning;
+
+// ==========================================
+// PART 7 / 8
+// AI SCHEDULER + BACKGROUND ENGINE
+// ==========================================
+
+
+// ==========================================
+// SCHEDULER CONFIG
+// ==========================================
+
+const SCHEDULER_CONFIG = {
+    optimizationInterval: 5 * 60 * 1000,
+    heartbeatInterval: 60 * 1000,
+    healthCheckInterval: 2 * 60 * 1000
+};
+
+
+// ==========================================
+// SCHEDULER STATE
+// ==========================================
+
+const SchedulerState = {
+
+    running: false,
+
+    timers: {
+        optimization: null,
+        heartbeat: null,
+        health: null
+    },
+
+    stats: {
+        lastOptimization: null,
+        lastHeartbeat: null,
+        lastHealthCheck: null,
+        totalOptimizations: 0
+    }
+};
+
+
+// ==========================================
+// AI SCHEDULER
+// ==========================================
+
+const AIScheduler = {
+
+    start: function() {
+
+        if (SchedulerState.running) {
+            warn("Scheduler already running");
+            return;
+        }
+
+        SchedulerState.running = true;
+
+        log("AI Scheduler Started");
+
+        this.startOptimizationLoop();
+        this.startHeartbeat();
+        this.startHealthCheck();
+    },
+
+
+    startOptimizationLoop: function() {
+
+        SchedulerState.timers.optimization = setInterval(async function() {
+
+            try {
+
+                log("Running Optimization...");
+
+                var result = await AIOptimizer.runFullOptimization();
+
+                SchedulerState.stats.lastOptimization = Date.now();
+                SchedulerState.stats.totalOptimizations++;
+
+                log("Optimization Done", result);
+
+            } catch (err) {
+                errorLog("Optimization Error:", err);
+            }
+
+        }, SCHEDULER_CONFIG.optimizationInterval);
+    },
+
+
+    startHeartbeat: function() {
+
+        SchedulerState.timers.heartbeat = setInterval(function() {
+
+            SchedulerState.stats.lastHeartbeat = Date.now();
+
+            log("System Alive");
+
+        }, SCHEDULER_CONFIG.heartbeatInterval);
+    },
+
+
+    startHealthCheck: function() {
+
+        SchedulerState.timers.health = setInterval(function() {
+
+            try {
+
+                var now = Date.now();
+                var lastOpt = SchedulerState.stats.lastOptimization;
+
+                if (lastOpt && (now - lastOpt > 10 * 60 * 1000)) {
+                    warn("Optimization delayed!");
+                }
+
+                SchedulerState.stats.lastHealthCheck = now;
+
+                log("System Health OK");
+
+            } catch (err) {
+                errorLog("Health Check Error:", err);
+            }
+
+        }, SCHEDULER_CONFIG.healthCheckInterval);
+    },
+
+
+    stop: function() {
+
+        var timers = SchedulerState.timers;
+
+        for (var key in timers) {
+            if (timers[key]) {
+                clearInterval(timers[key]);
+            }
+        }
+
+        SchedulerState.running = false;
+
+        log("Scheduler Stopped");
+    },
+
+
+    getStatus: function() {
+
+        return {
+            running: SchedulerState.running,
+            lastOptimization: SchedulerState.stats.lastOptimization,
+            lastHeartbeat: SchedulerState.stats.lastHeartbeat,
+            lastHealthCheck: SchedulerState.stats.lastHealthCheck,
+            totalOptimizations: SchedulerState.stats.totalOptimizations
+        };
+    }
+};
+
+
+// ==========================================
+// BACKGROUND ENGINE
+// ==========================================
+
+const BackgroundEngine = {
+
+    tasks: {},
+
+    addTask: function(name, fn, interval) {
+
+        if (this.tasks[name]) {
+            warn("Task already exists:", name);
+            return;
+        }
+
+        var timer = setInterval(async function() {
+
+            try {
+
+                await fn();
+
+                log("Task executed:", name);
+
+            } catch (err) {
+
+                errorLog("Task error (" + name + "):", err);
+            }
+
+        }, interval);
+
+        this.tasks[name] = timer;
+
+        log("Task added:", name);
+    },
+
+
+    removeTask: function(name) {
+
+        if (!this.tasks[name]) return;
+
+        clearInterval(this.tasks[name]);
+        delete this.tasks[name];
+
+        log("Task removed:", name);
+    },
+
+
+    clearAll: function() {
+
+        var keys = Object.keys(this.tasks);
+
+        for (var i = 0; i < keys.length; i++) {
+            this.removeTask(keys[i]);
+        }
+
+        log("All tasks cleared");
+    }
+};
+
+
+// ==========================================
+// HOOK INTEGRATION
+// ==========================================
+
+Hooks.onSystemInit.push(function() {
+    AIScheduler.start();
+});
+
+
+// ==========================================
+// GLOBAL BINDING
+// ==========================================
+
+window.AIScheduler = AIScheduler;
+window.BackgroundEngine = BackgroundEngine;
+
+window.startAIScheduler = function() {
+    return AIScheduler.start();
+};
+
+window.stopAIScheduler = function() {
+    return AIScheduler.stop();
+};
+
+window.getSchedulerStatus = function() {
+    return AIScheduler.getStatus();
+};
+
+// ==========================================
+// PART 8 / 8
+// FINAL ENTRY + BOOTSTRAP
+// ==========================================
+
+
+// ==========================================
+// MAIN SYSTEM CONTROLLER
+// ==========================================
+
+const AppSystem = {
+
+    initialized: false,
+
+    start: async function() {
+
+        if (this.initialized) {
+            warn("System already started");
+            return;
+        }
+
+        try {
+
+            log("SYSTEM BOOTING...");
+
+            var appReady = await AppEngine.init();
+
+            if (!appReady) {
+                throw new Error("App initialization failed");
+            }
+
+            AppRouter.bindEvents();
+            AppEvents.bind();
+
+            refreshUI();
+
+            AppRouter.navigateTo("home");
+
+            this.startBackgroundTasks();
+
+            log("Scheduler:", getSchedulerStatus());
+
+            this.initialized = true;
+
+            log("SYSTEM READY");
+
+        } catch (err) {
+
+            errorLog("SYSTEM FAILURE:", err);
+
+            if (window.UI) {
+                UI.showAlert("System failed to start", "error");
+            }
+        }
+    },
+
+
+    startBackgroundTasks: function() {
+
+        // UI refresh
+        BackgroundEngine.addTask(
+            "ui_refresh",
+            async function() {
+                refreshUI();
+            },
+            10000
+        );
+
+        // User tracking
+        BackgroundEngine.addTask(
+            "user_tracking",
+            async function() {
+                if (state.user && state.user.id) {
+                    AILearning.trackUser(state.user);
+                }
+            },
+            15000
+        );
+
+        log("Background Tasks Started");
+    }
+};
+
+
+// ==========================================
+// GLOBAL ERROR HANDLING
+// ==========================================
+
+window.addEventListener("error", function(e) {
+
+    errorLog("Global Error:", e.message);
+
+    if (window.UI) {
+        UI.showToast("Unexpected error occurred");
+    }
+});
+
+window.addEventListener("unhandledrejection", function(e) {
+
+    errorLog("Promise Error:", e.reason);
+
+    if (window.UI) {
+        UI.showToast("Async error occurred");
+    }
+});
+
+
+// ==========================================
+// TELEGRAM SAFE INIT
+// ==========================================
+
+function initTelegramSafety() {
+
+    var tg = window.Telegram && window.Telegram.WebApp;
+
+    if (!tg) return;
+
+    try {
+
+        tg.ready();
+        tg.expand();
+
+        log("Telegram Ready");
+
+    } catch (err) {
+
+        warn("Telegram init failed");
+    }
+}
+
+
+// ==========================================
+// AUTO START
+// ==========================================
+
+document.addEventListener("DOMContentLoaded", function() {
+
+    initTelegramSafety();
+
+    AppSystem.start();
+});
+
+
+// ==========================================
+// DEBUG TOOLS
+// ==========================================
+
+window.AppDebug = {
+
+    restart: function() {
+        location.reload();
+    },
+
+    state: function() {
+        return state;
+    },
+
+    scheduler: function() {
+        return getSchedulerStatus();
+    },
+
+    stopAI: function() {
+        stopAIScheduler();
+    },
+
+    startAI: function() {
+        startAIScheduler();
+    }
+};
+
+
+// ==========================================
+// OPTIONAL HOOK
+// ==========================================
+
+Hooks.onSystemInit.push(function() {
+    log("System Init Hook Triggered");
+});
+        
           </script>
 </body>
 </html>
