@@ -1,947 +1,1460 @@
+<!-- ========================================== -->
+<!-- APP ROOT / DOCUMENT START -->
+<!-- PART 1 -->
+<!-- OPTIMIZED HTML STRUCTURE -->
+<!-- ========================================== -->
+
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+
+<html lang="en" dir="ltr">
+
 <head>
 
+    <!-- META -->
     <meta charset="UTF-8">
-    <meta name="viewport"
-          content="width=device-width,
-                   initial-scale=1.0,
-                   maximum-scale=1.0,
-                   user-scalable=no">
 
-    <title>Telega-IO Extreme v3</title>
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0">
 
-    <!-- Telegram -->
+    <meta
+        http-equiv="X-UA-Compatible"
+        content="IE=edge">
+
+    <meta
+        name="description"
+        content="AdSmart AI Advertising Platform">
+
+    <title>AdSmart System</title>
+
+    <!-- TELEGRAM WEB APP -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
-    <!-- Firebase -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <!-- GOOGLE FONTS -->
+    <link
+        rel="preconnect"
+        href="https://fonts.googleapis.com">
 
-    <!-- Lottie -->
-    <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
+    <link
+        rel="preconnect"
+        href="https://fonts.gstatic.com"
+        crossorigin>
 
-    <!-- FontAwesome -->
-    <link rel="stylesheet"
-          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
 
-    <!-- CSS -->
-    <link rel="stylesheet" href="style.css">
+    <!-- FONT AWESOME -->
+    <link
+        rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- MAIN CSS -->
+    <link
+        rel="stylesheet"
+        href="style.css">
 
 </head>
 
 <body>
 
-<!-- HEADER -->
-<header class="app-header">
-    <img id="app-logo" src="" alt="Logo">
-</header>
-
-
- <!-- ========================================== -->
-<!-- 🏠 الصفحة الرئيسية -->
-<!-- ========================================== -->
-
-<section id="home" class="section active" data-section="home">
-
-  <!-- 👋 الترحيب -->
-  <div class="card">
-    <h2 data-i18n="home_welcome">👋 أهلاً بك</h2>
-
-    <p>
-      <span data-i18n="label_name">👤 الاسم:</span>
-      <strong id="home-username">-</strong>
-    </p>
-
-    <p>
-      <span data-i18n="label_role">🎯 الدور:</span>
-      <strong id="home-role">user</strong>
-    </p>
-
-    <p>
-      <span data-i18n="label_balance">💰 الرصيد:</span>
-      <strong id="home-balance">0.00$</strong>
-    </p>
-  </div>
-
-  <!-- ⚡ إجراءات -->
-  <div class="card">
-    <h3 data-i18n="quick_actions">⚡ إجراءات سريعة</h3>
-
-    <button id="home-create-campaign" data-i18n="btn_create_campaign">
-      🚀 إنشاء حملة
-    </button>
-
-    <button id="home-add-channel" data-i18n="btn_add_channel">
-      📺 إضافة قناة
-    </button>
-
-    <button id="home-withdraw" data-i18n="btn_withdraw">
-      💸 سحب الأرباح
-    </button>
-  </div>
-
-  <!-- 📊 إحصائيات -->
-  <div class="card">
-    <h3 data-i18n="statistics">📊 الإحصائيات</h3>
-
-    <p>
-      <span data-i18n="stat_views">👁️ إجمالي المشاهدات:</span>
-      <span id="home-total-views">0</span>
-    </p>
-
-    <p>
-      <span data-i18n="stat_clicks">🖱️ إجمالي النقرات:</span>
-      <span id="home-total-clicks">0</span>
-    </p>
-
-    <p>
-      <span data-i18n="stat_users">👥 عدد المستخدمين:</span>
-      <span id="home-total-users">0</span>
-    </p>
-
-    <p>
-      <span data-i18n="stat_ctr">📈 CTR:</span>
-      <span id="home-ctr">0%</span>
-    </p>
-  </div>
-
-  <!-- 📢 حملات -->
-  <div class="card">
-    <h3 data-i18n="latest_campaigns">📢 أحدث الحملات</h3>
-
-    <div id="home-campaigns">
-      <p data-i18n="no_campaigns_now">لا توجد حملات حالياً</p>
-    </div>
-  </div>
-
-  <!-- 🔔 إشعارات -->
-  <div class="card">
-    <h3 data-i18n="notifications">🔔 الإشعارات</h3>
-
-    <div id="home-notifications">
-      <p data-i18n="no_notifications">لا توجد إشعارات</p>
-    </div>
-  </div>
-
-  <!-- 📺 إعلان -->
-  <div class="card">
-    <h3 data-i18n="advertisement">📺 إعلان</h3>
-
-    <div id="ad">
-      <p data-i18n="loading_ad">جاري تحميل الإعلان...</p>
-    </div>
-  </div>
-
-</section>
-
     <!-- ========================================== -->
-<!-- 📢 Advertiser Module -->
+    <!-- APPLICATION -->
+    <!-- ========================================== -->
+
+    <div id="app">
+
+        <!-- ========================================== -->
+        <!-- MAIN HEADER -->
+        <!-- ========================================== -->
+
+        <header class="app-header">
+
+            <!-- LEFT SIDE -->
+            <div class="app-header-left">
+
+                <!-- LOGO -->
+                <div class="app-logo">
+
+                    <i class="fa-solid fa-bolt"></i>
+
+                </div>
+
+                <!-- TITLE -->
+                <div class="app-title">
+
+                    <h1>
+                        AdSmart System
+                    </h1>
+
+                    <p>
+                        AI Advertising Platform
+                    </p>
+
+                </div>
+
+            </div>
+
+            <!-- USER BOX -->
+            <div class="user-box">
+
+                <!-- AVATAR -->
+                <div class="user-avatar">
+
+                    <span id="user-avatar-letter">
+                        G
+                    </span>
+
+                </div>
+
+                <!-- USER INFO -->
+                <div class="user-info">
+
+                    <strong id="user-name">
+                        Guest
+                    </strong>
+
+                    <span class="user-balance">
+
+                        $
+                        <span id="user-balance">
+                            0
+                        </span>
+
+                    </span>
+
+                </div>
+
+            </div>
+
+        </header>
+
+        <!-- ========================================== -->
+        <!-- MAIN CONTENT -->
+        <!-- ========================================== -->
+
+        <main id="main-content">
+
+            <!-- ========================================== -->
+            <!-- HOME PAGE -->
+            <!-- ========================================== -->
+
+            <section
+                class="page active"
+                id="home-page"
+                data-section="home">
+
+                <div class="container">
+
+                    <!-- HERO CARD -->
+                    <article class="card">
+
+                        <h2
+                            class="section-title"
+                            data-i18n="welcome">
+
+                            Welcome
+
+                        </h2>
+
+                        <p class="section-subtitle">
+
+                            Smart AI advertising platform
+                            powered by automation and analytics.
+
+                        </p>
+
+                        <button
+                            class="btn btn-primary"
+                            type="button"
+                            data-route="advertiser">
+
+                            <i class="fa-solid fa-bullhorn"></i>
+
+                            <span>
+                                Create Campaign
+                            </span>
+
+                        </button>
+
+                    </article>
+
+                    <!-- ========================================== -->
+                    <!-- STATS -->
+                    <!-- ========================================== -->
+
+                    <section class="grid grid-2">
+
+                        <!-- BALANCE -->
+                        <article class="card stat-card">
+
+                            <h3 data-i18n="balance">
+                                Balance
+                            </h3>
+
+                            <h2>
+
+                                $
+                                <span id="home-balance">
+                                    0
+                                </span>
+
+                            </h2>
+
+                        </article>
+
+                        <!-- EARNINGS -->
+                        <article class="card stat-card">
+
+                            <h3 data-i18n="earnings">
+                                Earnings
+                            </h3>
+
+                            <h2>
+
+                                $
+                                <span id="home-earnings">
+                                    0
+                                </span>
+
+                            </h2>
+
+                        </article>
+
+                        <!-- VIEWS -->
+                        <article class="card stat-card">
+
+                            <h3 data-i18n="views">
+                                Views
+                            </h3>
+
+                            <h2 id="home-views">
+                                0
+                            </h2>
+
+                        </article>
+
+                        <!-- CLICKS -->
+                        <article class="card stat-card">
+
+                            <h3 data-i18n="clicks">
+                                Clicks
+                            </h3>
+
+                            <h2 id="home-clicks">
+                                0
+                            </h2>
+
+                        </article>
+
+                    </section>
+
+                    <!-- ========================================== -->
+                    <!-- QUICK ACTIONS -->
+                    <!-- ========================================== -->
+
+                    <article class="card">
+
+                        <h2 class="section-title">
+
+                            Quick Actions
+
+                        </h2>
+
+                        <div class="grid grid-2">
+
+                            <!-- ADVERTISER -->
+                            <button
+                                class="btn btn-secondary"
+                                type="button"
+                                data-route="advertiser">
+
+                                <i class="fa-solid fa-rectangle-ad"></i>
+
+                                <span>
+                                    Advertiser
+                                </span>
+
+                            </button>
+
+                            <!-- PUBLISHER -->
+                            <button
+                                class="btn btn-secondary"
+                                type="button"
+                                data-route="publisher">
+
+                                <i class="fa-solid fa-globe"></i>
+
+                                <span>
+                                    Publisher
+                                </span>
+
+                            </button>
+
+                            <!-- REFERRALS -->
+                            <button
+                                class="btn btn-secondary"
+                                type="button"
+                                data-route="referrals">
+
+                                <i class="fa-solid fa-users"></i>
+
+                                <span>
+                                    Referrals
+                                </span>
+
+                            </button>
+
+                            <!-- PROFILE -->
+                            <button
+                                class="btn btn-secondary"
+                                type="button"
+                                data-route="profile">
+
+                                <i class="fa-solid fa-user"></i>
+
+                                <span>
+                                    Profile
+                                </span>
+
+                            </button>
+
+                        </div>
+
+                    </article>
+
+                </div>
+
+            </section>
+            
+            <!-- ========================================== -->
+<!-- ADVERTISER PAGE -->
+<!-- PART 2 -->
+<!-- OPTIMIZED HTML STRUCTURE -->
 <!-- ========================================== -->
 
-<section id="promo" class="section" data-section="promo">
-  <!-- 🔔 الإشعارات -->
-  <div class="card">
-    <h3 data-i18n="notifications">🔔 الإشعارات</h3>
-    <div id="promo-notifications"></div>
-  </div>
+<section
+    class="page"
+    id="advertiser-page"
+    data-section="advertiser">
 
-  <!-- 💰 الإيداع -->
-  <div class="card">
-    <h3 data-i18n="deposit_title">💰 شحن الرصيد (USDT)</h3>
+    <div class="container">
 
-    <p data-i18n="deposit_send_to">📥 أرسل إلى هذا العنوان:</p>
+        <!-- PAGE HEADER -->
+        <article class="card">
 
-    <input id="deposit-address" type="text" readonly
-           value="TSiS4tDnUwa5YptcYatRZ8ykPeMwmALLSV">
+            <h2
+                class="section-title"
+                data-i18n="advertiser">
 
-    <input id="deposit-amount" type="number"
-           data-i18n-placeholder="ph_amount"
-           placeholder="المبلغ">
+                Advertiser
 
-    <input id="tx-hash" type="text"
-           data-i18n-placeholder="ph_tx_hash"
-           placeholder="TX Hash">
+            </h2>
 
-    <button id="submit-deposit" data-i18n="btn_confirm_deposit">
-      📤 تأكيد الشحن
-    </button>
-  </div>
+            <p class="section-subtitle">
 
-  <!-- 📢 التحكم بالحملات -->
-  <div class="card">
-    <h3 data-i18n="campaigns">📢 الحملات</h3>
+                Create and manage your
+                advertising campaigns.
 
-    <div class="campaign-actions">
-      <button id="show-create-campaign" data-i18n="btn_create_campaign">
-        🚀 إنشاء حملة
-      </button>
+            </p>
 
-      <button id="show-my-campaigns" data-i18n="btn_my_campaigns">
-        📊 حملاتي
-      </button>
+        </article>
+
+        <!-- ACTIONS -->
+        <article class="card">
+
+            <div class="grid grid-2">
+
+                <!-- CREATE CAMPAIGN -->
+                <button
+                    class="btn btn-primary"
+                    type="button"
+                    data-action="show-create-campaign">
+
+                    <i class="fa-solid fa-plus"></i>
+
+                    <span>
+                        Create Campaign
+                    </span>
+
+                </button>
+
+                <!-- MY CAMPAIGNS -->
+                <button
+                    class="btn btn-secondary"
+                    type="button"
+                    data-action="show-my-campaigns">
+
+                    <i class="fa-solid fa-layer-group"></i>
+
+                    <span>
+                        My Campaigns
+                    </span>
+
+                </button>
+
+            </div>
+
+        </article>
+
+        <!-- ========================================== -->
+        <!-- CREATE CAMPAIGN -->
+        <!-- ========================================== -->
+
+        <article
+            class="card"
+            id="create-campaign-box">
+
+            <h3 class="section-title">
+
+                New Campaign
+
+            </h3>
+
+            <!-- FORM -->
+            <form
+                id="campaign-form"
+                autocomplete="off">
+
+                <!-- TITLE -->
+                <div class="form-group">
+
+                    <label for="campaign-title">
+
+                        Campaign Title
+
+                    </label>
+
+                    <input
+                        type="text"
+                        class="input"
+                        id="campaign-title"
+                        name="campaignTitle"
+                        placeholder="Enter campaign title"
+                        required>
+
+                </div>
+
+                <!-- BUDGET -->
+                <div class="form-group">
+
+                    <label for="campaign-budget">
+
+                        Budget
+
+                    </label>
+
+                    <input
+                        type="number"
+                        class="input"
+                        id="campaign-budget"
+                        name="campaignBudget"
+                        placeholder="Enter budget"
+                        min="1"
+                        required>
+
+                </div>
+
+                <!-- BID -->
+                <div class="form-group">
+
+                    <label for="campaign-bid">
+
+                        Bid Amount
+
+                    </label>
+
+                    <input
+                        type="number"
+                        class="input"
+                        id="campaign-bid"
+                        name="campaignBid"
+                        step="0.01"
+                        min="0.01"
+                        placeholder="0.01"
+                        required>
+
+                </div>
+
+                <!-- SUBMIT -->
+                <button
+                    class="btn btn-primary"
+                    type="submit"
+                    id="create-campaign-btn">
+
+                    <i class="fa-solid fa-paper-plane"></i>
+
+                    <span>
+                        Launch Campaign
+                    </span>
+
+                </button>
+
+            </form>
+
+        </article>
+
+        <!-- ========================================== -->
+        <!-- MY CAMPAIGNS -->
+        <!-- ========================================== -->
+
+        <article
+            class="card hidden"
+            id="my-campaigns-box">
+
+            <h3 class="section-title">
+
+                My Campaigns
+
+            </h3>
+
+            <!-- CAMPAIGNS LIST -->
+            <div id="campaigns-list">
+
+                <!-- DYNAMIC CONTENT -->
+
+            </div>
+
+        </article>
+
     </div>
-  </div>
-
-  <!-- 🚀 إنشاء حملة -->
-  <div id="create-campaign-box" class="card" style="display:none;">
-
-    <h3 data-i18n="create_campaign_new">🚀 إنشاء حملة جديدة</h3>
-
-    <!-- نوع الحملة -->
-    <div class="campaign-type">
-      <button class="type-btn" data-type="views" data-i18n="campaign_type_views">
-        👁️ مشاهدات
-      </button>
-      <button class="type-btn" data-type="clicks" data-i18n="campaign_type_clicks">
-        🖱️ نقرات
-      </button>
-      <button class="type-btn" data-type="post" data-i18n="campaign_type_post">
-        📌 منشور ثابت
-      </button>
-    </div>
-
-    <!-- البيانات -->
-    <div class="campaign-details">
-      <input type="file" id="ad-file">
-
-      <input id="ad-title" type="text"
-             data-i18n-placeholder="ph_ad_title"
-             placeholder="عنوان الإعلان">
-
-      <textarea id="ad-desc"
-                data-i18n-placeholder="ph_ad_desc"
-                placeholder="وصف الإعلان"></textarea>
-
-      <input id="ad-link" type="url"
-             data-i18n-placeholder="ph_ad_link"
-             placeholder="رابط الإعلان">
-    </div>
-
-    <!-- الاستهداف -->
-    <div class="targeting">
-      <h4 data-i18n="targeting">🎯 الاستهداف</h4>
-
-      <select id="target-category">
-        <option value="sports" data-i18n="cat_sports">رياضة</option>
-        <option value="tech" data-i18n="cat_tech">تقنية</option>
-        <option value="news" data-i18n="cat_news">أخبار</option>
-        <option value="crypto" data-i18n="cat_crypto">عملات رقمية</option>
-        <option value="fun" data-i18n="cat_fun">ترفيه</option>
-      </select>
-    </div>
-
-    <!-- التوزيع -->
-    <div class="distribution">
-      <label>
-        <input type="radio" name="dist" value="auto" checked>
-        <span data-i18n="distribution_auto">تلقائي</span>
-      </label>
-
-      <label>
-        <input type="radio" name="dist" value="manual">
-        <span data-i18n="distribution_manual">يدوي</span>
-      </label>
-    </div>
-
-    <!-- القنوات -->
-    <div class="marketplace">
-      <h4 data-i18n="available_channels">📺 القنوات المتاحة</h4>
-      <div id="available-channels"></div>
-    </div>
-
-    <!-- الميزانية -->
-    <div class="budget-calculation">
-      <input id="campaign-budget" type="number"
-             data-i18n-placeholder="ph_budget"
-             placeholder="الميزانية بالدولار">
-
-      <p class="calc-result" data-i18n="budget_estimation">
-        التوقعات ستظهر هنا
-      </p>
-    </div>
-
-    <!-- المعاينة -->
-    <div class="preview">
-      <h4 data-i18n="preview">👁️ المعاينة</h4>
-      <div class="preview-area" data-i18n="preview_placeholder">
-        سيظهر الإعلان هنا
-      </div>
-    </div>
-
-    <button id="submit-campaign" data-i18n="btn_launch_campaign">
-      🚀 إطلاق الحملة
-    </button>
-
-  </div>
-
-  <!-- 📊 حملاتي -->
-  <div id="my-campaigns-box" class="card" style="display:none;">
-    <h3 data-i18n="my_campaigns">📊 حملاتي</h3>
-    <div id="promo-campaigns-list"></div>
-  </div>
-
-  <!-- 📈 الإحصائيات -->
-  <div class="card">
-    <h3 data-i18n="statistics">📈 الإحصائيات</h3>
-
-    <p>
-      <span data-i18n="stat_views">👁️ المشاهدات:</span>
-      <span id="promo-views">0</span>
-    </p>
-
-    <p>
-      <span data-i18n="stat_clicks">🖱️ النقرات:</span>
-      <span id="promo-clicks">0</span>
-    </p>
-
-    <p>
-      <span data-i18n="stat_ctr">📊 CTR:</span>
-      <span id="promo-ctr">0%</span>
-    </p>
-  </div>
 
 </section>
 
-
 <!-- ========================================== -->
-<!-- 📺 Publisher Module -->
+<!-- PUBLISHER PAGE -->
 <!-- ========================================== -->
 
-<section id="publisher" class="section" data-section="publisher">
+<section
+    class="page"
+    id="publisher-page"
+    data-section="publisher">
 
-  <!-- 💼 المحفظة -->
-  <div class="card">
-    <h3 data-i18n="wallet">💼 المحفظة</h3>
+    <div class="container">
 
-    <p>
-      <span data-i18n="label_balance">💰 الرصيد:</span>
-      <span id="pub-balance-val">0.000$</span>
-    </p>
+        <!-- PAGE HEADER -->
+        <article class="card">
 
-    <div class="earnings">
-      <p>
-        <span data-i18n="earn_today">📅 اليوم:</span>
-        <span id="earn-today">0$</span>
-      </p>
-      <p>
-        <span data-i18n="earn_week">📆 الأسبوع:</span>
-        <span id="earn-week">0$</span>
-      </p>
-      <p>
-        <span data-i18n="earn_month">🗓️ الشهر:</span>
-        <span id="earn-month">0$</span>
-      </p>
+            <h2
+                class="section-title"
+                data-i18n="publisher">
+
+                Publisher
+
+            </h2>
+
+            <p class="section-subtitle">
+
+                Manage your channels
+                and monetize your traffic.
+
+            </p>
+
+        </article>
+
+        <!-- ACTIONS -->
+        <article class="card">
+
+            <div class="grid grid-2">
+
+                <!-- ADD CHANNEL -->
+                <button
+                    class="btn btn-primary"
+                    type="button"
+                    data-action="show-add-channel">
+
+                    <i class="fa-solid fa-plus"></i>
+
+                    <span>
+                        Add Channel
+                    </span>
+
+                </button>
+
+                <!-- MY CHANNELS -->
+                <button
+                    class="btn btn-secondary"
+                    type="button"
+                    data-action="show-my-channels">
+
+                    <i class="fa-solid fa-globe"></i>
+
+                    <span>
+                        My Channels
+                    </span>
+
+                </button>
+
+            </div>
+
+        </article>
+
+        <!-- ========================================== -->
+        <!-- ADD CHANNEL -->
+        <!-- ========================================== -->
+
+        <article
+            class="card"
+            id="add-channel-box">
+
+            <h3 class="section-title">
+
+                Add New Channel
+
+            </h3>
+
+            <!-- FORM -->
+            <form
+                id="channel-form"
+                autocomplete="off">
+
+                <!-- CHANNEL NAME -->
+                <div class="form-group">
+
+                    <label for="channel-name">
+
+                        Channel Name
+
+                    </label>
+
+                    <input
+                        type="text"
+                        class="input"
+                        id="channel-name"
+                        name="channelName"
+                        placeholder="Enter channel name"
+                        required>
+
+                </div>
+
+                <!-- CHANNEL URL -->
+                <div class="form-group">
+
+                    <label for="channel-url">
+
+                        Channel URL
+
+                    </label>
+
+                    <input
+                        type="url"
+                        class="input"
+                        id="channel-url"
+                        name="channelUrl"
+                        placeholder="https://example.com"
+                        required>
+
+                </div>
+
+                <!-- CATEGORY -->
+                <div class="form-group">
+
+                    <label for="channel-category">
+
+                        Category
+
+                    </label>
+
+                    <select
+                        class="input"
+                        id="channel-category"
+                        name="channelCategory">
+
+                        <option value="general">
+                            General
+                        </option>
+
+                        <option value="gaming">
+                            Gaming
+                        </option>
+
+                        <option value="crypto">
+                            Crypto
+                        </option>
+
+                        <option value="technology">
+                            Technology
+                        </option>
+
+                        <option value="business">
+                            Business
+                        </option>
+
+                    </select>
+
+                </div>
+
+                <!-- SUBMIT -->
+                <button
+                    class="btn btn-primary"
+                    type="submit"
+                    id="add-channel-btn">
+
+                    <i class="fa-solid fa-check"></i>
+
+                    <span>
+                        Save Channel
+                    </span>
+
+                </button>
+
+            </form>
+
+        </article>
+        
+        <!-- ========================================== -->
+<!-- PART 3 -->
+<!-- OPTIMIZED HTML STRUCTURE -->
+<!-- ========================================== -->
+
+        <!-- ========================================== -->
+        <!-- MY CHANNELS -->
+        <!-- ========================================== -->
+
+        <article
+            class="card hidden"
+            id="my-channels-box">
+
+            <h3 class="section-title">
+
+                My Channels
+
+            </h3>
+
+            <!-- CHANNELS LIST -->
+            <div id="channels-list">
+
+                <!-- DYNAMIC CONTENT -->
+
+            </div>
+
+        </article>
+
     </div>
-
-    <button id="open-withdraw" data-i18n="btn_withdraw">
-      💸 سحب الأرباح
-    </button>
-
-    <div class="logs">
-      <h4 data-i18n="transactions_log">📜 سجل العمليات</h4>
-      <div id="log-list"></div>
-    </div>
-  </div>
-
-  <!-- 💸 السحب -->
-  <div class="card">
-    <h3 data-i18n="withdraw_request">💸 طلب سحب</h3>
-
-    <input id="withdraw-amount" type="number"
-           data-i18n-placeholder="ph_withdraw_amount"
-           placeholder="المبلغ (الحد الأدنى 30$)">
-
-    <input id="withdraw-wallet" type="text"
-           data-i18n-placeholder="ph_withdraw_wallet"
-           placeholder="عنوان محفظة USDT">
-
-    <button id="submit-withdraw" data-i18n="btn_submit_request">
-      📤 إرسال الطلب
-    </button>
-
-    <p id="withdraw-preview"></p>
-  </div>
-
-  <!-- 📢 إدارة القنوات -->
-  <div class="card">
-    <h3 data-i18n="manage_channels">📢 إدارة القنوات</h3>
-
-    <div class="channel-actions">
-      <button id="show-add-channel" data-i18n="btn_add_channel">
-        ➕ إضافة قناة
-      </button>
-      <button id="show-my-channels" data-i18n="btn_my_channels">
-        📺 قنواتي
-      </button>
-    </div>
-
-    <!-- إضافة قناة -->
-    <div id="add-channel-box" class="card" style="display:none;">
-
-      <input id="channel-name" type="text"
-             data-i18n-placeholder="ph_channel_name"
-             placeholder="اسم القناة">
-
-      <input id="channel-link" type="text"
-             data-i18n-placeholder="ph_channel_link"
-             placeholder="رابط القناة (https://t.me/...)">
-
-      <textarea id="channel-desc"
-                data-i18n-placeholder="ph_channel_desc"
-                placeholder="وصف القناة"></textarea>
-
-      <button id="add-channel-btn" data-i18n="btn_submit_review">
-        🚀 إرسال للمراجعة
-      </button>
-
-      <div class="bot-connect">
-        <button id="add-bot-btn" data-i18n="btn_add_bot">
-          ➕ إضافة البوت
-        </button>
-        <button id="check-bot-btn" data-i18n="btn_check_bot">
-          ✅ تحقق
-        </button>
-      </div>
-
-    </div>
-
-    <!-- القنوات -->
-    <div id="my-channels-box" class="card" style="display:none;">
-      <h4 data-i18n="my_channels">📺 قنواتي</h4>
-      <div id="publisher-channels-list"></div>
-    </div>
-
-  </div>
-
-  <!-- 📥 الحملات -->
-  <div class="card">
-    <h3 data-i18n="available_campaigns">📥 الحملات المتاحة</h3>
-    <div id="ads-market"></div>
-  </div>
-
-  <!-- 📊 الإحصائيات -->
-  <div class="card">
-    <h3 data-i18n="statistics">📊 الإحصائيات</h3>
-
-    <p>
-      <span data-i18n="stat_views">👁️ المشاهدات:</span>
-      <span id="pub-total-views">0</span>
-    </p>
-
-    <p>
-      <span data-i18n="stat_clicks">🖱️ النقرات:</span>
-      <span id="pub-total-clicks">0</span>
-    </p>
-
-    <p>
-      <span data-i18n="stat_earnings">💰 الأرباح:</span>
-      <span id="pub-total-earn">0$</span>
-    </p>
-
-    <p>
-      <span data-i18n="stat_ctr">📈 CTR:</span>
-      <span id="pub-ctr">0%</span>
-    </p>
-
-    <div id="charts"></div>
-  </div>
 
 </section>
 
-
- <!-- ========================================== -->
-<!-- 🚀 Referral System (قسم الإحالة المتكامل) -->
+<!-- ========================================== -->
+<!-- REFERRALS PAGE -->
 <!-- ========================================== -->
 
-<section id="referrals" class="section" data-section="referrals">
-  <!-- 🧾 العنوان -->
-  <div class="card">
-    <h2 data-i18n="ref_title">🚀 نظام الإحالة</h2>
-    <p data-i18n="ref_subtitle">
-      قم بدعوة أصدقائك واربح عمولات تصل إلى 10%
-    </p>
-  </div>
+<section
+    class="page"
+    id="referrals-page"
+    data-section="referrals">
 
-  <!-- 🔗 رابط الإحالة -->
-  <div class="card referral-box">
-    <h3 data-i18n="ref_link_title">🔗 رابط الإحالة الخاص بك</h3>
+    <div class="container">
 
-    <input type="text"
-           id="ref-link-input"
-           data-i18n-placeholder="loading"
-           value="جاري التحميل..."
-           readonly>
+        <!-- PAGE HEADER -->
+        <article class="card">
 
-    <button id="copy-ref-link" data-i18n="btn_copy_link">
-      📋 نسخ الرابط
-    </button>
+            <h2
+                class="section-title"
+                data-i18n="referrals">
 
-    <p data-i18n="ref_commission_info">
-      💡 ستحصل على عمولة من أرباح وإعلانات كل مستخدم تقوم بدعوته لمدة سنة
-    </p>
-  </div>
+                Referrals
 
-  <!-- 📊 الإحصائيات -->
-  <div class="card referral-stats">
+            </h2>
 
-    <h3 data-i18n="your_stats">📊 إحصائياتك</h3>
+            <p class="section-subtitle">
 
-    <div class="stats-grid">
+                Invite friends and earn
+                rewards automatically.
 
-      <div class="stat">
-        <span data-i18n="ref_count">👥 عدد الإحالات</span>
-        <strong id="ref-count">0</strong>
-      </div>
+            </p>
 
-      <div class="stat">
-        <span data-i18n="ref_total_earnings">💰 إجمالي الأرباح</span>
-        <strong id="ref-total">0$</strong>
-      </div>
+        </article>
 
-      <div class="stat">
-        <span data-i18n="ref_level">🏆 المستوى</span>
-        <strong id="ref-level">Bronze</strong>
-      </div>
+        <!-- ========================================== -->
+        <!-- REFERRAL STATS -->
+        <!-- ========================================== -->
 
-      <div class="stat">
-        <span data-i18n="top_referral">⭐ أفضل إحالة</span>
-        <strong id="top-ref">-</strong>
-      </div>
+        <section class="grid grid-2">
+
+            <!-- TOTAL REFERRALS -->
+            <article class="card stat-card">
+
+                <h3>
+
+                    Total Referrals
+
+                </h3>
+
+                <h2 id="referral-count">
+
+                    0
+
+                </h2>
+
+            </article>
+
+            <!-- REFERRAL EARNINGS -->
+            <article class="card stat-card">
+
+                <h3>
+
+                    Referral Earnings
+
+                </h3>
+
+                <h2>
+
+                    $
+                    <span id="referral-earnings">
+
+                        0
+
+                    </span>
+
+                </h2>
+
+            </article>
+
+        </section>
+
+        <!-- ========================================== -->
+        <!-- REFERRAL LINK -->
+        <!-- ========================================== -->
+
+        <article class="card">
+
+            <h3 class="section-title">
+
+                Your Referral Link
+
+            </h3>
+
+            <div class="form-group">
+
+                <label for="referral-link">
+
+                    Referral URL
+
+                </label>
+
+                <input
+                    type="text"
+                    class="input"
+                    id="referral-link"
+                    readonly
+                    value="https://t.me/YourBot?start=ref123">
+
+            </div>
+
+            <button
+                class="btn btn-primary"
+                type="button"
+                id="copy-referral-btn">
+
+                <i class="fa-solid fa-copy"></i>
+
+                <span>
+                    Copy Link
+                </span>
+
+            </button>
+
+        </article>
+
+        <!-- ========================================== -->
+        <!-- REFERRAL ACTIVITY -->
+        <!-- ========================================== -->
+
+        <article class="card">
+
+            <h3 class="section-title">
+
+                Referral Activity
+
+            </h3>
+
+            <div id="referral-activity-list">
+
+                <!-- DYNAMIC CONTENT -->
+
+            </div>
+
+        </article>
 
     </div>
-
-  </div>
-
-  <!-- 📈 التقدم -->
-  <div class="card referral-progress">
-    <h3 data-i18n="progress">📈 التقدم</h3>
-
-    <p id="next-level-text" data-i18n="next_level_text">
-      تحتاج 300$ للوصول إلى Silver
-    </p>
-
-    <div class="progress-bar">
-      <div id="progress-fill" style="width:0%"></div>
-    </div>
-  </div>
-
-  <!-- 🏆 المستويات -->
-  <div class="card referral-levels">
-    <h3 data-i18n="ref_levels">🏆 مستويات الإحالة</h3>
-
-    <ul>
-      <li data-i18n="level_bronze">🥉 Bronze — عمولة 5%</li>
-      <li data-i18n="level_silver">🥈 Silver — عمولة 7%</li>
-      <li data-i18n="level_gold">🥇 Gold — عمولة 10%</li>
-    </ul>
-  </div>
-
-  <!-- 📜 السجل -->
-  <div class="card referral-logs">
-    <h3 data-i18n="ref_earnings_log">📜 سجل أرباح الإحالة</h3>
-
-    <div id="ref-log-list">
-      <p data-i18n="no_ref_earnings">
-        لا توجد أرباح حالياً
-      </p>
-    </div>
-  </div>
-
-  <!-- 🏆 المتصدرين -->
-  <div class="card leaderboard">
-
-    <h3 data-i18n="leaderboard">🏆 أفضل المحيلين</h3>
-
-    <div id="leaderboard-list"></div>
-
-  </div>
-
-  <!-- ⏳ العد التنازلي -->
-  <div class="card countdown">
-    <h3 data-i18n="contest_end">⏳ نهاية المسابقة</h3>
-    <p id="countdown-text" data-i18n="loading">
-      جاري الحساب...
-    </p>
-  </div>
-
-  <!-- 📢 الشروط -->
-  <div class="card referral-rules">
-    <h3 data-i18n="ref_rules">📢 الشروط</h3>
-
-    <ul>
-      <li data-i18n="rule_active_user">يجب أن يكون المستخدم نشط</li>
-      <li data-i18n="rule_no_fake">لا يتم احتساب الحسابات الوهمية</li>
-      <li data-i18n="rule_auto_review">يتم مراجعة الإحالات تلقائياً</li>
-      <li data-i18n="rule_one_year">
-        العمولات صالحة لمدة سنة من تاريخ الإحالة
-      </li>
-    </ul>
-  </div>
 
 </section>
 
-
 <!-- ========================================== -->
-<!-- 👤 Profile Section -->
+<!-- PROFILE PAGE -->
 <!-- ========================================== -->
 
-<section id="profile" class="section" data-section="profile">
+<section
+    class="page"
+    id="profile-page"
+    data-section="profile">
 
-  <!-- 🧾 معلومات المستخدم -->
-  <div class="card profile-info">
+    <div class="container">
 
-    <div class="profile-header">
-      <img id="user-avatar" src="" alt="avatar">
-      <div>
-        <h3 id="user-name" data-i18n="profile.username">اسم المستخدم</h3>
-        <p id="user-id">ID: 000000</p>
-      </div>
+        <!-- PAGE HEADER -->
+        <article class="card">
+
+            <h2
+                class="section-title"
+                data-i18n="profile">
+
+                Profile
+
+            </h2>
+
+            <p class="section-subtitle">
+
+                Manage your account,
+                wallet and statistics.
+
+            </p>
+
+        </article>
+
+        <!-- ========================================== -->
+        <!-- PROFILE STATS -->
+        <!-- ========================================== -->
+
+        <section class="grid grid-2">
+
+            <!-- VIEWS -->
+            <article class="card stat-card">
+
+                <h3 data-i18n="views">
+
+                    Views
+
+                </h3>
+
+                <h2 id="profile-views">
+
+                    0
+
+                </h2>
+
+            </article>
+
+            <!-- CLICKS -->
+            <article class="card stat-card">
+
+                <h3 data-i18n="clicks">
+
+                    Clicks
+
+                </h3>
+
+                <h2 id="profile-clicks">
+
+                    0
+
+                </h2>
+
+            </article>
+
+            <!-- CTR -->
+            <article class="card stat-card">
+
+                <h3 data-i18n="ctr">
+
+                    CTR
+
+                </h3>
+
+                <h2>
+
+                    <span id="profile-ctr">
+
+                        0
+
+                    </span>
+
+                    %
+
+                </h2>
+
+            </article>
+
+            <!-- EARNINGS -->
+            <article class="card stat-card">
+
+                <h3 data-i18n="earnings">
+
+                    Earnings
+
+                </h3>
+
+                <h2>
+
+                    $
+                    <span id="profile-earnings">
+
+                        0
+
+                    </span>
+
+                </h2>
+
+            </article>
+
+        </section>
+
+        <!-- ========================================== -->
+        <!-- WALLET -->
+        <!-- ========================================== -->
+
+        <article class="card">
+
+            <h3
+                class="section-title"
+                data-i18n="wallet">
+
+                Wallet
+
+            </h3>
+
+            <!-- BALANCE -->
+            <div class="form-group">
+
+                <label
+                    for="wallet-balance"
+                    data-i18n="balance">
+
+                    Balance
+
+                </label>
+
+                <input
+                    type="text"
+                    class="input"
+                    id="wallet-balance"
+                    readonly
+                    value="$0">
+
+            </div>
+
+            <!-- DEPOSIT -->
+            <div class="form-group">
+
+                <label
+                    for="deposit-amount"
+                    data-i18n="deposit">
+
+                    Deposit
+
+                </label>
+
+                <input
+                    type="number"
+                    class="input"
+                    id="deposit-amount"
+                    name="depositAmount"
+                    placeholder="Enter amount"
+                    min="1"
+                    required>
+
+            </div>
+
+            <!-- SUBMIT -->
+            <button
+                class="btn btn-primary"
+                type="button"
+                id="deposit-btn">
+
+                <i class="fa-solid fa-wallet"></i>
+
+                <span>
+                    Add Balance
+                </span>
+
+            </button>
+
+        </article>
+
+        <!-- ========================================== -->
+        <!-- ACCOUNT SECURITY -->
+        <!-- ========================================== -->
+
+        <article class="card">
+
+            <h3
+                class="section-title"
+                data-i18n="account_security">
+
+                Security
+
+            </h3>
+
+            <!-- USER ID -->
+            <div class="form-group">
+
+                <label for="profile-user-id">
+
+                    User ID
+
+                </label>
+
+                <input
+                    type="text"
+                    class="input"
+                    id="profile-user-id"
+                    readonly>
+
+            </div>
+
+            <!-- RISK LEVEL -->
+            <div class="form-group">
+
+                <label for="profile-risk-level">
+
+                    Risk Level
+
+                </label>
+
+                <input
+                    type="text"
+                    class="input"
+                    id="profile-risk-level"
+                    readonly>
+
+            </div>
+
+        </article>
+
     </div>
-
-    <div class="profile-meta">
-      <p>💰 <span data-i18n="profile.balance">الرصيد</span>:
-        <span id="user-balance">0$</span>
-      </p>
-      <p>🏆 <span data-i18n="profile.level">المستوى</span>:
-        <span id="user-level">Bronze</span>
-      </p>
-    </div>
-
-  </div>
-
-  <!-- 📊 الإحصائيات -->
-  <div class="card profile-stats">
-
-    <h3 data-i18n="profile.stats">📊 إحصائياتي</h3>
-
-    <div class="stats-grid">
-
-      <div class="stat">
-        <span data-i18n="stats.views">👁️ المشاهدات</span>
-        <strong id="profile-views">0</strong>
-      </div>
-
-      <div class="stat">
-        <span data-i18n="stats.clicks">🖱️ النقرات</span>
-        <strong id="profile-clicks">0</strong>
-      </div>
-
-      <div class="stat">
-        <span data-i18n="stats.ctr">📈 CTR</span>
-        <strong id="profile-ctr">0%</strong>
-      </div>
-
-      <div class="stat">
-        <span data-i18n="stats.earnings">💰 الأرباح</span>
-        <strong id="profile-earn">0$</strong>
-      </div>
-
-    </div>
-
-  </div>
-
-  <!-- 💼 المحفظة -->
-  <div class="card wallet">
-
-    <h3 data-i18n="profile.wallet">💼 المحفظة</h3>
-
-    <p>
-      <span data-i18n="profile.current_balance">💰 الرصيد الحالي</span>:
-      <strong id="wallet-balance">0$</strong>
-    </p>
-
-    <div class="wallet-actions">
-      <button id="btn-deposit" data-i18n="actions.deposit">💰 شحن</button>
-      <button id="btn-withdraw" data-i18n="actions.withdraw">💸 سحب</button>
-    </div>
-
-  </div>
-
-  <!-- 🔗 الإحالة -->
-  <div class="card referral-summary">
-
-    <h3 data-i18n="profile.referrals">🔗 الإحالة</h3>
-
-    <p>
-      👥 <span data-i18n="profile.ref_count">عدد الإحالات</span>:
-      <span id="profile-ref-count">0</span>
-    </p>
-
-    <p>
-      💰 <span data-i18n="profile.ref_earn">أرباح الإحالة</span>:
-      <span id="profile-ref-earn">0$</span>
-    </p>
-
-    <button id="go-referrals" data-i18n="profile.go_referrals">
-      🚀 الذهاب لنظام الإحالة
-    </button>
-
-  </div>
-
-  <!-- 📺 القنوات -->
-  <div class="card profile-channels">
-
-    <h3 data-i18n="profile.channels">📺 قنواتي</h3>
-
-    <div id="profile-channels-list">
-      <p data-i18n="profile.no_channels">لا توجد قنوات</p>
-    </div>
-
-  </div>
-
-  <!-- 🔐 الأمان -->
-  <div class="card security">
-
-    <h3 data-i18n="profile.security">🔐 الأمان</h3>
-
-    <p>📱 <span data-i18n="profile.device">الجهاز</span>:
-      <span id="user-device">-</span>
-    </p>
-
-    <p>📍 IP:
-      <span id="user-ip">-</span>
-    </p>
-
-    <p>⚠️ <span data-i18n="profile.status">حالة الحساب</span>:
-      <span id="user-status">نشط</span>
-    </p>
-
-    <button id="btn-reset-session" data-i18n="profile.logout_all">
-      🔄 تسجيل خروج من كل الأجهزة
-    </button>
-
-  </div>
-
-  <!-- ⚙️ الإعدادات -->
-  <div class="card settings">
-
-    <h3 data-i18n="profile.settings">⚙️ الإعدادات</h3>
-
-    <label data-i18n="profile.edit_name">✏️ الاسم:</label>
-    <input type="text" id="edit-name">
-
-    <label data-i18n="profile.wallet_address">💳 محفظة USDT:</label>
-    <input type="text" id="wallet-address">
-
-    <button id="save-profile" data-i18n="actions.save">
-      💾 حفظ التعديلات
-    </button>
-
-  </div>
 
 </section>
 
-<!-- ========================= -->
-<!-- 👨‍💼 لوحة الإدارة -->
-<!-- ========================= -->
+<!-- ========================================== -->
+<!-- PART 4 -->
+<!-- OPTIMIZED HTML STRUCTURE -->
+<!-- ========================================== -->
 
-<section id="admin-page" class="page" style="display:none;">
+<!-- ========================================== -->
+<!-- ADMIN PAGE -->
+<!-- ========================================== -->
+
+<section
+    class="page"
+    id="admin-page"
+    data-section="admin">
+
+    <div class="container">
+
+        <!-- PAGE HEADER -->
+        <article class="card">
+
+            <h2
+                class="section-title"
+                data-i18n="admin_title">
+
+                Admin Panel
+
+            </h2>
+
+            <p class="section-subtitle">
+
+                Advanced administration,
+                analytics and monitoring system.
+
+            </p>
+
+        </article>
+
+        <!-- ========================================== -->
+        <!-- ADMIN STATS -->
+        <!-- ========================================== -->
+
+        <section class="grid grid-2">
+
+            <!-- USERS -->
+            <article class="card stat-card">
+
+                <h3 data-i18n="total_users">
+
+                    Users
+
+                </h3>
+
+                <h2 id="admin-total-users">
+
+                    0
+
+                </h2>
+
+            </article>
+
+            <!-- CAMPAIGNS -->
+            <article class="card stat-card">
+
+                <h3 data-i18n="total_campaigns">
+
+                    Campaigns
+
+                </h3>
+
+                <h2 id="admin-total-campaigns">
+
+                    0
+
+                </h2>
+
+            </article>
+
+            <!-- CHANNELS -->
+            <article class="card stat-card">
+
+                <h3 data-i18n="total_channels">
+
+                    Channels
+
+                </h3>
+
+                <h2 id="admin-total-channels">
+
+                    0
+
+                </h2>
+
+            </article>
+
+            <!-- REVENUE -->
+            <article class="card stat-card">
+
+                <h3 data-i18n="total_revenue">
+
+                    Revenue
+
+                </h3>
+
+                <h2>
+
+                    $
+                    <span id="admin-total-revenue">
+
+                        0
+
+                    </span>
+
+                </h2>
+
+            </article>
+
+        </section>
+
+        <!-- ========================================== -->
+        <!-- LIVE ACTIVITY -->
+        <!-- ========================================== -->
+
+        <article class="card">
+
+            <h3
+                class="section-title"
+                data-i18n="live_activity">
+
+                Live Activity
+
+            </h3>
+
+            <div id="live-activity-list">
+
+                <!-- DYNAMIC CONTENT -->
+
+            </div>
+
+        </article>
+
+        <!-- ========================================== -->
+        <!-- ANALYTICS -->
+        <!-- ========================================== -->
+
+        <article class="card">
+
+            <h3
+                class="section-title"
+                data-i18n="analytics">
+
+                Analytics
+
+            </h3>
+
+            <canvas
+                id="analytics-chart"
+                height="120">
+
+            </canvas>
+
+        </article>
+
+        <!-- ========================================== -->
+        <!-- SYSTEM ACTIONS -->
+        <!-- ========================================== -->
+
+        <article class="card">
+
+            <h3 class="section-title">
+
+                System Actions
+
+            </h3>
+
+            <div class="grid grid-2">
+
+                <!-- REFRESH -->
+                <button
+                    class="btn btn-secondary"
+                    type="button"
+                    data-action="refresh-ui">
+
+                    <i class="fa-solid fa-rotate"></i>
+
+                    <span>
+                        Refresh UI
+                    </span>
+
+                </button>
+
+                <!-- RUN AI -->
+                <button
+                    class="btn btn-primary"
+                    type="button"
+                    id="run-ai-btn">
+
+                    <i class="fa-solid fa-brain"></i>
+
+                    <span>
+                        Run AI Optimization
+                    </span>
+
+                </button>
+
+            </div>
+
+        </article>
+
+    </div>
+
+</section>
+
+<!-- ========================================== -->
+<!-- BOTTOM NAVIGATION -->
+<!-- ========================================== -->
+
+  <nav class="bottom-navbar">
+
+                <!-- HOME -->
+
+                <button
+                    class="nav-btn active"
+                    data-route="home">
+
+                    <i class="fa-solid fa-house"></i>
+
+                    <span
+                        data-i18n="nav_home">
+
+                        Home
+
+                    </span>
+
+                </button>
+
+                <!-- ADVERTISER -->
+
+                <button
+                    class="nav-btn"
+                    data-route="advertiser">
+
+                    <i class="fa-solid fa-bullhorn"></i>
+
+                    <span
+                        data-i18n="nav_advertiser">
+
+                        Advertiser
+
+                    </span>
+
+                </button>
+
+                <!-- PUBLISHER -->
+
+                <button
+                    class="nav-btn"
+                    data-route="publisher">
+
+                    <i class="fa-solid fa-globe"></i>
+
+                    <span
+                        data-i18n="nav_publisher">
+
+                        Publisher
+
+                    </span>
+
+                </button>
+
+                <!-- REFERRALS -->
+
+                <button
+                    class="nav-btn"
+                    data-route="referrals">
+
+                    <i class="fa-solid fa-users"></i>
+
+                    <span
+                        data-i18n="nav_referral">
+
+                        Referrals
+
+                    </span>
+
+                </button>
+
+                <!-- PROFILE -->
+
+                <button
+                    class="nav-btn"
+                    data-route="profile">
+
+                    <i class="fa-solid fa-user"></i>
+
+                    <span
+                        data-i18n="nav_profile">
+
+                        Profile
+
+                    </span>
+
+                </button>
+
+                <!-- ADMIN -->
+
+                <button
+                    class="nav-btn"
+                    data-route="admin">
+
+                    <i class="fa-solid fa-shield-halved"></i>
+
+                    <span
+                        data-i18n="nav_admin">
+
+                        Admin
+
+                    </span>
+
+                </button>
+
+            </nav>
+
+        </main>
+
+    </div>
     
+    <!-- ========================================== -->
+    <!-- MAIN JAVASCRIPT -->
+    <!-- ========================================== -->
 
-  <div class="page-header">
-        <h2>لوحة الإدارة</h2>
-    </div>
-
-
-    <!-- 🧭 Sidebar -->
-    <aside class="sidebar">
-      <h2 data-i18n="admin.title">⚙️ الإدارة</h2>
-      <ul>
-        <li data-tab="overview" data-i18n="admin.overview">📊 نظرة عامة</li>
-        <li data-tab="users" data-i18n="admin.users">👥 المستخدمين</li>
-        <li data-tab="campaigns" data-i18n="admin.campaigns">📢 الحملات</li>
-        <li data-tab="channels" data-i18n="admin.channels">📺 القنوات</li>
-        <li data-tab="finance" data-i18n="admin.finance">💰 المالية</li>
-        <li data-tab="analytics" data-i18n="admin.analytics">📊 التحليلات</li>
-        <li data-tab="security" data-i18n="admin.security">🛡️ الأمان</li>
-        <li data-tab="notifications" data-i18n="admin.notifications">🔔 الإشعارات</li>
-        <li data-tab="settings" data-i18n="admin.settings">⚙️ الإعدادات</li>
-      </ul>
-    </aside>
-
-    <!-- 📄 المحتوى -->
-    <main class="content">
-
-      <!-- 📊 Overview -->
-      <section class="overview">
-        <h3 data-i18n="admin.overview">📊 نظرة عامة</h3>
-
-        <div class="cards">
-          <div class="card">
-            <p data-i18n="admin.stats.users">👥 المستخدمين</p>
-            <strong id="total-users">0</strong>
-          </div>
-
-          <div class="card">
-            <p data-i18n="admin.stats.campaigns">📢 الحملات</p>
-            <strong id="total-campaigns">0</strong>
-          </div>
-
-          <div class="card">
-            <p data-i18n="admin.stats.channels">📺 القنوات</p>
-            <strong id="total-channels">0</strong>
-          </div>
-
-          <div class="card">
-            <p data-i18n="admin.stats.revenue">💰 الأرباح</p>
-            <strong id="total-revenue">0$</strong>
-          </div>
-        </div>
-
-        <div class="top-performance">
-          <h4 data-i18n="admin.top">🔥 الأفضل أداءً</h4>
-          <p data-i18n="admin.topUser">👤 <span id="top-user"></span></p>
-          <p data-i18n="admin.topChannel">📺 <span id="top-channel"></span></p>
-          <p data-i18n="admin.topCampaign">📢 <span id="top-campaign"></span></p>
-        </div>
-
-        <div class="live-activity">
-          <h4 data-i18n="admin.activity">⏱️ النشاط</h4>
-          <div id="live-logs"></div>
-        </div>
-      </section>
-
-      <!-- 👥 Users -->
-      <section class="users">
-        <h3 data-i18n="admin.users">👥 المستخدمين</h3>
-        <div id="users-list"></div>
-
-        <div class="user-details">
-          <p>ID: <span id="user-id"></span></p>
-          <p data-i18n="admin.balance">الرصيد: <span id="user-balance"></span></p>
-          <p>Clicks: <span id="user-clicks"></span></p>
-          <p>Views: <span id="user-views"></span></p>
-          <p>CTR: <span id="user-ctr"></span></p>
-          <p>Risk: <span id="user-risk"></span></p>
-
-          <button data-i18n="admin.ban">🚫 حظر</button>
-          <button data-i18n="admin.reset">♻️ Reset</button>
-        </div>
-      </section>
-
-      <!-- 📢 Campaigns -->
-      <section class="campaigns">
-        <h3 data-i18n="admin.campaigns">📢 الحملات</h3>
-        <div id="campaigns-list"></div>
-
-        <div class="campaign-details">
-          <p data-i18n="admin.titleLabel">العنوان: <span id="camp-title"></span></p>
-          <p data-i18n="admin.budget">الميزانية: <span id="camp-budget"></span></p>
-          <p>CTR: <span id="camp-ctr"></span></p>
-
-          <button data-i18n="admin.approve">✅ قبول</button>
-          <button data-i18n="admin.reject">❌ رفض</button>
-          <button data-i18n="admin.pause">⏸ إيقاف</button>
-        </div>
-      </section>
-
-      <!-- 📺 Channels -->
-      <section class="channels">
-        <h3 data-i18n="admin.channels">📺 القنوات</h3>
-        <div id="channels-list"></div>
-
-        <div class="channel-details">
-          <p data-i18n="admin.channelName">الاسم: <span id="ch-name"></span></p>
-          <p data-i18n="admin.subs">المشتركين: <span id="ch-subs"></span></p>
-
-          <button data-i18n="admin.approve">✅ قبول</button>
-          <button data-i18n="admin.reject">❌ رفض</button>
-          <button data-i18n="admin.ban">🚫 حظر</button>
-        </div>
-      </section>
-
-      <!-- 💰 Finance -->
-      <section class="finance">
-        <h3 data-i18n="admin.finance">💰 المالية</h3>
-
-        <div class="card">
-          <h4 data-i18n="admin.deposits">📥 الإيداعات</h4>
-          <div id="admin-deposits"></div>
-        </div>
-
-        <div class="card">
-          <h4 data-i18n="admin.withdrawals">📤 السحب</h4>
-          <div id="admin-withdrawals"></div>
-        </div>
-
-        <div class="card">
-          <h4 data-i18n="admin.logs">📊 السجلات</h4>
-          <div id="admin-logs"></div>
-        </div>
-      </section>
-
-      <!-- 🛡️ Security -->
-      <section class="security">
-        <h3 data-i18n="admin.security">🛡️ الأمان</h3>
-
-        <p>⚠️ <span id="fraud-count"></span></p>
-        <p>🚫 <span id="banned-count"></span></p>
-
-        <div id="fraud-list"></div>
-      </section>
-
-      <!-- 🔔 Notifications -->
-      <section class="notifications">
-        <h3 data-i18n="admin.notifications">🔔 الإشعارات</h3>
-        <div id="notifications-list"></div>
-      </section>
-
-      <!-- ⚙️ Settings -->
-      <section class="settings">
-        <h3 data-i18n="admin.settings">⚙️ الإعدادات</h3>
-
-        <input id="set-view-rate" data-i18n-placeholder="admin.viewRate" placeholder="سعر المشاهدة">
-        <input id="set-click-rate" data-i18n-placeholder="admin.clickRate" placeholder="سعر النقرة">
-        <input id="set-fee" data-i18n-placeholder="admin.fee" placeholder="العمولة">
-
-        <button data-i18n="admin.save">💾 حفظ</button>
-      </section>
-
-    </main>
-
-  </div>
-
-</section>
-
-<!-- BOTTOM NAV -->
-<nav class="bottom-nav">
-
-    <div class="nav-item active" data-route="home">
-        <i class="fas fa-home"></i>
-        <span data-i18n="nav_home">الرئيسية</span>
-    </div>
-
-    <div class="nav-item" data-route="promo">
-        <i class="fas fa-ad"></i>
-        <span data-i18n="nav_advertiser">المعلن</span>
-    </div>
-
-    <div class="nav-item" data-route="publisher">
-        <i class="fas fa-bullhorn"></i>
-        <span data-i18n="nav_publisher">الناشر</span>
-    </div>
-
-    <div class="nav-item" data-route="referrals">
-        <i class="fas fa-users"></i>
-        <span data-i18n="nav_referral">الإحالة</span>
-    </div>
-
-    <!-- قسم الإدارة -->
-    <div class="nav-item" data-route="admin">
-        <i class="fas fa-shield-alt"></i>
-        <span data-i18n="nav_admin">الإدارة</span>
-    </div>
-
-    <div class="nav-item" data-route="profile">
-        <i class="fas fa-user-circle"></i>
-        <span data-i18n="nav_profile">الملف</span>
-    </div>
-
-</nav>
-
-
-<script src="app.js"></script>
+    <script src="app.js"></script>
 
 </body>
+
 </html>
