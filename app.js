@@ -1,4 +1,3 @@
-
 // ==========================================
 // CONFIGURATION
 // ==========================================
@@ -27,8 +26,20 @@ var CONFIG = {
     }
 };
 
+
+// ==========================================
+// LOGGER
+// ==========================================
+
 function log() {
-    if (window.CONFIG && CONFIG.APP && CONFIG.APP.DEBUG) {
+
+    if (
+        typeof window !== "undefined" &&
+        window.CONFIG &&
+        CONFIG.APP &&
+        CONFIG.APP.DEBUG
+    ) {
+
         console.log.apply(console, arguments);
     }
 }
@@ -40,6 +51,7 @@ function warn() {
 function errorLog() {
     console.error.apply(console, arguments);
 }
+
 
 // ==========================================
 // GLOBAL STATE
@@ -54,7 +66,9 @@ var state = {
         clicks: 0,
         views: 0,
         earnings: 0,
-        riskScore: 0
+        riskScore: 0,
+        adScore: 0,
+        riskLevel: "SAFE"
     },
 
     ui: {
@@ -77,6 +91,7 @@ var state = {
 // ==========================================
 
 var Hooks = {
+
     onUserUpdate: [],
     onUIUpdate: [],
     onSystemInit: []
@@ -89,13 +104,20 @@ var Hooks = {
 
 function runHooks(list, payload) {
 
-    if (!list || !list.length) return;
+    if (!Array.isArray(list) || list.length === 0) {
+        return;
+    }
 
     for (var i = 0; i < list.length; i++) {
 
         try {
-            list[i](payload);
+
+            if (typeof list[i] === "function") {
+                list[i](payload);
+            }
+
         } catch (err) {
+
             console.error("Hook error:", err);
         }
     }
@@ -106,29 +128,48 @@ function runHooks(list, payload) {
 // STATE MANAGEMENT
 // ==========================================
 
-// 👤 تحديث المستخدم (FIXED WITHOUT SPREAD)
-function updateUser(userData) {
+// 👤 تحديث المستخدم
+function updateUser(userData, skipHooks) {
 
-    if (!userData || typeof userData !== "object") return;
-
-    for (var key in userData) {
-        state.user[key] = userData[key];
+    if (!userData || typeof userData !== "object") {
+        return;
     }
 
-    runHooks(Hooks.onUserUpdate, state.user);
+    skipHooks = !!skipHooks;
+
+    for (var key in userData) {
+
+        if (Object.prototype.hasOwnProperty.call(userData, key)) {
+            state.user[key] = userData[key];
+        }
+    }
+
+    state.system.lastUpdate = Date.now();
+
+    if (!skipHooks) {
+        runHooks(Hooks.onUserUpdate, state.user);
+    }
 
     log("User Updated:", state.user);
 }
 
 
 // 🔹 تحديث حقل واحد
-function updateUserField(key, value) {
+function updateUserField(key, value, skipHooks) {
 
-    if (!key) return;
+    if (!key) {
+        return;
+    }
+
+    skipHooks = !!skipHooks;
 
     state.user[key] = value;
 
-    runHooks(Hooks.onUserUpdate, state.user);
+    state.system.lastUpdate = Date.now();
+
+    if (!skipHooks) {
+        runHooks(Hooks.onUserUpdate, state.user);
+    }
 
     log("User Field Updated:", key, value);
 }
@@ -137,9 +178,13 @@ function updateUserField(key, value) {
 // 🎨 UI STATE UPDATE
 function setUI(key, value) {
 
-    if (!key) return;
+    if (!key) {
+        return;
+    }
 
     state.ui[key] = value;
+
+    state.system.lastUpdate = Date.now();
 
     runHooks(Hooks.onUIUpdate, state.ui);
 
@@ -147,17 +192,25 @@ function setUI(key, value) {
 }
 
 
-// 📥 GET STATE SAFE (NO OPTIONAL CHAINING)
+// 📥 GET STATE SAFE
 function getState(path) {
 
-    if (!path || typeof path !== "string") return null;
+    if (!path || typeof path !== "string") {
+        return null;
+    }
 
     var parts = path.split(".");
     var obj = state;
 
     for (var i = 0; i < parts.length; i++) {
 
-        if (!obj) return null;
+        if (
+            obj === null ||
+            typeof obj === "undefined"
+        ) {
+
+            return null;
+        }
 
         obj = obj[parts[i]];
     }
@@ -176,13 +229,20 @@ function resetState() {
         clicks: 0,
         views: 0,
         earnings: 0,
-        riskScore: 0
+        riskScore: 0,
+        adScore: 0,
+        riskLevel: "SAFE"
     };
 
     state.ui = {
         loading: false,
         currentSection: "home",
         theme: "light"
+    };
+
+    state.system = {
+        initialized: false,
+        lastUpdate: Date.now()
     };
 
     log("State Reset");
@@ -195,30 +255,36 @@ function resetState() {
 
 function calculateCTR(clicks, views) {
 
-    clicks = clicks || 0;
-    views = views || 0;
+    clicks = Number(clicks) || 0;
+    views = Number(views) || 0;
 
-    if (views === 0) return 0;
+    if (views <= 0) {
+        return 0;
+    }
 
     return (clicks / views) * 100;
 }
 
 function calculateConversion(actions, clicks) {
 
-    actions = actions || 0;
-    clicks = clicks || 0;
+    actions = Number(actions) || 0;
+    clicks = Number(clicks) || 0;
 
-    if (clicks === 0) return 0;
+    if (clicks <= 0) {
+        return 0;
+    }
 
     return (actions / clicks) * 100;
 }
 
 function calculateRPM(earnings, views) {
 
-    earnings = earnings || 0;
-    views = views || 0;
+    earnings = Number(earnings) || 0;
+    views = Number(views) || 0;
 
-    if (views === 0) return 0;
+    if (views <= 0) {
+        return 0;
+    }
 
     return (earnings / views) * 1000;
 }
@@ -230,75 +296,149 @@ function calculateRPM(earnings, views) {
 
 function clamp(value, min, max) {
 
-    min = min || 0;
-    max = max || 100;
+    value = Number(value) || 0;
+    min = Number(min);
 
-    if (value < min) return min;
-    if (value > max) return max;
+    if (isNaN(min)) {
+        min = 0;
+    }
+
+    max = Number(max);
+
+    if (isNaN(max)) {
+        max = 100;
+    }
+
+    if (value < min) {
+        return min;
+    }
+
+    if (value > max) {
+        return max;
+    }
 
     return value;
 }
 
 
 // ==========================================
-// LOGGING
+// UTILITIES
 // ==========================================
 
-const Utils = {
+var Utils = {
 
-    log: function() {
+    log: function () {
         console.log.apply(console, arguments);
     },
 
-    warn: function() {
+    warn: function () {
         console.warn.apply(console, arguments);
     },
 
-    error: function() {
+    error: function () {
         console.error.apply(console, arguments);
     },
 
-    deepClone: function(obj) {
+    deepClone: function (obj) {
+
         try {
+
             return JSON.parse(JSON.stringify(obj));
+
         } catch (e) {
+
             return null;
         }
     },
 
-    safeMerge: function(target, source) {
-        return Object.assign({}, target || {}, source || {});
+    safeMerge: function (target, source) {
+
+        target = target || {};
+        source = source || {};
+
+        var output = {};
+        var key;
+
+        for (key in target) {
+
+            if (Object.prototype.hasOwnProperty.call(target, key)) {
+                output[key] = target[key];
+            }
+        }
+
+        for (key in source) {
+
+            if (Object.prototype.hasOwnProperty.call(source, key)) {
+                output[key] = source[key];
+            }
+        }
+
+        return output;
     },
 
-    clamp: function(value, min, max) {
-        return Math.max(min, Math.min(value, max));
+    clamp: function (value, min, max) {
+        return clamp(value, min, max);
     },
 
-    isNumber: function(val) {
+    isNumber: function (val) {
         return typeof val === "number" && !isNaN(val);
     },
 
-    isString: function(val) {
+    isString: function (val) {
         return typeof val === "string";
+    },
+
+    generateId: function (prefix) {
+
+        prefix = prefix || "id";
+
+        return (
+            prefix +
+            "_" +
+            Date.now() +
+            "_" +
+            Math.floor(Math.random() * 100000)
+        );
     }
 };
-
 
 // ==========================================
 // VALIDATION
 // ==========================================
 
-function isValidUser(user) {
-    return !!(user && user.id);
-}
+var Validator = {
 
-function isNumber(val) {
-    return typeof val === "number" && !isNaN(val);
-}
+    isValidUser: function(user) {
 
-function isString(val) {
-    return typeof val === "string";
-}
+        return !!(
+            user &&
+            typeof user === "object" &&
+            user.id
+        );
+    },
+
+    isNumber: function(val) {
+
+        return (
+            typeof val === "number" &&
+            !isNaN(val)
+        );
+    },
+
+    isString: function(val) {
+
+        return typeof val === "string";
+    },
+
+    isObject: function(val) {
+
+        return (
+            val !== null &&
+            typeof val === "object" &&
+            !Array.isArray(val)
+        );
+    }
+};
 
 
 // ==========================================
@@ -314,6 +454,7 @@ window.updateUser = updateUser;
 window.updateUserField = updateUserField;
 window.setUI = setUI;
 window.getState = getState;
+window.resetState = resetState;
 
 window.calculateCTR = calculateCTR;
 window.calculateConversion = calculateConversion;
@@ -324,61 +465,96 @@ window.log = log;
 window.warn = warn;
 window.errorLog = errorLog;
 
+window.Validator = Validator;
+window.Utils = Utils;
+
+
 // ==========================================
-// DATA LAYER (SAFE ABSTRACTION)
-// IMPORTANT: Frontend layer only, backend must validate everything
+// DATA LAYER
 // ==========================================
 
-const Database = {
+var Database = {
 
-    isFirebase() {
+    isFirebase: function() {
+
         return typeof db !== "undefined";
     },
 
-    async get(path) {
+
+    get: async function(path) {
+
         try {
 
+            if (!path) {
+                return null;
+            }
+
             if (this.isFirebase()) {
-                const snap = await db.ref(path).once("value");
+
+                var snap =
+                    await db.ref(path).once("value");
+
                 return snap.val();
             }
 
             return null;
 
         } catch (err) {
+
             Utils.error("DB GET ERROR:", err);
+
             return null;
         }
     },
 
-    async set(path, data) {
+
+    set: async function(path, data) {
+
         try {
 
+            if (!path) {
+                return false;
+            }
+
             if (this.isFirebase()) {
+
                 await db.ref(path).set(data);
+
                 return true;
             }
 
             return false;
 
         } catch (err) {
+
             Utils.error("DB SET ERROR:", err);
+
             return false;
         }
     },
 
-    async update(path, data) {
+
+    update: async function(path, data) {
+
         try {
 
+            if (!path) {
+                return false;
+            }
+
             if (this.isFirebase()) {
+
                 await db.ref(path).update(data);
+
                 return true;
             }
 
             return false;
 
         } catch (err) {
+
             Utils.error("DB UPDATE ERROR:", err);
+
             return false;
         }
     }
@@ -386,25 +562,35 @@ const Database = {
 
 
 // ==========================================
-// USER SERVICE (FRONTEND SAFE LAYER)
-// Backend must enforce all rules
+// USER SERVICE
 // ==========================================
 
-const UserService = {
+var UserService = {
 
     getUser: async function(userId) {
 
-        if (!userId) return null;
+        if (!userId) {
+            return null;
+        }
 
-        return await Database.get(`users/${userId}`);
+        return await Database.get(
+            "users/" + userId
+        );
     },
 
-    createUser: async function(userId, data = {}) {
 
-        if (!userId) return null;
+    createUser: async function(userId, data) {
 
-        const user = {
+        data = data || {};
+
+        if (!userId) {
+            return null;
+        }
+
+        var user = {
+
             id: userId,
+
             name: data.name || "Guest",
 
             balance: 0,
@@ -413,37 +599,59 @@ const UserService = {
             earnings: 0,
 
             riskScore: 0,
+            riskLevel: "SAFE",
+            adScore: 0,
 
             createdAt: Date.now(),
 
-            // server-controlled fields (frontend suggestion only)
             rewardMultiplier: 1
         };
 
-        await Database.set(`users/${userId}`, user);
+        await Database.set(
+            "users/" + userId,
+            user
+        );
 
-        updateUser(user);
+        updateUser(user, true);
 
         Utils.log("User created");
 
         return user;
     },
 
+
     updateBalance: async function(userId, amount) {
 
-        if (!Validator.isNumber(amount)) return false;
+        amount = Number(amount) || 0;
 
-        const user = await UserService.getUser(userId);
-        if (!user) return false;
+        if (!Validator.isNumber(amount)) {
+            return false;
+        }
 
-        const newBalance = (user.balance || 0) + amount;
+        var user =
+            await UserService.getUser(userId);
 
-        await Database.update(`users/${userId}`, {
-            balance: newBalance,
-            lastBalanceUpdate: Date.now()
-        });
+        if (!user) {
+            return false;
+        }
 
-        updateUser({ balance: newBalance });
+        var newBalance =
+            Number(user.balance || 0) + amount;
+
+        await Database.update(
+            "users/" + userId,
+            {
+                balance: newBalance,
+                lastBalanceUpdate: Date.now()
+            }
+        );
+
+        updateUser(
+            {
+                balance: newBalance
+            },
+            true
+        );
 
         return true;
     }
@@ -451,24 +659,44 @@ const UserService = {
 
 
 // ==========================================
-// CAMPAIGN SERVICE (SAFE VERSION)
+// CAMPAIGN SERVICE
 // ==========================================
 
-const CampaignService = {
+var CampaignService = {
 
-    async createCampaign(userId, data = {}) {
+    createCampaign: async function(userId, data) {
 
-        if (!userId) return { success: false };
+        data = data || {};
 
-        const id = Utils.generateId("cmp");
+        if (!userId) {
 
-        const campaign = {
-            id,
-            userId,
+            return {
+                success: false,
+                error: "INVALID_USER"
+            };
+        }
 
-            title: data.title || "Untitled",
-            budget: Math.max(0, data.budget || 0),
-            bid: Math.max(0.01, data.bid || 0.01),
+        var id =
+            Utils.generateId("cmp");
+
+        var campaign = {
+
+            id: id,
+
+            userId: userId,
+
+            title:
+                data.title || "Untitled",
+
+            budget: Math.max(
+                0,
+                Number(data.budget) || 0
+            ),
+
+            bid: Math.max(
+                0.01,
+                Number(data.bid) || 0.01
+            ),
 
             status: "active",
 
@@ -477,62 +705,102 @@ const CampaignService = {
                 clicks: 0
             },
 
+            performanceScore: 0,
+
             createdAt: Date.now()
         };
 
-        await Database.set(`campaigns/${id}`, campaign);
+        await Database.set(
+            "campaigns/" + id,
+            campaign
+        );
 
         return {
             success: true,
-            campaign
+            campaign: campaign
         };
     },
 
-    async pauseCampaign(id) {
-        if (!id) return false;
 
-        return await Database.update(`campaigns/${id}`, {
-            status: "paused",
-            updatedAt: Date.now()
-        });
+    pauseCampaign: async function(id) {
+
+        if (!id) {
+            return false;
+        }
+
+        return await Database.update(
+            "campaigns/" + id,
+            {
+                status: "paused",
+                updatedAt: Date.now()
+            }
+        );
     },
 
-    async activateCampaign(id) {
-        if (!id) return false;
 
-        return await Database.update(`campaigns/${id}`, {
-            status: "active",
-            updatedAt: Date.now()
-        });
+    activateCampaign: async function(id) {
+
+        if (!id) {
+            return false;
+        }
+
+        return await Database.update(
+            "campaigns/" + id,
+            {
+                status: "active",
+                updatedAt: Date.now()
+            }
+        );
     },
 
-    async getAllCampaigns() {
-        const data = await Database.get("campaigns");
+
+    getAllCampaigns: async function() {
+
+        var data =
+            await Database.get("campaigns");
+
         return data || {};
     }
 };
 
-/* =========================================
-   🌍 SMART GLOBAL LANGUAGE SYSTEM
-   ========================================= */
 
-const AppI18n = {
+// ==========================================
+// GLOBAL HELPERS FOR EVENTS
+// ==========================================
 
-    // =====================================
-    // اللغة الحالية
-    // =====================================
+async function createCampaign(userId, data) {
+
+    return await CampaignService.createCampaign(
+        userId,
+        data
+    );
+}
+
+async function pauseCampaign(id) {
+
+    return await CampaignService.pauseCampaign(id);
+}
+
+async function activateCampaign(id) {
+
+    return await CampaignService.activateCampaign(id);
+}
+
+
+// ==========================================
+// SMART GLOBAL LANGUAGE SYSTEM
+// ==========================================
+
+var AppI18n = {
 
     current: "en",
 
-    // =====================================
-    // لغات RTL
-    // =====================================
-
-    rtlLanguages: ["ar", "fa", "ur", "he"],
-
-    // =====================================
-    // الترجمات
-    // =====================================
+    rtlLanguages: [
+        "ar",
+        "fa",
+        "ur",
+        "he"
+    ],
 
     translations: {
 
@@ -542,7 +810,6 @@ const AppI18n = {
 
         ar: {
 
-            // Bottom Navigation
             nav_home: "الرئيسية",
             nav_advertiser: "المعلن",
             nav_publisher: "الناشر",
@@ -550,7 +817,6 @@ const AppI18n = {
             nav_admin: "الإدارة",
             nav_profile: "الملف",
 
-            // General
             home: "الرئيسية",
             profile: "الملف",
             referrals: "الإحالة",
@@ -560,7 +826,6 @@ const AppI18n = {
             welcome: "مرحبًا",
             balance: "الرصيد",
 
-            // Admin
             admin_title: "لوحة الإدارة",
             overview: "نظرة عامة",
             users: "المستخدمين",
@@ -579,7 +844,6 @@ const AppI18n = {
             top_performance: "الأفضل أداءً",
             live_activity: "النشاط المباشر",
 
-            // Profile
             profile_stats: "إحصائياتي",
             views: "المشاهدات",
             clicks: "النقرات",
@@ -593,18 +857,16 @@ const AppI18n = {
             account_security: "الأمان",
             save_changes: "حفظ التعديلات",
 
-            // Placeholders
             ph_amount: "أدخل المبلغ",
             ph_tx_hash: "أدخل TX Hash"
         },
 
         // =====================================
-        // الإنجليزية
+        // ENGLISH
         // =====================================
 
         en: {
 
-            // Bottom Navigation
             nav_home: "Home",
             nav_advertiser: "Advertiser",
             nav_publisher: "Publisher",
@@ -612,7 +874,6 @@ const AppI18n = {
             nav_admin: "Admin",
             nav_profile: "Profile",
 
-            // General
             home: "Home",
             profile: "Profile",
             referrals: "Referrals",
@@ -622,7 +883,6 @@ const AppI18n = {
             welcome: "Welcome",
             balance: "Balance",
 
-            // Admin
             admin_title: "Admin Panel",
             overview: "Overview",
             users: "Users",
@@ -641,7 +901,6 @@ const AppI18n = {
             top_performance: "Top Performance",
             live_activity: "Live Activity",
 
-            // Profile
             profile_stats: "My Statistics",
             views: "Views",
             clicks: "Clicks",
@@ -655,191 +914,219 @@ const AppI18n = {
             account_security: "Security",
             save_changes: "Save Changes",
 
-            // Placeholders
             ph_amount: "Enter amount",
             ph_tx_hash: "Enter TX Hash"
         }
-    },
-
-    // =====================================
-    // اكتشاف اللغة تلقائياً
-    // =====================================
-
-    detect: function () {
-
-        try {
-
-            let lang = "en";
-
-            // Telegram Language
-            if (
-                window.Telegram &&
-                Telegram.WebApp &&
-                Telegram.WebApp.initDataUnsafe &&
-                Telegram.WebApp.initDataUnsafe.user &&
-                Telegram.WebApp.initDataUnsafe.user.language_code
-            ) {
-
-                lang =
-                    Telegram.WebApp
-                    .initDataUnsafe
-                    .user
-                    .language_code;
-            }
-
-            // Browser Language
-            else {
-
-                lang =
-                    navigator.language || "en";
-            }
-
-            lang =
-                lang
-                .toLowerCase()
-                .split("-")[0];
-
-            // fallback
-            if (!this.translations[lang]) {
-
-                lang = "en";
-            }
-
-            this.current = lang;
-
-            return lang;
-
-        } catch (e) {
-
-            console.error(
-                "LANG DETECT ERROR:",
-                e
-            );
-
-            this.current = "en";
-
-            return "en";
-        }
-    },
-
-    // =====================================
-    // تغيير اللغة
-    // =====================================
-
-    setLanguage: function (lang) {
-
-        if (!this.translations[lang]) return;
-
-        this.current = lang;
-
-        this.apply();
-    },
-
-    // =====================================
-    // تطبيق الاتجاه RTL/LTR
-    // =====================================
-
-    applyDirection: function () {
-
-        const isRTL =
-            this.rtlLanguages.includes(
-                this.current
-            );
-
-        document.documentElement.dir =
-            isRTL ? "rtl" : "ltr";
-
-        document.documentElement.lang =
-            this.current;
-    },
-
-    // =====================================
-    // جلب النص المترجم
-    // =====================================
-
-    t: function (key) {
-
-        return (
-            this.translations[this.current]?.[key] ||
-            this.translations.en?.[key] ||
-            key
-        );
-    },
-
-    // =====================================
-    // تطبيق الترجمة على الصفحة
-    // =====================================
-
-    apply: function () {
-
-        // النصوص
-        const elements =
-            document.querySelectorAll(
-                "[data-i18n]"
-            );
-
-        for (let el of elements) {
-
-            const key =
-                el.getAttribute(
-                    "data-i18n"
-                );
-
-            el.innerHTML =
-                this.t(key);
-        }
-
-        // placeholders
-        const placeholders =
-            document.querySelectorAll(
-                "[data-i18n-placeholder]"
-            );
-
-        for (let el of placeholders) {
-
-            const key =
-                el.getAttribute(
-                    "data-i18n-placeholder"
-                );
-
-            el.placeholder =
-                this.t(key);
-        }
-
-        // اتجاه الصفحة
-        this.applyDirection();
-    },
-
-    // =====================================
-    // تشغيل النظام
-    // =====================================
-
-    init: function () {
-
-        this.detect();
-
-        this.apply();
-
-        console.log(
-            "🌍 Language Loaded:",
-            this.current
-        );
     }
 };
 
-// =====================================
-// GLOBAL ACCESS
-// =====================================
-
-window.AppI18n = AppI18n;
 
 // ==========================================
-// SAFE SERVICE EXPORTS
+// GLOBAL EXPORTS
 // ==========================================
 
 window.Database = Database;
 window.UserService = UserService;
 window.CampaignService = CampaignService;
+window.AppI18n = AppI18n;
+
+// =====================================
+// LANGUAGE ENGINE
+// =====================================
+
+AppI18n.detect = function () {
+
+    try {
+
+        var lang = "en";
+
+        // Telegram language
+        if (
+            window.Telegram &&
+            window.Telegram.WebApp &&
+            window.Telegram.WebApp.initDataUnsafe &&
+            window.Telegram.WebApp.initDataUnsafe.user &&
+            window.Telegram.WebApp.initDataUnsafe.user.language_code
+        ) {
+
+            lang =
+                window.Telegram
+                    .WebApp
+                    .initDataUnsafe
+                    .user
+                    .language_code;
+        }
+
+        // Browser language
+        else if (
+            navigator &&
+            navigator.language
+        ) {
+
+            lang = navigator.language;
+        }
+
+        lang =
+            String(lang)
+                .toLowerCase()
+                .split("-")[0];
+
+        if (
+            !AppI18n.translations[lang]
+        ) {
+
+            lang = "en";
+        }
+
+        AppI18n.current = lang;
+
+        return lang;
+
+    } catch (e) {
+
+        console.error(
+            "LANG DETECT ERROR:",
+            e
+        );
+
+        AppI18n.current = "en";
+
+        return "en";
+    }
+};
+
+
+AppI18n.setLanguage = function (lang) {
+
+    if (
+        !lang ||
+        !AppI18n.translations[lang]
+    ) {
+
+        return false;
+    }
+
+    AppI18n.current = lang;
+
+    AppI18n.apply();
+
+    return true;
+};
+
+
+AppI18n.applyDirection = function () {
+
+    var isRTL =
+        AppI18n.rtlLanguages.indexOf(
+            AppI18n.current
+        ) !== -1;
+
+    document.documentElement.dir =
+        isRTL ? "rtl" : "ltr";
+
+    document.documentElement.lang =
+        AppI18n.current;
+};
+
+
+AppI18n.t = function (key) {
+
+    if (!key) {
+        return "";
+    }
+
+    if (
+        AppI18n.translations[
+            AppI18n.current
+        ] &&
+        AppI18n.translations[
+            AppI18n.current
+        ][key]
+    ) {
+
+        return AppI18n
+            .translations[
+                AppI18n.current
+            ][key];
+    }
+
+    if (
+        AppI18n.translations.en &&
+        AppI18n.translations.en[key]
+    ) {
+
+        return AppI18n
+            .translations
+            .en[key];
+    }
+
+    return key;
+};
+
+
+AppI18n.apply = function () {
+
+    // Text translation
+    var elements =
+        document.querySelectorAll(
+            "[data-i18n]"
+        );
+
+    for (
+        var i = 0;
+        i < elements.length;
+        i++
+    ) {
+
+        var el = elements[i];
+
+        var key =
+            el.getAttribute(
+                "data-i18n"
+            );
+
+        el.textContent =
+            AppI18n.t(key);
+    }
+
+    // Placeholder translation
+    var placeholders =
+        document.querySelectorAll(
+            "[data-i18n-placeholder]"
+        );
+
+    for (
+        var j = 0;
+        j < placeholders.length;
+        j++
+    ) {
+
+        var p = placeholders[j];
+
+        var pKey =
+            p.getAttribute(
+                "data-i18n-placeholder"
+            );
+
+        p.placeholder =
+            AppI18n.t(pKey);
+    }
+
+    AppI18n.applyDirection();
+};
+
+
+AppI18n.init = function () {
+
+    AppI18n.detect();
+
+    AppI18n.apply();
+
+    console.log(
+        "🌍 Language Loaded:",
+        AppI18n.current
+    );
+};
 
 
 // ==========================================
@@ -848,31 +1135,46 @@ window.CampaignService = CampaignService;
 
 var UI = {
 
-    showAlert: function(message, type, duration) {
+    showAlert: function (
+        message,
+        type,
+        duration
+    ) {
 
         message = message || "";
         type = type || "info";
         duration = duration || 3000;
 
-        var el = document.createElement("div");
+        var el =
+            document.createElement("div");
 
-        el.className = "app-alert " + type;
+        el.className =
+            "app-alert " + type;
+
         el.textContent = message;
 
         document.body.appendChild(el);
 
-        setTimeout(function() {
+        setTimeout(function () {
+
             el.classList.add("show");
+
         }, 50);
 
-        setTimeout(function() {
+        setTimeout(function () {
 
             el.classList.remove("show");
 
-            setTimeout(function() {
-                if (el && el.parentNode) {
+            setTimeout(function () {
+
+                if (
+                    el &&
+                    el.parentNode
+                ) {
+
                     el.parentNode.removeChild(el);
                 }
+
             }, 300);
 
         }, duration);
@@ -881,49 +1183,75 @@ var UI = {
     },
 
 
-    showToast: function(message, duration) {
+    showToast: function (
+        message,
+        duration
+    ) {
 
         message = message || "";
         duration = duration || 2000;
 
-        var el = document.createElement("div");
+        var el =
+            document.createElement("div");
 
         el.className = "app-toast";
+
         el.textContent = message;
 
         document.body.appendChild(el);
 
-        setTimeout(function() {
+        setTimeout(function () {
+
             el.classList.add("show");
+
         }, 50);
 
-        setTimeout(function() {
+        setTimeout(function () {
 
             el.classList.remove("show");
 
-            setTimeout(function() {
-                if (el && el.parentNode) {
+            setTimeout(function () {
+
+                if (
+                    el &&
+                    el.parentNode
+                ) {
+
                     el.parentNode.removeChild(el);
                 }
+
             }, 300);
 
         }, duration);
     },
 
 
-    setLoading: function(show) {
+    setLoading: function (show) {
 
-        var loader = document.getElementById("app-loader");
+        var loader =
+            document.getElementById(
+                "app-loader"
+            );
 
         if (!loader) {
 
-            loader = document.createElement("div");
+            loader =
+                document.createElement(
+                    "div"
+                );
+
             loader.id = "app-loader";
-            loader.innerHTML = "<div class='spinner'></div>";
-            document.body.appendChild(loader);
+
+            loader.innerHTML =
+                "<div class='spinner'></div>";
+
+            document.body.appendChild(
+                loader
+            );
         }
 
-        loader.style.display = show ? "flex" : "none";
+        loader.style.display =
+            show ? "flex" : "none";
     }
 };
 
@@ -934,38 +1262,68 @@ var UI = {
 
 var DOM = {
 
-    get: function(selector) {
-        return document.querySelector(selector);
+    get: function (selector) {
+
+        return document.querySelector(
+            selector
+        );
     },
 
-    getAll: function(selector) {
-        return document.querySelectorAll(selector);
+
+    getAll: function (selector) {
+
+        return document.querySelectorAll(
+            selector
+        );
     },
 
-    on: function(event, selector, handler) {
 
-        document.addEventListener(event, function(e) {
+    on: function (
+        event,
+        selector,
+        handler
+    ) {
 
-            var target = e.target;
+        document.addEventListener(
+            event,
+            function (e) {
 
-            while (target && target !== document) {
+                var target = e.target;
 
-                if (target.matches && target.matches(selector)) {
-                    handler(target, e);
-                    return;
+                while (
+                    target &&
+                    target !== document
+                ) {
+
+                    if (
+                        target.matches &&
+                        target.matches(selector)
+                    ) {
+
+                        handler(target, e);
+
+                        return;
+                    }
+
+                    target =
+                        target.parentElement;
                 }
-
-                target = target.parentElement;
             }
-
-        });
+        );
     },
 
-    setText: function(selector, text) {
+
+    setText: function (
+        selector,
+        text
+    ) {
 
         var el = this.get(selector);
 
-        if (el) el.textContent = text;
+        if (el) {
+
+            el.textContent = text;
+        }
     }
 };
 
@@ -976,27 +1334,55 @@ var DOM = {
 
 var UIBindings = {
 
-    updateUserUI: function(user) {
+    updateUserUI: function (user) {
 
-        if (!user) return;
+        if (!user) {
+            return;
+        }
 
-        DOM.setText("#user-name", user.name || "Guest");
-        DOM.setText("#user-balance", user.balance || 0);
+        DOM.setText(
+            "#user-name",
+            user.name || "Guest"
+        );
+
+        DOM.setText(
+            "#user-balance",
+            user.balance || 0
+        );
     },
 
 
-    updateRouteUI: function(ui) {
+    updateRouteUI: function (ui) {
 
-        if (!ui) return;
+        if (!ui) {
+            return;
+        }
 
-        var sections = DOM.getAll("[data-section]");
+        var sections =
+            DOM.getAll(
+                "[data-section]"
+            );
 
-        for (var i = 0; i < sections.length; i++) {
+        for (
+            var i = 0;
+            i < sections.length;
+            i++
+        ) {
 
-            sections[i].classList.remove("active");
+            sections[i]
+                .classList
+                .remove("active");
 
-            if (sections[i].dataset.section === ui.currentSection) {
-                sections[i].classList.add("active");
+            if (
+                sections[i]
+                    .dataset
+                    .section ===
+                ui.currentSection
+            ) {
+
+                sections[i]
+                    .classList
+                    .add("active");
             }
         }
     }
@@ -1004,22 +1390,21 @@ var UIBindings = {
 
 
 // ==========================================
-// SAFE HOOK SYSTEM (FIXED)
+// SAFE HOOK REGISTER
 // ==========================================
 
-// حماية من undefined
-if (!window.Hooks) {
-    window.Hooks = {
-        onUserUpdate: [],
-        onUIUpdate: [],
-        onSystemInit: []
-    };
-}
-
-// 🔥 ربط آمن بدون push على undefined
 function registerHook(name, fn) {
 
+    if (
+        !name ||
+        typeof fn !== "function"
+    ) {
+
+        return;
+    }
+
     if (!Hooks[name]) {
+
         Hooks[name] = [];
     }
 
@@ -1028,19 +1413,28 @@ function registerHook(name, fn) {
 
 
 // ==========================================
-// HOOK INTEGRATION (FIXED)
+// HOOK INTEGRATION
 // ==========================================
 
-registerHook("onUserUpdate", function(user) {
-    UIBindings.updateUserUI(user);
-});
+registerHook(
+    "onUserUpdate",
+    function (user) {
 
-registerHook("onUIUpdate", function(ui) {
-    UIBindings.updateRouteUI(ui);
-    if (UIBindings.updateLoading) {
-        UIBindings.updateLoading(ui);
+        UIBindings.updateUserUI(
+            user
+        );
     }
-});
+);
+
+registerHook(
+    "onUIUpdate",
+    function (ui) {
+
+        UIBindings.updateRouteUI(
+            ui
+        );
+    }
+);
 
 
 // ==========================================
@@ -1057,11 +1451,18 @@ window.registerHook = registerHook;
 // GLOBAL HELPERS
 // ==========================================
 
-window.showAlert = function(msg, type) {
+window.showAlert = function (
+    msg,
+    type
+) {
+
     UI.showAlert(msg, type);
 };
 
-window.showToast = function(msg) {
+window.showToast = function (
+    msg
+) {
+
     UI.showToast(msg);
 };
 
@@ -1071,7 +1472,7 @@ window.showToast = function(msg) {
 
 var AppEngine = {
 
-    init: async function() {
+    init: async function () {
 
         try {
 
@@ -1079,57 +1480,167 @@ var AppEngine = {
 
             setUI("loading", true);
 
-          
-            // =========================
-            // TELEGRAM
-            // =========================
-            var tg = (window.Telegram && window.Telegram.WebApp)
-                ? window.Telegram.WebApp
-                : null;
+            if (
+                window.UI &&
+                typeof UI.setLoading === "function"
+            ) {
 
-            var userId = CONFIG.BOT_CONFIG.ADMIN_ID;
-            var userName = "Guest";
-
-            if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
-                userId = tg.initDataUnsafe.user.id || userId;
-                userName = tg.initDataUnsafe.user.first_name || userName;
+                UI.setLoading(true);
             }
 
-            // =========================
+            // ==========================================
+            // TELEGRAM
+            // ==========================================
+
+            var tg = null;
+
+            if (
+                window.Telegram &&
+                window.Telegram.WebApp
+            ) {
+
+                tg = window.Telegram.WebApp;
+            }
+
+            var userId =
+                CONFIG.BOT_CONFIG.ADMIN_ID;
+
+            var userName = "Guest";
+
+            if (
+                tg &&
+                tg.initDataUnsafe &&
+                tg.initDataUnsafe.user
+            ) {
+
+                userId =
+                    tg.initDataUnsafe.user.id ||
+                    userId;
+
+                userName =
+                    tg.initDataUnsafe.user.first_name ||
+                    userName;
+            }
+
+            // ==========================================
             // USER INIT
-            // =========================
+            // ==========================================
+
             var user = null;
 
-try {
-    if (window.UserService && typeof UserService.getUser === "function") {
-        user = await UserService.getUser(userId);
-    } else {
-        console.warn("UserService not ready");
-    }
-} catch (e) {
-    console.warn("User load failed, using fallback");
-    user = null;
-} 
+            try {
 
-            // =========================
-            // TELEGRAM READY
-            // =========================
-            if (tg) {
+                if (
+                    window.UserService &&
+                    typeof UserService.getUser === "function"
+                ) {
+
+                    user =
+                        await UserService.getUser(
+                            userId
+                        );
+                }
+
+            } catch (e) {
+
+                warn(
+                    "User load failed:",
+                    e
+                );
+
+                user = null;
+            }
+
+            // Create user if not exists
+            if (!user) {
+
                 try {
-                    tg.ready && tg.ready();
-                    tg.expand && tg.expand();
+
+                    user =
+                        await UserService.createUser(
+                            userId,
+                            {
+                                name: userName
+                            }
+                        );
+
                 } catch (e) {
-                    warn("Telegram init failed");
+
+                    warn(
+                        "Create user failed:",
+                        e
+                    );
                 }
             }
 
+            // Update local state
+            if (user) {
+
+                updateUser(user, true);
+            }
+
+            // ==========================================
+            // TELEGRAM READY
+            // ==========================================
+
+            if (tg) {
+
+                try {
+
+                    if (
+                        typeof tg.ready === "function"
+                    ) {
+
+                        tg.ready();
+                    }
+
+                    if (
+                        typeof tg.expand === "function"
+                    ) {
+
+                        tg.expand();
+                    }
+
+                } catch (e) {
+
+                    warn(
+                        "Telegram init failed"
+                    );
+                }
+            }
+
+            // ==========================================
+            // FINISH
+            // ==========================================
+
+            state.system.initialized = true;
+
+            state.system.lastUpdate =
+                Date.now();
+
             setUI("loading", false);
 
-            // =========================
-            // SYSTEM HOOK (FIXED)
-            // =========================
-            if (Hooks && Hooks.onSystemInit) {
-                runHooks(Hooks.onSystemInit, state);
+            if (
+                window.UI &&
+                typeof UI.setLoading === "function"
+            ) {
+
+                UI.setLoading(false);
+            }
+
+            // ==========================================
+            // RUN INIT HOOKS
+            // ==========================================
+
+            if (
+                Hooks &&
+                Hooks.onSystemInit
+            ) {
+
+                runHooks(
+                    Hooks.onSystemInit,
+                    state
+                );
             }
 
             log("App Ready");
@@ -1138,9 +1649,20 @@ try {
 
         } catch (err) {
 
-            errorLog("App Init Error:", err);
+            errorLog(
+                "App Init Error:",
+                err
+            );
 
             setUI("loading", false);
+
+            if (
+                window.UI &&
+                typeof UI.setLoading === "function"
+            ) {
+
+                UI.setLoading(false);
+            }
 
             return false;
         }
@@ -1156,48 +1678,80 @@ var AppRouter = {
 
     routes: {
         home: true,
-        promo: true,
+        advertiser: true,
         publisher: true,
         referrals: true,
         profile: true,
         admin: true
     },
 
-    navigateTo: function(routeName) {
 
-        if (!this.routes[routeName]) {
-            warn("Route not found:", routeName);
+    navigateTo: function (routeName) {
+
+        if (
+            !routeName ||
+            !this.routes[routeName]
+        ) {
+
+            warn(
+                "Route not found:",
+                routeName
+            );
+
             return false;
         }
 
-        // إخفاء كل الصفحات
-        document.querySelectorAll(".page").forEach(page => {
-            page.style.display = "none";
-        });
+        var pages =
+            document.querySelectorAll(
+                ".page"
+            );
 
-        // إظهار الصفحة المطلوبة
-        const targetPage =
-            document.getElementById(routeName + "-page");
+        for (
+            var i = 0;
+            i < pages.length;
+            i++
+        ) {
 
-        if (targetPage) {
-            targetPage.style.display = "block";
+            pages[i].style.display =
+                "none";
         }
 
-        setUI("currentSection", routeName);
+        var targetPage =
+            document.getElementById(
+                routeName + "-page"
+            );
 
-        log("Navigate:", routeName);
+        if (targetPage) {
+
+            targetPage.style.display =
+                "block";
+        }
+
+        setUI(
+            "currentSection",
+            routeName
+        );
+
+        log(
+            "Navigate:",
+            routeName
+        );
 
         return true;
     }
 };
-   
+
+
 // ==========================================
-// EVENT SYSTEM
+// APP EVENTS
 // ==========================================
 
 var AppEvents = {
 
-    handle: async function(action, payload) {
+    handle: async function (
+        action,
+        payload
+    ) {
 
         payload = payload || {};
 
@@ -1211,7 +1765,9 @@ var AppEvents = {
 
                 case "NAVIGATE":
 
-                    AppRouter.navigateTo(payload.route);
+                    AppRouter.navigateTo(
+                        payload.route
+                    );
 
                     break;
 
@@ -1222,9 +1778,25 @@ var AppEvents = {
 
                 case "SHOW_CREATE_CAMPAIGN":
 
-                    document.getElementById("create-campaign-box").style.display = "block";
+                    var createBox =
+                        document.getElementById(
+                            "create-campaign-box"
+                        );
 
-                    document.getElementById("my-campaigns-box").style.display = "none";
+                    var campaignsBox =
+                        document.getElementById(
+                            "my-campaigns-box"
+                        );
+
+                    if (createBox) {
+                        createBox.style.display =
+                            "block";
+                    }
+
+                    if (campaignsBox) {
+                        campaignsBox.style.display =
+                            "none";
+                    }
 
                     break;
 
@@ -1235,9 +1807,25 @@ var AppEvents = {
 
                 case "SHOW_MY_CAMPAIGNS":
 
-                    document.getElementById("create-campaign-box").style.display = "none";
+                    var createCampaignBox =
+                        document.getElementById(
+                            "create-campaign-box"
+                        );
 
-                    document.getElementById("my-campaigns-box").style.display = "block";
+                    var myCampaignsBox =
+                        document.getElementById(
+                            "my-campaigns-box"
+                        );
+
+                    if (createCampaignBox) {
+                        createCampaignBox.style.display =
+                            "none";
+                    }
+
+                    if (myCampaignsBox) {
+                        myCampaignsBox.style.display =
+                            "block";
+                    }
 
                     break;
 
@@ -1248,9 +1836,25 @@ var AppEvents = {
 
                 case "SHOW_ADD_CHANNEL":
 
-                    document.getElementById("add-channel-box").style.display = "block";
+                    var addChannelBox =
+                        document.getElementById(
+                            "add-channel-box"
+                        );
 
-                    document.getElementById("my-channels-box").style.display = "none";
+                    var myChannelsBox =
+                        document.getElementById(
+                            "my-channels-box"
+                        );
+
+                    if (addChannelBox) {
+                        addChannelBox.style.display =
+                            "block";
+                    }
+
+                    if (myChannelsBox) {
+                        myChannelsBox.style.display =
+                            "none";
+                    }
 
                     break;
 
@@ -1261,9 +1865,25 @@ var AppEvents = {
 
                 case "SHOW_MY_CHANNELS":
 
-                    document.getElementById("add-channel-box").style.display = "none";
+                    var addBox =
+                        document.getElementById(
+                            "add-channel-box"
+                        );
 
-                    document.getElementById("my-channels-box").style.display = "block";
+                    var channelsBox =
+                        document.getElementById(
+                            "my-channels-box"
+                        );
+
+                    if (addBox) {
+                        addBox.style.display =
+                            "none";
+                    }
+
+                    if (channelsBox) {
+                        channelsBox.style.display =
+                            "block";
+                    }
 
                     break;
 
@@ -1274,18 +1894,28 @@ var AppEvents = {
 
                 case "CREATE_CAMPAIGN":
 
-                    var result = await createCampaign(
-                        state.user.id,
-                        payload.data
-                    );
+                    var result =
+                        await createCampaign(
+                            state.user.id,
+                            payload.data
+                        );
 
-                    if (result && result.success) {
+                    if (
+                        result &&
+                        result.success
+                    ) {
 
-                        showAlert("Campaign Created", "success");
+                        showAlert(
+                            "Campaign Created",
+                            "success"
+                        );
 
                     } else {
 
-                        showAlert("Failed", "error");
+                        showAlert(
+                            "Failed",
+                            "error"
+                        );
                     }
 
                     break;
@@ -1297,9 +1927,14 @@ var AppEvents = {
 
                 case "PAUSE_CAMPAIGN":
 
-                    await pauseCampaign(payload.id);
+                    await pauseCampaign(
+                        payload.id
+                    );
 
-                    showAlert("Campaign Paused", "info");
+                    showAlert(
+                        "Campaign Paused",
+                        "info"
+                    );
 
                     break;
 
@@ -1310,9 +1945,14 @@ var AppEvents = {
 
                 case "ACTIVATE_CAMPAIGN":
 
-                    await activateCampaign(payload.id);
+                    await activateCampaign(
+                        payload.id
+                    );
 
-                    showAlert("Campaign Activated", "success");
+                    showAlert(
+                        "Campaign Activated",
+                        "success"
+                    );
 
                     break;
 
@@ -1328,7 +1968,10 @@ var AppEvents = {
                         payload.amount || 0
                     );
 
-                    showAlert("Balance Updated", "success");
+                    showAlert(
+                        "Balance Updated",
+                        "success"
+                    );
 
                     break;
 
@@ -1339,7 +1982,9 @@ var AppEvents = {
 
                 case "REFRESH_UI":
 
-                    if (typeof refreshUI === "function") {
+                    if (
+                        typeof refreshUI === "function"
+                    ) {
 
                         refreshUI();
                     }
@@ -1348,82 +1993,107 @@ var AppEvents = {
 
 
                 // =====================================
-                // UNKNOWN
+                // DEFAULT
                 // =====================================
 
                 default:
 
-    warn("Unknown action:", action);
-}
+                    warn(
+                        "Unknown action:",
+                        action
+                    );
+            }
 
-} catch (err) {
+        } catch (err) {
 
-    errorLog("Action Error:", err);
+            errorLog(
+                "Action Error:",
+                err
+            );
 
-    showAlert("System Error", "error");
-}
-}
+            showAlert(
+                "System Error",
+                "error"
+            );
+        }
+    }
 };
 
-document.addEventListener("click", function(e) {
 
-    const routeEl = e.target.closest("[data-route]");
-    if (routeEl && window.AppRouter) {
-        AppRouter.navigateTo(routeEl.dataset.route);
-        return;
+// ==========================================
+// GLOBAL CLICK HANDLER
+// ==========================================
+
+document.addEventListener(
+    "click",
+    function (e) {
+
+        var routeEl =
+            e.target.closest(
+                "[data-route]"
+            );
+
+        if (
+            routeEl &&
+            window.AppRouter
+        ) {
+
+            AppRouter.navigateTo(
+                routeEl.dataset.route
+            );
+
+            return;
+        }
+
+        var actionEl =
+            e.target.closest(
+                "[data-action]"
+            );
+
+        if (
+            actionEl &&
+            window.AppEvents
+        ) {
+
+            var action =
+                actionEl.dataset.action;
+
+            var payload = {};
+
+            try {
+
+                payload = JSON.parse(
+                    actionEl.dataset.payload ||
+                    "{}"
+                );
+
+            } catch (err) {
+
+                payload = {};
+            }
+
+            AppEvents.handle(
+                action,
+                payload
+            );
+        }
     }
+);
 
-    const actionEl = e.target.closest("[data-action]");
-    if (actionEl && window.AppEvents) {
 
-        let action = actionEl.dataset.action;
-        let payload = {};
+// ==========================================
+// SYSTEM INIT HOOK
+// ==========================================
 
-        try {
-            payload = JSON.parse(actionEl.dataset.payload || "{}");
-        } catch (e) {}
+registerHook(
+    "onSystemInit",
+    function () {
 
-        AppEvents.handle(action, payload);
+        log(
+            "System Initialized Hook Fired"
+        );
     }
-});
-    
-
-
-// ==========================================
-// SAFE HOOKS (CRITICAL FIX)
-// ==========================================
-
-// ضمان وجود النظام
-if (!window.Hooks) {
-    window.Hooks = {};
-}
-
-if (!Hooks.onSystemInit) {
-    Hooks.onSystemInit = [];
-}
-
-
-// ==========================================
-// SYSTEM HOOK SAFE REGISTER
-// ==========================================
-
-function registerHook(name, fn) {
-
-    if (!Hooks[name]) {
-        Hooks[name] = [];
-    }
-
-    Hooks[name].push(fn);
-}
-
-
-// ==========================================
-// SAFE HOOK INTEGRATION
-// ==========================================
-
-registerHook("onSystemInit", function() {
-    log("System Initialized Hook Fired");
-});
+);
 
 
 // ==========================================
@@ -1435,72 +2105,120 @@ window.AppRouter = AppRouter;
 window.AppEvents = AppEvents;
 
 // ==========================================
-// SAFE HOOK SYSTEM GUARD (CRITICAL FIX)
+// SAFE HOOK HELPERS
 // ==========================================
-
-if (!window.Hooks) {
-    window.Hooks = {};
-}
 
 function safePushHook(name, fn) {
 
+    if (
+        !name ||
+        typeof fn !== "function"
+    ) {
+
+        return false;
+    }
+
+    if (!window.Hooks) {
+
+        window.Hooks = {};
+    }
+
     if (!Hooks[name]) {
+
         Hooks[name] = [];
     }
 
     Hooks[name].push(fn);
+
+    return true;
 }
 
 
 // ==========================================
-// ANTI-FRAUD ENGINE
+// ANTI FRAUD ENGINE
 // ==========================================
 
 var AntiFraud = {
 
-    calculateRiskScore: function(user) {
+    calculateRiskScore: function (user) {
 
         user = user || {};
 
         var score = 0;
 
-        var ctr = calculateCTR(user.clicks, user.views);
+        var ctr = calculateCTR(
+            user.clicks,
+            user.views
+        );
 
-        if (ctr > 70) score += 40;
-        if (ctr > 90) score += 60;
+        if (ctr > 70) {
+            score += 40;
+        }
 
-        if (user.lastActions && user.lastActions.length > 20) {
+        if (ctr > 90) {
+            score += 60;
+        }
+
+        if (
+            user.lastActions &&
+            user.lastActions.length > 20
+        ) {
+
             score += 20;
         }
 
-        if ((user.ipChanges || 0) > 3) {
+        if (
+            (user.ipChanges || 0) > 3
+        ) {
+
             score += 25;
         }
 
-        if ((user.referrals || 0) > 50) {
+        if (
+            (user.referrals || 0) > 50
+        ) {
+
             score += 30;
         }
 
-        if (user.createdAt && (user.withdrawals || 0) > 0) {
+        if (
+            user.createdAt &&
+            (user.withdrawals || 0) > 0
+        ) {
 
-            var age = Date.now() - user.createdAt;
+            var age =
+                Date.now() -
+                user.createdAt;
 
-            if (age < 24 * 60 * 60 * 1000) {
+            if (
+                age <
+                24 * 60 * 60 * 1000
+            ) {
+
                 score += 50;
             }
         }
 
-        return clamp(score, 0, 100);
+        return clamp(
+            score,
+            0,
+            100
+        );
     },
 
 
-    classify: function(score) {
+    classify: function (score) {
 
-        if (score >= CONFIG.AI.HIGH_RISK_THRESHOLD) {
+        if (
+            score >=
+            CONFIG.AI.HIGH_RISK_THRESHOLD
+        ) {
+
             return "HIGH_RISK";
         }
 
         if (score >= 50) {
+
             return "MEDIUM_RISK";
         }
 
@@ -1508,20 +2226,26 @@ var AntiFraud = {
     },
 
 
-    shouldBlock: function(score) {
+    shouldBlock: function (score) {
+
         return score >= 85;
     },
 
 
-    analyze: function(user) {
+    analyze: function (user) {
 
-        var score = this.calculateRiskScore(user);
+        var score =
+            this.calculateRiskScore(
+                user
+            );
 
         return {
             score: score,
             level: this.classify(score),
-            blocked: this.shouldBlock(score),
-            safeToServeAds: score < 60
+            blocked:
+                this.shouldBlock(score),
+            safeToServeAds:
+                score < 60
         };
     }
 };
@@ -1533,84 +2257,145 @@ var AntiFraud = {
 
 var DecisionEngine = {
 
-    scoreUser: function(user) {
+    scoreUser: function (user) {
 
         user = user || {};
 
         var score = 0;
 
-        var ctr = calculateCTR(user.clicks, user.views);
+        var ctr = calculateCTR(
+            user.clicks,
+            user.views
+        );
 
-        if (ctr >= 10) score += 30;
-        if (ctr >= 30) score += 50;
-
-        if (user.riskScore) {
-            score -= user.riskScore * 0.5;
+        if (ctr >= 10) {
+            score += 30;
         }
 
-        if ((user.views || 0) > 100) score += 20;
-        if ((user.clicks || 0) > 50) score += 20;
-        if ((user.earnings || 0) > 50) score += 15;
+        if (ctr >= 30) {
+            score += 50;
+        }
 
-        return clamp(score, 0, 100);
+        if (user.riskScore) {
+
+            score -=
+                user.riskScore * 0.5;
+        }
+
+        if (
+            (user.views || 0) > 100
+        ) {
+
+            score += 20;
+        }
+
+        if (
+            (user.clicks || 0) > 50
+        ) {
+
+            score += 20;
+        }
+
+        if (
+            (user.earnings || 0) > 50
+        ) {
+
+            score += 15;
+        }
+
+        return clamp(
+            score,
+            0,
+            100
+        );
     },
 
 
-    shouldServeAd: function(user) {
-        return this.scoreUser(user) >= CONFIG.AI.MIN_AD_SCORE;
+    shouldServeAd: function (
+        user
+    ) {
+
+        return (
+            this.scoreUser(user) >=
+            CONFIG.AI.MIN_AD_SCORE
+        );
     },
 
 
-    systemDecision: function(data) {
+    systemDecision: function (
+        data
+    ) {
 
         data = data || {};
 
-        var user = data.user || {};
-        var campaigns = data.campaigns || [];
+        var user =
+            data.user || {};
 
         return {
-            allowAd: this.shouldServeAd(user),
-            risk: user.riskScore || 0
+            allowAd:
+                this.shouldServeAd(
+                    user
+                ),
+            risk:
+                user.riskScore || 0
         };
     }
 };
 
 
 // ==========================================
-// SAFE HOOK INTEGRATION (FIXED)
+// SAFE USER ANALYSIS HOOK
 // ==========================================
 
-// 🔥 لا نستخدم push مباشرة بدون تحقق
+safePushHook(
+    "onUserUpdate",
+    function (user) {
 
-safePushHook("onUserUpdate", function(user) {
+        if (
+            !user ||
+            user._riskProcessing
+        ) {
 
-    var analysis = AntiFraud.analyze(user);
+            return;
+        }
 
-    updateUser({
-        riskScore: analysis.score,
-        riskLevel: analysis.level
-    });
+        user._riskProcessing = true;
 
-    // ad score update safely
-    updateUserField("adScore", DecisionEngine.scoreUser(user));
-});
+        try {
 
-// ==========================================
-// SAFE HOOK SYSTEM GUARD
-// ==========================================
+            var analysis =
+                AntiFraud.analyze(
+                    user
+                );
 
-if (!window.Hooks) {
-    window.Hooks = {};
-}
+            updateUser({
+                riskScore:
+                    analysis.score,
+                riskLevel:
+                    analysis.level
+            });
 
-function safePushHook(name, fn) {
+            updateUserField(
+                "adScore",
+                DecisionEngine.scoreUser(
+                    user
+                )
+            );
 
-    if (!Hooks[name]) {
-        Hooks[name] = [];
+        } catch (err) {
+
+            errorLog(
+                "Risk Hook Error:",
+                err
+            );
+
+        } finally {
+
+            user._riskProcessing =
+                false;
+        }
     }
-
-    Hooks[name].push(fn);
-}
+);
 
 
 // ==========================================
@@ -1619,141 +2404,274 @@ function safePushHook(name, fn) {
 
 var AIOptimizer = {
 
-    analyzeCampaign: function(campaign) {
+    analyzeCampaign: function (
+        campaign
+    ) {
 
         campaign = campaign || {};
 
-        var stats = campaign.stats || {};
+        var stats =
+            campaign.stats || {};
 
-        var views = stats.views || 0;
-        var clicks = stats.clicks || 0;
+        var views =
+            stats.views || 0;
 
-        var ctr = calculateCTR(clicks, views);
+        var clicks =
+            stats.clicks || 0;
+
+        var ctr =
+            calculateCTR(
+                clicks,
+                views
+            );
 
         var score = ctr;
 
-        if ((campaign.budget || 0) > 100) score += 10;
-        if ((campaign.budget || 0) < 10) score -= 10;
+        if (
+            (campaign.budget || 0) > 100
+        ) {
 
-        if (ctr < 1) score -= 20;
-        if (ctr > 20) score += 30;
+            score += 10;
+        }
+
+        if (
+            (campaign.budget || 0) < 10
+        ) {
+
+            score -= 10;
+        }
+
+        if (ctr < 1) {
+            score -= 20;
+        }
+
+        if (ctr > 20) {
+            score += 30;
+        }
 
         return {
             ctr: ctr,
-            score: clamp(score, 0, 100)
+            score: clamp(
+                score,
+                0,
+                100
+            )
         };
     },
 
 
-    adjustRate: function(baseRate, performanceScore) {
+    adjustRate: function (
+        baseRate,
+        performanceScore
+    ) {
 
-        baseRate = baseRate || 0.01;
-        performanceScore = performanceScore || 0;
+        baseRate =
+            baseRate || 0.01;
+
+        performanceScore =
+            performanceScore || 0;
 
         var multiplier = 1;
 
-        if (performanceScore > 70) {
+        if (
+            performanceScore > 70
+        ) {
+
             multiplier = 1.5;
-        } else if (performanceScore > 40) {
+
+        } else if (
+            performanceScore > 40
+        ) {
+
             multiplier = 1.1;
+
         } else {
+
             multiplier = 0.7;
         }
 
-        return +(baseRate * multiplier).toFixed(4);
+        return Number(
+            (
+                baseRate *
+                multiplier
+            ).toFixed(4)
+        );
     },
 
 
-    async optimizeCampaigns() {
+    optimizeCampaigns:
+    async function () {
 
         try {
 
-            var campaigns = await Database.get("campaigns") || {};
+            var campaigns =
+                await Database.get(
+                    "campaigns"
+                ) || {};
+
             var updates = [];
 
-            for (var id in campaigns) {
+            for (
+                var id in campaigns
+            ) {
 
-                var campaign = campaigns[id];
+                if (
+                    !campaigns.hasOwnProperty(
+                        id
+                    )
+                ) {
 
-                var analysis = this.analyzeCampaign(campaign);
+                    continue;
+                }
 
-                var newBid = this.adjustRate(
-                    campaign.bid || 0.01,
-                    analysis.score
-                );
+                var campaign =
+                    campaigns[id];
+
+                var analysis =
+                    this.analyzeCampaign(
+                        campaign
+                    );
+
+                var newBid =
+                    this.adjustRate(
+                        campaign.bid || 0.01,
+                        analysis.score
+                    );
 
                 updates.push(
-                    Database.update("campaigns/" + id, {
-                        bid: newBid,
-                        performanceScore: analysis.score,
-                        lastOptimized: Date.now()
-                    })
+                    Database.update(
+                        "campaigns/" + id,
+                        {
+                            bid: newBid,
+                            performanceScore:
+                                analysis.score,
+                            lastOptimized:
+                                Date.now()
+                        }
+                    )
                 );
             }
 
-            await Promise.all(updates);
+            await Promise.all(
+                updates
+            );
 
-            log("Campaigns Optimized");
+            log(
+                "Campaigns Optimized"
+            );
 
             return true;
 
         } catch (err) {
 
-            errorLog("Optimization Error:", err);
+            errorLog(
+                "Optimization Error:",
+                err
+            );
+
             return false;
         }
     },
 
 
-    async optimizeUsers() {
+    optimizeUsers:
+    async function () {
 
         try {
 
-            var users = await Database.get("users") || {};
+            var users =
+                await Database.get(
+                    "users"
+                ) || {};
+
             var updates = [];
 
-            for (var id in users) {
+            for (
+                var id in users
+            ) {
 
-                var user = users[id];
+                if (
+                    !users.hasOwnProperty(id)
+                ) {
 
-                var ctr = calculateCTR(user.clicks, user.views);
+                    continue;
+                }
+
+                var user =
+                    users[id];
+
+                var ctr =
+                    calculateCTR(
+                        user.clicks,
+                        user.views
+                    );
 
                 var rewardMultiplier = 1;
 
-                if (ctr > 10) rewardMultiplier = 1.2;
-                if (ctr < 1) rewardMultiplier = 0.8;
-                if ((user.riskScore || 0) > 70) rewardMultiplier = 0.5;
+                if (ctr > 10) {
+                    rewardMultiplier = 1.2;
+                }
+
+                if (ctr < 1) {
+                    rewardMultiplier = 0.8;
+                }
+
+                if (
+                    (user.riskScore || 0) > 70
+                ) {
+
+                    rewardMultiplier = 0.5;
+                }
 
                 updates.push(
-                    Database.update("users/" + id, {
-                        rewardMultiplier: rewardMultiplier,
-                        lastOptimized: Date.now()
-                    })
+                    Database.update(
+                        "users/" + id,
+                        {
+                            rewardMultiplier:
+                                rewardMultiplier,
+                            lastOptimized:
+                                Date.now()
+                        }
+                    )
                 );
             }
 
-            await Promise.all(updates);
+            await Promise.all(
+                updates
+            );
 
-            log("Users Optimized");
+            log(
+                "Users Optimized"
+            );
 
             return true;
 
         } catch (err) {
 
-            errorLog("User Optimization Error:", err);
+            errorLog(
+                "User Optimization Error:",
+                err
+            );
+
             return false;
         }
     },
 
 
-    runFullOptimization: async function() {
+    runFullOptimization:
+    async function () {
 
-        var c = await this.optimizeCampaigns();
-        var u = await this.optimizeUsers();
+        var campaignsResult =
+            await this.optimizeCampaigns();
+
+        var usersResult =
+            await this.optimizeUsers();
 
         return {
-            campaignsOptimized: c,
-            usersOptimized: u,
+            campaignsOptimized:
+                campaignsResult,
+            usersOptimized:
+                usersResult,
             timestamp: Date.now()
         };
     }
@@ -1761,133 +2679,267 @@ var AIOptimizer = {
 
 
 // ==========================================
-// SELF LEARNING SYSTEM
+// GLOBAL EXPORTS
+// ==========================================
+
+window.safePushHook =
+    safePushHook;
+
+window.AntiFraud =
+    AntiFraud;
+
+window.DecisionEngine =
+    DecisionEngine;
+
+window.AIOptimizer =
+    AIOptimizer;
+    
+    // ==========================================
+// AI LEARNING SYSTEM
 // ==========================================
 
 var AILearning = {
 
     memory: {
+
         users: {},
         campaigns: {}
     },
 
 
-    trackUser: function(user) {
+    trackUser: function (user) {
 
         user = user || {};
 
-        if (!user.id) return;
+        if (!user.id) {
+            return;
+        }
 
         this.memory.users[user.id] = {
-            ctr: calculateCTR(user.clicks, user.views),
-            risk: user.riskScore || 0,
-            adScore: user.adScore || 0,
-            lastSeen: Date.now()
+
+            ctr: calculateCTR(
+                user.clicks,
+                user.views
+            ),
+
+            risk:
+                user.riskScore || 0,
+
+            adScore:
+                user.adScore || 0,
+
+            lastSeen:
+                Date.now()
         };
     },
 
 
-    trackCampaign: function(campaign) {
+    trackCampaign: function (
+        campaign
+    ) {
 
         campaign = campaign || {};
 
-        if (!campaign.id) return;
+        if (!campaign.id) {
+            return;
+        }
 
-        var stats = campaign.stats || {};
+        var stats =
+            campaign.stats || {};
 
-        this.memory.campaigns[campaign.id] = {
-            ctr: calculateCTR(stats.clicks, stats.views),
-            lastSeen: Date.now()
+        this.memory.campaigns[
+            campaign.id
+        ] = {
+
+            ctr: calculateCTR(
+                stats.clicks,
+                stats.views
+            ),
+
+            lastSeen:
+                Date.now()
         };
     },
 
 
-    getInsights: function() {
+    getInsights: function () {
 
         return {
-            users: Object.keys(this.memory.users).length,
-            campaigns: Object.keys(this.memory.campaigns).length
+
+            users:
+                Object.keys(
+                    this.memory.users
+                ).length,
+
+            campaigns:
+                Object.keys(
+                    this.memory.campaigns
+                ).length
         };
     },
 
 
-    cleanOldData: function(maxAge) {
+    cleanOldData: function (
+        maxAge
+    ) {
 
-        maxAge = maxAge || (24 * 60 * 60 * 1000);
+        maxAge =
+            maxAge ||
+            (
+                24 *
+                60 *
+                60 *
+                1000
+            );
 
         var now = Date.now();
 
-        for (var u in this.memory.users) {
-            if (now - this.memory.users[u].lastSeen > maxAge) {
-                delete this.memory.users[u];
+        // Clean users
+        for (
+            var userId
+            in this.memory.users
+        ) {
+
+            if (
+                !this.memory.users
+                    .hasOwnProperty(
+                        userId
+                    )
+            ) {
+
+                continue;
+            }
+
+            if (
+                now -
+                this.memory.users[
+                    userId
+                ].lastSeen >
+                maxAge
+            ) {
+
+                delete this.memory
+                    .users[userId];
             }
         }
 
-        for (var c in this.memory.campaigns) {
-            if (now - this.memory.campaigns[c].lastSeen > maxAge) {
-                delete this.memory.campaigns[c];
+        // Clean campaigns
+        for (
+            var campaignId
+            in this.memory.campaigns
+        ) {
+
+            if (
+                !this.memory.campaigns
+                    .hasOwnProperty(
+                        campaignId
+                    )
+            ) {
+
+                continue;
+            }
+
+            if (
+                now -
+                this.memory.campaigns[
+                    campaignId
+                ].lastSeen >
+                maxAge
+            ) {
+
+                delete this.memory
+                    .campaigns[
+                        campaignId
+                    ];
             }
         }
 
-        log("Learning memory cleaned");
+        log(
+            "Learning memory cleaned"
+        );
     }
 };
 
 
 // ==========================================
-// SAFE HOOK INTEGRATION (FIXED)
+// AI LEARNING HOOKS
 // ==========================================
 
-// بدلاً من Hooks.onUserUpdate.push
-safePushHook("onUserUpdate", function(user) {
-    AILearning.trackUser(user);
-});
+safePushHook(
+    "onUserUpdate",
+    function (user) {
+
+        try {
+
+            AILearning.trackUser(
+                user
+            );
+
+        } catch (err) {
+
+            errorLog(
+                "Track User Error:",
+                err
+            );
+        }
+    }
+);
 
 
-// ==========================================
-// SYSTEM INIT HOOK SAFE
-// ==========================================
+safePushHook(
+    "onSystemInit",
+    function () {
 
-safePushHook("onSystemInit", function() {
-    AILearning.cleanOldData();
-});
+        try {
 
+            AILearning.cleanOldData();
 
-// ==========================================
-// GLOBAL EXPORTS
-// ==========================================
+        } catch (err) {
 
-window.AIOptimizer = AIOptimizer;
-window.AILearning = AILearning;
-window.safePushHook = safePushHook;
+            errorLog(
+                "Clean Memory Error:",
+                err
+            );
+        }
+    }
+);
+
 
 // ==========================================
 // SCHEDULER CONFIG
 // ==========================================
 
-const SCHEDULER_CONFIG = Object.freeze({
+var SCHEDULER_CONFIG =
+    Object.freeze({
 
-    optimizationInterval: 5 * 60 * 1000,
-    heartbeatInterval: 60 * 1000,
-    healthCheckInterval: 2 * 60 * 1000
-});
+        optimizationInterval:
+            5 * 60 * 1000,
+
+        heartbeatInterval:
+            60 * 1000,
+
+        healthCheckInterval:
+            2 * 60 * 1000
+    });
 
 
 // ==========================================
 // SCHEDULER STATE
 // ==========================================
 
-const SchedulerState = {
+var SchedulerState = {
 
     running: false,
 
     timers: {
+
         optimization: null,
         heartbeat: null,
         health: null
     },
 
     stats: {
+
         lastOptimization: 0,
         lastHeartbeat: 0,
         lastHealthCheck: 0,
@@ -1897,288 +2949,573 @@ const SchedulerState = {
 
 
 // ==========================================
-// SAFE SCHEDULER ENGINE
+// AI SCHEDULER
 // ==========================================
 
-const AIScheduler = {
+var AIScheduler = {
 
-    start() {
+    start: function () {
 
-        if (SchedulerState.running) return;
+        if (
+            SchedulerState.running
+        ) {
 
-        SchedulerState.running = true;
+            return;
+        }
 
-        Utils.log("Scheduler started");
+        SchedulerState.running =
+            true;
+
+        Utils.log(
+            "Scheduler started"
+        );
 
         this._startOptimizationLoop();
+
         this._startHeartbeat();
+
         this._startHealthCheck();
     },
 
 
-    _startOptimizationLoop() {
+    _startOptimizationLoop:
+    function () {
 
-        SchedulerState.timers.optimization = setInterval(async () => {
+        SchedulerState
+            .timers
+            .optimization =
+            setInterval(
+                async function () {
 
-            try {
+                    try {
 
-                const result = await AIOptimizer.runFullOptimization();
+                        var result =
+                            await AIOptimizer
+                                .runFullOptimization();
 
-                SchedulerState.stats.lastOptimization = Date.now();
-                SchedulerState.stats.totalOptimizations++;
+                        SchedulerState
+                            .stats
+                            .lastOptimization =
+                            Date.now();
 
-                Utils.log("Optimization done", result);
+                        SchedulerState
+                            .stats
+                            .totalOptimizations++;
 
-            } catch (err) {
+                        Utils.log(
+                            "Optimization done",
+                            result
+                        );
 
-                Utils.error("Optimization error:", err);
+                    } catch (err) {
+
+                        Utils.error(
+                            "Optimization error:",
+                            err
+                        );
+                    }
+
+                },
+                SCHEDULER_CONFIG
+                    .optimizationInterval
+            );
+    },
+
+
+    _startHeartbeat:
+    function () {
+
+        SchedulerState
+            .timers
+            .heartbeat =
+            setInterval(
+                function () {
+
+                    SchedulerState
+                        .stats
+                        .lastHeartbeat =
+                        Date.now();
+
+                    Utils.log(
+                        "Heartbeat OK"
+                    );
+
+                },
+                SCHEDULER_CONFIG
+                    .heartbeatInterval
+            );
+    },
+
+
+    _startHealthCheck:
+    function () {
+
+        SchedulerState
+            .timers
+            .health =
+            setInterval(
+                function () {
+
+                    var now =
+                        Date.now();
+
+                    var last =
+                        SchedulerState
+                            .stats
+                            .lastOptimization;
+
+                    if (
+                        last &&
+                        now - last >
+                        10 * 60 * 1000
+                    ) {
+
+                        Utils.error(
+                            "Optimization delayed"
+                        );
+                    }
+
+                    SchedulerState
+                        .stats
+                        .lastHealthCheck =
+                        now;
+
+                },
+                SCHEDULER_CONFIG
+                    .healthCheckInterval
+            );
+    },
+
+
+    stop: function () {
+
+        var timers =
+            SchedulerState.timers;
+
+        for (
+            var key in timers
+        ) {
+
+            if (
+                timers.hasOwnProperty(
+                    key
+                )
+            ) {
+
+                if (timers[key]) {
+
+                    clearInterval(
+                        timers[key]
+                    );
+                }
             }
+        }
 
-        }, SCHEDULER_CONFIG.optimizationInterval);
+        SchedulerState.running =
+            false;
+
+        Utils.log(
+            "Scheduler stopped"
+        );
     },
 
 
-    _startHeartbeat() {
-
-        SchedulerState.timers.heartbeat = setInterval(() => {
-
-            SchedulerState.stats.lastHeartbeat = Date.now();
-
-            Utils.log("Heartbeat OK");
-
-        }, SCHEDULER_CONFIG.heartbeatInterval);
-    },
-
-
-    _startHealthCheck() {
-
-        SchedulerState.timers.health = setInterval(() => {
-
-            const now = Date.now();
-
-            const last = SchedulerState.stats.lastOptimization;
-
-            if (last && now - last > 10 * 60 * 1000) {
-                Utils.error("Optimization delayed");
-            }
-
-            SchedulerState.stats.lastHealthCheck = now;
-
-        }, SCHEDULER_CONFIG.healthCheckInterval);
-    },
-
-
-    stop() {
-
-        Object.values(SchedulerState.timers).forEach(timer => {
-            if (timer) clearInterval(timer);
-        });
-
-        SchedulerState.running = false;
-
-        Utils.log("Scheduler stopped");
-    },
-
-
-    getStatus() {
+    getStatus: function () {
 
         return {
-            ...SchedulerState.stats,
-            running: SchedulerState.running
+
+            lastOptimization:
+                SchedulerState
+                    .stats
+                    .lastOptimization,
+
+            lastHeartbeat:
+                SchedulerState
+                    .stats
+                    .lastHeartbeat,
+
+            lastHealthCheck:
+                SchedulerState
+                    .stats
+                    .lastHealthCheck,
+
+            totalOptimizations:
+                SchedulerState
+                    .stats
+                    .totalOptimizations,
+
+            running:
+                SchedulerState
+                    .running
         };
     }
 };
 
 
 // ==========================================
-// BACKGROUND ENGINE (TASK MANAGER)
+// GLOBAL EXPORTS
 // ==========================================
 
-const BackgroundEngine = {
+window.AILearning =
+    AILearning;
 
-    tasks: new Map(),
+window.AIScheduler =
+    AIScheduler;
+
+window.SchedulerState =
+    SchedulerState;
+
+window.SCHEDULER_CONFIG =
+    SCHEDULER_CONFIG;
+    
+    // ==========================================
+// BACKGROUND ENGINE
+// ==========================================
+
+var BackgroundEngine = {
+
+    tasks: {},
 
 
-    addTask(name, fn, interval) {
+    addTask: function (
+        name,
+        fn,
+        interval
+    ) {
 
-        if (this.tasks.has(name)) return;
+        if (
+            !name ||
+            typeof fn !== "function" ||
+            !interval
+        ) {
 
-        const timer = setInterval(async () => {
+            return false;
+        }
 
-            try {
+        if (
+            this.tasks[name]
+        ) {
 
-                await fn();
+            return false;
+        }
 
-            } catch (err) {
+        var timer =
+            setInterval(
+                async function () {
 
-                Utils.error(`Task error [${name}]`, err);
+                    try {
+
+                        await fn();
+
+                    } catch (err) {
+
+                        Utils.error(
+                            "Task error [" +
+                            name +
+                            "]",
+                            err
+                        );
+                    }
+
+                },
+                interval
+            );
+
+        this.tasks[name] = timer;
+
+        Utils.log(
+            "Task added:",
+            name
+        );
+
+        return true;
+    },
+
+
+    removeTask: function (
+        name
+    ) {
+
+        if (
+            !this.tasks[name]
+        ) {
+
+            return false;
+        }
+
+        clearInterval(
+            this.tasks[name]
+        );
+
+        delete this.tasks[name];
+
+        Utils.log(
+            "Task removed:",
+            name
+        );
+
+        return true;
+    },
+
+
+    clearAll: function () {
+
+        for (
+            var name
+            in this.tasks
+        ) {
+
+            if (
+                this.tasks
+                    .hasOwnProperty(
+                        name
+                    )
+            ) {
+
+                clearInterval(
+                    this.tasks[name]
+                );
             }
-
-        }, interval);
-
-        this.tasks.set(name, timer);
-
-        Utils.log("Task added:", name);
-    },
-
-
-    removeTask(name) {
-
-        const timer = this.tasks.get(name);
-
-        if (timer) {
-            clearInterval(timer);
-            this.tasks.delete(name);
-        }
-    },
-
-
-    clearAll() {
-
-        for (const [name, timer] of this.tasks) {
-            clearInterval(timer);
         }
 
-        this.tasks.clear();
+        this.tasks = {};
 
-        Utils.log("All tasks cleared");
+        Utils.log(
+            "All tasks cleared"
+        );
     }
 };
 
 
 // ==========================================
-// VISIBILITY SAFETY (IMPORTANT FOR MOBILE)
+// PAGE VISIBILITY HANDLER
 // ==========================================
 
-document.addEventListener("visibilitychange", () => {
+document.addEventListener(
+    "visibilitychange",
+    function () {
 
-    if (document.hidden) {
+        if (document.hidden) {
 
-        Utils.log("Tab hidden → pausing non-critical tasks");
+            Utils.log(
+                "Tab hidden → pausing non-critical tasks"
+            );
 
-    } else {
+        } else {
 
-        Utils.log("Tab active → resuming tasks");
+            Utils.log(
+                "Tab active → resuming tasks"
+            );
+        }
     }
-});
-
-
-// ==========================================
-// GLOBAL EXPORTS
-// ==========================================
-
-window.AIScheduler = AIScheduler;
-window.BackgroundEngine = BackgroundEngine;
+);
 
 
 // ==========================================
 // SAFE GLOBAL HELPERS
 // ==========================================
 
-window.startScheduler = () => AIScheduler.start();
-window.stopScheduler = () => AIScheduler.stop();
-window.getSchedulerStatus = () => AIScheduler.getStatus();
+window.startScheduler =
+    function () {
 
-// ==========================================
-// SAFE HOOK GUARD
-// ==========================================
+        if (
+            window.AIScheduler
+        ) {
 
-if (!window.Hooks) {
-    window.Hooks = {};
-}
+            AIScheduler.start();
+        }
+    };
 
-function safePushHook(name, fn) {
 
-    if (!Hooks[name]) {
-        Hooks[name] = [];
-    }
+window.stopScheduler =
+    function () {
 
-    Hooks[name].push(fn);
-}
+        if (
+            window.AIScheduler
+        ) {
 
+            AIScheduler.stop();
+        }
+    };
+
+
+window.getSchedulerStatus =
+    function () {
+
+        if (
+            window.AIScheduler
+        ) {
+
+            return AIScheduler
+                .getStatus();
+        }
+
+        return null;
+    };
 
 
 // ==========================================
 // MAIN SYSTEM CONTROLLER
 // ==========================================
 
-const AppSystem = {
+var AppSystem = {
 
     initialized: false,
 
+
     start: async function () {
 
-        if (this.initialized) {
-            warn("System already started");
-            return;
+        if (
+            this.initialized
+        ) {
+
+            warn(
+                "System already started"
+            );
+
+            return false;
         }
 
         try {
 
-            log("SYSTEM BOOTING...");
+            log(
+                "SYSTEM BOOTING..."
+            );
 
-            // ✅ هذا مسموح فقط داخل async function
-            var appReady = await AppEngine.init();
+            // ==========================================
+            // APP INIT
+            // ==========================================
+
+            var appReady =
+                await AppEngine.init();
 
             if (!appReady) {
-                throw new Error("App initialization failed");
+
+                throw new Error(
+                    "App initialization failed"
+                );
             }
 
-            if (window.AppRouter && typeof AppRouter.bindEvents === "function") {
-                AppRouter.bindEvents();
+            // ==========================================
+            // ROUTER INIT
+            // ==========================================
+
+            if (
+                window.AppRouter &&
+                typeof AppRouter
+                    .navigateTo ===
+                    "function"
+            ) {
+
+                AppRouter.navigateTo(
+                    "home"
+                );
             }
 
-            if (window.AppEvents && typeof AppEvents.bind === "function") {
-                AppEvents.bind();
-            }
+            // ==========================================
+            // REFRESH UI
+            // ==========================================
 
-            if (typeof refreshUI === "function") {
+            if (
+                typeof refreshUI ===
+                "function"
+            ) {
+
                 refreshUI();
             }
 
-            if (window.AppRouter && typeof AppRouter.navigateTo === "function") {
-                AppRouter.navigateTo("home");
-            }
+            // ==========================================
+            // START TASKS
+            // ==========================================
 
             this.startBackgroundTasks();
 
-            this.initialized = true;
+            this.initialized =
+                true;
 
-            log("SYSTEM READY");
+            log(
+                "SYSTEM READY"
+            );
+
+            return true;
 
         } catch (err) {
 
-            errorLog("SYSTEM FAILURE:", err);
+            errorLog(
+                "SYSTEM FAILURE:",
+                err
+            );
 
-            if (window.UI && UI.showAlert) {
-                UI.showAlert("System failed to start", "error");
+            if (
+                window.UI &&
+                typeof UI.showAlert ===
+                "function"
+            ) {
+
+                UI.showAlert(
+                    "System failed to start",
+                    "error"
+                );
             }
+
+            return false;
         }
     },
 
-    startBackgroundTasks: function () {
 
-        if (!window.BackgroundEngine) return;
+    startBackgroundTasks:
+    function () {
+
+        if (
+            !window.BackgroundEngine
+        ) {
+
+            return;
+        }
+
+        // ==========================================
+        // UI REFRESH
+        // ==========================================
 
         BackgroundEngine.addTask(
             "ui_refresh",
+
             function () {
-                if (typeof refreshUI === "function") {
+
+                if (
+                    typeof refreshUI ===
+                    "function"
+                ) {
+
                     refreshUI();
                 }
             },
+
             10000
         );
 
+        // ==========================================
+        // USER TRACKING
+        // ==========================================
+
         BackgroundEngine.addTask(
             "user_tracking",
+
             function () {
-                if (state && state.user && state.user.id) {
-                    if (window.AILearning) {
-                        AILearning.trackUser(state.user);
-                    }
+
+                if (
+                    state &&
+                    state.user &&
+                    state.user.id &&
+                    window.AILearning
+                ) {
+
+                    AILearning.trackUser(
+                        state.user
+                    );
                 }
             },
+
             15000
         );
     }
@@ -2186,16 +3523,41 @@ const AppSystem = {
 
 
 // ==========================================
+// GLOBAL EXPORTS
+// ==========================================
+
+window.BackgroundEngine =
+    BackgroundEngine;
+
+window.AppSystem =
+    AppSystem;
+    
+    // ==========================================
 // GLOBAL ERROR HANDLING
 // ==========================================
 
-window.addEventListener("error", function(e) {
-    errorLog("Global Error:", e.message);
-});
+window.addEventListener(
+    "error",
+    function (e) {
 
-window.addEventListener("unhandledrejection", function(e) {
-    errorLog("Promise Error:", e.reason);
-});
+        errorLog(
+            "Global Error:",
+            e.message
+        );
+    }
+);
+
+
+window.addEventListener(
+    "unhandledrejection",
+    function (e) {
+
+        errorLog(
+            "Promise Error:",
+            e.reason
+        );
+    }
+);
 
 
 // ==========================================
@@ -2204,121 +3566,225 @@ window.addEventListener("unhandledrejection", function(e) {
 
 function initTelegramSafety() {
 
-    var tg = window.Telegram && window.Telegram.WebApp;
+    var tg = null;
 
-    if (!tg) return;
+    if (
+        window.Telegram &&
+        window.Telegram.WebApp
+    ) {
+
+        tg = window.Telegram.WebApp;
+    }
+
+    if (!tg) {
+        return;
+    }
 
     try {
-        tg.ready && tg.ready();
-        tg.expand && tg.expand();
+
+        if (
+            typeof tg.ready ===
+            "function"
+        ) {
+
+            tg.ready();
+        }
+
+        if (
+            typeof tg.expand ===
+            "function"
+        ) {
+
+            tg.expand();
+        }
+
     } catch (err) {
-        warn("Telegram init failed");
+
+        warn(
+            "Telegram init failed"
+        );
     }
 }
 
 
 // ==========================================
-// APP ENTRY POINT (MAIN BOOTSTRAP)
+// APP ENTRY POINT
 // ==========================================
 
 function initApp() {
 
     try {
 
-        console.log("🚀 SYSTEM BOOTING...");
+        console.log(
+            "🚀 SYSTEM BOOTING..."
+        );
 
         // ==========================================
         // TELEGRAM INIT
         // ==========================================
-        if (window.Telegram?.WebApp) {
+
+        if (
+            window.Telegram &&
+            window.Telegram.WebApp
+        ) {
 
             try {
 
-                Telegram.WebApp.ready();
-                Telegram.WebApp.expand();
+                if (
+                    typeof Telegram
+                        .WebApp
+                        .ready ===
+                    "function"
+                ) {
+
+                    Telegram
+                        .WebApp
+                        .ready();
+                }
+
+                if (
+                    typeof Telegram
+                        .WebApp
+                        .expand ===
+                    "function"
+                ) {
+
+                    Telegram
+                        .WebApp
+                        .expand();
+                }
 
             } catch (e) {
 
-                console.warn("Telegram init failed");
+                console.warn(
+                    "Telegram init failed"
+                );
             }
         }
 
         // ==========================================
-        // SMART LANGUAGE SYSTEM
+        // LANGUAGE SYSTEM
         // ==========================================
-        if (window.IntlService) {
+
+        if (
+            window.AppI18n &&
+            typeof AppI18n.init ===
+            "function"
+        ) {
 
             try {
 
-                IntlService.applyLanguage();
+                AppI18n.init();
 
             } catch (e) {
 
-                console.warn("Language init failed");
+                console.warn(
+                    "Language init failed"
+                );
             }
         }
 
         // ==========================================
         // APP SYSTEM
         // ==========================================
-        if (window.AppSystem && typeof AppSystem.start === "function") {
+
+        if (
+            window.AppSystem &&
+            typeof AppSystem.start ===
+            "function"
+        ) {
 
             AppSystem.start();
 
         } else {
 
-            console.warn("AppSystem not found");
+            console.warn(
+                "AppSystem not found"
+            );
         }
 
         // ==========================================
         // AI SCHEDULER
         // ==========================================
-        if (window.startAIScheduler &&
-            typeof startAIScheduler === "function") {
 
-            startAIScheduler();
+        if (
+            window.startScheduler &&
+            typeof startScheduler ===
+            "function"
+        ) {
+
+            startScheduler();
         }
 
-        console.log("✅ SYSTEM READY");
+        console.log(
+            "✅ SYSTEM READY"
+        );
 
     } catch (e) {
 
-        console.error("❌ SYSTEM INIT ERROR:", e);
+        console.error(
+            "❌ SYSTEM INIT ERROR:",
+            e
+        );
     }
 }
+
 
 // ==========================================
 // AUTO START
 // ==========================================
 
-document.addEventListener("DOMContentLoaded", function () {
+document.addEventListener(
+    "DOMContentLoaded",
+    function () {
 
-    try {
+        try {
 
-        // 🌍 تشغيل الترجمة
-        if (window.AppI18n) {
+            // ==========================================
+            // LANGUAGE
+            // ==========================================
 
-            AppI18n.init();
+            if (
+                window.AppI18n
+            ) {
+
+                AppI18n.init();
+            }
+
+            // ==========================================
+            // TELEGRAM
+            // ==========================================
+
+            if (
+                typeof initTelegramSafety ===
+                "function"
+            ) {
+
+                initTelegramSafety();
+            }
+
+            // ==========================================
+            // APP START
+            // ==========================================
+
+            if (
+                typeof initApp ===
+                "function"
+            ) {
+
+                initApp();
+            }
+
+        } catch (e) {
+
+            console.error(
+                "DOM INIT ERROR:",
+                e
+            );
         }
-
-        // 🛡 Telegram Safety
-        if (typeof initTelegramSafety === "function") {
-
-            initTelegramSafety();
-        }
-
-        // 🚀 تشغيل التطبيق
-        if (typeof initApp === "function") {
-
-            initApp();
-        }
-
-    } catch (e) {
-
-        console.error("DOM INIT ERROR:", e);
     }
+);
 
-});
 
 // ==========================================
 // DEBUG TOOLS
@@ -2326,32 +3792,78 @@ document.addEventListener("DOMContentLoaded", function () {
 
 window.AppDebug = {
 
-    restart: function() {
+    restart: function () {
+
         location.reload();
     },
 
-    state: function() {
+
+    state: function () {
+
         return state;
     },
 
-    scheduler: function() {
-        return getSchedulerStatus ? getSchedulerStatus() : null;
+
+    scheduler: function () {
+
+        if (
+            typeof getSchedulerStatus ===
+            "function"
+        ) {
+
+            return getSchedulerStatus();
+        }
+
+        return null;
     },
 
-    stopAI: function() {
-        stopAIScheduler && stopAIScheduler();
+
+    stopAI: function () {
+
+        if (
+            typeof stopScheduler ===
+            "function"
+        ) {
+
+            stopScheduler();
+        }
     },
 
-    startAI: function() {
-        startAIScheduler && startAIScheduler();
+
+    startAI: function () {
+
+        if (
+            typeof startScheduler ===
+            "function"
+        ) {
+
+            startScheduler();
+        }
     }
 };
 
 
 // ==========================================
-// SYSTEM INIT HOOK SAFE
+// SYSTEM INIT HOOK
 // ==========================================
 
-safePushHook("onSystemInit", function() {
-    log("System Init Hook Triggered");
-});
+safePushHook(
+    "onSystemInit",
+    function () {
+
+        log(
+            "System Init Hook Triggered"
+        );
+    }
+);
+
+
+// ==========================================
+// FINAL GLOBAL EXPORTS
+// ==========================================
+
+window.initApp =
+    initApp;
+
+window.initTelegramSafety =
+    initTelegramSafety;
