@@ -1,1396 +1,5545 @@
-<!-- ========================================== -->
-<!-- APP ROOT / DOCUMENT START -->
-<!-- PART 1 -->
-<!-- OPTIMIZED HTML STRUCTURE -->
-<!-- ========================================== -->
+<!-- =====================================================
+     Telega.ads Mini App
+     index.html - Part 1
+     Base Structure + Telegram WebApp Setup
+====================================================== -->
 
 <!DOCTYPE html>
-
-<html lang="en" dir="ltr">
+<html lang="ar" dir="rtl">
 
 <head>
 
-    <!-- META -->
+    <!-- Basic -->
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0">
+    <title>Telega.ads</title>
 
-    <meta
-        http-equiv="X-UA-Compatible"
-        content="IE=edge">
 
-    <meta
-        name="description"
-        content="AdSmart AI Advertising Platform">
-
-    <title>AdSmart System</title>
-
-    <!-- TELEGRAM WEB APP -->
+    <!-- Telegram WebApp -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
-    <!-- GOOGLE FONTS -->
-    <link
-        rel="preconnect"
-        href="https://fonts.googleapis.com">
 
-    <link
-        rel="preconnect"
-        href="https://fonts.gstatic.com"
-        crossorigin>
+    <!-- Main Style -->
+    <link rel="stylesheet" href="style.css">
 
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
-        rel="stylesheet">
 
-    <!-- FONT AWESOME -->
-    <link
-        rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- App Icon / Theme -->
+    <meta name="theme-color" content="#229ED9">
 
-    <!-- MAIN CSS -->
-    <link
-        rel="stylesheet"
-        href="style.css">
 
 </head>
 
+
 <body>
 
-    <!-- ========================================== -->
-    <!-- APPLICATION -->
-    <!-- ========================================== -->
 
-    <div id="app">
+<!-- =====================================================
+     APP CONTAINER
+====================================================== -->
 
-        <!-- ========================================== -->
-        <!-- MAIN HEADER -->
-        <!-- ========================================== -->
+<div id="app">
 
-        <header class="app-header">
 
-            <!-- LEFT SIDE -->
-            <div class="app-header-left">
+    <!-- =================================================
+         Loading Screen
+    ================================================== -->
 
-                <!-- LOGO -->
-                <div class="app-logo">
+    <section id="loadingScreen" class="screen active">
 
-                    <i class="fa-solid fa-bolt"></i>
 
-                </div>
+        <div class="loader-box">
 
-                <!-- TITLE -->
-                <div class="app-title">
 
-                    <h1>
-                        AdSmart System
-                    </h1>
+            <div class="logo">
 
-                    <p>
-                        AI Advertising Platform
-                    </p>
-
-                </div>
+                🚀
 
             </div>
 
-            <!-- USER BOX -->
-            <div class="user-box">
 
-                <!-- AVATAR -->
-                <div class="user-avatar">
+            <h1>
 
-                    <span id="user-avatar-letter">
-                        G
-                    </span>
+                Telega.ads
 
-                </div>
+            </h1>
 
-                <!-- USER INFO -->
-                <div class="user-info">
 
-                    <strong id="user-name">
-                        Guest
-                    </strong>
+            <p>
 
-                    <span class="user-balance">
+                Loading...
 
-                        $
-                        <span id="user-balance">
-                            0
-                        </span>
+            </p>
 
-                    </span>
 
-                </div>
+            <div class="loader"></div>
+
+
+        </div>
+
+
+    </section>
+
+
+
+
+
+    <!-- =================================================
+         Main Application Area
+
+         جميع الصفحات ستدخل هنا لاحقاً
+
+    ================================================== -->
+
+
+    <main id="mainApp" class="hidden">
+
+
+<!-- =====================================================
+     Telega.ads Mini App
+     index.html - Part 2
+     Login Screen + Language Selection
+====================================================== -->
+
+
+<!-- ===============================
+     Welcome / Login Section
+================================ -->
+
+<section id="loginSection" class="page">
+
+
+    <div class="card welcome-card">
+
+
+
+        <div class="brand-icon">
+
+            🚀
+
+        </div>
+
+
+
+        <h2 data-ar="مرحبا بك في Telega.ads"
+            data-en="Welcome to Telega.ads">
+
+            مرحبا بك في Telega.ads
+
+        </h2>
+
+
+
+        <p class="description"
+           data-ar="منصة إعلانات Telegram"
+           data-en="Telegram Advertising Platform">
+
+
+            منصة إعلانات Telegram
+
+
+        </p>
+
+
+
+        <div class="user-box">
+
+
+            <div class="user-avatar">
+
+                👤
 
             </div>
 
-        </header>
 
-        <!-- ========================================== -->
-        <!-- MAIN CONTENT -->
-        <!-- ========================================== -->
 
-        <main id="main-content">
+            <div>
 
-            <!-- ========================================== -->
-            <!-- HOME PAGE -->
-            <!-- ========================================== -->
 
-            <section
-                class="page active"
-                id="home-page"
-                data-section="home">
+                <h3 id="telegramUsername">
 
-                <div class="container">
+                    User
 
-                    <!-- HERO CARD -->
-                    <article class="card">
+                </h3>
 
-                        <h2
-                            class="section-title"
-                            data-i18n="welcome">
 
-                            Welcome
+                <p id="telegramId">
 
-                        </h2>
+                    ID: -
 
-                        <p class="section-subtitle">
+                </p>
 
-                            Smart AI advertising platform
-                            powered by automation and analytics.
 
-                        </p>
+            </div>
 
-                        <button
-                            class="btn btn-primary"
-                            type="button"
-                            data-route="advertiser">
 
-                            <i class="fa-solid fa-bullhorn"></i>
 
-                            <span>
-                                Create Campaign
-                            </span>
+        </div>
 
-                        </button>
 
-                    </article>
 
-                    <!-- ========================================== -->
-                    <!-- STATS -->
-                    <!-- ========================================== -->
 
-                    <section class="grid grid-2">
 
-                        <!-- BALANCE -->
-                        <article class="card stat-card">
+        <!-- Language Choice -->
 
-                            <h3 data-i18n="balance">
-                                Balance
-                            </h3>
 
-                            <h2>
+        <div class="language-box">
 
-                                $
-                                <span id="home-balance">
-                                    0
-                                </span>
 
-                            </h2>
+            <h3
+            data-ar="اختر اللغة"
+            data-en="Choose language">
 
-                        </article>
 
-                        <!-- EARNINGS -->
-                        <article class="card stat-card">
+            اختر اللغة
 
-                            <h3 data-i18n="earnings">
-                                Earnings
-                            </h3>
 
-                            <h2>
+            </h3>
 
-                                $
-                                <span id="home-earnings">
-                                    0
-                                </span>
 
-                            </h2>
 
-                        </article>
+            <div class="language-buttons">
 
-                        <!-- VIEWS -->
-                        <article class="card stat-card">
 
-                            <h3 data-i18n="views">
-                                Views
-                            </h3>
 
-                            <h2 id="home-views">
-                                0
-                            </h2>
+                <button
+                class="language-btn active"
+                onclick="selectLanguage('ar')">
 
-                        </article>
 
-                        <!-- CLICKS -->
-                        <article class="card stat-card">
+                    🇸🇦 العربية
 
-                            <h3 data-i18n="clicks">
-                                Clicks
-                            </h3>
 
-                            <h2 id="home-clicks">
-                                0
-                            </h2>
+                </button>
 
-                        </article>
 
-                    </section>
 
-                    <!-- ========================================== -->
-                    <!-- QUICK ACTIONS -->
-                    <!-- ========================================== -->
 
-                    <article class="card">
 
-                        <h2 class="section-title">
+                <button
+                class="language-btn"
+                onclick="selectLanguage('en')">
 
-                            Quick Actions
 
-                        </h2>
+                    🇬🇧 English
 
-                        <div class="grid grid-2">
 
-                            <!-- ADVERTISER -->
-                            <button
-                                class="btn btn-secondary"
-                                type="button"
-                                data-route="advertiser">
+                </button>
 
-                                <i class="fa-solid fa-rectangle-ad"></i>
 
-                                <span>
-                                    Advertiser
-                                </span>
 
-                            </button>
+            </div>
 
-                            <!-- PUBLISHER -->
-                            <button
-                                class="btn btn-secondary"
-                                type="button"
-                                data-route="publisher">
 
-                                <i class="fa-solid fa-globe"></i>
 
-                                <span>
-                                    Publisher
-                                </span>
+        </div>
 
-                            </button>
 
-                            <!-- REFERRALS -->
-                            <button
-                                class="btn btn-secondary"
-                                type="button"
-                                data-route="referrals">
 
-                                <i class="fa-solid fa-users"></i>
 
-                                <span>
-                                    Referrals
-                                </span>
 
-                            </button>
+        <button
+        class="primary-btn"
+        onclick="completeLogin()">
 
-                            <!-- PROFILE -->
-                            <button
-                                class="btn btn-secondary"
-                                type="button"
-                                data-route="profile">
 
-                                <i class="fa-solid fa-user"></i>
 
-                                <span>
-                                    Profile
-                                </span>
+            <span
+            data-ar="دخول"
+            data-en="Enter">
 
-                            </button>
 
-                        </div>
+            دخول
 
-                    </article>
 
-                </div>
+            </span>
 
-            </section>
+
+        </button>
+
+
+
+    </div>
+
+
+</section>
+
+
+
+
+
+
+
+<!-- ===============================
+     User Profile Preview
+================================ -->
+
+
+<section id="profileSection"
+         class="page hidden">
+
+
+
+    <div class="card">
+
+
+
+        <h2
+        data-ar="الحساب"
+        data-en="Account">
+
+
+        الحساب
+
+
+        </h2>
+
+
+
+
+        <div class="profile-row">
+
+
+            <span
+            data-ar="المستخدم"
+            data-en="User">
+
+
+            المستخدم
+
+
+            </span>
+
+
+
+            <strong id="profileUsername">
+
+                -
+
+            </strong>
+
+
+
+        </div>
+
+
+
+
+
+
+        <div class="profile-row">
+
+
+            <span
+            data-ar="اللغة"
+            data-en="Language">
+
+
+            اللغة
+
+
+            </span>
+
+
+
+            <strong id="profileLanguage">
+
+                -
+
+            </strong>
+
+
+
+        </div>
+
+
+
+
+
+
+    </div>
+
+
+
+</section>
+
+
+
+
+
+
+<!-- =====================================================
+     Login Functions
+====================================================== -->
+
+
+<script>
+
+
+/*
+    Language System
+
+*/
+
+
+function selectLanguage(lang){
+
+
+    AppState.user.language = lang;
+
+
+
+    document
+    .querySelectorAll(".language-btn")
+    .forEach(btn=>{
+
+        btn.classList.remove("active");
+
+    });
+
+
+
+    event.target.classList.add("active");
+
+
+
+    changeLanguage(lang);
+
+
+
+}
+
+
+
+
+
+
+function changeLanguage(lang){
+
+
+
+    document.documentElement.lang = lang;
+
+
+
+    if(lang === "ar"){
+
+
+        document.documentElement.dir="rtl";
+
+
+    }else{
+
+
+        document.documentElement.dir="ltr";
+
+
+    }
+
+
+
+
+
+
+    document
+    .querySelectorAll("[data-ar]")
+    .forEach(el=>{
+
+
+        el.innerText =
+        el.getAttribute(
+            "data-"+lang
+        );
+
+
+    });
+
+
+
+}
+
+
+
+
+
+
+
+
+
+function completeLogin(){
+
+
+
+    if(!AppState.user.language){
+
+
+        showNotification(
+        "اختر اللغة أولا"
+        );
+
+
+        return;
+
+
+    }
+
+
+
+
+
+    if(telegramApp?.initDataUnsafe?.user){
+
+
+
+        const user =
+        telegramApp.initDataUnsafe.user;
+
+
+
+        document
+        .getElementById("telegramUsername")
+        .innerText =
+        user.username
+        ? "@"+user.username
+        : "Telegram User";
+
+
+
+
+        document
+        .getElementById("telegramId")
+        .innerText =
+        "ID: "+user.id;
+
+
+
+    }
+
+
+
+
+
+
+    document
+    .getElementById("loginSection")
+    .classList.add("hidden");
+
+
+
+    document
+    .getElementById("profileSection")
+    .classList.remove("hidden");
+
+
+
+
+
+
+    document
+    .getElementById("profileUsername")
+    .innerText =
+    AppState.user.username || "Telegram";
+
+
+
+
+    document
+    .getElementById("profileLanguage")
+    .innerText =
+    AppState.user.language;
+
+
+
+
+    showNotification(
+    "تم تسجيل الدخول"
+    );
+
+
+
+}
+
+
+
+
+
+
+function showNotification(text){
+
+
+    const box =
+    document.getElementById(
+    "notificationBox"
+    );
+
+
+    const content =
+    document.getElementById(
+    "notificationText"
+    );
+
+
+
+    content.innerText=text;
+
+
+
+    box.classList.remove("hidden");
+
+
+
+    setTimeout(()=>{
+
+
+        box.classList.add("hidden");
+
+
+    },2500);
+
+
+
+}
+
+
+
+</script>
             
-            <!-- ========================================== -->
-<!-- ADVERTISER PAGE -->
-<!-- PART 2 -->
-<!-- OPTIMIZED HTML STRUCTURE -->
-<!-- ========================================== -->
+<!-- =====================================================
+     Telega.ads Mini App
+     index.html - Part 3
+     Main Dashboard
+====================================================== -->
 
-<section
-    class="page"
-    id="advertiser-page"
-    data-section="advertiser">
 
-    <div class="container">
 
-        <!-- PAGE HEADER -->
-        <article class="card">
+<!-- ===============================
+     Dashboard Section
+================================ -->
 
-            <h2
-                class="section-title"
-                data-i18n="advertiser">
 
-                Advertiser
+<section id="dashboardSection"
+         class="page hidden">
 
-            </h2>
 
-            <p class="section-subtitle">
 
-                Create and manage your
-                advertising campaigns.
+    <div class="dashboard-header">
+
+
+
+        <div>
+
+
+            <h1>
+
+                Telega.ads 🚀
+
+            </h1>
+
+
+            <p
+            data-ar="لوحة التحكم"
+            data-en="Dashboard">
+
+
+            لوحة التحكم
+
 
             </p>
 
-        </article>
 
-        <!-- ACTIONS -->
-        <article class="card">
+        </div>
 
-            <div class="grid grid-2">
 
-                <!-- CREATE CAMPAIGN -->
-                <button
-                    class="btn btn-primary"
-                    type="button"
-                    data-action="show-create-campaign">
 
-                    <i class="fa-solid fa-plus"></i>
 
-                    <span>
-                        Create Campaign
-                    </span>
 
-                </button>
+        <div class="balance-box">
 
-                <!-- MY CAMPAIGNS -->
-                <button
-                    class="btn btn-secondary"
-                    type="button"
-                    data-action="show-my-campaigns">
 
-                    <i class="fa-solid fa-layer-group"></i>
+            <span
+            data-ar="الرصيد"
+            data-en="Balance">
 
-                    <span>
-                        My Campaigns
-                    </span>
 
-                </button>
+            الرصيد
 
-            </div>
 
-        </article>
+            </span>
 
-        <!-- ========================================== -->
-        <!-- CREATE CAMPAIGN -->
-        <!-- ========================================== -->
 
-        <article
-            class="card"
-            id="create-campaign-box">
+            <strong id="dashboardBalance">
 
-            <h3 class="section-title">
+                0 USDT
 
-                New Campaign
+            </strong>
 
-            </h3>
 
-            <!-- FORM -->
-            <form
-                id="campaign-form"
-                autocomplete="off">
 
-                <!-- TITLE -->
-                <div class="form-group">
+        </div>
 
-                    <label for="campaign-title">
 
-                        Campaign Title
-
-                    </label>
-
-                    <input
-                        type="text"
-                        class="input"
-                        id="campaign-title"
-                        name="campaignTitle"
-                        placeholder="Enter campaign title"
-                        required>
-
-                </div>
-
-                <!-- BUDGET -->
-                <div class="form-group">
-
-                    <label for="campaign-budget">
-
-                        Budget
-
-                    </label>
-
-                    <input
-                        type="number"
-                        class="input"
-                        id="campaign-budget"
-                        name="campaignBudget"
-                        placeholder="Enter budget"
-                        min="1"
-                        required>
-
-                </div>
-
-                <!-- BID -->
-                <div class="form-group">
-
-                    <label for="campaign-bid">
-
-                        Bid Amount
-
-                    </label>
-
-                    <input
-                        type="number"
-                        class="input"
-                        id="campaign-bid"
-                        name="campaignBid"
-                        step="0.01"
-                        min="0.01"
-                        placeholder="0.01"
-                        required>
-
-                </div>
-
-                <!-- SUBMIT -->
-                <button
-                    class="btn btn-primary"
-                    type="submit"
-                    id="create-campaign-btn">
-
-                    <i class="fa-solid fa-paper-plane"></i>
-
-                    <span>
-                        Launch Campaign
-                    </span>
-
-                </button>
-
-            </form>
-
-        </article>
-
-        <!-- ========================================== -->
-        <!-- MY CAMPAIGNS -->
-        <!-- ========================================== -->
-
-        <article
-            class="card hidden"
-            id="my-campaigns-box">
-
-            <h3 class="section-title">
-
-                My Campaigns
-
-            </h3>
-
-            <!-- CAMPAIGNS LIST -->
-            <div id="campaigns-list">
-
-                <!-- DYNAMIC CONTENT -->
-
-            </div>
-
-        </article>
 
     </div>
 
-</section>
 
-<!-- ========================================== -->
-<!-- PUBLISHER PAGE -->
-<!-- ========================================== -->
 
-<section
-    class="page"
-    id="publisher-page"
-    data-section="publisher">
 
-    <div class="container">
 
-        <!-- PAGE HEADER -->
-        <article class="card">
 
-            <h2
-                class="section-title"
-                data-i18n="publisher">
 
-                Publisher
+    <!-- ===============================
+         Main Menu Cards
+    ================================= -->
 
-            </h2>
 
-            <p class="section-subtitle">
+    <div class="menu-grid">
 
-                Manage your channels
-                and monetize your traffic.
+
+
+
+
+
+        <!-- Publisher -->
+
+
+        <div class="menu-card"
+             onclick="openPublisher()">
+
+
+
+            <div class="menu-icon">
+
+                📢
+
+            </div>
+
+
+            <h3
+            data-ar="الناشر"
+            data-en="Publisher">
+
+
+            الناشر
+
+
+            </h3>
+
+
+
+            <p
+            data-ar="إدارة القنوات"
+            data-en="Manage channels">
+
+
+            إدارة القنوات
+
 
             </p>
 
-        </article>
 
-        <!-- ACTIONS -->
-        <article class="card">
 
-            <div class="grid grid-2">
+        </div>
 
-                <!-- ADD CHANNEL -->
-                <button
-                    class="btn btn-primary"
-                    type="button"
-                    data-action="show-add-channel">
 
-                    <i class="fa-solid fa-plus"></i>
 
-                    <span>
-                        Add Channel
-                    </span>
 
-                </button>
 
-                <!-- MY CHANNELS -->
-                <button
-                    class="btn btn-secondary"
-                    type="button"
-                    data-action="show-my-channels">
 
-                    <i class="fa-solid fa-globe"></i>
 
-                    <span>
-                        My Channels
-                    </span>
 
-                </button>
+        <!-- Advertiser -->
+
+
+        <div class="menu-card"
+             onclick="openAdvertiser()">
+
+
+
+            <div class="menu-icon">
+
+                🎯
 
             </div>
 
-        </article>
 
-        <!-- ========================================== -->
-        <!-- ADD CHANNEL -->
-        <!-- ========================================== -->
+            <h3
+            data-ar="المعلن"
+            data-en="Advertiser">
 
-        <article
-            class="card"
-            id="add-channel-box">
 
-            <h3 class="section-title">
+            المعلن
 
-                Add New Channel
 
             </h3>
 
-            <!-- FORM -->
-            <form
-                id="channel-form"
-                autocomplete="off">
 
-                <!-- CHANNEL NAME -->
-                <div class="form-group">
 
-                    <label for="channel-name">
+            <p
+            data-ar="إنشاء الحملات"
+            data-en="Create campaigns">
 
-                        Channel Name
 
-                    </label>
+            إنشاء الحملات
 
-                    <input
-                        type="text"
-                        class="input"
-                        id="channel-name"
-                        name="channelName"
-                        placeholder="Enter channel name"
-                        required>
 
-                </div>
+            </p>
 
-                <!-- CHANNEL URL -->
-                <div class="form-group">
 
-                    <label for="channel-url">
 
-                        Channel URL
+        </div>
 
-                    </label>
 
-                    <input
-                        type="url"
-                        class="input"
-                        id="channel-url"
-                        name="channelUrl"
-                        placeholder="https://example.com"
-                        required>
 
-                </div>
 
-                <!-- CATEGORY -->
-                <div class="form-group">
 
-                    <label for="channel-category">
 
-                        Category
 
-                    </label>
 
-                    <select
-                        class="input"
-                        id="channel-category"
-                        name="channelCategory">
+        <!-- Wallet -->
 
-                        <option value="general">
-                            General
-                        </option>
 
-                        <option value="gaming">
-                            Gaming
-                        </option>
+        <div class="menu-card"
+             onclick="openWallet()">
 
-                        <option value="crypto">
-                            Crypto
-                        </option>
 
-                        <option value="technology">
-                            Technology
-                        </option>
 
-                        <option value="business">
-                            Business
-                        </option>
+            <div class="menu-icon">
 
-                    </select>
-
-                </div>
-
-                <!-- SUBMIT -->
-                <button
-                    class="btn btn-primary"
-                    type="submit"
-                    id="add-channel-btn">
-
-                    <i class="fa-solid fa-check"></i>
-
-                    <span>
-                        Save Channel
-                    </span>
-
-                </button>
-
-            </form>
-
-        </article>
-        
-        <!-- ========================================== -->
-<!-- PART 3 -->
-<!-- OPTIMIZED HTML STRUCTURE -->
-<!-- ========================================== -->
-
-        <!-- ========================================== -->
-        <!-- MY CHANNELS -->
-        <!-- ========================================== -->
-
-        <article
-            class="card hidden"
-            id="my-channels-box">
-
-            <h3 class="section-title">
-
-                My Channels
-
-            </h3>
-
-            <!-- CHANNELS LIST -->
-            <div id="channels-list">
-
-                <!-- DYNAMIC CONTENT -->
+                💰
 
             </div>
 
-        </article>
+
+            <h3
+            data-ar="المحفظة"
+            data-en="Wallet">
+
+
+            المحفظة
+
+
+            </h3>
+
+
+
+            <p
+            data-ar="الشحن والسحب"
+            data-en="Deposit & Withdraw">
+
+
+            الشحن والسحب
+
+
+            </p>
+
+
+
+        </div>
+
+
+
+
+
+
+
+
+        <!-- Admin -->
+
+
+        <div class="menu-card hidden"
+             id="adminMenu"
+             onclick="openAdmin()">
+
+
+
+            <div class="menu-icon">
+
+                🛠️
+
+            </div>
+
+
+
+            <h3
+            data-ar="الأدمن"
+            data-en="Admin">
+
+
+            الأدمن
+
+
+            </h3>
+
+
+
+            <p
+            data-ar="إدارة النظام"
+            data-en="System Control">
+
+
+            إدارة النظام
+
+
+            </p>
+
+
+
+        </div>
+
+
+
+
 
     </div>
 
+
+
+
+
+
+
+
+    <!-- ===============================
+         Bottom Navigation
+    ================================= -->
+
+
+
+    <nav class="bottom-nav">
+
+
+
+        <button
+        class="nav-btn active">
+
+
+            🏠
+
+            <span
+            data-ar="الرئيسية"
+            data-en="Home">
+
+            الرئيسية
+
+            </span>
+
+
+        </button>
+
+
+
+
+
+        <button
+        class="nav-btn"
+        onclick="openWallet()">
+
+
+
+            💳
+
+            <span
+            data-ar="المحفظة"
+            data-en="Wallet">
+
+
+            المحفظة
+
+
+            </span>
+
+
+        </button>
+
+
+
+
+
+        <button
+        class="nav-btn">
+
+
+            👤
+
+
+            <span
+            data-ar="الحساب"
+            data-en="Profile">
+
+
+            الحساب
+
+
+            </span>
+
+
+
+        </button>
+
+
+
+
+
+    </nav>
+
+
+
+
 </section>
 
-<!-- ========================================== -->
-<!-- REFERRALS PAGE -->
-<!-- ========================================== -->
 
-<section
-    class="page"
-    id="referrals-page"
-    data-section="referrals">
 
-    <div class="container">
 
-        <!-- PAGE HEADER -->
-        <article class="card">
 
-            <h2
-                class="section-title"
-                data-i18n="referrals">
 
-                Referrals
 
-            </h2>
 
-            <p class="section-subtitle">
+<!-- =====================================================
+     Dashboard Functions
+====================================================== -->
 
-                Invite friends and earn
-                rewards automatically.
 
-            </p>
 
-        </article>
+<script>
 
-        <!-- ========================================== -->
-        <!-- REFERRAL STATS -->
-        <!-- ========================================== -->
 
-        <section class="grid grid-2">
 
-            <!-- TOTAL REFERRALS -->
-            <article class="card stat-card">
 
-                <h3>
 
-                    Total Referrals
+function openDashboard(){
 
-                </h3>
 
-                <h2 id="referral-count">
+    hideAllPages();
 
-                    0
 
-                </h2>
 
-            </article>
+    document
+    .getElementById("dashboardSection")
+    .classList.remove("hidden");
 
-            <!-- REFERRAL EARNINGS -->
-            <article class="card stat-card">
 
-                <h3>
 
-                    Referral Earnings
+}
 
-                </h3>
 
-                <h2>
 
-                    $
-                    <span id="referral-earnings">
 
-                        0
 
-                    </span>
 
-                </h2>
+function openPublisher(){
 
-            </article>
 
-        </section>
 
-        <!-- ========================================== -->
-        <!-- REFERRAL LINK -->
-        <!-- ========================================== -->
+    hideAllPages();
 
-        <article class="card">
 
-            <h3 class="section-title">
+    document
+    .getElementById("publisherSection")
+    ?.classList.remove("hidden");
 
-                Your Referral Link
 
-            </h3>
 
-            <div class="form-group">
+}
 
-                <label for="referral-link">
 
-                    Referral URL
 
-                </label>
 
-                <input
-                    type="text"
-                    class="input"
-                    id="referral-link"
-                    readonly
-                    value="https://t.me/YourBot?start=ref123">
 
-            </div>
 
-            <button
-                class="btn btn-primary"
-                type="button"
-                id="copy-referral-btn">
 
-                <i class="fa-solid fa-copy"></i>
+function openAdvertiser(){
+
+
+
+    hideAllPages();
+
+
+
+    document
+    .getElementById("advertiserSection")
+    ?.classList.remove("hidden");
+
+
+
+}
+
+
+
+
+
+
+
+function openWallet(){
+
+
+
+    hideAllPages();
+
+
+
+    document
+    .getElementById("walletSection")
+    ?.classList.remove("hidden");
+
+
+
+}
+
+
+
+
+
+
+
+function openAdmin(){
+
+
+
+    hideAllPages();
+
+
+
+    document
+    .getElementById("adminSection")
+    ?.classList.remove("hidden");
+
+
+
+}
+
+
+
+
+
+
+
+function hideAllPages(){
+
+
+
+    document
+    .querySelectorAll(".page")
+    .forEach(page=>{
+
+
+        page.classList.add("hidden");
+
+
+    });
+
+
+
+}
+
+
+
+
+
+
+
+
+// بعد تسجيل الدخول افتح لوحة التحكم
+
+
+const oldCompleteLogin =
+window.completeLogin;
+
+
+
+window.completeLogin=function(){
+
+
+    oldCompleteLogin();
+
+
+
+    setTimeout(()=>{
+
+
+        document
+        .getElementById("profileSection")
+        ?.classList.add("hidden");
+
+
+
+        openDashboard();
+
+
+
+    },500);
+
+
+
+}
+
+
+
+
+</script>
+
+<!-- =====================================================
+     Telega.ads Mini App
+     index.html - Part 4
+     Publisher Panel
+====================================================== -->
+
+
+
+<!-- ===============================
+     Publisher Section
+================================ -->
+
+
+<section id="publisherSection"
+         class="page hidden">
+
+
+
+
+
+    <!-- Header -->
+
+
+    <div class="section-header">
+
+
+
+        <button
+        class="back-btn"
+        onclick="openDashboard()">
+
+
+
+            ←
+
+
+        </button>
+
+
+
+
+        <h2
+        data-ar="لوحة الناشر"
+        data-en="Publisher Panel">
+
+
+        لوحة الناشر
+
+
+        </h2>
+
+
+
+    </div>
+
+
+
+
+
+
+
+
+
+    <!-- Add Channel Card -->
+
+
+    <div class="card">
+
+
+
+        <h3
+        data-ar="إضافة قناة"
+        data-en="Add Channel">
+
+
+        إضافة قناة
+
+
+        </h3>
+
+
+
+
+
+        <div class="input-group">
+
+
+            <label
+            data-ar="معرف القناة"
+            data-en="Channel Username">
+
+
+            معرف القناة
+
+
+            </label>
+
+
+            <input
+            id="channelUsername"
+            type="text"
+            placeholder="@channel">
+
+
+
+        </div>
+
+
+
+
+
+
+
+
+        <div class="input-group">
+
+
+            <label
+            data-ar="التصنيف"
+            data-en="Category">
+
+
+            التصنيف
+
+
+            </label>
+
+
+
+
+            <select id="channelCategory">
+
+
+                <option value="general">
+
+                    عام
+
+                </option>
+
+
+
+                <option value="crypto">
+
+                    Crypto
+
+                </option>
+
+
+
+                <option value="news">
+
+                    أخبار
+
+                </option>
+
+
+
+                <option value="technology">
+
+                    تقنية
+
+                </option>
+
+
+
+                <option value="other">
+
+                    أخرى
+
+                </option>
+
+
+
+            </select>
+
+
+
+        </div>
+
+
+
+
+
+
+
+
+        <button
+        class="primary-btn"
+        onclick="addChannel()">
+
+
+
+            <span
+            data-ar="إضافة القناة"
+            data-en="Add Channel">
+
+
+            إضافة القناة
+
+
+            </span>
+
+
+
+        </button>
+
+
+
+
+
+    </div>
+
+
+
+
+
+
+
+
+
+
+    <!-- My Channels -->
+
+
+    <div class="card">
+
+
+
+        <h3
+        data-ar="قنواتي"
+        data-en="My Channels">
+
+
+        قنواتي
+
+
+        </h3>
+
+
+
+
+
+        <div id="channelsList"
+             class="list-box">
+
+
+
+
+
+            <div class="empty-state">
+
 
                 <span>
-                    Copy Link
+
+                    📢
+
                 </span>
+
+
+                <p
+                data-ar="لا توجد قنوات"
+                data-en="No channels yet">
+
+
+                لا توجد قنوات
+
+
+                </p>
+
+
+            </div>
+
+
+
+
+
+        </div>
+
+
+
+
+
+    </div>
+
+
+
+
+
+
+
+
+</section>
+
+
+
+
+
+
+
+
+
+<!-- =====================================================
+     Channel Modal
+====================================================== -->
+
+
+
+<div id="channelModal"
+     class="modal hidden">
+
+
+
+    <div class="modal-content">
+
+
+
+        <h3
+        data-ar="تعديل القناة"
+        data-en="Edit Channel">
+
+
+        تعديل القناة
+
+
+        </h3>
+
+
+
+
+
+        <input
+        id="editChannelCategory"
+        type="text">
+
+
+
+
+
+
+        <button
+        class="primary-btn"
+        onclick="saveChannelEdit()">
+
+
+
+            حفظ
+
+
+        </button>
+
+
+
+
+
+        <button
+        class="cancel-btn"
+        onclick="closeChannelModal()">
+
+
+
+            إلغاء
+
+
+        </button>
+
+
+
+
+
+    </div>
+
+
+</div>
+
+
+
+
+
+
+
+
+
+<!-- =====================================================
+     Publisher Logic
+====================================================== -->
+
+
+
+<script>
+
+
+
+
+
+function addChannel(){
+
+
+
+    const username =
+    document
+    .getElementById("channelUsername")
+    .value
+    .trim();
+
+
+
+
+    const category =
+    document
+    .getElementById("channelCategory")
+    .value;
+
+
+
+
+
+    if(!username){
+
+
+        showNotification(
+        "أدخل معرف القناة"
+        );
+
+
+        return;
+
+
+    }
+
+
+
+
+
+
+
+    /*
+       لاحقاً هنا يتم إرسال الطلب إلى Backend
+
+       POST /api/channels/check-admin
+
+       للتحقق أن البوت أدمن
+
+    */
+
+
+
+
+
+    const channel = {
+
+
+        id: Date.now(),
+
+
+        username: username,
+
+
+        title: username,
+
+
+        link:
+        "https://t.me/"+username.replace("@",""),
+
+
+
+        members: 0,
+
+
+        category: category,
+
+
+        status:"pending"
+
+
+
+    };
+
+
+
+
+
+
+
+    AppState.publisher.channels.push(channel);
+
+
+
+
+    renderChannels();
+
+
+
+
+    document
+    .getElementById("channelUsername")
+    .value="";
+
+
+
+    showNotification(
+    "تمت إضافة القناة"
+    );
+
+
+
+}
+
+
+
+
+
+
+
+
+
+function renderChannels(){
+
+
+
+    const box =
+    document.getElementById(
+    "channelsList"
+    );
+
+
+
+    box.innerHTML="";
+
+
+
+
+
+
+    if(
+    AppState.publisher.channels.length===0
+    ){
+
+
+
+        box.innerHTML = `
+
+        <div class="empty-state">
+
+        📢
+
+        <p>
+        لا توجد قنوات
+        </p>
+
+        </div>
+
+        `;
+
+
+        return;
+
+    }
+
+
+
+
+
+
+
+
+
+    AppState.publisher.channels
+    .forEach(channel=>{
+
+
+
+
+
+        box.innerHTML += `
+
+
+        <div class="channel-item">
+
+
+
+            <div>
+
+
+                <h4>
+
+                ${channel.title}
+
+                </h4>
+
+
+
+                <p>
+
+                ${channel.link}
+
+                </p>
+
+
+
+                <small>
+
+                ${channel.category}
+
+                </small>
+
+
+
+            </div>
+
+
+
+
+
+
+            <div class="channel-actions">
+
+
+
+                <button
+                onclick="editChannel(${channel.id})">
+
+
+                ✏️
+
+
+                </button>
+
+
+
+
+
+                <button
+                onclick="deleteChannel(${channel.id})">
+
+
+                🗑️
+
+
+                </button>
+
+
+
+            </div>
+
+
+
+
+
+        </div>
+
+
+        `;
+
+
+
+
+    });
+
+
+
+
+}
+
+
+
+
+
+
+
+
+
+function deleteChannel(id){
+
+
+
+    AppState.publisher.channels =
+    AppState.publisher.channels
+    .filter(
+    c=>c.id!==id
+    );
+
+
+
+    renderChannels();
+
+
+
+    showNotification(
+    "تم حذف القناة"
+    );
+
+
+
+}
+
+
+
+
+
+
+
+
+let editingChannel=null;
+
+
+
+
+
+
+function editChannel(id){
+
+
+
+    editingChannel =
+    AppState.publisher.channels
+    .find(
+    c=>c.id===id
+    );
+
+
+
+
+    if(!editingChannel)
+    return;
+
+
+
+
+    document
+    .getElementById("editChannelCategory")
+    .value =
+    editingChannel.category;
+
+
+
+
+    document
+    .getElementById("channelModal")
+    .classList.remove("hidden");
+
+
+
+}
+
+
+
+
+
+
+
+
+function saveChannelEdit(){
+
+
+
+    if(editingChannel){
+
+
+
+        editingChannel.category =
+        document
+        .getElementById(
+        "editChannelCategory"
+        )
+        .value;
+
+
+
+    }
+
+
+
+
+
+    renderChannels();
+
+
+
+    closeChannelModal();
+
+
+
+}
+
+
+
+
+
+
+
+
+function closeChannelModal(){
+
+
+    document
+    .getElementById("channelModal")
+    .classList.add("hidden");
+
+
+}
+
+
+
+
+
+
+</script>
+
+<!-- =====================================================
+     Telega.ads Mini App
+     index.html - Part 5
+     Advertiser Panel
+====================================================== -->
+
+
+
+<!-- ===============================
+     Advertiser Section
+================================ -->
+
+
+<section id="advertiserSection"
+         class="page hidden">
+
+
+
+
+
+    <!-- Header -->
+
+
+    <div class="section-header">
+
+
+
+        <button
+        class="back-btn"
+        onclick="openDashboard()">
+
+
+
+            ←
+
+
+        </button>
+
+
+
+
+
+        <h2
+        data-ar="لوحة المعلن"
+        data-en="Advertiser Panel">
+
+
+        لوحة المعلن
+
+
+        </h2>
+
+
+
+
+    </div>
+
+
+
+
+
+
+
+
+
+    <!-- Create Campaign -->
+
+
+    <div class="card">
+
+
+
+        <h3
+        data-ar="إنشاء حملة"
+        data-en="Create Campaign">
+
+
+        إنشاء حملة
+
+
+        </h3>
+
+
+
+
+
+
+
+
+        <div class="input-group">
+
+
+            <label
+            data-ar="محتوى الإعلان"
+            data-en="Ad Content">
+
+
+            محتوى الإعلان
+
+
+            </label>
+
+
+
+
+            <textarea
+            id="campaignContent"
+            rows="5"
+            placeholder="اكتب الإعلان هنا...">
+            </textarea>
+
+
+
+
+        </div>
+
+
+
+
+
+
+
+
+
+        <div class="input-group">
+
+
+            <label
+            data-ar="صورة أو فيديو"
+            data-en="Image or Video">
+
+
+            صورة أو فيديو
+
+
+            </label>
+
+
+
+
+            <input
+            id="campaignMedia"
+            type="file"
+            accept="image/*,video/*">
+
+
+
+        </div>
+
+
+
+
+
+
+
+
+        <div class="input-group">
+
+
+            <label
+            data-ar="رابط الإعلان"
+            data-en="Ad Link">
+
+
+            رابط الإعلان
+
+
+            </label>
+
+
+
+
+            <input
+            id="campaignLink"
+            type="url"
+            placeholder="https://">
+
+
+
+        </div>
+
+
+
+
+
+
+
+
+        <div class="input-group">
+
+
+            <label
+            data-ar="التصنيف"
+            data-en="Category">
+
+
+            التصنيف
+
+
+            </label>
+
+
+
+
+            <select id="campaignCategory">
+
+
+                <option value="general">
+
+                    عام
+
+                </option>
+
+
+
+                <option value="crypto">
+
+                    Crypto
+
+                </option>
+
+
+
+                <option value="news">
+
+                    أخبار
+
+                </option>
+
+
+
+                <option value="technology">
+
+                    تقنية
+
+                </option>
+
+
+
+                <option value="business">
+
+                    أعمال
+
+                </option>
+
+
+            </select>
+
+
+
+
+        </div>
+
+
+
+
+
+
+
+
+
+        <div class="input-group">
+
+
+            <label
+            data-ar="الميزانية USDT"
+            data-en="Budget USDT">
+
+
+            الميزانية USDT
+
+
+            </label>
+
+
+
+
+            <input
+            id="campaignBudget"
+            type="number"
+            placeholder="0">
+
+
+
+        </div>
+
+
+
+
+
+
+
+
+
+        <button
+        class="primary-btn"
+        onclick="createCampaign()">
+
+
+
+            <span
+            data-ar="إنشاء الحملة"
+            data-en="Create Campaign">
+
+
+            إنشاء الحملة
+
+
+            </span>
+
+
+
+        </button>
+
+
+
+
+
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+    <!-- Campaign List -->
+
+
+    <div class="card">
+
+
+
+        <h3
+        data-ar="حملاتي"
+        data-en="My Campaigns">
+
+
+        حملاتي
+
+
+        </h3>
+
+
+
+
+
+        <div id="campaignsList"
+             class="list-box">
+
+
+
+
+
+            <div class="empty-state">
+
+
+                🎯
+
+
+                <p
+                data-ar="لا توجد حملات"
+                data-en="No campaigns">
+
+
+                لا توجد حملات
+
+
+                </p>
+
+
+
+            </div>
+
+
+
+
+
+        </div>
+
+
+
+
+
+    </div>
+
+
+
+
+
+
+
+</section>
+
+
+
+
+
+
+
+
+
+<!-- =====================================================
+     Campaign Details Modal
+====================================================== -->
+
+
+<div id="campaignModal"
+     class="modal hidden">
+
+
+
+    <div class="modal-content">
+
+
+
+        <h3>
+
+            تفاصيل الحملة
+
+
+        </h3>
+
+
+
+
+        <div id="campaignDetails">
+
+        </div>
+
+
+
+
+
+        <button
+        class="cancel-btn"
+        onclick="closeCampaignModal()">
+
+
+
+            إغلاق
+
+
+        </button>
+
+
+
+
+    </div>
+
+
+</div>
+
+
+
+
+
+
+
+
+
+<!-- =====================================================
+     Advertiser Logic
+====================================================== -->
+
+
+
+<script>
+
+
+
+
+
+
+
+function createCampaign(){
+
+
+
+    const content =
+    document
+    .getElementById(
+    "campaignContent"
+    )
+    .value.trim();
+
+
+
+
+    const link =
+    document
+    .getElementById(
+    "campaignLink"
+    )
+    .value.trim();
+
+
+
+
+    const category =
+    document
+    .getElementById(
+    "campaignCategory"
+    )
+    .value;
+
+
+
+
+
+    const budget =
+    document
+    .getElementById(
+    "campaignBudget"
+    )
+    .value;
+
+
+
+
+
+
+
+
+    if(!content || !budget){
+
+
+
+        showNotification(
+        "أكمل بيانات الحملة"
+        );
+
+
+        return;
+
+
+    }
+
+
+
+
+
+
+
+
+    const campaign = {
+
+
+
+
+        id: Date.now(),
+
+
+        content: content,
+
+
+        link: link,
+
+
+        category: category,
+
+
+        budget: Number(budget),
+
+
+        status:"pending",
+
+
+        media:null,
+
+
+        created:
+        new Date()
+        .toLocaleDateString()
+
+
+
+
+    };
+
+
+
+
+
+
+
+
+    AppState.advertiser.campaigns
+    .push(campaign);
+
+
+
+
+
+
+    renderCampaigns();
+
+
+
+
+
+
+    document
+    .getElementById(
+    "campaignContent"
+    )
+    .value="";
+
+
+
+
+    document
+    .getElementById(
+    "campaignLink"
+    )
+    .value="";
+
+
+
+
+    document
+    .getElementById(
+    "campaignBudget"
+    )
+    .value="";
+
+
+
+
+
+
+
+    showNotification(
+    "تم إنشاء الحملة"
+    );
+
+
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+function renderCampaigns(){
+
+
+
+    const box =
+    document
+    .getElementById(
+    "campaignsList"
+    );
+
+
+
+    box.innerHTML="";
+
+
+
+
+
+
+
+    if(
+    AppState.advertiser.campaigns.length===0
+    ){
+
+
+
+        box.innerHTML=`
+
+
+        <div class="empty-state">
+
+        🎯
+
+        <p>
+
+        لا توجد حملات
+
+        </p>
+
+        </div>
+
+
+        `;
+
+
+        return;
+
+
+    }
+
+
+
+
+
+
+
+
+
+    AppState.advertiser.campaigns
+    .forEach(c=>{
+
+
+
+
+
+
+
+        box.innerHTML += `
+
+
+        <div class="campaign-item">
+
+
+
+
+
+            <div>
+
+
+                <h4>
+
+                حملة #${c.id}
+
+                </h4>
+
+
+
+
+                <p>
+
+                ${c.content.substring(0,50)}
+
+                </p>
+
+
+
+
+                <span>
+
+                ${c.budget} USDT
+
+                </span>
+
+
+
+
+            </div>
+
+
+
+
+
+
+
+            <div>
+
+
+                <button
+                onclick="toggleCampaign(${c.id})">
+
+                ${c.status==="active"?"⏸":"▶️"}
+
+                </button>
+
+
+
+
+
+                <button
+                onclick="viewCampaign(${c.id})">
+
+
+                👁️
+
+
+                </button>
+
+
+
+
+
+                <button
+                onclick="deleteCampaign(${c.id})">
+
+
+                🗑️
+
+
+                </button>
+
+
+
+            </div>
+
+
+
+
+
+        </div>
+
+
+        `;
+
+
+
+
+    });
+
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+function toggleCampaign(id){
+
+
+
+    const c =
+    AppState.advertiser.campaigns
+    .find(x=>x.id===id);
+
+
+
+
+    if(!c)
+    return;
+
+
+
+
+
+    c.status =
+    c.status==="active"
+    ?"stopped"
+    :"active";
+
+
+
+
+    renderCampaigns();
+
+
+
+}
+
+
+
+
+
+
+
+
+
+function deleteCampaign(id){
+
+
+
+    AppState.advertiser.campaigns =
+    AppState.advertiser.campaigns
+    .filter(
+    x=>x.id!==id
+    );
+
+
+
+    renderCampaigns();
+
+
+
+    showNotification(
+    "تم حذف الحملة"
+    );
+
+
+
+}
+
+
+
+
+
+
+
+
+
+function viewCampaign(id){
+
+
+
+    const c =
+    AppState.advertiser.campaigns
+    .find(x=>x.id===id);
+
+
+
+
+
+    document
+    .getElementById(
+    "campaignDetails"
+    )
+    .innerHTML = `
+
+
+    <p>${c.content}</p>
+
+    <p>
+    ${c.link}
+    </p>
+
+    <p>
+    ${c.budget} USDT
+    </p>
+
+    <p>
+    ${c.status}
+    </p>
+
+
+    `;
+
+
+
+
+    document
+    .getElementById(
+    "campaignModal"
+    )
+    .classList.remove("hidden");
+
+
+
+}
+
+
+
+
+
+
+
+
+
+function closeCampaignModal(){
+
+
+
+    document
+    .getElementById(
+    "campaignModal"
+    )
+    .classList.add("hidden");
+
+
+
+}
+
+
+
+
+
+
+</script>
+
+<!-- =====================================================
+     Telega.ads Mini App
+     index.html - Part 6
+     Wallet System
+====================================================== -->
+
+
+
+<!-- ===============================
+     Wallet Section
+================================ -->
+
+
+<section id="walletSection"
+         class="page hidden">
+
+
+
+
+
+
+    <!-- Header -->
+
+
+    <div class="section-header">
+
+
+
+        <button
+        class="back-btn"
+        onclick="openDashboard()">
+
+
+
+            ←
+
+
+        </button>
+
+
+
+
+
+        <h2
+        data-ar="المحفظة"
+        data-en="Wallet">
+
+
+        المحفظة
+
+
+        </h2>
+
+
+
+
+    </div>
+
+
+
+
+
+
+
+
+
+    <!-- Balance Card -->
+
+
+    <div class="balance-card">
+
+
+
+        <p
+        data-ar="الرصيد الحالي"
+        data-en="Current Balance">
+
+
+        الرصيد الحالي
+
+
+        </p>
+
+
+
+
+        <h1 id="walletBalance">
+
+
+            0 USDT
+
+
+        </h1>
+
+
+
+
+
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+    <!-- Deposit -->
+
+
+    <div class="card">
+
+
+
+        <h3
+        data-ar="شحن الرصيد"
+        data-en="Deposit">
+
+
+        شحن الرصيد
+
+
+        </h3>
+
+
+
+
+
+
+
+
+        <div class="input-group">
+
+
+            <label
+            data-ar="TXID"
+            data-en="TXID">
+
+
+            TXID
+
+
+            </label>
+
+
+
+
+            <input
+            id="depositTxid"
+            type="text"
+            placeholder="Transaction ID">
+
+
+
+        </div>
+
+
+
+
+
+
+
+
+        <div class="input-group">
+
+
+            <label
+            data-ar="المبلغ USDT"
+            data-en="Amount USDT">
+
+
+            المبلغ USDT
+
+
+            </label>
+
+
+
+
+            <input
+            id="depositAmount"
+            type="number"
+            placeholder="0">
+
+
+
+        </div>
+
+
+
+
+
+
+
+
+
+        <button
+        class="primary-btn"
+        onclick="requestDeposit()">
+
+
+
+            <span
+            data-ar="إرسال طلب الشحن"
+            data-en="Send Deposit Request">
+
+
+            إرسال طلب الشحن
+
+
+            </span>
+
+
+
+        </button>
+
+
+
+
+
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+    <!-- Withdraw -->
+
+
+    <div class="card">
+
+
+
+        <h3
+        data-ar="سحب"
+        data-en="Withdraw">
+
+
+        سحب
+
+
+        </h3>
+
+
+
+
+
+
+
+        <div class="input-group">
+
+
+            <label
+            data-ar="عنوان TRC20"
+            data-en="TRC20 Address">
+
+
+            عنوان TRC20
+
+
+            </label>
+
+
+
+
+            <input
+            id="withdrawAddress"
+            type="text"
+            placeholder="T...">
+
+
+
+        </div>
+
+
+
+
+
+
+
+
+
+        <div class="input-group">
+
+
+            <label
+            data-ar="المبلغ"
+            data-en="Amount">
+
+
+            المبلغ
+
+
+            </label>
+
+
+
+
+            <input
+            id="withdrawAmount"
+            type="number"
+            placeholder="0">
+
+
+
+        </div>
+
+
+
+
+
+
+
+
+        <button
+        class="primary-btn"
+        onclick="requestWithdraw()">
+
+
+
+            <span
+            data-ar="طلب سحب"
+            data-en="Withdraw">
+
+
+            طلب سحب
+
+
+            </span>
+
+
+
+
+        </button>
+
+
+
+
+
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+    <!-- Transactions -->
+
+
+    <div class="card">
+
+
+
+        <h3
+        data-ar="سجل العمليات"
+        data-en="Transactions">
+
+
+        سجل العمليات
+
+
+        </h3>
+
+
+
+
+
+
+        <div id="transactionsList"
+             class="list-box">
+
+
+
+
+
+            <div class="empty-state">
+
+
+                💳
+
+
+                <p
+                data-ar="لا توجد عمليات"
+                data-en="No transactions">
+
+
+                لا توجد عمليات
+
+
+                </p>
+
+
+
+            </div>
+
+
+
+
+
+        </div>
+
+
+
+
+
+    </div>
+
+
+
+
+
+
+
+
+</section>
+
+
+
+
+
+
+
+
+
+<!-- =====================================================
+     Wallet Logic
+====================================================== -->
+
+
+<script>
+
+
+
+
+
+
+
+function updateWallet(){
+
+
+
+    document
+    .getElementById(
+    "walletBalance"
+    )
+    .innerText =
+    AppState.wallet.balance
+    +" USDT";
+
+
+
+
+
+    document
+    .getElementById(
+    "dashboardBalance"
+    )
+    .innerText =
+    AppState.wallet.balance
+    +" USDT";
+
+
+
+
+    renderTransactions();
+
+
+
+}
+
+
+
+
+
+
+
+
+
+function requestDeposit(){
+
+
+
+    const txid =
+    document
+    .getElementById(
+    "depositTxid"
+    )
+    .value.trim();
+
+
+
+
+
+    const amount =
+    Number(
+    document
+    .getElementById(
+    "depositAmount"
+    )
+    .value
+    );
+
+
+
+
+
+
+    if(!txid || !amount){
+
+
+
+        showNotification(
+        "أكمل بيانات الشحن"
+        );
+
+
+
+        return;
+
+
+    }
+
+
+
+
+
+
+
+
+
+    const transaction = {
+
+
+
+        id: Date.now(),
+
+
+
+        type:"deposit",
+
+
+
+        txid:txid,
+
+
+
+        amount:amount,
+
+
+
+        status:"pending",
+
+
+
+        date:
+        new Date()
+        .toLocaleDateString()
+
+
+
+    };
+
+
+
+
+
+
+
+
+    AppState.wallet.transactions
+    .push(transaction);
+
+
+
+
+
+    renderTransactions();
+
+
+
+
+
+    showNotification(
+    "تم إرسال طلب الشحن"
+    );
+
+
+
+
+
+
+}
+
+
+
+
+
+
+
+
+
+function requestWithdraw(){
+
+
+
+    const address =
+    document
+    .getElementById(
+    "withdrawAddress"
+    )
+    .value.trim();
+
+
+
+
+
+    const amount =
+    Number(
+    document
+    .getElementById(
+    "withdrawAmount"
+    )
+    .value
+    );
+
+
+
+
+
+
+
+
+    if(!address || !amount){
+
+
+
+        showNotification(
+        "أدخل بيانات السحب"
+        );
+
+
+        return;
+
+
+    }
+
+
+
+
+
+
+
+    if(
+    amount >
+    AppState.wallet.balance
+    ){
+
+
+        showNotification(
+        "الرصيد غير كافي"
+        );
+
+
+        return;
+
+
+    }
+
+
+
+
+
+
+
+
+
+
+    const transaction = {
+
+
+
+        id:Date.now(),
+
+
+
+        type:"withdraw",
+
+
+
+        address:address,
+
+
+
+        amount:amount,
+
+
+
+        status:"pending",
+
+
+
+        date:
+        new Date()
+        .toLocaleDateString()
+
+
+
+    };
+
+
+
+
+
+
+
+    AppState.wallet.transactions
+    .push(transaction);
+
+
+
+
+
+    renderTransactions();
+
+
+
+
+    showNotification(
+    "تم إنشاء طلب السحب"
+    );
+
+
+
+
+
+}
+
+
+
+
+
+
+
+
+
+function renderTransactions(){
+
+
+
+    const box =
+    document
+    .getElementById(
+    "transactionsList"
+    );
+
+
+
+
+    if(!box)
+    return;
+
+
+
+
+
+    box.innerHTML="";
+
+
+
+
+
+
+
+
+
+    if(
+    AppState.wallet.transactions.length===0
+    ){
+
+
+        box.innerHTML=`
+
+
+        <div class="empty-state">
+
+
+        💳
+
+
+        <p>
+
+        لا توجد عمليات
+
+        </p>
+
+
+        </div>
+
+
+        `;
+
+
+        return;
+
+
+    }
+
+
+
+
+
+
+
+
+
+    AppState.wallet.transactions
+    .forEach(t=>{
+
+
+
+
+
+        box.innerHTML += `
+
+
+
+        <div class="transaction-item">
+
+
+
+
+
+            <div>
+
+
+                <strong>
+
+                ${
+                t.type==="deposit"
+                ?
+                "شحن"
+                :
+                "سحب"
+                }
+
+                </strong>
+
+
+
+
+                <p>
+
+                ${t.amount} USDT
+
+                </p>
+
+
+
+
+
+            </div>
+
+
+
+
+
+            <span>
+
+
+            ${t.status}
+
+
+            </span>
+
+
+
+
+        </div>
+
+
+
+
+        `;
+
+
+
+    });
+
+
+
+
+
+
+}
+
+
+
+
+
+
+</script>
+
+<!-- =====================================================
+     Telega.ads Mini App
+     index.html - Part 7
+     Admin Panel
+====================================================== -->
+
+
+
+<!-- ===============================
+     Admin Section
+================================ -->
+
+
+<section id="adminSection"
+         class="page hidden">
+
+
+
+
+
+    <div class="section-header">
+
+
+
+        <button
+        class="back-btn"
+        onclick="openDashboard()">
+
+
+
+            ←
+
+
+        </button>
+
+
+
+
+        <h2
+        data-ar="لوحة الأدمن"
+        data-en="Admin Panel">
+
+
+        لوحة الأدمن
+
+
+        </h2>
+
+
+
+
+    </div>
+
+
+
+
+
+
+
+
+
+    <!-- Users -->
+
+
+    <div class="card">
+
+
+
+        <h3
+        data-ar="المستخدمون"
+        data-en="Users">
+
+
+        المستخدمون
+
+
+        </h3>
+
+
+
+
+
+        <div id="usersAdminList"
+             class="list-box">
+
+
+        </div>
+
+
+
+    </div>
+
+
+
+
+
+
+
+
+
+    <!-- Channels -->
+
+
+    <div class="card">
+
+
+
+        <h3
+        data-ar="القنوات"
+        data-en="Channels">
+
+
+        القنوات
+
+
+        </h3>
+
+
+
+
+        <div id="adminChannelsList"
+             class="list-box">
+
+
+        </div>
+
+
+
+    </div>
+
+
+
+
+
+
+
+
+
+    <!-- Deposits -->
+
+
+    <div class="card">
+
+
+
+        <h3
+        data-ar="الإيداعات"
+        data-en="Deposits">
+
+
+        الإيداعات
+
+
+        </h3>
+
+
+
+
+        <div id="adminDepositsList"
+             class="list-box">
+
+
+        </div>
+
+
+
+    </div>
+
+
+
+
+
+
+
+
+
+    <!-- Withdrawals -->
+
+
+    <div class="card">
+
+
+
+        <h3
+        data-ar="السحوبات"
+        data-en="Withdrawals">
+
+
+        السحوبات
+
+
+        </h3>
+
+
+
+
+        <div id="adminWithdrawList"
+             class="list-box">
+
+
+        </div>
+
+
+
+    </div>
+
+
+
+
+
+
+
+
+
+    <!-- Campaigns -->
+
+
+    <div class="card">
+
+
+
+        <h3
+        data-ar="الحملات"
+        data-en="Campaigns">
+
+
+        الحملات
+
+
+        </h3>
+
+
+
+
+        <div id="adminCampaignsList"
+             class="list-box">
+
+
+        </div>
+
+
+
+    </div>
+
+
+
+
+
+
+</section>
+
+
+
+
+
+
+
+
+
+<!-- =====================================================
+     Admin Logic
+====================================================== -->
+
+
+<script>
+
+
+
+
+
+
+
+/*
+    تفعيل الأدمن
+
+    لاحقاً:
+    يتم التحقق من Backend
+
+*/
+
+
+function enableAdmin(){
+
+
+
+    AppState.admin.active=true;
+
+
+
+    document
+    .getElementById(
+    "adminMenu"
+    )
+    ?.classList
+    .remove("hidden");
+
+
+
+}
+
+
+
+
+
+
+
+
+
+function loadAdminPanel(){
+
+
+
+    if(!AppState.admin.active){
+
+
+
+        showNotification(
+        "ليس لديك صلاحية"
+        );
+
+
+        return;
+
+
+    }
+
+
+
+
+
+
+    renderAdminUsers();
+
+    renderAdminChannels();
+
+    renderAdminDeposits();
+
+    renderAdminWithdrawals();
+
+    renderAdminCampaigns();
+
+
+
+
+
+
+}
+
+
+
+
+
+
+
+
+
+function renderAdminUsers(){
+
+
+
+    const box =
+    document
+    .getElementById(
+    "usersAdminList"
+    );
+
+
+
+    if(!box)
+    return;
+
+
+
+
+    box.innerHTML = `
+
+
+    <div class="admin-item">
+
+
+        <div>
+
+            <b>
+
+            ${AppState.user.username || "User"}
+
+            </b>
+
+
+            <p>
+
+            ID:
+            ${AppState.user.id || "-"}
+
+            </p>
+
+
+        </div>
+
+
+
+
+        <button
+        onclick="toggleBanUser()">
+
+
+            🚫
+
+        </button>
+
+
+
+    </div>
+
+
+    `;
+
+
+
+}
+
+
+
+
+
+
+
+
+
+function toggleBanUser(){
+
+
+
+    AppState.user.banned =
+    !AppState.user.banned;
+
+
+
+    showNotification(
+
+    AppState.user.banned
+    ?
+    "تم حظر المستخدم"
+    :
+    "تم فك الحظر"
+
+    );
+
+
+
+}
+
+
+
+
+
+
+
+
+
+function renderAdminChannels(){
+
+
+
+    const box =
+    document
+    .getElementById(
+    "adminChannelsList"
+    );
+
+
+
+    if(!box)
+    return;
+
+
+
+
+
+
+    box.innerHTML="";
+
+
+
+
+
+    AppState.publisher.channels
+    .forEach(channel=>{
+
+
+
+        box.innerHTML += `
+
+
+        <div class="admin-item">
+
+
+
+            <div>
+
+                <b>
+
+                ${channel.title}
+
+                </b>
+
+
+                <p>
+
+                ${channel.category}
+
+                </p>
+
+
+            </div>
+
+
+
+
+            <div>
+
+
+            <button
+            onclick="approveChannel(${channel.id})">
+
+            قبول
 
             </button>
 
-        </article>
 
-        <!-- ========================================== -->
-        <!-- REFERRAL ACTIVITY -->
-        <!-- ========================================== -->
 
-        <article class="card">
 
-            <h3 class="section-title">
-
-                Referral Activity
-
-            </h3>
-
-            <div id="referral-activity-list">
-
-                <!-- DYNAMIC CONTENT -->
-
-            </div>
-
-        </article>
-
-    </div>
-
-</section>
-
-<!-- ========================================== -->
-<!-- PROFILE PAGE -->
-<!-- ========================================== -->
-
-<section
-    class="page"
-    id="profile-page"
-    data-section="profile">
-
-    <div class="container">
-
-        <!-- PAGE HEADER -->
-        <article class="card">
-
-            <h2
-                class="section-title"
-                data-i18n="profile">
-
-                Profile
-
-            </h2>
-
-            <p class="section-subtitle">
-
-                Manage your account,
-                wallet and statistics.
-
-            </p>
-
-        </article>
-
-        <!-- ========================================== -->
-        <!-- PROFILE STATS -->
-        <!-- ========================================== -->
-
-        <section class="grid grid-2">
-
-            <!-- VIEWS -->
-            <article class="card stat-card">
-
-                <h3 data-i18n="views">
-
-                    Views
-
-                </h3>
-
-                <h2 id="profile-views">
-
-                    0
-
-                </h2>
-
-            </article>
-
-            <!-- CLICKS -->
-            <article class="card stat-card">
-
-                <h3 data-i18n="clicks">
-
-                    Clicks
-
-                </h3>
-
-                <h2 id="profile-clicks">
-
-                    0
-
-                </h2>
-
-            </article>
-
-            <!-- CTR -->
-            <article class="card stat-card">
-
-                <h3 data-i18n="ctr">
-
-                    CTR
-
-                </h3>
-
-                <h2>
-
-                    <span id="profile-ctr">
-
-                        0
-
-                    </span>
-
-                    %
-
-                </h2>
-
-            </article>
-
-            <!-- EARNINGS -->
-            <article class="card stat-card">
-
-                <h3 data-i18n="earnings">
-
-                    Earnings
-
-                </h3>
-
-                <h2>
-
-                    $
-                    <span id="profile-earnings">
-
-                        0
-
-                    </span>
-
-                </h2>
-
-            </article>
-
-        </section>
-
-        <!-- ========================================== -->
-        <!-- WALLET -->
-        <!-- ========================================== -->
-
-        <article class="card">
-
-            <h3
-                class="section-title"
-                data-i18n="wallet">
-
-                Wallet
-
-            </h3>
-
-            <!-- BALANCE -->
-            <div class="form-group">
-
-                <label
-                    for="wallet-balance"
-                    data-i18n="balance">
-
-                    Balance
-
-                </label>
-
-                <input
-                    type="text"
-                    class="input"
-                    id="wallet-balance"
-                    readonly
-                    value="$0">
-
-            </div>
-
-            <!-- DEPOSIT -->
-            <div class="form-group">
-
-                <label
-                    for="deposit-amount"
-                    data-i18n="deposit">
-
-                    Deposit
-
-                </label>
-
-                <input
-                    type="number"
-                    class="input"
-                    id="deposit-amount"
-                    name="depositAmount"
-                    placeholder="Enter amount"
-                    min="1"
-                    required>
-
-            </div>
-
-            <!-- SUBMIT -->
             <button
-                class="btn btn-primary"
-                type="button"
-                id="deposit-btn">
+            onclick="rejectChannel(${channel.id})">
 
-                <i class="fa-solid fa-wallet"></i>
-
-                <span>
-                    Add Balance
-                </span>
+            رفض
 
             </button>
 
-        </article>
 
-        <!-- ========================================== -->
-        <!-- ACCOUNT SECURITY -->
-        <!-- ========================================== -->
-
-        <article class="card">
-
-            <h3
-                class="section-title"
-                data-i18n="account_security">
-
-                Security
-
-            </h3>
-
-            <!-- USER ID -->
-            <div class="form-group">
-
-                <label for="profile-user-id">
-
-                    User ID
-
-                </label>
-
-                <input
-                    type="text"
-                    class="input"
-                    id="profile-user-id"
-                    readonly>
 
             </div>
 
-            <!-- RISK LEVEL -->
-            <div class="form-group">
 
-                <label for="profile-risk-level">
 
-                    Risk Level
+        </div>
 
-                </label>
 
-                <input
-                    type="text"
-                    class="input"
-                    id="profile-risk-level"
-                    readonly>
+        `;
 
-            </div>
 
-        </article>
 
-    </div>
+    });
 
-</section>
 
-<!-- ========================================== -->
-<!-- PART 4 -->
-<!-- OPTIMIZED HTML STRUCTURE -->
-<!-- ========================================== -->
 
-<!-- ========================================== -->
-<!-- ADMIN PAGE -->
-<!-- ========================================== -->
 
-<section
-    class="page"
-    id="admin-page"
-    data-section="admin">
 
-    <div class="container">
+}
 
-        <!-- PAGE HEADER -->
-        <article class="card">
 
-            <h2
-                class="section-title"
-                data-i18n="admin_title">
 
-                Admin Panel
 
-            </h2>
 
-            <p class="section-subtitle">
 
-                Advanced administration,
-                analytics and monitoring system.
+
+
+
+function approveChannel(id){
+
+
+
+    const c =
+    AppState.publisher.channels
+    .find(
+    x=>x.id===id
+    );
+
+
+
+    if(c)
+    c.status="approved";
+
+
+
+    showNotification(
+    "تم قبول القناة"
+    );
+
+
+
+}
+
+
+
+
+
+
+
+function rejectChannel(id){
+
+
+
+    AppState.publisher.channels =
+    AppState.publisher.channels
+    .filter(
+    x=>x.id!==id
+    );
+
+
+
+    showNotification(
+    "تم رفض القناة"
+    );
+
+
+    renderAdminChannels();
+
+
+}
+
+
+
+
+
+
+
+
+
+function renderAdminDeposits(){
+
+
+
+    const box =
+    document
+    .getElementById(
+    "adminDepositsList"
+    );
+
+
+
+    if(!box)
+    return;
+
+
+
+
+
+    box.innerHTML="";
+
+
+
+
+
+
+    AppState.wallet.transactions
+    .filter(
+    t=>t.type==="deposit"
+    )
+    .forEach(t=>{
+
+
+
+        box.innerHTML += `
+
+
+        <div class="admin-item">
+
+
+            <div>
+
+            TXID:
+            ${t.txid}
+
+
+            <p>
+
+            ${t.amount} USDT
 
             </p>
 
-        </article>
-
-        <!-- ========================================== -->
-        <!-- ADMIN STATS -->
-        <!-- ========================================== -->
-
-        <section class="grid grid-2">
-
-            <!-- USERS -->
-            <article class="card stat-card">
-
-                <h3 data-i18n="total_users">
-
-                    Users
-
-                </h3>
-
-                <h2 id="admin-total-users">
-
-                    0
-
-                </h2>
-
-            </article>
-
-            <!-- CAMPAIGNS -->
-            <article class="card stat-card">
-
-                <h3 data-i18n="total_campaigns">
-
-                    Campaigns
-
-                </h3>
-
-                <h2 id="admin-total-campaigns">
-
-                    0
-
-                </h2>
-
-            </article>
-
-            <!-- CHANNELS -->
-            <article class="card stat-card">
-
-                <h3 data-i18n="total_channels">
-
-                    Channels
-
-                </h3>
-
-                <h2 id="admin-total-channels">
-
-                    0
-
-                </h2>
-
-            </article>
-
-            <!-- REVENUE -->
-            <article class="card stat-card">
-
-                <h3 data-i18n="total_revenue">
-
-                    Revenue
-
-                </h3>
-
-                <h2>
-
-                    $
-                    <span id="admin-total-revenue">
-
-                        0
-
-                    </span>
-
-                </h2>
-
-            </article>
-
-        </section>
-
-        <!-- ========================================== -->
-        <!-- LIVE ACTIVITY -->
-        <!-- ========================================== -->
-
-        <article class="card">
-
-            <h3
-                class="section-title"
-                data-i18n="live_activity">
-
-                Live Activity
-
-            </h3>
-
-            <div id="live-activity-list">
-
-                <!-- DYNAMIC CONTENT -->
 
             </div>
 
-        </article>
 
-        <!-- ========================================== -->
-        <!-- ANALYTICS -->
-        <!-- ========================================== -->
 
-        <article class="card">
 
-            <h3
-                class="section-title"
-                data-i18n="analytics">
+            <button
+            onclick="approveDeposit(${t.id})">
 
-                Analytics
 
-            </h3>
+            قبول
 
-            <canvas
-                id="analytics-chart"
-                height="120">
 
-            </canvas>
+            </button>
 
-        </article>
 
-        <!-- ========================================== -->
-        <!-- SYSTEM ACTIONS -->
-        <!-- ========================================== -->
 
-        <article class="card">
+        </div>
 
-            <h3 class="section-title">
 
-                System Actions
+        `;
 
-            </h3>
 
-            <div class="grid grid-2">
 
-                <!-- REFRESH -->
-                <button
-                    class="btn btn-secondary"
-                    type="button"
-                    data-action="refresh-ui">
+    });
 
-                    <i class="fa-solid fa-rotate"></i>
 
-                    <span>
-                        Refresh UI
-                    </span>
 
-                </button>
 
-                <!-- RUN AI -->
-                <button
-                    class="btn btn-primary"
-                    type="button"
-                    id="run-ai-btn">
 
-                    <i class="fa-solid fa-brain"></i>
+}
 
-                    <span>
-                        Run AI Optimization
-                    </span>
 
-                </button>
 
-            </div>
 
-        </article>
+
+
+
+
+
+function approveDeposit(id){
+
+
+
+    const t =
+    AppState.wallet.transactions
+    .find(
+    x=>x.id===id
+    );
+
+
+
+    if(t){
+
+
+        t.status="approved";
+
+
+        AppState.wallet.balance +=
+        t.amount;
+
+
+
+        updateWallet();
+
+
+    }
+
+
+
+
+    showNotification(
+    "تم قبول الإيداع"
+    );
+
+
+
+}
+
+
+
+
+
+
+
+
+
+function renderAdminWithdrawals(){
+
+
+
+    const box =
+    document
+    .getElementById(
+    "adminWithdrawList"
+    );
+
+
+
+    if(!box)
+    return;
+
+
+
+
+
+
+    box.innerHTML="";
+
+
+
+
+
+
+    AppState.wallet.transactions
+    .filter(
+    t=>t.type==="withdraw"
+    )
+    .forEach(t=>{
+
+
+
+
+
+        box.innerHTML += `
+
+
+        <div class="admin-item">
+
+
+        <p>
+
+        ${t.amount} USDT
+
+        </p>
+
+
+        <button
+        onclick="approveWithdraw(${t.id})">
+
+        قبول
+
+        </button>
+
+
+        </div>
+
+
+
+        `;
+
+
+    });
+
+
+
+
+}
+
+
+
+
+
+
+
+
+
+function approveWithdraw(id){
+
+
+
+    const t =
+    AppState.wallet.transactions
+    .find(
+    x=>x.id===id
+    );
+
+
+
+    if(t){
+
+
+        t.status="approved";
+
+
+        AppState.wallet.balance -=
+        t.amount;
+
+
+        updateWallet();
+
+
+    }
+
+
+
+    showNotification(
+    "تم قبول السحب"
+    );
+
+
+}
+
+
+
+
+
+
+
+
+
+function renderAdminCampaigns(){
+
+
+
+    const box =
+    document
+    .getElementById(
+    "adminCampaignsList"
+    );
+
+
+
+    if(!box)
+    return;
+
+
+
+
+
+
+    box.innerHTML="";
+
+
+
+
+
+
+    AppState.advertiser.campaigns
+    .forEach(c=>{
+
+
+
+        box.innerHTML += `
+
+
+        <div class="admin-item">
+
+
+        <p>
+
+        ${c.content}
+
+        </p>
+
+
+
+        <button
+        onclick="approveCampaign(${c.id})">
+
+
+        قبول
+
+
+        </button>
+
+
+
+        </div>
+
+
+        `;
+
+
+
+    });
+
+
+
+
+
+}
+
+
+
+
+
+
+
+
+function approveCampaign(id){
+
+
+
+    const c =
+    AppState.advertiser.campaigns
+    .find(
+    x=>x.id===id
+    );
+
+
+
+    if(c)
+    c.status="approved";
+
+
+
+    showNotification(
+    "تم قبول الحملة"
+    );
+
+
+}
+
+
+
+
+
+
+</script>
+<!-- =====================================================
+     Telega.ads Mini App
+     index.html - Part 8
+     Final UI + Modals + Telegram Ad Button
+====================================================== -->
+
+
+
+<!-- ===============================
+     Global Modal System
+================================ -->
+
+
+<div id="globalModal"
+     class="modal hidden">
+
+
+    <div class="modal-content">
+
+
+
+        <button
+        class="close-modal"
+        onclick="closeGlobalModal()">
+
+            ✕
+
+        </button>
+
+
+
+
+        <div id="globalModalContent">
+
+        </div>
+
+
 
     </div>
 
+
+</div>
+
+
+
+
+
+
+
+<!-- ===============================
+     Ad Preview System
+================================ -->
+
+
+<section id="adPreviewSection"
+         class="page hidden">
+
+
+
+    <div class="section-header">
+
+
+        <button
+        class="back-btn"
+        onclick="openDashboard()">
+
+            ←
+
+        </button>
+
+
+
+        <h2>
+
+            معاينة الإعلان
+
+        </h2>
+
+
+
+    </div>
+
+
+
+
+
+
+    <div class="card ad-preview">
+
+
+
+        <div id="previewMedia">
+
+
+        </div>
+
+
+
+
+
+        <div id="previewText">
+
+
+        </div>
+
+
+
+
+
+
+
+        <!-- زر البوت الثابت -->
+
+
+        <a
+        id="telegramBotButton"
+        class="telegram-ad-button"
+        href="https://t.me/Ads_telegabot"
+        target="_blank">
+
+
+            Telega.ads 🚀
+
+
+        </a>
+
+
+
+
+    </div>
+
+
+
+
 </section>
 
-<!-- ========================================== -->
-<!-- BOTTOM NAVIGATION -->
-<!-- ========================================== -->
 
-  <nav class="bottom-navbar">
 
-    <button class="nav-btn active" data-route="home">
-        <i class="fa-solid fa-house"></i>
-        <span data-i18n="nav_home">
-            Home
+
+
+
+
+
+
+<!-- ===============================
+     Notification Upgrade
+================================ -->
+
+
+
+<script>
+
+
+
+
+
+/*
+    فتح نافذة عامة
+*/
+
+
+function openGlobalModal(content){
+
+
+
+    document
+    .getElementById(
+    "globalModalContent"
+    )
+    .innerHTML = content;
+
+
+
+
+
+    document
+    .getElementById(
+    "globalModal"
+    )
+    .classList
+    .remove("hidden");
+
+
+
+}
+
+
+
+
+
+
+function closeGlobalModal(){
+
+
+
+    document
+    .getElementById(
+    "globalModal"
+    )
+    .classList
+    .add("hidden");
+
+
+
+}
+
+
+
+
+
+
+
+
+/*
+    معاينة إعلان
+*/
+
+
+function previewAd(campaignId){
+
+
+
+    const campaign =
+    AppState
+    .advertiser
+    .campaigns
+    .find(
+    c=>c.id===campaignId
+    );
+
+
+
+
+
+    if(!campaign)
+    return;
+
+
+
+
+
+
+
+
+    document
+    .getElementById(
+    "previewText"
+    )
+    .innerHTML = `
+
+
+        <h3>
+
+        الإعلان
+
+        </h3>
+
+
+        <p>
+
+        ${campaign.content}
+
+        </p>
+
+
+
+        <a href="${campaign.link}"
+        target="_blank">
+
+        فتح الرابط
+
+        </a>
+
+
+
+    `;
+
+
+
+
+
+
+
+
+    document
+    .getElementById(
+    "previewMedia"
+    )
+    .innerHTML =
+    campaign.media
+    ?
+    `<img src="${campaign.media}">`
+    :
+    "";
+
+
+
+
+
+
+
+
+    hideAllPages();
+
+
+
+    document
+    .getElementById(
+    "adPreviewSection"
+    )
+    .classList
+    .remove("hidden");
+
+
+
+
+
+}
+
+
+
+
+
+
+
+
+
+/*
+    إنشاء رسالة Telegram
+
+    سيتم استخدامها لاحقاً
+    من Backend عند نشر الإعلان
+
+*/
+
+
+function createTelegramAdMessage(text){
+
+
+
+    return {
+
+
+        text:
+
+        text
+        +
+        "\n\nTelega.ads 🚀",
+
+
+
+        reply_markup:{
+
+
+            inline_keyboard:[
+
+                [
+
+                    {
+
+                    text:
+                    "Telega.ads 🚀",
+
+                    url:
+                    "https://t.me/Ads_telegabot"
+
+                    }
+
+                ]
+
+            ]
+
+
+        }
+
+
+
+    };
+
+
+
+}
+
+
+
+
+
+
+
+
+
+/*
+    تحسين تشغيل التطبيق
+
+*/
+
+
+setTimeout(()=>{
+
+
+
+    if(
+    AppState.user.language
+    ){
+
+
+        changeLanguage(
+        AppState.user.language
+        );
+
+
+    }
+
+
+
+},1000);
+
+
+
+
+
+
+
+
+console.log(
+"Telega.ads UI Loaded Successfully 🚀"
+);
+
+
+
+
+
+</script>
+
+
+
+</main>
+
+</body>
+
+</html>
+            
+
+
+
+    </main>
+
+
+
+
+
+    <!-- =================================================
+         Global Notification Box
+    ================================================== -->
+
+
+    <div id="notificationBox"
+         class="notification hidden">
+
+
+        <span id="notificationText">
+
         </span>
-    </button>
 
-    <button class="nav-btn" data-route="advertiser">
-        <i class="fa-solid fa-bullhorn"></i>
-        <span data-i18n="nav_advertiser">
-            Ads
-        </span>
-    </button>
 
-    <button class="nav-btn" data-route="publisher">
-        <i class="fa-solid fa-coins"></i>
-        <span data-i18n="nav_publisher">
-            Earn
-        </span>
-    </button>
+    </div>
 
-    <button class="nav-btn" data-route="referrals">
-        <i class="fa-solid fa-users"></i>
-        <span data-i18n="nav_referrals">
-            Friends
-        </span>
-    </button>
 
-    <button class="nav-btn" data-route="profile">
-        <i class="fa-solid fa-user"></i>
-        <span data-i18n="nav_profile">
-            Profile
-        </span>
-    </button>
 
-    <button class="nav-btn" data-route="admin">
-        <i class="fa-solid fa-shield-halved"></i>
-        <span data-i18n="nav_admin">
-            Admin
-        </span>
-    </button>
 
-  </nav>
+</div>
 
-    
-    <!-- ========================================== -->
-    <!-- MAIN JAVASCRIPT -->
-    <!-- ========================================== -->
 
-    <script src="app.js"></script>
+
+
+
+
+<!-- =====================================================
+     Initial App Data
+====================================================== -->
+
+
+<script>
+
+
+/*
+    Telegram Object
+
+    سيتم استخدامه لاحقاً:
+    - تسجيل المستخدم
+    - الحصول على Telegram ID
+    - اللغة
+    - بيانات الحساب
+*/
+
+
+const telegramApp = window.Telegram?.WebApp || null;
+
+
+
+/*
+    Application State
+
+    مخزن مؤقت للواجهة
+    وسيتم ربطه لاحقاً مع Backend
+*/
+
+
+const AppState = {
+
+
+    user: {
+
+        id: null,
+
+        username: "",
+
+        language: null,
+
+        role: null
+
+    },
+
+
+    publisher: {
+
+        channels: []
+
+    },
+
+
+    advertiser: {
+
+        campaigns: []
+
+    },
+
+
+    wallet: {
+
+        balance: 0,
+
+        transactions: []
+
+    },
+
+
+    admin: {
+
+        active: false
+
+    }
+
+
+};
+
+
+
+
+
+
+/*
+    Start Application
+
+*/
+
+
+function startApp(){
+
+
+    if(telegramApp){
+
+
+        telegramApp.ready();
+
+
+        telegramApp.expand();
+
+
+
+        if(telegramApp.initDataUnsafe?.user){
+
+
+            AppState.user.id =
+            telegramApp.initDataUnsafe.user.id;
+
+
+
+            AppState.user.username =
+            telegramApp.initDataUnsafe.user.username || "";
+
+
+
+        }
+
+
+    }
+
+
+
+    setTimeout(()=>{
+
+
+        document
+        .getElementById("loadingScreen")
+        .classList.remove("active");
+
+
+
+        document
+        .getElementById("mainApp")
+        .classList.remove("hidden");
+
+
+
+        console.log(
+            "Telega.ads started",
+            AppState
+        );
+
+
+
+    },1200);
+
+
+
+}
+
+
+
+
+
+/*
+    تشغيل التطبيق
+*/
+
+
+window.onload = startApp;
+
+
+
+</script>
+
+
 
 </body>
 
