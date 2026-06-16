@@ -1,4836 +1,623 @@
-/* =====================================================
-   Telega.ads Mini App
-   style.css - Part 1
-   Core System + Themes + Reset
-====================================================== */
-
-
-
-/* ===============================
-   Root Variables
-================================ */
-
-
+/* ==========================================
+   1. المتغيرات وإعدادات الألوان (الوضع المضيء الافتراضي)
+   ========================================== */
 :root {
-
-
-    /* Main Colors */
-
-    --primary:
-    #229ED9;
-
-
-    --primary-dark:
-    #1684BA;
-
-
-    --success:
-    #2ecc71;
-
-
-    --danger:
-    #e74c3c;
-
-
-    --warning:
-    #f39c12;
-
-
-
-    /* Light Theme */
-
-    --bg:
-    #f4f7fb;
-
-
-    --surface:
-    #ffffff;
-
-
-    --surface-soft:
-    #eef5fb;
-
-
-    --text:
-    #101828;
-
-
-    --text-secondary:
-    #667085;
-
-
-    --border:
-    #e4e7ec;
-
-
-
-    /* Effects */
-
-
-    --shadow:
-    0 10px 30px rgba(0,0,0,0.08);
-
-
-    --shadow-soft:
-    0 5px 20px rgba(0,0,0,0.05);
-
-
-
-    --radius:
-    18px;
-
-
-    --radius-small:
-    12px;
-
-
-
-    --transition:
-    all .25s ease;
-
-
-
-    /* Telegram Support */
-
-    --tg-bg-color:
-    var(--bg);
-
-
-    --tg-text-color:
-    var(--text);
-
-
+    --bg-primary: #f4f6fa;
+    --bg-secondary: #ffffff;
+    --bg-header: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    --text-main: #2d3748;
+    --text-muted: #718096;
+    --text-on-header: #ffffff;
+    --accent-color: #3182ce;
+    --accent-light: #ebf8ff;
+    --success-color: #38a169;
+    --success-light: #f0fff4;
+    --danger-color: #e53e3e;
+    --danger-light: #fff5f5;
+    --warning-color: #dd6b20;
+    --border-color: #e2e8f0;
+    --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    --nav-bg: #ffffff;
+    --nav-active: #3182ce;
+    --radius-lg: 16px;
+    --radius-md: 12px;
+    --transition: all 0.3s ease;
 }
 
-
-
-
-
-/* ===============================
-   Dark Theme
-================================ */
-
-
-
-@media (prefers-color-scheme: dark){
-
-
-
-:root {
-
-
-    --bg:
-    #0e1621;
-
-
-    --surface:
-    #17212b;
-
-
-    --surface-soft:
-    #202b36;
-
-
-    --text:
-    #ffffff;
-
-
-    --text-secondary:
-    #aab7c4;
-
-
-    --border:
-    #2b3948;
-
-
-
-    --shadow:
-    0 12px 35px rgba(0,0,0,.35);
-
-
-    --shadow-soft:
-    0 5px 20px rgba(0,0,0,.25);
-
-
-
+/* ==========================================
+   2. التعرف التلقائي على المظهر المظلم (Dark Mode) من النظام
+   ========================================== */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg-primary: #0f172a;
+        --bg-secondary: #1e293b;
+        --bg-header: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        --text-main: #f1f5f9;
+        --text-muted: #94a3b8;
+        --text-on-header: #f8fafc;
+        --accent-color: #38bdf8;
+        --accent-light: rgba(56, 189, 248, 0.1);
+        --success-color: #4ade80;
+        --success-light: rgba(74, 222, 128, 0.1);
+        --danger-color: #f87171;
+        --danger-light: rgba(248, 113, 113, 0.1);
+        --warning-color: #fb923c;
+        --border-color: #334155;
+        --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+        --nav-bg: #1e293b;
+        --nav-active: #38bdf8;
+    }
 }
 
-
-
+/* فئة إضافية للتحكم اليدوي بالمظهر المظلم عبر الـ JavaScript */
+body.dark-theme {
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-header: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    --text-main: #f1f5f9;
+    --text-muted: #94a3b8;
+    --text-on-header: #f8fafc;
+    --accent-color: #38bdf8;
+    --accent-light: rgba(56, 189, 248, 0.1);
+    --success-color: #4ade80;
+    --success-light: rgba(74, 222, 128, 0.1);
+    --danger-color: #f87171;
+    --danger-light: rgba(248, 113, 113, 0.1);
+    --warning-color: #fb923c;
+    --border-color: #334155;
+    --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+    --nav-bg: #1e293b;
+    --nav-active: #38bdf8;
 }
 
-
-
-
-
-
-
-
-
-/* ===============================
-   Global Reset
-================================ */
-
-
-
+/* ==========================================
+   3. العناصر الأساسية والتنسيق العام
+   ========================================== */
 * {
-
-
-    margin:0;
-
-    padding:0;
-
-    box-sizing:border-box;
-
-
-    -webkit-tap-highlight-color:
-    transparent;
-
-
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    -webkit-tap-highlight-color: transparent;
 }
-
-
-
-
-
-html {
-
-
-    width:100%;
-
-    height:100%;
-
-
-    scroll-behavior:smooth;
-
-
-}
-
-
-
-
-
-
 
 body {
-
-
-    width:100%;
-
-    min-height:100vh;
-
-
-
-    background:
-    var(--tg-bg-color);
-
-
-
-    color:
-    var(--tg-text-color);
-
-
-
-    font-family:
-
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Tahoma,
-    Arial,
-    sans-serif;
-
-
-
-    overflow-x:hidden;
-
-
-
-    transition:
-    var(--transition);
-
-
-
+    background-color: var(--bg-primary);
+    color: var(--text-main);
+    line-height: 1.6;
+    overflow-x: hidden;
 }
 
-
-
-
-
-
-
-
-
-/* ===============================
-   Direction Support
-================================ */
-
-
-
-html[dir="rtl"]
-body {
-
-
-    direction:rtl;
-
-
+/* شاشة التحميل الذكية */
+.app-loader {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--bg-primary);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
 }
 
-
-
-
-
-html[dir="ltr"]
-body {
-
-
-    direction:ltr;
-
-
+.spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid var(--border-color);
+    border-top-color: var(--accent-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 20px;
 }
-
-
-
-
-
-
-
-
-
-
-
-/* ===============================
-   App Container
-================================ */
-
-
-
-#app {
-
-
-    width:100%;
-
-
-    min-height:100vh;
-
-
-
-    display:flex;
-
-
-    flex-direction:column;
-
-
-
-}
-
-
-
-
-
-
-
-
-
-#mainApp {
-
-
-    width:100%;
-
-
-    max-width:520px;
-
-
-    margin:auto;
-
-
-    padding:
-
-    20px 16px 100px;
-
-
-
-    animation:
-
-    appEnter .35s ease;
-
-
-
-}
-
-
-
-
-
-
-
-
-.hidden {
-
-
-    display:none !important;
-
-
-}
-
-
-
-
-
-
-
-
-/* ===============================
-   Loading Screen
-================================ */
-
-
-
-#loadingScreen {
-
-
-
-    position:fixed;
-
-
-    inset:0;
-
-
-
-    display:flex;
-
-
-    align-items:center;
-
-
-    justify-content:center;
-
-
-
-    background:
-    var(--bg);
-
-
-
-    z-index:9999;
-
-
-
-}
-
-
-
-
-
-
-
-
-.loader-box {
-
-
-    text-align:center;
-
-
-    animation:
-    floatBox 1.5s infinite ease-in-out;
-
-
-}
-
-
-
-
-
-
-.logo {
-
-
-    width:90px;
-
-
-    height:90px;
-
-
-    border-radius:28px;
-
-
-
-    display:flex;
-
-
-    align-items:center;
-
-
-    justify-content:center;
-
-
-
-    margin:auto auto 20px;
-
-
-
-    font-size:45px;
-
-
-
-    background:
-    var(--primary);
-
-
-
-    box-shadow:
-    var(--shadow);
-
-
-
-}
-
-
-
-
-
-
-
-.loader-box h1 {
-
-
-    font-size:28px;
-
-
-    margin-bottom:8px;
-
-
-}
-
-
-
-
-
-
-
-.loader-box p {
-
-
-    color:
-    var(--text-secondary);
-
-
-
-}
-
-
-
-
-
-
-
-
-
-.loader {
-
-
-
-    width:45px;
-
-
-    height:45px;
-
-
-
-    margin:25px auto;
-
-
-
-    border-radius:50%;
-
-
-
-    border:
-
-    4px solid var(--border);
-
-
-
-    border-top-color:
-    var(--primary);
-
-
-
-    animation:
-    spin .8s linear infinite;
-
-
-
-}
-
-
-
-
-
-
-
-
-
-/* ===============================
-   Animations
-================================ */
-
-
 
 @keyframes spin {
-
-
-    to {
-
-        transform:
-        rotate(360deg);
-
-    }
-
-
+    to { transform: rotate(360deg); }
 }
 
-
-
-
-
-@keyframes floatBox {
-
-
-    50% {
-
-
-        transform:
-        translateY(-8px);
-
-
-    }
-
-
+.brand-logo {
+    font-size: 2rem;
+    color: var(--text-main);
+    margin-bottom: 8px;
+}
+.brand-logo span, .brand-name span {
+    color: var(--accent-color);
 }
 
-
-
-
-
-@keyframes appEnter {
-
-
-
-    from {
-
-
-        opacity:0;
-
-
-        transform:
-        translateY(15px);
-
-
-    }
-
-
-
-
-    to {
-
-
-        opacity:1;
-
-
-        transform:
-        translateY(0);
-
-
-    }
-
-
-
+.app-container {
+    max-width: 600px;
+    margin: 0 auto;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 80px; /* مساحة للقائمة السفلية */
 }
 
-/* =====================================================
-   Telega.ads Mini App
-   style.css - Part 2
-   Pages + Cards + Buttons + Forms
-====================================================== */
-
-
-
-
-
-
-/* ===============================
-   Pages
-================================ */
-
-
-.page {
-
-
-    width:100%;
-
-
-    animation:
-
-    pageIn .3s ease;
-
-
+/* ==========================================
+   4. الهيدر والبطاقة المالية العلويّة
+   ========================================== */
+.app-header {
+    background: var(--bg-header);
+    color: var(--text-on-header);
+    padding: 20px 16px 40px 16px;
+    border-bottom-left-radius: 24px;
+    border-bottom-right-radius: 24px;
+    position: relative;
+    box-shadow: var(--card-shadow);
 }
 
-
-
-
-
-@keyframes pageIn {
-
-
-    from {
-
-
-        opacity:0;
-
-
-        transform:
-        translateY(12px);
-
-
-    }
-
-
-
-    to {
-
-
-        opacity:1;
-
-
-        transform:
-        translateY(0);
-
-
-    }
-
-
+.header-main {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
 }
 
-
-
-
-
-
-
-
-
-/* ===============================
-   Cards
-================================ */
-
-
-.card {
-
-
-
-    background:
-    var(--surface);
-
-
-
-    border:
-
-    1px solid var(--border);
-
-
-
-    border-radius:
-    var(--radius);
-
-
-
-    padding:
-    20px;
-
-
-
-    margin-bottom:
-    18px;
-
-
-
-    box-shadow:
-    var(--shadow-soft);
-
-
-
-    transition:
-    var(--transition);
-
-
-
+.brand-name {
+    font-size: 1.4rem;
 }
 
-
-
-
-
-
-.card:hover {
-
-
-
-    transform:
-    translateY(-3px);
-
-
-
-    box-shadow:
-    var(--shadow);
-
-
-
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
-
-
-
-
-
-
-
-
-.card h2,
-.card h3 {
-
-
-    margin-bottom:
-    15px;
-
-
-
+.icon-btn {
+    background: rgba(255, 255, 255, 0.15);
+    border: none;
+    color: white;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: var(--transition);
 }
 
-
-
-
-
-
-
-
-
-/* ===============================
-   Welcome
-================================ */
-
-
-.welcome-card {
-
-
-    text-align:center;
-
-
-    padding-top:
-    35px;
-
-
-
+.icon-btn:active {
+    transform: scale(0.9);
+    background: rgba(255, 255, 255, 0.25);
 }
 
-
-
-
-
-
-
-.brand-icon {
-
-
-    width:90px;
-
-
-    height:90px;
-
-
-
-    margin:
-
-    0 auto 20px;
-
-
-
-    border-radius:
-    28px;
-
-
-
-    background:
-    var(--primary);
-
-
-
-    display:flex;
-
-
-    align-items:center;
-
-
-    justify-content:center;
-
-
-
-    font-size:42px;
-
-
-
-    box-shadow:
-    var(--shadow);
-
-
-
+.admin-badge {
+    background: linear-gradient(45deg, #f59e0b, #d97706);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-
-
-
-
-
-
-
-
-.description {
-
-
-    color:
-    var(--text-secondary);
-
-
-
-    margin-bottom:
-    20px;
-
-
-
+/* بطاقة المحفظة السريعة */
+.quick-wallet-card {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: var(--card-shadow);
+    position: absolute;
+    bottom: -30px;
+    left: 16px;
+    right: 16px;
+    border: 1px solid var(--border-color);
 }
 
-
-
-
-
-
-
-
-
-/* ===============================
-   User Box
-================================ */
-
-
-.user-box {
-
-
-
-    display:flex;
-
-
-    align-items:center;
-
-
-    gap:15px;
-
-
-
-    padding:15px;
-
-
-
-    border-radius:
-    var(--radius-small);
-
-
-
-    background:
-    var(--surface-soft);
-
-
-
-    margin-bottom:
-    20px;
-
-
-
+.wallet-info span {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    display: block;
 }
 
-
-
-
-
-
-
-.user-avatar {
-
-
-
-    width:55px;
-
-
-    height:55px;
-
-
-
-    border-radius:50%;
-
-
-
-    background:
-    var(--primary);
-
-
-
-    display:flex;
-
-
-    align-items:center;
-
-
-    justify-content:center;
-
-
-
-    font-size:25px;
-
-
-
+.wallet-info h2 {
+    font-size: 1.6rem;
+    color: var(--text-main);
+    font-weight: 700;
 }
 
-
-
-
-
-
-
-
-
-/* ===============================
-   Buttons
-================================ */
-
-
-button {
-
-
-    font-family:inherit;
-
-
-    cursor:pointer;
-
-
-    border:none;
-
-
-
-    transition:
-    var(--transition);
-
-
-
+/* ==========================================
+   5. التبويبات والمحتوى الرئيسي
+   ========================================== */
+.app-content {
+    padding: 50px 16px 20px 16px;
+    flex: 1;
 }
 
-
-
-
-
-
-.primary-btn {
-
-
-
-    width:100%;
-
-
-
-    padding:
-    14px;
-
-
-
-    border-radius:
-    14px;
-
-
-
-    background:
-    var(--primary);
-
-
-
-    color:white;
-
-
-
-    font-size:16px;
-
-
-
-    font-weight:700;
-
-
-
-    box-shadow:
-    0 8px 20px rgba(34,158,217,.25);
-
-
-
+.tab-section {
+    display: none;
 }
 
-
-
-
-
-
-
-.primary-btn:hover {
-
-
-
-    background:
-    var(--primary-dark);
-
-
-
-    transform:
-    translateY(-2px);
-
-
-
+.tab-section.active {
+    display: block;
+    animation: fadeIn 0.4s ease;
 }
 
-
-
-
-
-
-
-.primary-btn:active {
-
-
-
-    transform:
-    scale(.97);
-
-
-
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
-
-
-
-
-
-
-
-
-.secondary-btn {
-
-
-    background:
-    var(--surface-soft);
-
-
-
-    color:
-    var(--text);
-
-
-
-    padding:
-    12px 18px;
-
-
-
-    border-radius:
-    12px;
-
-
-
+.section-title {
+    margin-bottom: 24px;
 }
 
-
-
-
-
-
-
-
-
-.cancel-btn {
-
-
-
-    width:100%;
-
-
-
-    margin-top:
-    10px;
-
-
-
-    padding:
-    12px;
-
-
-
-    border-radius:
-    12px;
-
-
-
-    background:
-    var(--surface-soft);
-
-
-
-    color:
-    var(--text);
-
-
-
+.section-title h2 {
+    font-size: 1.2rem;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
-
-
-
-
-
-
-
-
-
-
-.back-btn {
-
-
-
-    width:40px;
-
-
-    height:40px;
-
-
-
-    border-radius:
-    50%;
-
-
-
-    background:
-    var(--surface-soft);
-
-
-
-    color:
-    var(--text);
-
-
-
-    font-size:20px;
-
-
-
+.section-title p {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 4px;
 }
 
-
-
-
-
-
-
-
-
-
-/* ===============================
-   Language Buttons
-================================ */
-
-
-
-.language-buttons {
-
-
-
-    display:grid;
-
-
-
-    grid-template-columns:
-    1fr 1fr;
-
-
-
-    gap:
-    12px;
-
-
-
-    margin:
-    20px 0;
-
-
-
+/* شبكة أزرار التحكم (Grid) */
+.grid-actions {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
 }
 
-
-
-
-
-
-.language-btn {
-
-
-
-    padding:
-    14px;
-
-
-
-    border-radius:
-    14px;
-
-
-
-    background:
-    var(--surface-soft);
-
-
-
-    color:
-    var(--text);
-
-
-
-    border:
-    1px solid var(--border);
-
-
-
+.action-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: var(--transition);
+    box-shadow: var(--card-shadow);
 }
 
-
-
-
-
-
-
-.language-btn.active {
-
-
-
-    background:
-    var(--primary);
-
-
-
-    color:white;
-
-
-
-    border-color:
-    var(--primary);
-
-
-
+.action-card:active {
+    transform: scale(0.96);
+    background-color: var(--border-color);
 }
 
-
-
-
-
-
-
-
-
-/* ===============================
-   Forms
-================================ */
-
-
-
-.input-group {
-
-
-
-    margin-bottom:
-    16px;
-
-
-
+.card-icon {
+    font-size: 1.6rem;
+    color: var(--accent-color);
+    margin-bottom: 10px;
 }
 
-
-
-
-
-
-
-.input-group label {
-
-
-
-    display:block;
-
-
-
-    margin-bottom:
-    8px;
-
-
-
-    font-size:14px;
-
-
-
-    color:
-    var(--text-secondary);
-
-
-
+.action-card h3 {
+    font-size: 0.95rem;
+    color: var(--text-main);
+    margin-bottom: 4px;
 }
 
-
-
-
-
-
-
-input,
-textarea,
-select {
-
-
-
-    width:100%;
-
-
-
-    padding:
-    13px;
-
-
-
-    border-radius:
-    14px;
-
-
-
-    border:
-
-    1px solid var(--border);
-
-
-
-    background:
-    var(--surface-soft);
-
-
-
-    color:
-    var(--text);
-
-
-
-    outline:none;
-
-
-
-    font-size:15px;
-
-
-
-    transition:
-    var(--transition);
-
-
-
+.action-card p {
+    font-size: 0.75rem;
+    color: var(--text-muted);
 }
 
-
-
-
-
-
-
-input:focus,
-textarea:focus,
-select:focus {
-
-
-
-    border-color:
-    var(--primary);
-
-
-
-    box-shadow:
-
-    0 0 0 3px
-    rgba(34,158,217,.15);
-
-
-
+/* ==========================================
+   6. الجداول، القوائم، الحالات الفارغة، والشبكات التفاعلية
+   ========================================== */
+.list-container {
+    margin-top: 12px;
 }
-
-
-
-
-
-
-
-textarea {
-
-
-
-    resize:none;
-
-
-
-}
-
-
-
-
-
-
-
-
-
-
-
-/* ===============================
-   Lists
-================================ */
-
-
-.list-box {
-
-
-
-    display:flex;
-
-
-    flex-direction:column;
-
-
-    gap:12px;
-
-
-
-}
-
-
-
-
-
-
-
 
 .empty-state {
-
-
-
-    text-align:center;
-
-
-
-    padding:
-    30px 10px;
-
-
-
-    color:
-    var(--text-secondary);
-
-
-
-    font-size:15px;
-
-
-
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-muted);
 }
 
-
-
-
-
-
-
-.empty-state span,
-.empty-state {
-
-
-
-    animation:
-    floatBox 2s infinite ease-in-out;
-
-
-
+.empty-state i {
+    font-size: 2.5rem;
+    margin-bottom: 12px;
+    opacity: 0.5;
 }
 
-
-
-
-
-
-
-
-/* ===============================
-   Section Header
-================================ */
-
-
-.section-header {
-
-
-
-    display:flex;
-
-
-
-    align-items:center;
-
-
-
-    gap:12px;
-
-
-
-    margin-bottom:
-    20px;
-
-
-
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 20px;
 }
 
-
-
-
-
-
-
-.section-header h2 {
-
-
-
-    font-size:22px;
-
-
-
+.stat-item {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    padding: 12px 8px;
+    border-radius: var(--radius-md);
+    text-align: center;
+    box-shadow: var(--card-shadow);
 }
 
-/* =====================================================
-   Telega.ads Mini App
-   style.css - Part 3
-   Dashboard + Panels + Lists
-====================================================== */
-
-
-
-
-
-
-/* ===============================
-   Dashboard Header
-================================ */
-
-
-.dashboard-header {
-
-
-    display:flex;
-
-
-    justify-content:space-between;
-
-
-    align-items:center;
-
-
-
-    margin-bottom:
-    22px;
-
-
-
+.stat-item span {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    display: block;
+    margin-bottom: 4px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-
-
-
-
-.dashboard-header h1 {
-
-
-    font-size:
-    26px;
-
-
-
-    margin-bottom:
-    6px;
-
-
-
+.stat-item h4 {
+    font-size: 1rem;
+    font-weight: bold;
 }
 
-
-
-
-
-
-
-.dashboard-header p {
-
-
-
-    color:
-    var(--text-secondary);
-
-
-
+/* قوالب وحملات حية داخل القوائم */
+.data-item-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    margin-bottom: 10px;
+    box-shadow: var(--card-shadow);
 }
 
-
-
-
-
-
-
-
-
-/* ===============================
-   Balance Box
-================================ */
-
-
-.balance-box {
-
-
-    background:
-    var(--primary);
-
-
-
-    color:white;
-
-
-
-    padding:
-    14px;
-
-
-
-    border-radius:
-    18px;
-
-
-
-    min-width:
-    105px;
-
-
-
-    text-align:center;
-
-
-
-    box-shadow:
-    var(--shadow);
-
-
-
+/* سجل العمليات */
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
-
-
-
-
-
-.balance-box span {
-
-
-
-    display:block;
-
-
-
-    font-size:
-    12px;
-
-
-
-    opacity:.9;
-
-
-
+.history-item {
+    background: var(--bg-secondary);
+    border-right: 4px solid var(--border-color);
+    padding: 10px 14px;
+    border-radius: var(--radius-md);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+    box-shadow: var(--card-shadow);
 }
 
+.history-item.deposit { border-right-color: var(--success-color); }
+.history-item.withdraw { border-right-color: var(--danger-color); }
+.history-item.spent { border-right-color: var(--warning-color); }
 
-
-
-
-
-.balance-box strong {
-
-
-
-    font-size:
-    15px;
-
-
-
+/* نظام الإحالة */
+.referral-box {
+    display: flex;
+    gap: 12px;
 }
 
-
-
-
-
-
-
-
-
-/* ===============================
-   Menu Grid
-================================ */
-
-
-.menu-grid {
-
-
-    display:grid;
-
-
-
-    grid-template-columns:
-    repeat(2,1fr);
-
-
-
-    gap:
-    15px;
-
-
-
-    margin-bottom:
-    25px;
-
-
-
+.ref-stat {
+    flex: 1;
+    background: var(--bg-secondary);
+    padding: 16px;
+    border-radius: var(--radius-md);
+    text-align: center;
+    border: 1px solid var(--border-color);
 }
 
-
-
-
-
-
-
-.menu-card {
-
-
-    background:
-    var(--surface);
-
-
-
-    border:
-    1px solid var(--border);
-
-
-
-    border-radius:
-    20px;
-
-
-
-    padding:
-    20px 15px;
-
-
-
-    text-align:center;
-
-
-
-    cursor:pointer;
-
-
-
-    box-shadow:
-    var(--shadow-soft);
-
-
-
-    transition:
-    var(--transition);
-
-
-
+.ref-stat span {
+    font-size: 0.8rem;
+    color: var(--text-muted);
 }
 
-
-
-
-
-
-
-.menu-card:hover {
-
-
-
-    transform:
-    translateY(-5px);
-
-
-
-    box-shadow:
-    var(--shadow);
-
-
-
+.input-copy-group {
+    display: flex;
+    margin-top: 6px;
 }
 
-
-
-
-
-
-
-.menu-icon {
-
-
-    font-size:
-    35px;
-
-
-
-    margin-bottom:
-    10px;
-
-
-
+.input-copy-group input {
+    flex: 1;
+    border-top-right-radius: var(--radius-md);
+    border-bottom-right-radius: var(--radius-md);
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
 }
 
-
-
-
-
-
-
-
-.menu-card h3 {
-
-
-    margin-bottom:
-    7px;
-
-
-
+.input-copy-group button {
+    background: var(--accent-color);
+    color: white;
+    border: none;
+    padding: 0 16px;
+    border-top-left-radius: var(--radius-md);
+    border-bottom-left-radius: var(--radius-md);
+    cursor: pointer;
 }
 
-
-
-
-
-
-
-
-.menu-card p {
-
-
-
-    color:
-    var(--text-secondary);
-
-
-
-    font-size:
-    13px;
-
-
-
+.back-nav {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9rem;
+    color: var(--accent-color);
+    cursor: pointer;
+    margin-bottom: 16px;
 }
 
-
-
-
-
-
-
-
-
-/* ===============================
-   Bottom Navigation
-================================ */
-
-
-.bottom-nav {
-
-
-
-    position:fixed;
-
-
-
-    bottom:
-    15px;
-
-
-
-    left:50%;
-
-
-
-    transform:
-    translateX(-50%);
-
-
-
-    width:
-    calc(100% - 30px);
-
-
-
-    max-width:
-    490px;
-
-
-
-    background:
-    var(--surface);
-
-
-
-    border:
-    1px solid var(--border);
-
-
-
-    border-radius:
-    22px;
-
-
-
-    padding:
-    10px;
-
-
-
-    display:flex;
-
-
-
-    justify-content:space-around;
-
-
-
-    box-shadow:
-    var(--shadow);
-
-
-
-    z-index:
-    100;
-
-
-
+/* ==========================================
+   7. النوافذ المنبثقة وأدوات الإدخال (Modals & Forms)
+   ========================================== */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    display: none;
+    justify-content: center;
+    align-items: flex-end; /* تفتح من الأسفل مثل تطبيقات الموبايل الاحترافية */
+    z-index: 1000;
 }
 
-
-
-
-
-
-
-.nav-btn {
-
-
-    background:none;
-
-
-
-    color:
-    var(--text-secondary);
-
-
-
-    display:flex;
-
-
-
-    flex-direction:column;
-
-
-
-    align-items:center;
-
-
-
-    gap:4px;
-
-
-
-    font-size:
-    12px;
-
-
-
+.modal-overlay.open {
+    display: flex;
 }
-
-
-
-
-
-
-
-.nav-btn.active {
-
-
-
-    color:
-    var(--primary);
-
-
-
-}
-
-
-
-
-
-
-
-
-
-/* ===============================
-   Channel Items
-================================ */
-
-
-.channel-item {
-
-
-
-    background:
-    var(--surface-soft);
-
-
-
-    border-radius:
-    15px;
-
-
-
-    padding:
-    15px;
-
-
-
-    display:flex;
-
-
-
-    justify-content:space-between;
-
-
-
-    align-items:center;
-
-
-
-}
-
-
-
-
-
-
-.channel-item h4 {
-
-
-
-    margin-bottom:
-    5px;
-
-
-
-}
-
-
-
-
-
-
-
-.channel-item p {
-
-
-
-    color:
-    var(--text-secondary);
-
-
-
-    font-size:
-    13px;
-
-
-
-}
-
-
-
-
-
-
-
-
-.channel-item small {
-
-
-
-    display:inline-block;
-
-
-
-    margin-top:
-    5px;
-
-
-
-    padding:
-    5px 10px;
-
-
-
-    border-radius:
-    20px;
-
-
-
-    background:
-    var(--primary);
-
-
-
-    color:white;
-
-
-
-}
-
-
-
-
-
-
-
-.channel-actions {
-
-
-
-    display:flex;
-
-
-
-    gap:
-    8px;
-
-
-
-}
-
-
-
-
-
-
-
-.channel-actions button {
-
-
-
-    width:
-    36px;
-
-
-
-    height:
-    36px;
-
-
-
-    border-radius:
-    50%;
-
-
-
-    background:
-    var(--surface);
-
-
-
-    border:
-    1px solid var(--border);
-
-
-
-}
-
-
-
-
-
-
-
-
-
-/* ===============================
-   Campaign Items
-================================ */
-
-
-
-.campaign-item {
-
-
-
-    background:
-    var(--surface-soft);
-
-
-
-    padding:
-    15px;
-
-
-
-    border-radius:
-    15px;
-
-
-
-    display:flex;
-
-
-
-    justify-content:space-between;
-
-
-
-    gap:
-    12px;
-
-
-
-}
-
-
-
-
-
-
-
-
-.campaign-item p {
-
-
-
-    color:
-    var(--text-secondary);
-
-
-
-    font-size:
-    13px;
-
-
-
-    margin:
-    8px 0;
-
-
-
-}
-
-
-
-
-
-
-
-
-.campaign-item button {
-
-
-
-    width:
-    34px;
-
-
-
-    height:
-    34px;
-
-
-
-    border-radius:
-    10px;
-
-
-
-    background:
-    var(--surface);
-
-
-
-}
-
-
-
-
-
-
-
-
-
-/* ===============================
-   Wallet
-================================ */
-
-
-.balance-card {
-
-
-
-    background:
-    linear-gradient(
-    135deg,
-    var(--primary),
-    var(--primary-dark)
-    );
-
-
-
-    color:white;
-
-
-
-    border-radius:
-    25px;
-
-
-
-    padding:
-    30px 20px;
-
-
-
-    text-align:center;
-
-
-
-    margin-bottom:
-    20px;
-
-
-
-    box-shadow:
-    var(--shadow);
-
-
-
-}
-
-
-
-
-
-
-
-
-.balance-card p {
-
-
-
-    opacity:.9;
-
-
-
-    margin-bottom:
-    10px;
-
-
-
-}
-
-
-
-
-
-
-
-
-.balance-card h1 {
-
-
-
-    font-size:
-    34px;
-
-
-
-}
-
-
-
-
-
-
-
-
-
-/* ===============================
-   Transactions
-================================ */
-
-
-.transaction-item {
-
-
-
-    display:flex;
-
-
-
-    justify-content:space-between;
-
-
-
-    align-items:center;
-
-
-
-    background:
-    var(--surface-soft);
-
-
-
-    padding:
-    14px;
-
-
-
-    border-radius:
-    15px;
-
-
-
-}
-
-
-
-
-
-
-
-.transaction-item span {
-
-
-
-    padding:
-    6px 10px;
-
-
-
-    border-radius:
-    20px;
-
-
-
-    background:
-    var(--warning);
-
-
-
-    color:white;
-
-
-
-    font-size:
-    12px;
-
-
-
-}
-
-
-
-
-
-
-
-
-
-/* ===============================
-   Admin
-================================ */
-
-
-.admin-item {
-
-
-
-    background:
-    var(--surface-soft);
-
-
-
-    padding:
-    15px;
-
-
-
-    border-radius:
-    15px;
-
-
-
-    display:flex;
-
-
-
-    align-items:center;
-
-
-
-    justify-content:space-between;
-
-
-
-    margin-bottom:
-    10px;
-
-
-
-}
-
-
-
-
-
-
-
-
-.admin-item button {
-
-
-
-    padding:
-    8px 12px;
-
-
-
-    border-radius:
-    10px;
-
-
-
-    background:
-    var(--primary);
-
-
-
-    color:white;
-
-
-
-}
-
-/* =====================================================
-   Telega.ads Mini App
-   style.css - Part 4
-   Modals + Notifications + Effects
-====================================================== */
-
-
-
-
-
-
-/* ===============================
-   Modal System
-================================ */
-
-
-.modal {
-
-
-    position:fixed;
-
-
-    inset:0;
-
-
-
-    background:
-
-    rgba(0,0,0,.45);
-
-
-
-    display:flex;
-
-
-
-    align-items:center;
-
-
-
-    justify-content:center;
-
-
-
-    padding:
-    20px;
-
-
-
-    z-index:
-    999;
-
-
-
-    backdrop-filter:
-    blur(8px);
-
-
-
-    animation:
-    modalFade .25s ease;
-
-
-
-}
-
-
-
-
-
-
 
 .modal-content {
-
-
-
-    width:
-    100%;
-
-
-
-    max-width:
-    420px;
-
-
-
-    background:
-    var(--surface);
-
-
-
-    border-radius:
-    24px;
-
-
-
-    padding:
-    25px;
-
-
-
-    box-shadow:
-    var(--shadow);
-
-
-
-    animation:
-    modalIn .3s ease;
-
-
-
-    position:relative;
-
-
-
+    background: var(--bg-secondary);
+    width: 100%;
+    max-width: 600px;
+    border-top-left-radius: 24px;
+    border-top-right-radius: 24px;
+    padding: 20px 16px;
+    max-height: 85vh;
+    overflow-y: auto;
+    animation: slideUp 0.3s ease-out;
 }
 
-
-
-
-
-
-
-
-
-.close-modal {
-
-
-
-    position:absolute;
-
-
-
-    top:
-    12px;
-
-
-
-    left:
-    12px;
-
-
-
-    width:
-    34px;
-
-
-
-    height:
-    34px;
-
-
-
-    border-radius:
-    50%;
-
-
-
-    background:
-    var(--surface-soft);
-
-
-
-    color:
-    var(--text);
-
-
-
-    font-size:
-    18px;
-
-
-
+@keyframes slideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
 }
 
-
-
-
-
-
-
-
-
-@keyframes modalFade {
-
-
-
-    from {
-
-        opacity:0;
-
-    }
-
-
-    to {
-
-        opacity:1;
-
-    }
-
-
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 10px;
 }
 
-
-
-
-
-
-
-
-@keyframes modalIn {
-
-
-
-    from {
-
-
-        transform:
-        translateY(30px)
-        scale(.95);
-
-
-
-        opacity:0;
-
-
-
-    }
-
-
-
-
-    to {
-
-
-
-        transform:
-        translateY(0)
-        scale(1);
-
-
-
-        opacity:1;
-
-
-
-    }
-
-
-
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 1.8rem;
+    color: var(--text-muted);
+    cursor: pointer;
 }
 
-
-
-
-
-
-
-
-
-/* ===============================
-   Notification
-================================ */
-
-
-.notification {
-
-
-
-    position:fixed;
-
-
-
-    top:
-    25px;
-
-
-
-    left:
-    50%;
-
-
-
-    transform:
-    translateX(-50%);
-
-
-
-    background:
-    var(--surface);
-
-
-
-    color:
-    var(--text);
-
-
-
-    border:
-    1px solid var(--border);
-
-
-
-    padding:
-    14px 22px;
-
-
-
-    border-radius:
-    30px;
-
-
-
-    box-shadow:
-    var(--shadow);
-
-
-
-    z-index:
-    2000;
-
-
-
-    min-width:
-    200px;
-
-
-
-    text-align:center;
-
-
-
-    animation:
-    notificationIn .3s ease;
-
-
-
+.form-group {
+    margin-bottom: 16px;
 }
 
-
-
-
-
-
-
-
-@keyframes notificationIn {
-
-
-
-    from {
-
-
-
-        opacity:0;
-
-
-
-        transform:
-        translate(-50%,-20px);
-
-
-
-    }
-
-
-
-    to {
-
-
-
-        opacity:1;
-
-
-
-        transform:
-        translate(-50%,0);
-
-
-
-    }
-
-
+.form-group label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--text-main);
 }
 
-
-
-
-
-
-
-
-
-/* ===============================
-   Ad Preview
-================================ */
-
-
-
-.ad-preview {
-
-
-
-    text-align:center;
-
-
-
+input[type="text"], input[type="number"], input[type="url"], textarea, select {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-primary);
+    color: var(--text-main);
+    font-size: 0.9rem;
+    outline: none;
+    transition: var(--transition);
 }
 
-
-
-
-
-
-
-
-#previewMedia img,
-#previewMedia video {
-
-
-
-    width:100%;
-
-
-
-    max-height:
-    320px;
-
-
-
-    object-fit:cover;
-
-
-
-    border-radius:
-    18px;
-
-
-
-    margin-bottom:
-    15px;
-
-
-
+input:focus, textarea:focus, select:focus {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px var(--accent-light);
 }
 
-
-
-
-
-
-
-#previewText {
-
-
-
-    text-align:right;
-
-
-
-    line-height:
-    1.8;
-
-
-
+textarea {
+    resize: none;
+    height: 100px;
 }
 
-
-
-
-
-
-
-
-
-/* ===============================
-   Telegram Button
-================================ */
-
-
-.telegram-ad-button {
-
-
-
-    display:flex;
-
-
-
-    align-items:center;
-
-
-
-    justify-content:center;
-
-
-
-    margin-top:
-    20px;
-
-
-
-    padding:
-    14px;
-
-
-
-    width:100%;
-
-
-
-    border-radius:
-    16px;
-
-
-
-    background:
-    var(--primary);
-
-
-
-    color:white;
-
-
-
-    text-decoration:none;
-
-
-
-    font-weight:
-    700;
-
-
-
-    box-shadow:
-    0 10px 25px
-    rgba(34,158,217,.3);
-
-
-
-    transition:
-    var(--transition);
-
-
-
+.form-group-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+    font-size: 0.85rem;
 }
 
-
-
-
-
-
-
-
-.telegram-ad-button:hover {
-
-
-
-    transform:
-    translateY(-3px);
-
-
-
+.form-group-checkbox input {
+    width: 16px;
+    height: 16px;
 }
 
-
-
-
-
-
-
-
-
-/* ===============================
-   File Upload
-================================ */
-
-
-
-input[type="file"] {
-
-
-
-    padding:
-    12px;
-
-
-
-    cursor:pointer;
-
-
-
+/* ==========================================
+   8. الأزرار (Buttons Toolkit)
+   ========================================== */
+.btn {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border-radius: var(--radius-md);
+    border: none;
+    cursor: pointer;
+    transition: var(--transition);
+    text-align: center;
 }
 
+.btn:active { transform: scale(0.97); }
+.w-100 { width: 100%; }
+.mb-4 { margin-bottom: 16px; }
+.mt-3 { margin-top: 12px; }
+.mt-4 { margin-top: 16px; }
 
+.btn-primary { background: var(--accent-color); color: white; }
+.btn-primary-light { background: var(--accent-light); color: var(--accent-color); }
+.btn-success { background: var(--success-color); color: white; }
+.btn-danger { background: var(--danger-color); color: white; }
+.btn-secondary { background: var(--warning-color); color: white; }
+.btn-neutral { background: var(--border-color); color: var(--text-main); }
 
+.wallet-buttons-group, .btn-group-half {
+    display: flex;
+    gap: 10px;
+}
+.wallet-buttons-group .btn, .btn-group-half .btn { flex: 1; }
+.modal-footer-btns { display: flex; gap: 10px; margin-top: 20px; }
+.modal-footer-btns .btn { flex: 1; }
 
-
-
-
-
-
-/* ===============================
-   Status Colors
-================================ */
-
-
-
-.status-active {
-
-
-    color:
-    var(--success);
-
-
-
+/* ==========================================
+   9. القائمة السفلية الثابتة للتنقل (Bottom Navigation Navbar)
+   ========================================== */
+.app-nav {
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 600px;
+    background: var(--nav-bg);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-around;
+    padding: 8px 0 calc(8px + env(safe-area-inset-bottom, 0px)) 0; /* متوافق مع نتوء هواتف الآيفون الحديثة */
+    z-index: 999;
+    box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.05);
 }
 
-
-
-.status-pending {
-
-
-    color:
-    var(--warning);
-
-
-
+.nav-item {
+    background: none;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    cursor: pointer;
+    width: 20%;
+    transition: var(--transition);
 }
 
-
-
-.status-rejected {
-
-
-    color:
-    var(--danger);
-
-
-
+.nav-item i {
+    font-size: 1.25rem;
+    margin-bottom: 4px;
 }
 
-
-
-
-
-
-
-
-
-/* ===============================
-   Scrollbar
-================================ */
-
-
-::-webkit-scrollbar {
-
-
-
-    width:
-    6px;
-
-
-
+.nav-item.active {
+    color: var(--nav-active);
 }
-
-
-
-
-
-
-::-webkit-scrollbar-track {
-
-
-
-    background:
-    transparent;
-
-
-
-}
-
-
-
-
-
-
-
-::-webkit-scrollbar-thumb {
-
-
-
-    background:
-    var(--primary);
-
-
-
-    border-radius:
-    20px;
-
-
-
-}
-
-
-
-
-
-
-
-
-
-/* ===============================
-   Glass Effect
-================================ */
-
-
-.glass {
-
-
-
-    background:
-
-    rgba(255,255,255,.08);
-
-
-
-    backdrop-filter:
-    blur(20px);
-
-
-
-    border:
-    1px solid
-    rgba(255,255,255,.15);
-
-
-
-}
-
-
-
-
-
-
-
-
-/* ===============================
-   Hover Effects
-================================ */
-
-
-.card,
-.menu-card,
-.channel-item,
-.campaign-item,
-.transaction-item,
-.admin-item {
-
-
-
-    will-change:
-    transform;
-
-
-
-}
-
-
-
-
-
-
-
-
-
-/* ===============================
-   Smooth Images
-================================ */
-
-
-
-img {
-
-
-    max-width:
-    100%;
-
-
-
-    display:block;
-
-
-
-}
-
-/* =====================================================
-   Telega.ads Mini App
-   style.css - Part 5
-   Responsive + Telegram Optimization
-====================================================== */
-
-
-
-
-
-
-
-/* ===============================
-   Small Mobile
-================================ */
-
-
-@media (max-width:380px){
-
-
-
-    #mainApp {
-
-
-
-        padding:
-
-        15px 12px 100px;
-
-
-
-    }
-
-
-
-
-
-
-
-    .dashboard-header {
-
-
-
-        flex-direction:
-        column;
-
-
-
-        align-items:
-        stretch;
-
-
-
-        gap:
-        15px;
-
-
-
-    }
-
-
-
-
-
-
-
-    .menu-grid {
-
-
-
-        grid-template-columns:
-        1fr;
-
-
-
-    }
-
-
-
-
-
-
-
-    .balance-box {
-
-
-
-        width:
-        100%;
-
-
-
-    }
-
-
-
-
-
-
-
-    .card {
-
-
-
-        padding:
-        16px;
-
-
-
-    }
-
-
-
-
-
-
-
-    .menu-card {
-
-
-
-        padding:
-        18px 10px;
-
-
-
-    }
-
-
-
-
-
-
-
-    .menu-icon {
-
-
-
-        font-size:
-        30px;
-
-
-
-    }
-
-
-
-
-
-
-
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* ===============================
-   Normal Mobile
-================================ */
-
-
-
-@media (min-width:381px)
-and (max-width:600px){
-
-
-
-
-
-
-    #mainApp {
-
-
-
-        max-width:
-        100%;
-
-
-
-    }
-
-
-
-
-
-
-
-    .bottom-nav {
-
-
-
-        width:
-        calc(100% - 20px);
-
-
-
-    }
-
-
-
-
-
-
-
-    .campaign-item,
-    .channel-item,
-    .admin-item {
-
-
-
-        flex-direction:
-        column;
-
-
-
-        align-items:
-        stretch;
-
-
-
-    }
-
-
-
-
-
-
-
-    .channel-actions {
-
-
-
-        justify-content:
-        center;
-
-
-
-    }
-
-
-
-
-
-
-
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* ===============================
-   Tablet
-================================ */
-
-
-
-@media (min-width:601px){
-
-
-
-
-
-    #mainApp {
-
-
-
-        max-width:
-        650px;
-
-
-
-        padding-top:
-        30px;
-
-
-
-    }
-
-
-
-
-
-
-
-
-    .menu-grid {
-
-
-
-        grid-template-columns:
-
-        repeat(3,1fr);
-
-
-
-    }
-
-
-
-
-
-
-
-
-
-    .card {
-
-
-
-        padding:
-        25px;
-
-
-
-    }
-
-
-
-
-
-
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* ===============================
-   Desktop
-================================ */
-
-
-
-@media (min-width:1000px){
-
-
-
-
-
-    body {
-
-
-
-        display:flex;
-
-
-
-        justify-content:center;
-
-
-
-    }
-
-
-
-
-
-
-
-
-    #app {
-
-
-
-        max-width:
-        720px;
-
-
-
-        box-shadow:
-        var(--shadow);
-
-
-
-        min-height:
-        100vh;
-
-
-
-    }
-
-
-
-
-
-
-
-    .bottom-nav {
-
-
-
-        max-width:
-        680px;
-
-
-
-    }
-
-
-
-
-
-
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* ===============================
-   Telegram WebApp Safe Area
-================================ */
-
-
-
-body {
-
-
-
-    padding-bottom:
-
-    env(
-    safe-area-inset-bottom
-    );
-
-
-
-}
-
-
-
-
-
-
-
-
-
-#mainApp {
-
-
-
-    padding-bottom:
-
-    calc(
-    100px +
-    env(
-    safe-area-inset-bottom
-    )
-    );
-
-
-
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* ===============================
-   Touch Optimization
-================================ */
-
-
-
-button,
-.menu-card,
-.nav-btn {
-
-
-
-    user-select:none;
-
-
-
-    -webkit-user-select:none;
-
-
-
-}
-
-
-
-
-
-
-
-
-button:focus,
-input:focus,
-textarea:focus,
-select:focus {
-
-
-
-    outline:none;
-
-
-
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* ===============================
-   Accessibility
-================================ */
-
-
-
-@media (prefers-reduced-motion:reduce){
-
-
-
-    *,
-    *::before,
-    *::after {
-
-
-
-        animation-duration:
-        .01ms !important;
-
-
-
-        animation-iteration-count:
-        1 !important;
-
-
-
-        scroll-behavior:
-        auto !important;
-
-
-
-    }
-
-
-
-}
-
-
-
-
-
-
-
-
-
-/* ===============================
-   Print Protection
-================================ */
-
-
-
-@media print {
-
-
-
-    body {
-
-
-        display:none;
-
-
-
-    }
-
-
-
-}
-
-/* =====================================================
-   Telega.ads Mini App
-   style.css - Part 6
-   Final Premium Effects
-====================================================== */
-
-
-
-
-
-
-/* ===============================
-   Premium Shadows
-================================ */
-
-
-.premium-shadow {
-
-
-
-    box-shadow:
-
-
-
-    0 20px 50px
-    rgba(0,0,0,.18);
-
-
-
-}
-
-
-
-
-
-
-
-
-
-/* ===============================
-   Smooth Cards
-================================ */
-
-
-.card,
-.menu-card,
-.channel-item,
-.campaign-item,
-.transaction-item,
-.admin-item {
-
-
-
-    position:relative;
-
-
-
-    overflow:hidden;
-
-
-
-}
-
-
-
-
-
-
-
-.card::before,
-.menu-card::before {
-
-
-
-    content:"";
-
-
-
-    position:absolute;
-
-
-
-    top:0;
-
-
-
-    left:-100%;
-
-
-
-    width:100%;
-
-
-
-    height:100%;
-
-
-
-    background:
-
-
-
-    linear-gradient(
-
-    120deg,
-
-    transparent,
-
-    rgba(255,255,255,.18),
-
-    transparent
-
-    );
-
-
-
-    transition:
-    .6s;
-
-
-
-}
-
-
-
-
-
-
-
-.card:hover::before,
-.menu-card:hover::before {
-
-
-
-    left:100%;
-
-
-
-}
-
-
-
-
-
-
-
-
-
-/* ===============================
-   Loading Skeleton
-================================ */
-
-
-
-.skeleton {
-
-
-
-    background:
-
-    linear-gradient(
-
-    90deg,
-
-    var(--surface-soft),
-
-    var(--border),
-
-    var(--surface-soft)
-
-    );
-
-
-
-    background-size:
-    200% 100%;
-
-
-
-    animation:
-
-    skeletonMove 1.4s infinite;
-
-
-
-    border-radius:
-    12px;
-
-
-
-}
-
-
-
-
-
-
-
-@keyframes skeletonMove {
-
-
-
-    from {
-
-
-        background-position:
-        200% 0;
-
-
-
-    }
-
-
-
-    to {
-
-
-        background-position:
-        -200% 0;
-
-
-
-    }
-
-
-
-}
-
-
-
-
-
-
-
-
-
-/* ===============================
-   Success / Error Messages
-================================ */
-
-
-
-.success-box {
-
-
-
-    background:
-    rgba(46,204,113,.15);
-
-
-
-    color:
-    var(--success);
-
-
-
-    border:
-    1px solid
-    var(--success);
-
-
-
-    padding:
-    14px;
-
-
-
-    border-radius:
-    14px;
-
-
-
-}
-
-
-
-
-
-
-
-.error-box {
-
-
-
-    background:
-    rgba(231,76,60,.15);
-
-
-
-    color:
-    var(--danger);
-
-
-
-    border:
-    1px solid
-    var(--danger);
-
-
-
-    padding:
-    14px;
-
-
-
-    border-radius:
-    14px;
-
-
-
-}
-
-
-
-
-
-
-
-
-
-/* ===============================
-   Badge
-================================ */
-
-
-
-.badge {
-
-
-
-    display:inline-flex;
-
-
-
-    align-items:center;
-
-
-
-    justify-content:center;
-
-
-
-    padding:
-
-    5px 12px;
-
-
-
-    border-radius:
-
-    50px;
-
-
-
-    background:
-    var(--primary);
-
-
-
-    color:white;
-
-
-
-    font-size:
-    12px;
-
-
-
-    font-weight:
-    700;
-
-
-
-}
-
-
-
-
-
-
-
-
-
-/* ===============================
-   Avatar
-================================ */
-
-
-
-.avatar {
-
-
-
-    width:
-    48px;
-
-
-
-    height:
-    48px;
-
-
-
-    border-radius:
-    50%;
-
-
-
-    display:flex;
-
-
-
-    align-items:center;
-
-
-
-    justify-content:center;
-
-
-
-    background:
-    var(--primary);
-
-
-
-    color:white;
-
-
-
-    font-size:
-    22px;
-
-
-
-}
-
-
-
-
-
-
-
-
-
-/* ===============================
-   Divider
-================================ */
-
-
-
-.divider {
-
-
-
-    width:100%;
-
-
-
-    height:1px;
-
-
-
-    background:
-    var(--border);
-
-
-
-    margin:
-
-    18px 0;
-
-
-
-}
-
-
-
-
-
-
-
-
-
-/* ===============================
-   Better Select
-================================ */
-
-
-
-select {
-
-
-
-    appearance:none;
-
-
-
-    background-image:
-
-
-
-    linear-gradient(
-    45deg,
-    transparent 50%,
-    var(--text) 50%
-    ),
-
-    linear-gradient(
-    135deg,
-    var(--text) 50%,
-    transparent 50%
-    );
-
-
-
-    background-position:
-
-
-
-    calc(100% - 20px)
-    50%,
-
-    calc(100% - 15px)
-    50%;
-
-
-
-    background-size:
-
-    5px 5px;
-
-
-
-    background-repeat:no-repeat;
-
-
-
-}
-
-
-
-
-
-
-
-
-html[dir="rtl"] select {
-
-
-
-    background-position:
-
-
-
-    20px 50%,
-
-    15px 50%;
-
-
-
-}
-
-
-
-
-
-
-
-
-
-/* ===============================
-   Premium Button Animation
-================================ */
-
-
-
-.primary-btn {
-
-
-
-    position:relative;
-
-
-
-    overflow:hidden;
-
-
-
-}
-
-
-
-
-
-
-
-
-.primary-btn::after {
-
-
-
-    content:"";
-
-
-
-    position:absolute;
-
-
-
-    width:
-    0;
-
-
-
-    height:
-    0;
-
-
-
-    background:
-    rgba(255,255,255,.35);
-
-
-
-    border-radius:
-    50%;
-
-
-
-    top:
-    50%;
-
-
-
-    left:
-    50%;
-
-
-
-    transform:
-    translate(-50%,-50%);
-
-
-
-    transition:
-    .4s;
-
-
-
-}
-
-
-
-
-
-
-
-
-.primary-btn:active::after {
-
-
-
-    width:
-    300px;
-
-
-
-    height:
-    300px;
-
-
-
-}
-
-
-
-
-
-
-
-
-
-/* ===============================
-   Final App Polish
-================================ */
-
-
-
-h1,
-h2,
-h3,
-h4 {
-
-
-
-    letter-spacing:
-    -.3px;
-
-
-
-}
-
-
-
-
-
-
-
-
-p {
-
-
-
-    line-height:
-    1.7;
-
-
-
-}
-
-
-
-
-
-
-
-
-
-strong {
-
-
-
-    font-weight:
-    800;
-
-
-
-}
-
-
-
-
-
-
-
-
-
-/* ===============================
-   End
-================================ */
-
-
-
-/*
-
-    Telega.ads CSS Completed 🚀
-
-    Ready for:
-    - Telegram WebApp
-    - Dark Mode
-    - Light Mode
-    - Mobile
-    - Desktop
-
-*/
