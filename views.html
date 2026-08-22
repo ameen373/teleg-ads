@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>منصة اختصار الروابط الاحترافية</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+  <style>
+    :root {
+      --bg-main: #0b0f19;
+      --card-bg: #151e32;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --danger: #ef4444;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --text: #f8fafc;
+      --text-muted: #64748b;
+      --border-color: #1e293b;
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-main); color: var(--text); margin: 0; padding: 12px; direction: rtl; }
+    .container { max-width: 500px; margin: 0 auto; }
+    .card { background: var(--card-bg); border-radius: 16px; padding: 18px; margin-bottom: 14px; border: 1px solid var(--border-color); box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+    
+    .nav-tabs { display: flex; gap: 4px; margin-bottom: 14px; background: var(--card-bg); padding: 4px; border-radius: 12px; border: 1px solid var(--border-color); overflow-x: auto; }
+    .nav-tabs button { flex: 1; padding: 10px 4px; border-radius: 8px; background: transparent; color: var(--text-muted); border: none; font-weight: 600; font-size: 12px; cursor: pointer; transition: 0.2s; white-space: nowrap; }
+    .nav-tabs button.active { background: var(--accent); color: #fff; }
+
+    input, button, select { width: 100%; padding: 12px 14px; margin-top: 8px; border-radius: 10px; border: 1px solid var(--border-color); background: #0f172a; color: var(--text); font-size: 14px; outline: none; }
+    input:focus { border-color: var(--accent); }
+    input:readonly { background: #090d16; color: var(--text-muted); cursor: not-allowed; }
+    button { background: var(--accent); font-weight: 700; cursor: pointer; border: none; transition: background 0.2s, transform 0.1s; color: #fff; }
+    button:active { transform: scale(0.98); }
+    button:disabled { background: #334155; cursor: not-allowed; opacity: 0.7; }
+    .btn-danger { background: var(--danger); }
+    .btn-warning { background: var(--warning); color: #000; }
+    .btn-small { padding: 6px 10px; font-size: 11px; width: auto; margin: 0 2px; }
+
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+    .stat-box { background: #0d1527; padding: 14px; border-radius: 12px; border: 1px solid var(--border-color); text-align: center; }
+    .stat-box small { color: var(--text-muted); font-size: 11px; display: block; margin-bottom: 4px; }
+    .stat-box h3 { margin: 0; font-size: 18px; color: var(--text); }
+
+    .link-item { background: #0d1527; padding: 12px; border-radius: 10px; margin-bottom: 8px; border: 1px solid var(--border-color); font-size: 13px; }
+    .link-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .link-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
+
+    .hidden { display: none !important; }
+
+    #toast { visibility: hidden; min-width: 200px; background-color: var(--card-bg); color: #fff; text-align: center; border-radius: 8px; padding: 12px; position: fixed; z-index: 1000; left: 50%; bottom: 30px; transform: translateX(-50%); border: 1px solid var(--accent); font-size: 13px; opacity: 0; transition: opacity 0.3s; }
+    #toast.show { visibility: visible; opacity: 1; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div id="toast"></div>
+
+    <!-- 1. Bridge Page -->
+    <div id="bridge-view" class="card hidden">
+      <h2 style="text-align: center; margin-bottom: 6px;">جاري تجهيز الرابط...</h2>
+      <p style="text-align: center; color: var(--text-muted); font-size: 12px; margin: 0;">الرجاء الانتظار للتحويل التلقائي للجهة المطلوبة</p>
+      
+      <div id="ad-container" style="min-height: 220px; background: #000; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 16px 0; border: 1px dashed var(--border-color); overflow: hidden;">
+        <span style="color: var(--text-muted); font-size: 12px;">جاري تحميل الإعلان...</span>
+      </div>
+
+      <p style="text-align: center; font-size: 14px;">سيفعل الزر خلال: <b id="timer" style="color: var(--accent); font-size: 18px;">5</b> ثوانٍ</p>
+      <button id="go-btn" disabled onclick="completeImpression()">الانتقال إلى الرابط الأصلي</button>
+    </div>
+
+    <!-- 2. Main Telegram Mini App -->
+    <div id="app-view" class="hidden">
+      <div class="nav-tabs">
+        <button onclick="switchTab('dashboard')" class="active" id="tab-dashboard">الرئيسية</button>
+        <button onclick="switchTab('referral')" id="tab-referral">الإحالات</button>
+        <button onclick="switchTab('faq')" id="tab-faq">الأسئلة</button>
+        <button onclick="switchTab('settings')" id="tab-settings">الإعدادات</button>
+        <button onclick="switchTab('admin')" id="tab-admin" class="hidden" style="background: var(--warning); color: #000;">الإدارة</button>
+      </div>
+
+      <div id="tab-content-dashboard">
+        <div class="stats-grid">
+          <div class="stat-box"><small>رصيد معلق (Pending)</small><h3 id="pending-bal" style="color:#f59e0b;">$0.00</h3></div>
+          <div class="stat-box"><small>متاح للسحب (Available)</small><h3 id="avail-bal" style="color:var(--success);">$0.00</h3></div>
+        </div>
+
+        <div id="announcement-box" class="card hidden" style="border-color: var(--accent);">
+          <h4 id="anc-title" style="margin: 0 0 6px 0; color: var(--accent);"></h4>
+          <p id="anc-content" style="margin: 0; font-size: 12px; color: var(--text-muted);"></p>
+        </div>
+
+        <div class="card">
+          <h3 style="font-size: 15px; margin-top:0;">اختصار رابط جديد</h3>
+          <input type="text" id="link-title" placeholder="عنوان المعاينة (اختياري)">
+          <input type="url" id="link-url" placeholder="الرابط الأصلي (https://...)">
+          <button onclick="createLink()">إنشاء رابط قصير</button>
+        </div>
+
+        <div class="card">
+          <h3 style="font-size: 15px; margin-top:0;">طلب سحب الأرباح</h3>
+          
+          <div style="margin-bottom: 12px;">
+            <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">عنوان محفظة السحب (USDT TRC20)</label>
+            <div style="display: flex; gap: 6px;">
+              <input type="text" id="default-wallet" placeholder="أدخل عنوان المحفظة" readonly style="margin-top: 0;">
+              <button class="btn-small btn-warning" id="edit-wallet-btn" onclick="toggleWalletEdit()" style="margin-top: 0; width: auto;">تعديل</button>
+            </div>
+            <button id="save-wallet-btn" class="hidden btn-small" onclick="saveSettings()" style="margin-top: 6px; width: 100%;">حفظ العنوان الجديد</button>
+          </div>
+
+          <input type="number" id="withdraw-amount" placeholder="المبلغ (الحد الأدنى 10 USDT)">
+          <button onclick="requestWithdrawal()">تقديم طلب السحب</button>
+
+          <h4 style="font-size: 13px; margin: 16px 0 8px 0; border-top: 1px solid var(--border-color); padding-top: 12px;">سجل طلبات السحب</h4>
+          <div id="withdraws-list" style="font-size: 12px; color: var(--text-muted);">جاري التحميل...</div>
+        </div>
+
+        <div class="card">
+          <h3 style="font-size: 15px; margin-top:0;">الروابط الخاصة بك</h3>
+          <div id="links-list" style="color: var(--text-muted); font-size: 12px;">جاري التحميل...</div>
+        </div>
+      </div>
+
+      <div id="tab-content-referral" class="hidden">
+        <div class="card">
+          <h3 style="margin-top:0;">نظام الإحالة (10%)</h3>
+          <p style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">ادعُ أصدقاءك واحصل على 10% من إجمالي الأرباح التي يحققونها فورياً.</p>
+          <input type="text" id="ref-link" readonly onclick="copyToClipboard(this.value)">
+          <div class="stat-box" style="margin-top:14px;">
+            <small>إجمالي أرباح الإحالات</small>
+            <h3 id="ref-earnings" style="color:var(--success);">$0.00</h3>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-content-faq" class="hidden">
+        <div class="card">
+          <h3 style="margin-top:0;">الأسئلة الشائعة والدعم</h3>
+          <details style="margin-bottom: 10px; font-size: 13px;">
+            <summary style="font-weight: bold; cursor: pointer;">كيف يتم احتساب الأرباح؟</summary>
+            <p style="color: var(--text-muted); font-size: 12px; margin-top: 6px;">تعتمد الأرباح على إيرادات الإعلانات وتوزع نسبياً حسب الزيارات الحقيقية المعتمدة.</p>
+          </details>
+          <details style="margin-bottom: 10px; font-size: 13px;">
+            <summary style="font-weight: bold; cursor: pointer;">ما هي فترة الرصيد المعلق (14 يوماً)؟</summary>
+            <p style="color: var(--text-muted); font-size: 12px; margin-top: 6px;">هي فترة أمان لمراجعة مصادر الحركة والتأكد من عدم وجود نقرات وهمية قبل تحويل الأرباح للرصيد المتاح.</p>
+          </details>
+          <div style="margin-top: 20px; padding: 10px; background: #0d1527; border-radius: 8px; border: 1px solid var(--border-color); font-size: 12px; text-align: center;">
+            للتواصل مع الدعم الفني مباشرة عبر التليجرام:<br>
+            <a href="https://t.me/Te_Bit" style="color: var(--accent); font-weight: bold; text-decoration: none; display: inline-block; margin-top: 5px;">@Te_Bit</a>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-content-settings" class="hidden">
+        <div class="card">
+          <h3 style="margin-top:0;">إعدادات الحساب</h3>
+          <p style="font-size: 12px; color: var(--text-muted);">تم دمج إدارة محفظة السحب في قسم "طلب سحب الأرباح" بالرئيسية لسهولة الاستخدام.</p>
+        </div>
+      </div>
+
+      <!-- Admin Tab Content -->
+      <div id="tab-content-admin" class="hidden">
+        <div class="stats-grid" style="margin-bottom: 15px;">
+          <div class="stat-box"><small>إجمالي المستخدمين</small><h3 id="admin-total-users">0</h3></div>
+          <div class="stat-box"><small>الأموال المعلقة</small><h3 id="admin-total-pending" style="color: var(--warning);">$0.00</h3></div>
+        </div>
+
+        <div class="card">
+          <h4>توزيع إيرادات AdsGram</h4>
+          <input type="number" id="revenue-amount" placeholder="إجمالي الإيرادات ($)">
+          <button onclick="distributeRevenue()">توزيع الأرباح على الروابط</button>
+        </div>
+
+        <div class="card">
+          <h4>طلبات السحب المعلقة</h4>
+          <div id="admin-withdraws-list" style="font-size: 12px;">لا توجد طلبات.</div>
+        </div>
+        
+        <div class="card">
+          <h4>إدارة المستخدمين</h4>
+          <div id="admin-users-list" style="font-size: 12px;">جاري التحميل...</div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:3000' : '';
+
+    let authToken = localStorage.getItem('authToken');
+    let currentSessionId = null;
+    let bridgeStartTime = Date.now();
+    let isUserAdmin = false;
+    const tg = window.Telegram?.WebApp;
+
+    if (tg) {
+      tg.ready();
+      tg.expand();
+    }
+
+    const path = window.location.pathname;
+
+    function showToast(msg) {
+      const toast = document.getElementById("toast");
+      toast.innerText = msg;
+      toast.className = "show";
+      setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 3000);
+    }
+
+    function copyToClipboard(text) {
+      navigator.clipboard.writeText(text);
+      showToast("تم النسخ بنجاح!");
+    }
+
+    function toggleWalletEdit() {
+      const walletInput = document.getElementById('default-wallet');
+      const editBtn = document.getElementById('edit-wallet-btn');
+      const saveBtn = document.getElementById('save-wallet-btn');
+
+      if (walletInput.hasAttribute('readonly')) {
+        walletInput.removeAttribute('readonly');
+        walletInput.focus();
+        editBtn.innerText = "إلغاء";
+        editBtn.className = "btn-small btn-danger";
+        saveBtn.classList.remove('hidden');
+      } else {
+        walletInput.setAttribute('readonly', true);
+        editBtn.innerText = "تعديل";
+        editBtn.className = "btn-small btn-warning";
+        saveBtn.classList.add('hidden');
+        loadUserData();
+      }
+    }
+
+    async function authLogin() {
+      const startParam = tg?.initDataUnsafe?.start_param || null;
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/login`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(tg?.initData ? {'x-telegram-init-data': tg.initData} : {'x-demo-user-id': 'DEMO_USER_DEV'}) 
+          },
+          body: JSON.stringify({ referrerId: startParam })
+        });
+        const data = await res.json();
+        if (data.token) {
+          authToken = data.token;
+          localStorage.setItem('authToken', authToken);
+          isUserAdmin = !!data.isAdmin;
+          return true;
+        }
+      } catch (e) {
+        showToast("فشل الاتصال بمركز المصادقة");
+      }
+      return false;
+    }
+
+    if (path.startsWith('/r/')) {
+      document.getElementById('bridge-view').classList.remove('hidden');
+      initBridge();
+    } else {
+      document.getElementById('app-view').classList.remove('hidden');
+      initializeApp();
+    }
+
+    async function initializeApp() {
+      if (!authToken) await authLogin();
+      loadUserData();
+    }
+
+    async function loadUserData() {
+      try {
+        const res = await fetch(`${API_BASE}/api/user/data`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+        if (res.status === 401) { 
+          await authLogin(); 
+          return loadUserData(); 
+        }
+        const data = await res.json();
+        if (!data || !data.user) return;
+
+        isUserAdmin = !!data.isAdmin;
+        
+        if (isUserAdmin) {
+          document.getElementById('tab-admin').classList.remove('hidden');
+        } else {
+          document.getElementById('tab-admin').classList.add('hidden');
+        }
+
+        document.getElementById('pending-bal').innerText = `$${(data.user.pendingBalance || 0).toFixed(2)}`;
+        document.getElementById('avail-bal').innerText = `$${(data.user.availableBalance || 0).toFixed(2)}`;
+        document.getElementById('ref-earnings').innerText = `$${(data.user.referralEarnings || 0).toFixed(2)}`;
+        document.getElementById('default-wallet').value = data.user.defaultWallet || '';
+        
+        document.getElementById('default-wallet').setAttribute('readonly', true);
+        document.getElementById('edit-wallet-btn').innerText = "تعديل";
+        document.getElementById('edit-wallet-btn').className = "btn-small btn-warning";
+        document.getElementById('save-wallet-btn').classList.add('hidden');
+
+        const botUsername = tg?.initDataUnsafe?.user?.username || 'YourBot';
+        document.getElementById('ref-link').value = `https://t.me/${botUsername}?start=${data.user._id}`;
+
+        if (data.announcements && data.announcements.length > 0) {
+          document.getElementById('announcement-box').classList.remove('hidden');
+          document.getElementById('anc-title').innerText = data.announcements[0].title;
+          document.getElementById('anc-content').innerText = data.announcements[0].content;
+        }
+
+        const withdrawsContainer = document.getElementById('withdraws-list');
+        if (!data.withdraws || data.withdraws.length === 0) {
+          withdrawsContainer.innerHTML = 'لا توجد طلبات سحب سابقة.';
+        } else {
+          withdrawsContainer.innerHTML = data.withdraws.map(w => {
+            let statusColor = 'var(--warning)';
+            let statusText = 'قيد المراجعة';
+            if (w.status === 'Completed') { statusColor = 'var(--success)'; statusText = 'مكتمل'; }
+            else if (w.status === 'Rejected') { statusColor = 'var(--danger)'; statusText = 'مرفوض'; }
+
+            return `
+            <div style="background: #0d1527; padding: 8px; margin-bottom: 6px; border-radius: 6px; border: 1px solid var(--border-color);">
+              <div style="display: flex; justify-content: space-between;">
+                <span>المبلغ: <b>$${w.amount}</b></span>
+                <span style="color: ${statusColor}; font-weight: bold;">${statusText}</span>
+              </div>
+              <div style="color: var(--text-muted); font-size: 11px; margin-top: 2px;">المحفظة: ${w.walletAddress}</div>
+              ${w.note ? `<div style="color: var(--danger); font-size: 11px; margin-top: 2px;">السبب: ${w.note}</div>` : ''}
+            </div>`;
+          }).join('');
+        }
+
+        const linksContainer = document.getElementById('links-list');
+        if (!data.links || data.links.length === 0) {
+          linksContainer.innerHTML = 'لا توجد روابط مُختصرة حالياً.';
+        } else {
+          linksContainer.innerHTML = data.links.map(l => {
+            const shortUrl = `${window.location.origin}/r/${l.shortCode}`;
+            const statusColor = l.isActive ? 'var(--success)' : 'var(--danger)';
+            const statusText = l.isActive ? 'نشط' : 'معطل';
+            return `
+            <div class="link-item" style="border-left: 3px solid ${statusColor};">
+              <div class="link-header">
+                <b>${l.title || 'رابط بدون عنوان'}</b>
+                <span style="font-size: 10px; color: ${statusColor};">${statusText}</span>
+              </div>
+              <div style="color:var(--text-muted); font-size:11px; margin-bottom:4px; word-break: break-all;">${shortUrl}</div>
+              <div>المشاهدات: <b>${l.views}</b> | المعتمدة: <b style="color:var(--success);">${l.validImpressions}</b></div>
+              <div class="link-actions">
+                <button class="btn-small" onclick="copyToClipboard('${shortUrl}')">نسخ</button>
+                <button class="btn-small ${l.isActive ? 'btn-danger' : 'btn-warning'}" onclick="toggleLinkStatus('${l._id}')">${l.isActive ? 'تعطيل' : 'تفعيل'}</button>
+              </div>
+            </div>`;
+          }).join('');
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function toggleLinkStatus(linkId) {
+      const res = await fetch(`${API_BASE}/api/links/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ linkId })
+      });
+      const data = await res.json();
+      if (data.error) showToast(data.error);
+      else {
+        showToast(data.isActive ? "تم تفعيل الرابط" : "تم تعطيل الرابط");
+        loadUserData();
+      }
+    }
+
+    async function initBridge() {
+      const shortCode = path.split('/r/')[1];
+      try {
+        const res = await fetch(`${API_BASE}/api/init-click`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ linkCode: shortCode })
+        });
+        const data = await res.json();
+        if (data.error) return showToast(data.error);
+        
+        currentSessionId = data.sessionId;
+
+        if (window.Adsgram && data.blockId) {
+          window.Adsgram.init({ blockId: data.blockId }).show().catch(() => renderFallbackAd());
+        } else {
+          renderFallbackAd();
+        }
+      } catch (err) {
+        renderFallbackAd();
+      }
+
+      let timeLeft = 5;
+      const interval = setInterval(() => {
+        timeLeft--;
+        document.getElementById('timer').innerText = timeLeft;
+        if (timeLeft <= 0) {
+          clearInterval(interval);
+          document.getElementById('go-btn').disabled = false;
+        }
+      }, 1000);
+    }
+
+    function renderFallbackAd() {
+      document.getElementById('ad-container').innerHTML = `<iframe src="https://adsterra.com/preview" width="100%" height="220" frameborder="0"></iframe>`;
+    }
+
+    async function completeImpression() {
+      const shortCode = path.split('/r/')[1];
+      const duration = Math.floor((Date.now() - bridgeStartTime) / 1000);
+
+      try {
+        const res = await fetch(`${API_BASE}/api/impression`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ linkCode: shortCode, sessionId: currentSessionId, duration })
+        });
+        const data = await res.json();
+        if (data.targetUrl) {
+          window.location.href = data.targetUrl;
+        } else {
+          showToast(data.error || "خطأ أثناء عملية التوجيه");
+        }
+      } catch (err) {
+        showToast("فشل الاتصال بالخادم");
+      }
+    }
+
+    async function createLink() {
+      const title = document.getElementById('link-title').value;
+      const targetUrl = document.getElementById('link-url').value;
+
+      if (!targetUrl) return showToast("يرجى إدخال الرابط الأصلي");
+
+      const res = await fetch(`${API_BASE}/api/links`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ title, targetUrl })
+      });
+      const data = await res.json();
+      if (data.error) showToast(data.error);
+      else {
+        showToast("تم إنشاء الرابط بنجاح!");
+        document.getElementById('link-title').value = '';
+        document.getElementById('link-url').value = '';
+        loadUserData();
+      }
+    }
+
+    async function requestWithdrawal() {
+      const amount = document.getElementById('withdraw-amount').value;
+      const walletAddress = document.getElementById('default-wallet').value;
+
+      if (!walletAddress) {
+        showToast("يرجى إدخال عنوان محفظة السحب أولاً");
+        return;
+      }
+      if (!amount || amount < 10) return showToast("الحد الأدنى للسحب هو 10$");
+
+      const res = await fetch(`${API_BASE}/api/withdraw`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ amount, walletAddress })
+      });
+      const data = await res.json();
+      if (data.error) showToast(data.error);
+      else {
+        showToast("تم تقديم طلب السحب بنجاح!");
+        document.getElementById('withdraw-amount').value = '';
+        loadUserData();
+      }
+    }
+
+    async function saveSettings() {
+      const defaultWallet = document.getElementById('default-wallet').value;
+      if (!defaultWallet || defaultWallet.trim().length < 5) {
+        return showToast("عنوان المحفظة غير صالح");
+      }
+      const res = await fetch(`${API_BASE}/api/user/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ defaultWallet })
+      });
+      const data = await res.json();
+      if (data.error) showToast(data.error);
+      else {
+        showToast("تم حفظ المحفظة بنجاح");
+        loadUserData();
+      }
+    }
+
+    function switchTab(tabId) {
+      if (tabId === 'admin' && !isUserAdmin) return;
+
+      document.querySelectorAll('.nav-tabs button').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('#app-view > div[id^="tab-content-"]').forEach(c => c.classList.add('hidden'));
+      
+      document.getElementById(`tab-${tabId}`).classList.add('active');
+      document.getElementById(`tab-content-${tabId}`).classList.remove('hidden');
+
+      if (tabId === 'admin') {
+        loadAdminData();
+      }
+    }
+
+    // --- Admin JS Actions ---
+    async function loadAdminData() {
+      const res = await fetch(`${API_BASE}/api/admin/dashboard-data`, {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+      const data = await res.json();
+      if (data.error) return showToast(data.error);
+
+      document.getElementById('admin-total-users').innerText = data.stats.totalUsers || 0;
+      document.getElementById('admin-total-pending').innerText = `$${(data.stats.totalPending || 0).toFixed(2)}`;
+
+      const wList = document.getElementById('admin-withdraws-list');
+      if (!data.withdraws || data.withdraws.length === 0) wList.innerHTML = 'لا توجد طلبات سحب معلقة حالياً.';
+      else {
+        wList.innerHTML = data.withdraws.map(w => `
+          <div style="background:#0d1527; padding:8px; margin-bottom:6px; border-radius:6px; border: 1px solid var(--border-color);">
+            المستخدم: ${w.userId?.username || w.userId?.telegramId || 'مجهول'} | المبلغ: <b style="color:var(--success);">$${w.amount}</b><br>
+            المحفظة: <code>${w.walletAddress}</code><br>
+            <div style="margin-top: 6px;">
+              <button class="btn-small" onclick="handleAdminWithdraw('${w._id}', 'Completed')">موافقة</button>
+              <button class="btn-small btn-danger" onclick="handleAdminWithdraw('${w._id}', 'Rejected')">رفض</button>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      const uList = document.getElementById('admin-users-list');
+      uList.innerHTML = data.users.map(u => `
+        <div style="background:#0d1527; padding:8px; margin-bottom:6px; border-radius:6px; display: flex; justify-content: space-between; align-items: center; border-left: 3px solid ${u.isBanned ? 'var(--danger)' : 'var(--success)'};">
+          <div>
+            <b>${u.username || 'مجهول'}</b> (${u.telegramId})<br>
+            <span style="color: var(--text-muted);">متاح: $${(u.availableBalance || 0).toFixed(2)}</span>
+          </div>
+          <button class="btn-small ${u.isBanned ? 'btn-warning' : 'btn-danger'}" onclick="toggleUserBan('${u._id}')">
+            ${u.isBanned ? 'فك الحظر' : 'حظر'}
+          </button>
+        </div>
+      `).join('');
+    }
+
+    async function handleAdminWithdraw(withdrawId, action) {
+      const res = await fetch(`${API_BASE}/api/admin/withdraw/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ withdrawId, action })
+      });
+      const data = await res.json();
+      if (data.error) showToast(data.error);
+      else {
+        showToast("تم تحديث حالة الطلب وإشعار المستخدم");
+        loadAdminData();
+      }
+    }
+
+    async function toggleUserBan(userId) {
+      const res = await fetch(`${API_BASE}/api/admin/user/toggle-ban`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ userId })
+      });
+      const data = await res.json();
+      if (data.error) showToast(data.error);
+      else {
+        showToast(data.isBanned ? "تم حظر المستخدم" : "تم فك الحظر");
+        loadAdminData();
+      }
+    }
+
+    async function distributeRevenue() {
+      const totalRevenue = document.getElementById('revenue-amount').value;
+      
+      const res = await fetch(`${API_BASE}/api/admin/distribute-revenue`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ totalRevenue })
+      });
+      const data = await res.json();
+      if (data.error) showToast(data.error);
+      else {
+        showToast(data.message);
+        document.getElementById('revenue-amount').value = '';
+      }
+    }
+  </script>
+</body>
+</html>
