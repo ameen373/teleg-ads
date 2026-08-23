@@ -1,6 +1,6 @@
 /**
- * ملف نماذج قاعدة البيانات (Mongoose Models)
- * تحذير: هذا الملف يعمل فقط على جهة الخادم (Node.js) ولا يمكن تشغيله في المتصفح.
+ * Enterprise Production Models Package
+ * Telegram Link Shortener & Mini App Engine
  */
 
 if (typeof window !== 'undefined') {
@@ -9,8 +9,11 @@ if (typeof window !== 'undefined') {
 
 const mongoose = require('mongoose');
 
-// دالة مساعدة لضبط الكسور العائمة مالياً إلى رقمين بعد الفاصلة
-const roundMoney = (val) => Math.round((val + Number.EPSILON) * 100) / 100;
+// دالة مساعدة معيارية لمعالجة وتحديد دقة الكسور المالية (حتى 4 أرقام بعد الفاصلة للأرباح)
+const formatCurrency = (val) => {
+  if (typeof val !== 'number' || isNaN(val)) return 0;
+  return Math.round((val + Number.EPSILON) * 10000) / 10000;
+};
 
 // --------------------------------------------------
 // 1. نموذج المستخدم (User Model)
@@ -18,7 +21,7 @@ const roundMoney = (val) => Math.round((val + Number.EPSILON) * 100) / 100;
 const userSchema = new mongoose.Schema({
   telegramId: { 
     type: String, 
-    required: true, 
+    required: [true, 'معرف تليجرام مطلوب'], 
     unique: true, 
     index: true,
     trim: true 
@@ -39,13 +42,13 @@ const userSchema = new mongoose.Schema({
     type: Number, 
     default: 0, 
     min: [0, 'لا يمكن أن يكون الرصيد المعلق بالسالب'],
-    set: roundMoney 
+    set: formatCurrency 
   },
   availableBalance: { 
     type: Number, 
     default: 0, 
     min: [0, 'لا يمكن أن يكون الرصيد المتاح بالسالب'],
-    set: roundMoney 
+    set: formatCurrency 
   },
   isBanned: { 
     type: Boolean, 
@@ -62,7 +65,7 @@ const userSchema = new mongoose.Schema({
     type: Number, 
     default: 0, 
     min: 0,
-    set: roundMoney 
+    set: formatCurrency 
   },
   defaultWallet: { 
     type: String, 
@@ -70,15 +73,22 @@ const userSchema = new mongoose.Schema({
     trim: true,
     validate: {
       validator: function(v) {
-        return v === '' || /^T[A-Za-z1-9]{33}$/.test(v) || /^0x[a-fA-F0-9]{40}$/.test(v);
+        if (!v || v === '') return true;
+        // يدعم عائلة TRC20, ERC20/BEP20 وعناوين شبكة TON (سواء Raw أو User-friendly)
+        const isTron = /^T[A-Za-z1-9]{33}$/.test(v);
+        const isEvm = /^0x[a-fA-F0-9]{40}$/.test(v);
+        const isTon = /^[a-zA-Z0-9_-]{48}$/.test(v) || /^0:[a-fA-F0-9]{64}$/.test(v);
+        return isTron || isEvm || isTon;
       },
-      message: 'عنوان المحفظة غير صالحة (يجب أن يكون USDT TRC20 أو ERC20)'
+      message: 'عنوان المحفظة غير صالح (يجب أن يكون USDT TRC20, ERC20, أو TON Wallet)'
     }
   }
 }, { 
   timestamps: true,
   versionKey: '__v'
 });
+
+userSchema.index({ telegramId: 1, isBanned: 1 });
 
 // --------------------------------------------------
 // 2. نموذج الرابط (Link Model)
@@ -122,12 +132,18 @@ const linkSchema = new mongoose.Schema({
     type: Number, 
     default: 0, 
     min: 0 
+  },
+  invalidImpressions: { 
+    type: Number, 
+    default: 0, 
+    min: 0 
   }
 }, { 
   timestamps: true 
 });
 
-linkSchema.index({ userId: 1, isActive: 1 });
+linkSchema.index({ userId: 1, isActive: 1, createdAt: -1 });
+linkSchema.index({ validImpressions: -1 });
 
 // --------------------------------------------------
 // 3. سجلات الترافيك (Impression Model)
@@ -161,9 +177,10 @@ const impressionSchema = new mongoose.Schema({
 });
 
 impressionSchema.index({ linkId: 1, createdAt: -1 });
+impressionSchema.index({ ip: 1, createdAt: -1 });
 
 // --------------------------------------------------
-// 4. جلسات المؤقت لمنع التكرار (ClickSession Model)
+// 4. جلسات المؤقت لمنع التكرار والتجاوز (ClickSession Model)
 // --------------------------------------------------
 const clickSessionSchema = new mongoose.Schema({
   linkId: { 
@@ -176,14 +193,20 @@ const clickSessionSchema = new mongoose.Schema({
     required: true, 
     trim: true 
   },
+  bridgeToken: { 
+    type: String, 
+    required: true,
+    trim: true 
+  },
   createdAt: { 
     type: Date, 
     default: Date.now, 
-    expires: 600 
+    expires: 300 
   }
 });
 
-clickSessionSchema.index({ linkId: 1, ip: 1 }, { unique: true });
+clickSessionSchema.index({ linkId: 1, ip: 1 });
+clickSessionSchema.index({ bridgeToken: 1 });
 
 // --------------------------------------------------
 // 5. طلبات السحب (Withdraw Model)
@@ -199,7 +222,7 @@ const withdrawSchema = new mongoose.Schema({
     type: Number, 
     required: true, 
     min: [10, 'الحد الأدنى للسحب هو 10'],
-    set: roundMoney 
+    set: formatCurrency 
   },
   walletAddress: { 
     type: String, 
@@ -212,6 +235,11 @@ const withdrawSchema = new mongoose.Schema({
     default: 'Pending', 
     index: true 
   },
+  rejectReason: { 
+    type: String, 
+    default: '', 
+    trim: true 
+  },
   note: { 
     type: String, 
     default: '', 
@@ -221,6 +249,7 @@ const withdrawSchema = new mongoose.Schema({
   timestamps: true 
 });
 
+withdrawSchema.index({ userId: 1, status: 1, createdAt: -1 });
 withdrawSchema.index({ status: 1, createdAt: -1 });
 
 // --------------------------------------------------
@@ -237,7 +266,7 @@ const earningsHoldSchema = new mongoose.Schema({
     type: Number, 
     required: true, 
     min: 0,
-    set: roundMoney 
+    set: formatCurrency 
   },
   releaseAt: { 
     type: Date, 
@@ -254,17 +283,20 @@ const earningsHoldSchema = new mongoose.Schema({
 });
 
 earningsHoldSchema.index({ isReleased: 1, releaseAt: 1 });
+earningsHoldSchema.index({ userId: 1, isReleased: 1 });
 
 // --------------------------------------------------
 // 7. نموذج الإعلانات/الإشعارات (Announcement Model)
 // --------------------------------------------------
 const announcementSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  content: { type: String, required: true },
-  isActive: { type: Boolean, default: true }
+  title: { type: String, required: true, trim: true },
+  content: { type: String, required: true, trim: true },
+  isActive: { type: Boolean, default: true, index: true }
 }, { timestamps: true });
 
-// تصدير النماذج لمنع إعادة تسجيل النموذج (Overwriting Model Error)
+announcementSchema.index({ isActive: 1, createdAt: -1 });
+
+// Export Compiled Models safely to prevent Mongoose Overwrite Error
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Link = mongoose.models.Link || mongoose.model('Link', linkSchema);
 const Impression = mongoose.models.Impression || mongoose.model('Impression', impressionSchema);
