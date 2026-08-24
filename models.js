@@ -1,5 +1,5 @@
 /**
- * Enterprise Production Models Package
+ * Enterprise Production Models Package (Ultra-Optimized)
  * Telegram Link Shortener & Mini App Engine
  */
 
@@ -9,19 +9,19 @@ if (typeof window !== 'undefined') {
 
 const mongoose = require('mongoose');
 
-// دالة مساعدة معيارية لمعالجة وتحديد دقة الكسور المالية (حتى 4 أرقام بعد الفاصلة للأرباح)
+// Utility function to precision-format earnings up to 5 decimal places
 const formatCurrency = (val) => {
-  if (typeof val !== 'number' || isNaN(val)) return 0;
-  return Math.round((val + Number.EPSILON) * 10000) / 10000;
+  if (typeof val !== 'number' || isNaN(val) || !isFinite(val)) return 0;
+  return Math.round((val + Number.EPSILON) * 100000) / 100000;
 };
 
 // --------------------------------------------------
-// 1. نموذج المستخدم (User Model)
+// 1. User Model
 // --------------------------------------------------
 const userSchema = new mongoose.Schema({
   telegramId: { 
     type: String, 
-    required: [true, 'معرف تليجرام مطلوب'], 
+    required: [true, 'Telegram ID is required'], 
     unique: true, 
     index: true,
     trim: true 
@@ -32,6 +32,12 @@ const userSchema = new mongoose.Schema({
     trim: true,
     lowercase: true 
   },
+  language: {
+    type: String,
+    default: 'en',
+    trim: true,
+    lowercase: true
+  },
   role: { 
     type: String, 
     enum: ['user', 'admin'], 
@@ -41,13 +47,13 @@ const userSchema = new mongoose.Schema({
   pendingBalance: { 
     type: Number, 
     default: 0, 
-    min: [0, 'لا يمكن أن يكون الرصيد المعلق بالسالب'],
+    min: [0, 'Pending balance cannot be negative'],
     set: formatCurrency 
   },
   availableBalance: { 
     type: Number, 
     default: 0, 
-    min: [0, 'لا يمكن أن يكون الرصيد المتاح بالسالب'],
+    min: [0, 'Available balance cannot be negative'],
     set: formatCurrency 
   },
   isBanned: { 
@@ -74,13 +80,12 @@ const userSchema = new mongoose.Schema({
     validate: {
       validator: function(v) {
         if (!v || v === '') return true;
-        // يدعم عائلة TRC20, ERC20/BEP20 وعناوين شبكة TON (سواء Raw أو User-friendly)
         const isTron = /^T[A-Za-z1-9]{33}$/.test(v);
         const isEvm = /^0x[a-fA-F0-9]{40}$/.test(v);
         const isTon = /^[a-zA-Z0-9_-]{48}$/.test(v) || /^0:[a-fA-F0-9]{64}$/.test(v);
         return isTron || isEvm || isTon;
       },
-      message: 'عنوان المحفظة غير صالح (يجب أن يكون USDT TRC20, ERC20, أو TON Wallet)'
+      message: 'Invalid wallet address format (Must be USDT TRC20, BEP20/ERC20, or TON)'
     }
   }
 }, { 
@@ -91,7 +96,88 @@ const userSchema = new mongoose.Schema({
 userSchema.index({ telegramId: 1, isBanned: 1 });
 
 // --------------------------------------------------
-// 2. نموذج الرابط (Link Model)
+// 2. Self-Serve Ad Model
+// --------------------------------------------------
+const adSchema = new mongoose.Schema({
+  advertiserId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'User', 
+    required: [true, 'Advertiser ID is required'], 
+    index: true 
+  },
+  title: { 
+    type: String, 
+    required: [true, 'Ad title is required'], 
+    trim: true, 
+    maxlength: [100, 'Ad title must not exceed 100 characters'] 
+  },
+  targetUrl: { 
+    type: String, 
+    required: [true, 'Target URL is required'], 
+    trim: true,
+    validate: {
+      validator: function(v) {
+        return /^(https?:\/\/)?([\w.-]+)+[\w\-_~:/?#[\]@!$&'()*+,;=.]+$/i.test(v);
+      },
+      message: 'Please enter a valid target URL'
+    }
+  },
+  totalBudget: { 
+    type: Number, 
+    required: [true, 'Total budget is required'], 
+    min: [5, 'Minimum campaign budget is $5'], 
+    set: formatCurrency 
+  },
+  remainingBudget: { 
+    type: Number, 
+    required: true, 
+    min: [0, 'Remaining budget cannot be negative'], 
+    set: formatCurrency 
+  },
+  cpmRate: { 
+    type: Number, 
+    default: 1.50,
+    min: 0,
+    set: formatCurrency
+  },
+  costPerImpression: { 
+    type: Number, 
+    default: 0.0015,
+    min: 0,
+    set: formatCurrency
+  },
+  publisherEarningsPerImpression: {
+    type: Number,
+    default: 0.00135,
+    min: 0,
+    set: formatCurrency
+  },
+  platformFeePerImpression: {
+    type: Number,
+    default: 0.00015,
+    min: 0,
+    set: formatCurrency
+  },
+  impressionsCount: { 
+    type: Number, 
+    default: 0, 
+    min: 0 
+  },
+  status: { 
+    type: String, 
+    enum: ['active', 'paused', 'completed'], 
+    default: 'active', 
+    index: true 
+  }
+}, { 
+  timestamps: true 
+});
+
+adSchema.index({ status: 1, remainingBudget: 1, createdAt: -1 });
+adSchema.index({ advertiserId: 1, status: 1 });
+
+// --------------------------------------------------
+// 3. Shortened Link Model
 // --------------------------------------------------
 const linkSchema = new mongoose.Schema({
   shortCode: { 
@@ -109,7 +195,7 @@ const linkSchema = new mongoose.Schema({
   },
   title: { 
     type: String, 
-    default: 'بدون عنوان', 
+    default: 'Untitled Link', 
     trim: true,
     maxlength: 150 
   },
@@ -146,7 +232,7 @@ linkSchema.index({ userId: 1, isActive: 1, createdAt: -1 });
 linkSchema.index({ validImpressions: -1 });
 
 // --------------------------------------------------
-// 3. سجلات الترافيك (Impression Model)
+// 4. Traffic & Impressions Model
 // --------------------------------------------------
 const impressionSchema = new mongoose.Schema({
   linkId: { 
@@ -154,6 +240,23 @@ const impressionSchema = new mongoose.Schema({
     ref: 'Link', 
     required: true, 
     index: true 
+  },
+  adSource: { 
+    type: String, 
+    enum: ['internal', 'adsgram'], 
+    default: 'adsgram',
+    index: true
+  },
+  adId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Ad', 
+    default: null,
+    index: true
+  },
+  publisherEarnings: {
+    type: Number,
+    default: 0.00135,
+    set: formatCurrency
   },
   ip: { 
     type: String, 
@@ -180,13 +283,23 @@ impressionSchema.index({ linkId: 1, createdAt: -1 });
 impressionSchema.index({ ip: 1, createdAt: -1 });
 
 // --------------------------------------------------
-// 4. جلسات المؤقت لمنع التكرار والتجاوز (ClickSession Model)
+// 5. Anti-Bypass Click Session Model
 // --------------------------------------------------
 const clickSessionSchema = new mongoose.Schema({
   linkId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'Link', 
     required: true 
+  },
+  adSource: { 
+    type: String, 
+    enum: ['internal', 'adsgram'], 
+    default: 'adsgram'
+  },
+  adId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Ad', 
+    default: null 
   },
   ip: { 
     type: String, 
@@ -206,33 +319,51 @@ const clickSessionSchema = new mongoose.Schema({
 });
 
 clickSessionSchema.index({ linkId: 1, ip: 1 });
-clickSessionSchema.index({ bridgeToken: 1 });
+clickSessionSchema.index({ bridgeToken: 1 }, { unique: true });
 
 // --------------------------------------------------
-// 5. طلبات السحب (Withdraw Model)
+// 6. Withdraw Request Model
 // --------------------------------------------------
 const withdrawSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    required: true, 
+    required: [true, 'User ID is required'], 
     index: true 
   },
   amount: { 
     type: Number, 
-    required: true, 
-    min: [10, 'الحد الأدنى للسحب هو 10'],
+    required: [true, 'Total withdrawal amount is required'], 
+    min: [30, 'Minimum withdrawal limit is $30'],
     set: formatCurrency 
+  },
+  fee: {
+    type: Number,
+    default: 3,
+    set: formatCurrency
+  },
+  netAmount: {
+    type: Number,
+    required: true,
+    set: formatCurrency
+  },
+  network: {
+    type: String,
+    enum: ['BEP20', 'TRC20'],
+    required: [true, 'Please select network (BEP20 or TRC20)'],
+    trim: true,
+    uppercase: true
   },
   walletAddress: { 
     type: String, 
-    required: true, 
+    required: [true, 'Wallet address is required'], 
     trim: true 
   },
   status: { 
     type: String, 
-    enum: ['Pending', 'Completed', 'Rejected'], 
-    default: 'Pending', 
+    enum: ['pending', 'approved', 'rejected'], 
+    default: 'pending', 
+    lowercase: true,
     index: true 
   },
   rejectReason: { 
@@ -249,11 +380,18 @@ const withdrawSchema = new mongoose.Schema({
   timestamps: true 
 });
 
+withdrawSchema.pre('validate', function(next) {
+  const amount = typeof this.amount === 'number' ? this.amount : 0;
+  const fee = typeof this.fee === 'number' ? this.fee : 3;
+  this.netAmount = formatCurrency(Math.max(0, amount - fee));
+  next();
+});
+
 withdrawSchema.index({ userId: 1, status: 1, createdAt: -1 });
 withdrawSchema.index({ status: 1, createdAt: -1 });
 
 // --------------------------------------------------
-// 6. محرك الحجز المؤقت للأرباح (EarningsHold Model)
+// 7. Temporary Earnings Settlement Hold Model
 // --------------------------------------------------
 const earningsHoldSchema = new mongoose.Schema({
   userId: { 
@@ -271,6 +409,7 @@ const earningsHoldSchema = new mongoose.Schema({
   releaseAt: { 
     type: Date, 
     required: true, 
+    default: () => new Date(Date.now() + 24 * 60 * 60 * 1000),
     index: true 
   },
   isReleased: { 
@@ -286,7 +425,52 @@ earningsHoldSchema.index({ isReleased: 1, releaseAt: 1 });
 earningsHoldSchema.index({ userId: 1, isReleased: 1 });
 
 // --------------------------------------------------
-// 7. نموذج الإعلانات/الإشعارات (Announcement Model)
+// 8. Advertiser Deposit Model
+// --------------------------------------------------
+const depositSchema = new mongoose.Schema({
+  advertiserId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: [true, 'Advertiser ID is required'],
+    index: true
+  },
+  amount: {
+    type: Number,
+    required: [true, 'Deposit amount is required'],
+    min: [1, 'Minimum deposit limit is $1'],
+    set: formatCurrency
+  },
+  network: {
+    type: String,
+    enum: ['BEP20', 'TRC20'],
+    required: [true, 'Please select network (BEP20 or TRC20)'],
+    trim: true,
+    uppercase: true
+  },
+  txid: {
+    type: String,
+    required: [true, 'Transaction hash (TxID) is required'],
+    trim: true,
+    unique: true
+  },
+  status: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending',
+    lowercase: true,
+    index: true
+  },
+  rejectReason: {
+    type: String,
+    default: '',
+    trim: true
+  }
+}, { timestamps: true });
+
+depositSchema.index({ advertiserId: 1, status: 1 });
+
+// --------------------------------------------------
+// 9. Announcement Model
 // --------------------------------------------------
 const announcementSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
@@ -296,21 +480,25 @@ const announcementSchema = new mongoose.Schema({
 
 announcementSchema.index({ isActive: 1, createdAt: -1 });
 
-// Export Compiled Models safely to prevent Mongoose Overwrite Error
+// Model exports with fallback check against overwriting existing models
 const User = mongoose.models.User || mongoose.model('User', userSchema);
+const Ad = mongoose.models.Ad || mongoose.model('Ad', adSchema);
 const Link = mongoose.models.Link || mongoose.model('Link', linkSchema);
 const Impression = mongoose.models.Impression || mongoose.model('Impression', impressionSchema);
 const ClickSession = mongoose.models.ClickSession || mongoose.model('ClickSession', clickSessionSchema);
 const Withdraw = mongoose.models.Withdraw || mongoose.model('Withdraw', withdrawSchema);
 const EarningsHold = mongoose.models.EarningsHold || mongoose.model('EarningsHold', earningsHoldSchema);
+const Deposit = mongoose.models.Deposit || mongoose.model('Deposit', depositSchema);
 const Announcement = mongoose.models.Announcement || mongoose.model('Announcement', announcementSchema);
 
 module.exports = {
   User,
+  Ad,
   Link,
   Impression,
   ClickSession,
   Withdraw,
   EarningsHold,
+  Deposit,
   Announcement
 };
