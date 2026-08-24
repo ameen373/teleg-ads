@@ -264,7 +264,7 @@
     .link-header, .ad-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
     .link-actions, .ad-actions { display: flex; justify-content: flex-end; margin-top: 8px; gap: 4px; }
 
-    /* CSS لإخفاء العناصر نهائياً بدلاً من الاعتماد التام على JS */
+    /* المخفي افتراضياً عبر CSS لزر الأدمن والعناصر الأخرى */
     .hidden { display: none !important; }
 
     .spinner {
@@ -377,6 +377,7 @@
 
       <!-- 1. Dashboard Tab -->
       <div id="tab-content-dashboard">
+        <!-- نبذة وشروط الاستخدام لتلبية متطلبات المراجعة -->
         <div class="card" style="border-color: var(--accent); background: rgba(30, 41, 59, 0.9);">
           <h4 style="margin: 0 0 6px 0; color: var(--accent); font-size: 14px;" data-i18n="about_title">ℹ️ About & Terms of Use</h4>
           <p style="margin: 0; font-size: 12px; color: var(--text-muted); line-height: 1.5;" data-i18n="about_desc">
@@ -467,7 +468,7 @@
           <h3 style="font-size: 15px; margin-top:0;" data-i18n="withdraw_request_title">Withdraw Earnings</h3>
           
           <div style="margin-bottom: 12px;">
-            <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;" data-i18n="wallet_addr_label">Withdrawal Wallet (USDT TRC20)</label>
+            <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;" data-i18n="wallet_addr_label">Withdrawal Wallet (USDT TRC20 / BEP20)</label>
             <div style="display: flex; gap: 6px;">
               <input type="text" id="default-wallet" placeholder="Enter wallet address" readonly style="margin-top: 0;">
               <button class="btn-small btn-warning" id="edit-wallet-btn" onclick="toggleWalletEdit()" style="margin-top: 0; width: auto;" data-i18n="btn_edit">Edit</button>
@@ -535,7 +536,7 @@
         <div class="card">
           <h3 style="margin-top:0; font-size: 15px;" data-i18n="lang_settings_title">Language / تغيير اللغة</h3>
           <select id="language-select" onchange="changeAppLanguage(this.value)">
-            <option value="en">English (إنجليزية)</option>
+            <option value="en">English (الإنجليزية)</option>
             <option value="ar">العربية (Arabic)</option>
           </select>
         </div>
@@ -624,7 +625,7 @@
           <span data-i18n="nav_settings">Settings</span>
         </button>
 
-        <!-- زر الأدمن: تم إضافة class="hidden" لإخفائه افتراضياً بـ CSS -->
+        <!-- زر الأدمن مخفي افتراضياً عبر الكلاس hidden -->
         <button onclick="switchTab('admin')" class="nav-btn hidden" id="tab-btn-admin" style="color: var(--warning);">
           <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-5.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
           <span>Admin</span>
@@ -639,18 +640,18 @@
       ? 'http://localhost:3000' 
       : window.location.origin;
 
-    // استخراج معرّف الأدمن المحدد للتحقق الإضافي
-    const ADMIN_ID = "123456789"; // يمكنك استبدال هذا برقم id الأدمن الخاص بك
+    // استخراج معرّف الأدمن (يمكنك تعديل الرقم إلى معرف الأدمن الخاص بك)
+    const ADMIN_ID = 123456789; 
+
+    // استخراج Telegram WebApp و UserId
+    const tg = window.Telegram?.WebApp;
+    const currentUserId = tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe.user.id) : null;
 
     let authToken = localStorage.getItem('authToken');
     let currentSessionId = null;
     let bridgeStartTime = Date.now();
     let isUserAdmin = false;
     let currentLang = localStorage.getItem('appLang') || 'en';
-    const tg = window.Telegram?.WebApp;
-
-    // استخراج userId الخاص بالمستخدم الحالي من Telegram WebApp
-    const currentUserId = tg?.initDataUnsafe?.user?.id || null;
 
     const i18n = {
       en: {
@@ -667,7 +668,7 @@
         btn_shorten: "Shorten Link Now",
         my_links_title: "Your Links",
         withdraw_request_title: "Withdraw Earnings",
-        wallet_addr_label: "Withdrawal Wallet (USDT TRC20)",
+        wallet_addr_label: "Withdrawal Wallet (USDT TRC20 / BEP20)",
         btn_edit: "Edit",
         btn_save_wallet: "Save New Address",
         btn_submit_withdraw: "Request Withdrawal",
@@ -718,7 +719,7 @@
         btn_shorten: "اختصار الرابط الآن",
         my_links_title: "الروابط الخاصة بك",
         withdraw_request_title: "طلب سحب الأرباح",
-        wallet_addr_label: "عنوان محفظة السحب (USDT TRC20)",
+        wallet_addr_label: "عنوان محفظة السحب (USDT TRC20 / BEP20)",
         btn_edit: "تعديل",
         btn_save_wallet: "حفظ العنوان الجديد",
         btn_submit_withdraw: "تقديم طلب السحب",
@@ -822,7 +823,7 @@
       }
     }
 
-    // دالة الطلبات المعدلة لتمرير userId دائماً لضمان الخصوصية وعدم اختلاط البيانات
+    // تم تحديث الدالة لتمرير userId دائماً في كل الـ API calls
     async function safeFetch(endpoint, options = {}) {
       options.headers = options.headers || {};
       
@@ -830,31 +831,21 @@
         options.headers['Authorization'] = `Bearer ${authToken}`;
       }
       
-      // إرسال userId الخاص بالمستخدم الحالي مع كل طلب HTTP Header
+      // تمرير الـ userId دائماً لضمان فلترة وتخصيص البيانات للمستخدم الحالي فقط
       if (currentUserId) {
-        options.headers['x-user-id'] = String(currentUserId);
+        options.headers['X-User-Id'] = currentUserId;
       }
-
-      // إضافة userId داخل جسم الطلب (Body) أيضاً لطلبات POST/PUT
-      if (['POST', 'PUT', 'PATCH'].includes(options.method?.toUpperCase())) {
-        if (options.body && typeof options.body === 'string') {
-          try {
-            const bodyObj = JSON.parse(options.body);
-            bodyObj.userId = currentUserId;
-            options.body = JSON.stringify(bodyObj);
-          } catch (e) {}
-        }
-      }
-
+      
       const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
       const targetUrl = endpoint.startsWith('http') ? endpoint : `${API_BASE}${cleanEndpoint}`;
-
+      
       try {
         let response = await fetch(targetUrl, options);
         if (response.status === 401) {
           const reAuth = await authLogin();
           if (reAuth) {
             options.headers['Authorization'] = `Bearer ${authToken}`;
+            if (currentUserId) options.headers['X-User-Id'] = currentUserId;
             response = await fetch(targetUrl, options);
           }
         }
@@ -876,6 +867,20 @@
       } else {
         btn.disabled = false;
         btn.innerHTML = originalText || btn.dataset.oldContent || '';
+      }
+    }
+
+    function checkAdminAccess() {
+      const adminBtn = document.getElementById('tab-btn-admin');
+      if (!adminBtn) return;
+
+      // إظهار زر الأدمن فقط إذا طابق الـ userId معرّف الأدمن أو كانت الاستجابة تؤكد ذلك
+      if ((currentUserId && String(currentUserId) === String(ADMIN_ID)) || isUserAdmin) {
+        isUserAdmin = true;
+        adminBtn.classList.remove('hidden');
+      } else {
+        isUserAdmin = false;
+        adminBtn.classList.add('hidden');
       }
     }
 
@@ -922,22 +927,8 @@
         }
       }
 
-      // فحص وإظهار/إخفاء زر الأدمن بناءً على معرّف المستخدم الحالي
-      checkAdminStatus();
-
+      checkAdminAccess();
       applyLanguage(currentLang);
-    }
-
-    // فحص صلاحية الأدمن وإظهار الزر عبر JavaScript عند التطابق فقط
-    function checkAdminStatus() {
-      const adminBtn = document.getElementById('tab-btn-admin');
-      
-      // يفحص التطابق مع المعرف أو بناءً على الاستجابة القادمة من السيرفر (isUserAdmin)
-      if (isUserAdmin || (currentUserId && String(currentUserId) === String(ADMIN_ID))) {
-        adminBtn.classList.remove('hidden');
-      } else {
-        adminBtn.classList.add('hidden');
-      }
     }
 
     function changeAppLanguage(lang) {
@@ -1030,7 +1021,7 @@
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
-            ...(tg?.initData ? {'x-telegram-init-data': tg.initData} : {'x-demo-user-id': 'DEMO_USER_DEV'}) 
+            ...(tg?.initData ? {'x-telegram-init-data': tg.initData} : {'x-demo-user-id': currentUserId || 'DEMO_USER_DEV'}) 
           },
           body: JSON.stringify({ referrerId: startParam, telegramUserInfo: tg?.initDataUnsafe?.user || {} })
         });
@@ -1040,7 +1031,7 @@
           authToken = data.token;
           localStorage.setItem('authToken', authToken);
           isUserAdmin = !!data.isAdmin;
-          checkAdminStatus();
+          checkAdminAccess();
           return true;
         }
       } catch (e) {
@@ -1067,7 +1058,7 @@
         if (!data || !data.user) return;
 
         isUserAdmin = !!data.isAdmin;
-        checkAdminStatus();
+        checkAdminAccess();
 
         document.getElementById('pending-bal').innerText = `$${(data.user.pendingBalance || 0).toFixed(2)}`;
         document.getElementById('avail-bal').innerText = `$${(data.user.availableBalance || 0).toFixed(2)}`;
@@ -1445,7 +1436,7 @@
     }
 
     function switchTab(tabId) {
-      if (tabId === 'admin' && !isUserAdmin && String(currentUserId) !== String(ADMIN_ID)) return;
+      if (tabId === 'admin' && !isUserAdmin) return;
       triggerHaptic('light');
 
       document.querySelectorAll('.tg-nav-dock button').forEach(b => b.classList.remove('active'));
