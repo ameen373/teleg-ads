@@ -19,7 +19,7 @@ const app = express();
 // --- Setup Server Trust Proxy ---
 app.set('trust proxy', 1);
 
-// --- CORS Configuration (تفعيل حزمة cors لجميع الطلبات وتسمح بـ Credentials) ---
+// --- CORS Configuration ---
 app.use(cors({
   origin: true,
   credentials: true
@@ -30,7 +30,7 @@ app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(express.static(__dirname));
 
-// --- التأكد من أن جميع مسارات الـ API ترجع استجابات JSON بترميز UTF-8 ---
+// --- UTF-8 JSON Response Header ---
 app.use('/api', (req, res, next) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   next();
@@ -218,12 +218,15 @@ const authMiddleware = async (req, res, next) => {
   }
 };
 
+// --- Middleware لحماية كافة مسارات الأدمن GET/POST /api/admin/* ---
 const adminMiddleware = async (req, res, next) => {
   if (!req.user || String(req.user.telegramId) !== String(CONFIG.ADMIN_ID)) {
-    return res.status(403).json({ success: false, error: 'Unauthorized access to admin section' });
+    return res.status(403).json({ success: false, error: '403 Forbidden: Admin access denied' });
   }
   next();
 };
+
+app.use('/api/admin', authMiddleware, adminMiddleware);
 
 // --- Authentication & User Setup ---
 app.post('/api/auth/login', async (req, res, next) => {
@@ -324,6 +327,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
     }
 
     const ad = await Ad.create([{
+      userId: req.user._id,
       advertiserId: req.user._id,
       title: String(title).trim(),
       targetUrl: String(targetUrl).trim(),
@@ -348,7 +352,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
 
 app.get('/api/user/ads', authMiddleware, async (req, res, next) => {
   try {
-    const ads = await Ad.find({ advertiserId: req.user._id }).sort({ createdAt: -1 }).lean();
+    const ads = await Ad.find({ userId: req.user._id }).sort({ createdAt: -1 }).lean();
     res.json({ success: true, ads });
   } catch (err) {
     next(err);
@@ -360,7 +364,7 @@ app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
     const { adId } = req.body;
     if (!mongoose.Types.ObjectId.isValid(adId)) return res.status(400).json({ success: false, error: 'Invalid Ad ID' });
 
-    const ad = await Ad.findOne({ _id: adId, advertiserId: req.user._id });
+    const ad = await Ad.findOne({ _id: adId, userId: req.user._id });
     if (!ad) return res.status(404).json({ success: false, error: 'Ad not found' });
 
     if (ad.status === 'completed') {
@@ -402,6 +406,7 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
     }
 
     const deposit = await Deposit.create({
+      userId: req.user._id,
       advertiserId: req.user._id,
       amount: numAmount,
       network: cleanNetwork,
@@ -415,6 +420,15 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
     );
 
     res.json({ success: true, deposit });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/user/deposits', authMiddleware, async (req, res, next) => {
+  try {
+    const deposits = await Deposit.find({ userId: req.user._id }).sort({ createdAt: -1 }).lean();
+    res.json({ success: true, deposits });
   } catch (err) {
     next(err);
   }
@@ -485,6 +499,15 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
   }
 });
 
+app.get('/api/user/withdraws', authMiddleware, async (req, res, next) => {
+  try {
+    const withdraws = await Withdraw.find({ userId: req.user._id }).sort({ createdAt: -1 }).lean();
+    res.json({ success: true, withdraws });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // --- Bridge Page & Traffic Redirect Engine ---
 app.post('/api/init-click', validateTraffic, async (req, res, next) => {
   try {
@@ -530,6 +553,7 @@ app.post('/api/init-click', validateTraffic, async (req, res, next) => {
 
     const bridgeToken = crypto.randomBytes(16).toString('hex');
     const session = await ClickSession.create({ 
+      userId: linkOwnerId,
       linkId, 
       ip: req.ip, 
       bridgeToken,
@@ -620,6 +644,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
     await safeRedisSet(lockKey, '1', 'EX', 86400);
 
     await Impression.create([{
+      userId: link.userId._id,
       linkId: link._id,
       adSource: clickSession.adSource,
       adId: clickSession.adId,
@@ -681,7 +706,30 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
   }
 });
 
-// --- Link Management (Updated & Secured) ---
+// --- Link Management (Secured) ---
+app.get('/api/user/links', authMiddleware, async (req, res, next) => {
+  try {
+    const rawLinks = await Link.find({ userId: req.user._id }).sort({ createdAt: -1 }).lean();
+    const links = rawLinks.map(link => {
+      const totalViews = link.views || 0;
+      const validImp = link.validImpressions || 0;
+      const invalidImp = link.invalidImpressions || 0;
+      const ctr = totalViews > 0 ? ((validImp / totalViews) * 100).toFixed(1) : "0.0";
+      return { 
+        ...link, 
+        ctr, 
+        validImpressions: validImp, 
+        invalidImpressions: invalidImp,
+        shortUrl: `https://${CONFIG.APP_DOMAIN}/r/${link.shortCode}`
+      };
+    });
+
+    res.json({ success: true, links });
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res, next) => {
   try {
     let { title, targetUrl } = req.body;
@@ -739,14 +787,33 @@ app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
   }
 });
 
+// --- Referral & Wallet Balance APIs ---
+app.get('/api/user/wallet', authMiddleware, async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id).select('pendingBalance availableBalance referralEarnings defaultWallet').lean();
+    res.json({ success: true, wallet: user });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/user/referrals', authMiddleware, async (req, res, next) => {
+  try {
+    const referrals = await User.find({ referredBy: req.user._id }).select('username createdAt').sort({ createdAt: -1 }).lean();
+    res.json({ success: true, referrals, count: referrals.length, earnings: req.user.referralEarnings || 0 });
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   try {
     const [rawLinks, withdraws, announcements, ads, deposits] = await Promise.all([
       Link.find({ userId: req.user._id }).sort({ createdAt: -1 }).lean(),
       Withdraw.find({ userId: req.user._id }).sort({ createdAt: -1 }).lean(),
       Announcement.find({ isActive: true }).sort({ createdAt: -1 }).limit(5).lean(),
-      Ad.find({ advertiserId: req.user._id }).sort({ createdAt: -1 }).lean(),
-      Deposit.find({ advertiserId: req.user._id }).sort({ createdAt: -1 }).lean()
+      Ad.find({ userId: req.user._id }).sort({ createdAt: -1 }).lean(),
+      Deposit.find({ userId: req.user._id }).sort({ createdAt: -1 }).lean()
     ]);
 
     const links = rawLinks.map(link => {
@@ -804,8 +871,8 @@ app.post('/api/user/settings', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Admin Panel Routes ---
-app.get('/api/admin/dashboard-data', authMiddleware, adminMiddleware, async (req, res, next) => {
+// --- Protected Admin Panel Routes (/api/admin/*) ---
+app.get('/api/admin/dashboard-data', async (req, res, next) => {
   try {
     const [withdraws, deposits, users, stats, totalAds] = await Promise.all([
       Withdraw.find().populate('userId').sort({ createdAt: -1 }).lean(),
@@ -823,7 +890,7 @@ app.get('/api/admin/dashboard-data', authMiddleware, adminMiddleware, async (req
   }
 });
 
-app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (req, res, next) => {
+app.post('/api/admin/deposit/action', async (req, res, next) => {
   const { depositId, action, reason } = req.body;
   if (!mongoose.Types.ObjectId.isValid(depositId)) return res.status(400).json({ success: false, error: 'Invalid Deposit ID' });
 
@@ -876,7 +943,7 @@ app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (re
   }
 });
 
-app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (req, res, next) => {
+app.post('/api/admin/withdraw/action', async (req, res, next) => {
   const { withdrawId, action, reason } = req.body;
   if (!mongoose.Types.ObjectId.isValid(withdrawId)) return res.status(400).json({ success: false, error: 'Invalid Withdraw ID' });
 
@@ -929,7 +996,7 @@ app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (r
   }
 });
 
-app.post('/api/admin/distribute-revenue', authMiddleware, adminMiddleware, async (req, res, next) => {
+app.post('/api/admin/distribute-revenue', async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -989,7 +1056,7 @@ app.post('/api/admin/distribute-revenue', authMiddleware, adminMiddleware, async
   }
 });
 
-app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (req, res, next) => {
+app.post('/api/admin/user/toggle-ban', async (req, res, next) => {
   const { userId } = req.body;
   if (!mongoose.Types.ObjectId.isValid(userId)) return res.status(400).json({ success: false, error: 'Invalid User ID' });
 
