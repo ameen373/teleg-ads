@@ -626,6 +626,72 @@
   </div>
 
   <script>
+    // -----------------------------------------------------------------
+    // نظام تتبع الأخطاء البرمجية وإرسالها إلى API السيرفر
+    // -----------------------------------------------------------------
+    async function logErrorToServer(errorDetails) {
+      try {
+        const payload = {
+          message: errorDetails.message || 'Unknown Error',
+          source: errorDetails.source || window.location.href,
+          lineno: errorDetails.lineno || 0,
+          colno: errorDetails.colno || 0,
+          stack: errorDetails.stack || (errorDetails.error && errorDetails.error.stack) || '',
+          user: window.Telegram?.WebApp?.initDataUnsafe?.user || null,
+          url: window.location.href,
+          userAgent: navigator.userAgent,
+          timestamp: new Date().toISOString()
+        };
+
+        const targetUrl = (window.location.protocol.startsWith('file') ? 'http://localhost:3000' : window.location.origin) + '/api/logs/error';
+        
+        await fetch(targetUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } catch (e) {
+        console.error("فشل إرسال سجل الخطأ للـ Server:", e);
+      }
+    }
+
+    // التقاط الأخطاء العامة غير المعالجة
+    window.onerror = function(message, source, lineno, colno, error) {
+      logErrorToServer({ message, source, lineno, colno, error });
+      return false; // يسمح للخطأ بالظهور أيضاً في Console
+    };
+
+    // التقاط أخطاء الـ Promises غير المعالجة
+    window.addEventListener('unhandledrejection', function(event) {
+      logErrorToServer({
+        message: 'Unhandled Promise Rejection: ' + (event.reason?.message || event.reason),
+        stack: event.reason?.stack || '',
+        error: event.reason
+      });
+    });
+
+    // -----------------------------------------------------------------
+    // تحميل Eruda Console فقط للمسؤول (Admin)
+    // -----------------------------------------------------------------
+    const ADMIN_ID = 123456789; // يُستبدل بـ Telegram ID الخاص بك
+
+    function checkAndInitEruda() {
+      const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+      const userId = tgUser ? tgUser.id : null;
+
+      // تفعيل Eruda إذا تطابق ID المسخدم أو كانت الخصائص تشير إلى كونه Admin
+      if (userId === ADMIN_ID || window.isUserAdmin === true) {
+        if (!window.eruda) {
+          const script = document.createElement('script');
+          script.src = 'https://cdn.jsdelivr.net/npm/eruda';
+          script.onload = () => {
+            if (window.eruda) eruda.init();
+          };
+          document.head.appendChild(script);
+        }
+      }
+    }
+
     // متغير موحد لجميع طلبات API يحدد النطاق أوتوماتيكياً حسب بيئة التشغيل
     const API_BASE = window.location.protocol.startsWith('file') 
       ? 'http://localhost:3000' 
@@ -988,6 +1054,8 @@
           authToken = data.token;
           localStorage.setItem('authToken', authToken);
           isUserAdmin = !!data.isAdmin;
+          window.isUserAdmin = isUserAdmin;
+          checkAndInitEruda();
           return true;
         }
       } catch (e) {
@@ -1014,6 +1082,9 @@
         if (!data || !data.user) return;
 
         isUserAdmin = !!data.isAdmin;
+        window.isUserAdmin = isUserAdmin;
+        checkAndInitEruda();
+
         document.getElementById('tab-btn-admin').classList.toggle('hidden', !isUserAdmin);
 
         document.getElementById('pending-bal').innerText = `$${(data.user.pendingBalance || 0).toFixed(2)}`;
@@ -1570,6 +1641,7 @@
         console.warn("Telegram WebApp API ready error:", e);
       }
       
+      checkAndInitEruda();
       renderTelegramUser();
 
       if (window.location.pathname.startsWith('/r/')) {
