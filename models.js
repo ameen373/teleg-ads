@@ -1,15 +1,15 @@
 /**
- * Enterprise Production Models Package (Ultra-Optimized)
+ * Enterprise Production Models Package (Ultra-Optimized Engine)
  * Telegram Link Shortener & Mini App Engine
  */
 
 if (typeof window !== 'undefined') {
-  throw new Error("Mongoose and database models cannot be used directly in the browser. This code must run on the server side.");
+  throw new Error("Mongoose models must run exclusively on the server side.");
 }
 
 const mongoose = require('mongoose');
 
-// Utility function to precision-format earnings up to 5 decimal places
+// Precise fixed-point currency formatter (5 decimal places)
 const formatCurrency = (val) => {
   if (typeof val !== 'number' || isNaN(val) || !isFinite(val)) return 0;
   return Math.round((val + Number.EPSILON) * 100000) / 100000;
@@ -56,10 +56,21 @@ const userSchema = new mongoose.Schema({
     min: [0, 'Available balance cannot be negative'],
     set: formatCurrency 
   },
+  advertiserBalance: { 
+    type: Number, 
+    default: 0, 
+    min: [0, 'Advertiser balance cannot be negative'],
+    set: formatCurrency 
+  },
   isBanned: { 
     type: Boolean, 
     default: false, 
     index: true 
+  },
+  banReason: {
+    type: String,
+    default: '',
+    trim: true
   },
   referredBy: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -82,10 +93,9 @@ const userSchema = new mongoose.Schema({
         if (!v || v === '') return true;
         const isTron = /^T[A-Za-z1-9]{33}$/.test(v);
         const isEvm = /^0x[a-fA-F0-9]{40}$/.test(v);
-        const isTon = /^[a-zA-Z0-9_-]{48}$/.test(v) || /^0:[a-fA-F0-9]{64}$/.test(v);
-        return isTron || isEvm || isTon;
+        return isTron || isEvm;
       },
-      message: 'Invalid wallet address format (Must be USDT TRC20, BEP20/ERC20, or TON)'
+      message: 'Invalid wallet address format (Must be USDT TRC20 or BEP20/ERC20)'
     }
   }
 }, { 
@@ -94,6 +104,25 @@ const userSchema = new mongoose.Schema({
 });
 
 userSchema.index({ telegramId: 1, isBanned: 1 });
+
+// Atomic Balance Mutation Methods (Race-condition safe)
+userSchema.methods.creditAvailableBalance = function(amount, session = null) {
+  const formatted = formatCurrency(amount);
+  return mongoose.model('User').findByIdAndUpdate(
+    this._id,
+    { $inc: { availableBalance: formatted } },
+    { new: true, session, runValidators: true }
+  );
+};
+
+userSchema.methods.deductAdvertiserBalance = function(amount, session = null) {
+  const formatted = formatCurrency(amount);
+  return mongoose.model('User').findOneAndUpdate(
+    { _id: this._id, advertiserBalance: { $gte: formatted } },
+    { $inc: { advertiserBalance: -formatted } },
+    { new: true, session, runValidators: true }
+  );
+};
 
 // --------------------------------------------------
 // 2. Self-Serve Ad Model
@@ -174,7 +203,21 @@ const adSchema = new mongoose.Schema({
 });
 
 adSchema.index({ status: 1, remainingBudget: 1, createdAt: -1 });
-adSchema.index({ advertiserId: 1, status: 1 });
+adSchema.index({ advertiserId: 1, status: 1, createdAt: -1 });
+
+// Atomic Budget Deduction for Ad Serve
+adSchema.statics.consumeImpressionBudget = async function(adId, costPerImpression, session = null) {
+  const formattedCost = formatCurrency(costPerImpression);
+  const updatedAd = await this.findOneAndUpdate(
+    { _id: adId, status: 'active', remainingBudget: { $gte: formattedCost } },
+    { 
+      $inc: { remainingBudget: -formattedCost, impressionsCount: 1 },
+      $set: { status: { $cond: [{ $lte: ["$remainingBudget", formattedCost] }, 'completed', 'active'] } }
+    },
+    { new: true, session }
+  );
+  return updatedAd;
+};
 
 // --------------------------------------------------
 // 3. Shortened Link Model
@@ -281,6 +324,7 @@ const impressionSchema = new mongoose.Schema({
 
 impressionSchema.index({ linkId: 1, createdAt: -1 });
 impressionSchema.index({ ip: 1, createdAt: -1 });
+impressionSchema.index({ linkId: 1, ip: 1, createdAt: -1 });
 
 // --------------------------------------------------
 // 5. Anti-Bypass Click Session Model
@@ -422,7 +466,7 @@ const earningsHoldSchema = new mongoose.Schema({
 });
 
 earningsHoldSchema.index({ isReleased: 1, releaseAt: 1 });
-earningsHoldSchema.index({ userId: 1, isReleased: 1 });
+earningsHoldSchema.index({ userId: 1, isReleased: 1, createdAt: -1 });
 
 // --------------------------------------------------
 // 8. Advertiser Deposit Model
@@ -467,7 +511,7 @@ const depositSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-depositSchema.index({ advertiserId: 1, status: 1 });
+depositSchema.index({ advertiserId: 1, status: 1, createdAt: -1 });
 
 // --------------------------------------------------
 // 9. Announcement Model
@@ -480,7 +524,7 @@ const announcementSchema = new mongoose.Schema({
 
 announcementSchema.index({ isActive: 1, createdAt: -1 });
 
-// Model exports with fallback check against overwriting existing models
+// Safe singleton instantiation
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Ad = mongoose.models.Ad || mongoose.model('Ad', adSchema);
 const Link = mongoose.models.Link || mongoose.model('Link', linkSchema);
