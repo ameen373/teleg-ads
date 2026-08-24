@@ -376,6 +376,14 @@
 
       <!-- 1. Dashboard Tab -->
       <div id="tab-content-dashboard">
+        <!-- نبذة وشروط الاستخدام لتلبية متطلبات المراجعة -->
+        <div class="card" style="border-color: var(--accent); background: rgba(30, 41, 59, 0.9);">
+          <h4 style="margin: 0 0 6px 0; color: var(--accent); font-size: 14px;" data-i18n="about_title">ℹ️ About & Terms of Use</h4>
+          <p style="margin: 0; font-size: 12px; color: var(--text-muted); line-height: 1.5;" data-i18n="about_desc">
+            This bot is securely dedicated to shortening links and managing promotional campaigns safely. By using this platform, you agree to comply with our traffic quality guidelines and terms of service.
+          </p>
+        </div>
+
         <div id="announcement-box" class="card hidden" style="border-color: var(--accent);">
           <h4 id="anc-title" style="margin: 0 0 6px 0; color: var(--accent);"></h4>
           <p id="anc-content" style="margin: 0; font-size: 12px; color: var(--text-muted);"></p>
@@ -385,8 +393,8 @@
           <h3 style="font-size: 15px; margin-top:0;" data-i18n="create_link_title">Shorten New Link</h3>
           <input type="text" id="link-title" data-i18n-ph="ph_link_title" placeholder="Title (Optional)">
           <input type="url" id="link-url" data-i18n-ph="ph_link_url" placeholder="Original URL (https://...)">
-          <button id="btn-create-link" onclick="createLink()">
-            <span data-i18n="btn_shorten">Shorten Link</span>
+          <button id="btn-create-link" onclick="handleShortenClick()">
+            <span data-i18n="btn_shorten">Shorten Link Now</span>
           </button>
         </div>
 
@@ -626,73 +634,6 @@
   </div>
 
   <script>
-    // -----------------------------------------------------------------
-    // نظام تتبع الأخطاء البرمجية وإرسالها إلى API السيرفر
-    // -----------------------------------------------------------------
-    async function logErrorToServer(errorDetails) {
-      try {
-        const payload = {
-          message: errorDetails.message || 'Unknown Error',
-          source: errorDetails.source || window.location.href,
-          lineno: errorDetails.lineno || 0,
-          colno: errorDetails.colno || 0,
-          stack: errorDetails.stack || (errorDetails.error && errorDetails.error.stack) || '',
-          user: window.Telegram?.WebApp?.initDataUnsafe?.user || null,
-          url: window.location.href,
-          userAgent: navigator.userAgent,
-          timestamp: new Date().toISOString()
-        };
-
-        const targetUrl = (window.location.protocol.startsWith('file') ? 'http://localhost:3000' : window.location.origin) + '/api/logs/error';
-        
-        await fetch(targetUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-      } catch (e) {
-        console.error("فشل إرسال سجل الخطأ للـ Server:", e);
-      }
-    }
-
-    // التقاط الأخطاء العامة غير المعالجة
-    window.onerror = function(message, source, lineno, colno, error) {
-      logErrorToServer({ message, source, lineno, colno, error });
-      return false; // يسمح للخطأ بالظهور أيضاً في Console
-    };
-
-    // التقاط أخطاء الـ Promises غير المعالجة
-    window.addEventListener('unhandledrejection', function(event) {
-      logErrorToServer({
-        message: 'Unhandled Promise Rejection: ' + (event.reason?.message || event.reason),
-        stack: event.reason?.stack || '',
-        error: event.reason
-      });
-    });
-
-    // -----------------------------------------------------------------
-    // تحميل Eruda Console فقط للمسؤول (Admin)
-    // -----------------------------------------------------------------
-    const ADMIN_ID = 123456789; // يُستبدل بـ Telegram ID الخاص بك
-
-    function checkAndInitEruda() {
-      const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-      const userId = tgUser ? tgUser.id : null;
-
-      // تفعيل Eruda إذا تطابق ID المسخدم أو كانت الخصائص تشير إلى كونه Admin
-      if (userId === ADMIN_ID || window.isUserAdmin === true) {
-        if (!window.eruda) {
-          const script = document.createElement('script');
-          script.src = 'https://cdn.jsdelivr.net/npm/eruda';
-          script.onload = () => {
-            if (window.eruda) eruda.init();
-          };
-          document.head.appendChild(script);
-        }
-      }
-    }
-
-    // متغير موحد لجميع طلبات API يحدد النطاق أوتوماتيكياً حسب بيئة التشغيل
     const API_BASE = window.location.protocol.startsWith('file') 
       ? 'http://localhost:3000' 
       : window.location.origin;
@@ -716,7 +657,7 @@
         create_link_title: "Shorten New Link",
         ph_link_title: "Title (Optional)",
         ph_link_url: "Original URL (https://...)",
-        btn_shorten: "Shorten Link",
+        btn_shorten: "Shorten Link Now",
         my_links_title: "Your Links",
         withdraw_request_title: "Withdraw Earnings",
         wallet_addr_label: "Withdrawal Wallet (USDT TRC20)",
@@ -751,7 +692,10 @@
         seconds: "seconds",
         go_button: "Continue to Destination",
         cancel: "Cancel",
-        network_error: "Network connection error. Please check your internet connection."
+        network_error: "Network connection error. Please check your internet connection.",
+        about_title: "ℹ️ About & Terms of Use",
+        about_desc: "This bot is securely dedicated to shortening links and managing promotional campaigns safely. By using this platform, you agree to comply with our traffic quality guidelines and terms of service.",
+        link_success_msg: "Link shortened successfully!"
       },
       ar: {
         nav_home: "الرئيسية",
@@ -764,7 +708,7 @@
         create_link_title: "اختصار رابط جديد",
         ph_link_title: "عنوان المعاينة (اختياري)",
         ph_link_url: "الرابط الأصلي (https://...)",
-        btn_shorten: "إنشاء رابط قصير",
+        btn_shorten: "اختصار الرابط الآن",
         my_links_title: "الروابط الخاصة بك",
         withdraw_request_title: "طلب سحب الأرباح",
         wallet_addr_label: "عنوان محفظة السحب (USDT TRC20)",
@@ -799,7 +743,10 @@
         seconds: "ثوانٍ",
         go_button: "الانتقال إلى الرابط الأصلي",
         cancel: "إلغاء",
-        network_error: "تعذر الاتصال بالشبكة، يرجى التحقق من اتصال الإنترنت لديك."
+        network_error: "تعذر الاتصال بالشبكة، يرجى التحقق من اتصال الإنترنت لديك.",
+        about_title: "ℹ️ نبذة وشروط الاستخدام",
+        about_desc: "هذا البوت مخصص لاختصار الروابط بأمان وإدارة الحملات الإعلانية بكفاءة عالية. باستخدامك لهذه المنصة، فإنك توافق على الالتزام بشروط الاستخدام وسياسة الجودة لدينا.",
+        link_success_msg: "تم اختصار الرابط بنجاح!"
       }
     };
 
@@ -868,7 +815,6 @@
       }
     }
 
-    /* دالة fetch الآمنة المركزية مع معالجة الأخطاء */
     async function safeFetch(endpoint, options = {}) {
       options.headers = options.headers || {};
       if (authToken) {
@@ -1054,8 +1000,6 @@
           authToken = data.token;
           localStorage.setItem('authToken', authToken);
           isUserAdmin = !!data.isAdmin;
-          window.isUserAdmin = isUserAdmin;
-          checkAndInitEruda();
           return true;
         }
       } catch (e) {
@@ -1082,9 +1026,6 @@
         if (!data || !data.user) return;
 
         isUserAdmin = !!data.isAdmin;
-        window.isUserAdmin = isUserAdmin;
-        checkAndInitEruda();
-
         document.getElementById('tab-btn-admin').classList.toggle('hidden', !isUserAdmin);
 
         document.getElementById('pending-bal').innerText = `$${(data.user.pendingBalance || 0).toFixed(2)}`;
@@ -1307,6 +1248,7 @@
             if (data.adSource === 'internal' && data.adData) {
               renderInternalAd(data.adData);
             } else if (window.Adsgram && data.blockId) {
+              // إعلانات Adsgram تظهر هنا حصرياً بناءً على تفاعل مستخدم مع رابط اختصار (صفحة الجسر)
               window.Adsgram.init({ blockId: data.blockId }).show().catch(() => renderFallbackAd());
             } else {
               renderFallbackAd();
@@ -1371,11 +1313,15 @@
       }
     }
 
-    async function createLink() {
+    // دالة اختصار الرابط عند الضغط على زر مفيد مع عرض رسائل تنبيهية واضحة
+    async function handleShortenClick() {
       const title = document.getElementById('link-title').value;
       const targetUrl = document.getElementById('link-url').value;
 
-      if (!targetUrl) return showToast(currentLang === 'ar' ? "يرجى إدخال الرابط الأصلي" : "Please enter original URL");
+      if (!targetUrl) {
+        showToast(currentLang === 'ar' ? "يرجى إدخال الرابط الأصلي بشكل صحيح" : "Please enter original URL");
+        return;
+      }
 
       triggerHaptic('light');
       setButtonLoading('btn-create-link', true);
@@ -1388,9 +1334,10 @@
         });
         if (!res) return;
         const data = await res.json();
-        if (data.error) showToast(data.error);
-        else {
-          showToast(currentLang === 'ar' ? "تم إنشاء الرابط بنجاح!" : "Link created successfully!");
+        if (data.error) {
+          showToast(data.error);
+        } else {
+          showToast(i18n[currentLang].link_success_msg || "Link created successfully!");
           document.getElementById('link-title').value = '';
           document.getElementById('link-url').value = '';
           loadUserData();
@@ -1641,7 +1588,6 @@
         console.warn("Telegram WebApp API ready error:", e);
       }
       
-      checkAndInitEruda();
       renderTelegramUser();
 
       if (window.location.pathname.startsWith('/r/')) {
