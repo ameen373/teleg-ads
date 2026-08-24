@@ -997,6 +997,32 @@ app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (r
   }
 });
 
+// --- Frontend Error Logging Endpoint ---
+app.post('/api/logs/error', async (req, res) => {
+  try {
+    const { error, stack, url } = req.body;
+    const errorMessage = error || 'Unknown Frontend Error';
+    const reqPath = url || req.originalUrl || 'Frontend App';
+    const timestamp = new Date().toISOString();
+
+    logger.error(`[Frontend Error] Path: ${reqPath} | Message: ${errorMessage}`);
+
+    const alertMessage = 
+      `🚨 <b>Critical Frontend Error!</b>\n\n` +
+      `<b>Message:</b> <code>${errorMessage}</code>\n` +
+      `<b>Path:</b> <code>${reqPath}</code>\n` +
+      `<b>Time:</b> <code>${timestamp}</code>\n` +
+      (stack ? `\n<b>Stack:</b> <pre>${stack.slice(0, 300)}...</pre>` : '');
+
+    sendTelegramNotification(CONFIG.ADMIN_ID, alertMessage);
+
+    res.json({ success: true, message: 'Error logged successfully' });
+  } catch (err) {
+    logger.error('Failed to log frontend error:', err);
+    res.status(500).json({ success: false, error: 'Internal logging error' });
+  }
+});
+
 // --- Automated Cron Task for Earnings Settlement ---
 cron.schedule('0 0 * * *', async () => {
   try {
@@ -1050,19 +1076,34 @@ app.use('/api/*', (req, res) => {
 });
 
 // ==================================================
-// --- Global Error Handling Middleware (معالجة الأخطاء بترميز JSON) ---
+// --- Global Error Handling Middleware ---
 // ==================================================
 app.use((err, req, res, next) => {
   logger.error('Unhandled Application Error:', err);
 
   const statusCode = err.status || err.statusCode || 500;
-  const message = process.env.NODE_ENV === 'production' 
+  const reqPath = req.originalUrl || req.url || 'Unknown Path';
+  const timestamp = new Date().toISOString();
+  const errorMessage = err.message || 'Internal Server Error';
+
+  if (statusCode >= 500) {
+    const alertMessage = 
+      `🚨 <b>Critical Backend Error!</b>\n\n` +
+      `<b>Message:</b> <code>${errorMessage}</code>\n` +
+      `<b>Path:</b> <code>${reqPath}</code>\n` +
+      `<b>Time:</b> <code>${timestamp}</code>\n` +
+      (err.stack ? `\n<b>Stack:</b> <pre>${err.stack.slice(0, 300)}...</pre>` : '');
+
+    sendTelegramNotification(CONFIG.ADMIN_ID, alertMessage);
+  }
+
+  const responseMessage = process.env.NODE_ENV === 'production' 
     ? 'Internal Server Error' 
-    : (err.message || 'Something went wrong');
+    : errorMessage;
 
   res.status(statusCode).json({
     success: false,
-    error: message,
+    error: responseMessage,
     ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
   });
 });
