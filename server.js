@@ -681,13 +681,15 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
   }
 });
 
-// --- Link Management ---
+// --- Link Management (Updated & Secured) ---
 app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res, next) => {
   try {
     let { title, targetUrl } = req.body;
     const cleanUrl = String(targetUrl || '').trim();
 
-    if (!validUrl.isWebUri(cleanUrl)) return res.status(400).json({ success: false, error: 'Target URL is invalid' });
+    if (!cleanUrl || !validUrl.isWebUri(cleanUrl)) {
+      return res.status(400).json({ success: false, error: 'Target URL is invalid or empty' });
+    }
 
     if (isPhishingOrMalicious(cleanUrl)) {
       return res.status(400).json({ success: false, error: 'Target URL violates security parameters' });
@@ -705,10 +707,15 @@ app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res, nex
       userId: req.user._id,
       title: title ? String(title).trim() : 'Untitled Link',
       targetUrl: cleanUrl,
-      shortCode
+      shortCode,
+      isActive: true
     });
 
-    res.json({ success: true, link });
+    res.json({ 
+      success: true, 
+      link,
+      shortUrl: `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`
+    });
   } catch (err) {
     next(err);
   }
@@ -747,7 +754,13 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
       const validImp = link.validImpressions || 0;
       const invalidImp = link.invalidImpressions || 0;
       const ctr = totalViews > 0 ? ((validImp / totalViews) * 100).toFixed(1) : "0.0";
-      return { ...link, ctr, validImpressions: validImp, invalidImpressions: invalidImp };
+      return { 
+        ...link, 
+        ctr, 
+        validImpressions: validImp, 
+        invalidImpressions: invalidImp,
+        shortUrl: `https://${CONFIG.APP_DOMAIN}/r/${link.shortCode}`
+      };
     });
 
     const isAdmin = String(req.user.telegramId) === String(CONFIG.ADMIN_ID);
@@ -997,32 +1010,6 @@ app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (r
   }
 });
 
-// --- Frontend Error Logging Endpoint ---
-app.post('/api/logs/error', async (req, res) => {
-  try {
-    const { error, stack, url } = req.body;
-    const errorMessage = error || 'Unknown Frontend Error';
-    const reqPath = url || req.originalUrl || 'Frontend App';
-    const timestamp = new Date().toISOString();
-
-    logger.error(`[Frontend Error] Path: ${reqPath} | Message: ${errorMessage}`);
-
-    const alertMessage = 
-      `🚨 <b>Critical Frontend Error!</b>\n\n` +
-      `<b>Message:</b> <code>${errorMessage}</code>\n` +
-      `<b>Path:</b> <code>${reqPath}</code>\n` +
-      `<b>Time:</b> <code>${timestamp}</code>\n` +
-      (stack ? `\n<b>Stack:</b> <pre>${stack.slice(0, 300)}...</pre>` : '');
-
-    sendTelegramNotification(CONFIG.ADMIN_ID, alertMessage);
-
-    res.json({ success: true, message: 'Error logged successfully' });
-  } catch (err) {
-    logger.error('Failed to log frontend error:', err);
-    res.status(500).json({ success: false, error: 'Internal logging error' });
-  }
-});
-
 // --- Automated Cron Task for Earnings Settlement ---
 cron.schedule('0 0 * * *', async () => {
   try {
@@ -1061,7 +1048,7 @@ cron.schedule('0 0 * * *', async () => {
   }
 });
 
-// --- Static HTML Delivery Routes (مسار الصفحة الرئيسية ونقل ملف views.html بشكل صحيح) ---
+// --- Static HTML Delivery Routes ---
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'views.html'));
 });
@@ -1082,28 +1069,13 @@ app.use((err, req, res, next) => {
   logger.error('Unhandled Application Error:', err);
 
   const statusCode = err.status || err.statusCode || 500;
-  const reqPath = req.originalUrl || req.url || 'Unknown Path';
-  const timestamp = new Date().toISOString();
-  const errorMessage = err.message || 'Internal Server Error';
-
-  if (statusCode >= 500) {
-    const alertMessage = 
-      `🚨 <b>Critical Backend Error!</b>\n\n` +
-      `<b>Message:</b> <code>${errorMessage}</code>\n` +
-      `<b>Path:</b> <code>${reqPath}</code>\n` +
-      `<b>Time:</b> <code>${timestamp}</code>\n` +
-      (err.stack ? `\n<b>Stack:</b> <pre>${err.stack.slice(0, 300)}...</pre>` : '');
-
-    sendTelegramNotification(CONFIG.ADMIN_ID, alertMessage);
-  }
-
-  const responseMessage = process.env.NODE_ENV === 'production' 
+  const message = process.env.NODE_ENV === 'production' 
     ? 'Internal Server Error' 
-    : errorMessage;
+    : (err.message || 'Something went wrong');
 
   res.status(statusCode).json({
     success: false,
-    error: responseMessage,
+    error: message,
     ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
   });
 });
