@@ -1,15 +1,15 @@
 /**
- * Enterprise Production Models Package (Ultra-Optimized Engine)
- * Telegram Link Shortener & Mini App Engine
+ * Enterprise Production Models Package (Ultra-Optimized Architecture)
+ * Telegram Link Shortener & Mini App Engine v3.0
  */
 
 if (typeof window !== 'undefined') {
-  throw new Error("Mongoose models must run exclusively on the server side.");
+  throw new Error("Mongoose models must run exclusively on the server side environment.");
 }
 
 const mongoose = require('mongoose');
 
-// Precise fixed-point currency formatter (5 decimal places)
+// Precise fixed-point currency formatter (5 decimal places, prevents IEEE 754 precision issues)
 const formatCurrency = (val) => {
   if (typeof val !== 'number' || isNaN(val) || !isFinite(val)) return 0;
   return Math.round((val + Number.EPSILON) * 100000) / 100000;
@@ -100,12 +100,14 @@ const userSchema = new mongoose.Schema({
   }
 }, { 
   timestamps: true,
-  versionKey: '__v'
+  versionKey: false
 });
 
+// Highly Optimized Compound Indexes for Fast Dynamic Querying
 userSchema.index({ telegramId: 1, isBanned: 1 });
+userSchema.index({ role: 1, createdAt: -1 });
 
-// Atomic Balance Mutation Methods (Race-condition safe)
+// High-Precision Race-Condition Safe Atomic Mutators
 userSchema.methods.creditAvailableBalance = function(amount, session = null) {
   const formatted = formatCurrency(amount);
   return mongoose.model('User').findByIdAndUpdate(
@@ -199,24 +201,37 @@ const adSchema = new mongoose.Schema({
     index: true 
   }
 }, { 
-  timestamps: true 
+  timestamps: true,
+  versionKey: false
 });
 
 adSchema.index({ status: 1, remainingBudget: 1, createdAt: -1 });
 adSchema.index({ advertiserId: 1, status: 1, createdAt: -1 });
 
-// Atomic Budget Deduction for Ad Serve
+// Atomic Budget Deduction & Dynamic Auto-Completion Logic
 adSchema.statics.consumeImpressionBudget = async function(adId, costPerImpression, session = null) {
   const formattedCost = formatCurrency(costPerImpression);
-  const updatedAd = await this.findOneAndUpdate(
+  
+  // High-performance pipeline update logic
+  return await this.findOneAndUpdate(
     { _id: adId, status: 'active', remainingBudget: { $gte: formattedCost } },
-    { 
-      $inc: { remainingBudget: -formattedCost, impressionsCount: 1 },
-      $set: { status: { $cond: [{ $lte: ["$remainingBudget", formattedCost] }, 'completed', 'active'] } }
-    },
+    [
+      {
+        $set: {
+          remainingBudget: { $round: [{ $subtract: ["$remainingBudget", formattedCost] }, 5] },
+          impressionsCount: { $add: ["$impressionsCount", 1] },
+          status: {
+            $cond: {
+              if: { $lte: [{ $subtract: ["$remainingBudget", formattedCost] }, 0] },
+              then: 'completed',
+              else: '$status'
+            }
+          }
+        }
+      }
+    ],
     { new: true, session }
   );
-  return updatedAd;
 };
 
 // --------------------------------------------------
@@ -268,7 +283,8 @@ const linkSchema = new mongoose.Schema({
     min: 0 
   }
 }, { 
-  timestamps: true 
+  timestamps: true,
+  versionKey: false
 });
 
 linkSchema.index({ userId: 1, isActive: 1, createdAt: -1 });
@@ -320,7 +336,7 @@ const impressionSchema = new mongoose.Schema({
     default: Date.now, 
     expires: '60d' 
   }
-});
+}, { versionKey: false });
 
 impressionSchema.index({ linkId: 1, createdAt: -1 });
 impressionSchema.index({ ip: 1, createdAt: -1 });
@@ -333,7 +349,8 @@ const clickSessionSchema = new mongoose.Schema({
   linkId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'Link', 
-    required: true 
+    required: true,
+    index: true
   },
   adSource: { 
     type: String, 
@@ -360,13 +377,77 @@ const clickSessionSchema = new mongoose.Schema({
     default: Date.now, 
     expires: 300 
   }
-});
+}, { versionKey: false });
 
 clickSessionSchema.index({ linkId: 1, ip: 1 });
 clickSessionSchema.index({ bridgeToken: 1 }, { unique: true });
 
 // --------------------------------------------------
-// 6. Withdraw Request Model
+// 6. Enterprise Comprehensive Transaction Model
+// --------------------------------------------------
+const transactionSchema = new mongoose.Schema({
+  userId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'User', 
+    required: [true, 'User ID is required'], 
+    index: true 
+  },
+  type: { 
+    type: String, 
+    enum: [
+      'deposit', 
+      'withdraw', 
+      'impression_earning', 
+      'referral_earning', 
+      'ad_spend', 
+      'manual_adjustment'
+    ], 
+    required: [true, 'Transaction type is required'],
+    lowercase: true,
+    index: true 
+  },
+  amount: { 
+    type: Number, 
+    required: [true, 'Transaction amount is required'], 
+    set: formatCurrency 
+  },
+  referenceId: {
+    type: mongoose.Schema.Types.ObjectId,
+    default: null,
+    index: true
+  },
+  details: { 
+    type: String, 
+    required: [true, 'Payment or withdrawal details are required'], 
+    trim: true 
+  },
+  status: { 
+    type: String, 
+    enum: ['pending', 'approved', 'rejected', 'completed'], 
+    default: 'completed', 
+    lowercase: true,
+    index: true 
+  }
+}, { 
+  timestamps: true,
+  versionKey: false
+});
+
+transactionSchema.index({ userId: 1, type: 1, createdAt: -1 });
+transactionSchema.index({ status: 1, createdAt: -1 });
+
+// Static Engine Method to Record Double-Entry Ledger Transactions
+transactionSchema.statics.recordTransaction = async function(txData, session = null) {
+  const formattedAmount = formatCurrency(txData.amount);
+  const transaction = new this({
+    ...txData,
+    amount: formattedAmount
+  });
+  return await transaction.save({ session });
+};
+
+// --------------------------------------------------
+// 7. Withdraw Request Model
 // --------------------------------------------------
 const withdrawSchema = new mongoose.Schema({
   userId: { 
@@ -421,7 +502,8 @@ const withdrawSchema = new mongoose.Schema({
     trim: true 
   }
 }, { 
-  timestamps: true 
+  timestamps: true,
+  versionKey: false
 });
 
 withdrawSchema.pre('validate', function(next) {
@@ -435,7 +517,7 @@ withdrawSchema.index({ userId: 1, status: 1, createdAt: -1 });
 withdrawSchema.index({ status: 1, createdAt: -1 });
 
 // --------------------------------------------------
-// 7. Temporary Earnings Settlement Hold Model
+// 8. Temporary Earnings Settlement Hold Model
 // --------------------------------------------------
 const earningsHoldSchema = new mongoose.Schema({
   userId: { 
@@ -462,14 +544,15 @@ const earningsHoldSchema = new mongoose.Schema({
     index: true 
   }
 }, { 
-  timestamps: true 
+  timestamps: true,
+  versionKey: false
 });
 
 earningsHoldSchema.index({ isReleased: 1, releaseAt: 1 });
 earningsHoldSchema.index({ userId: 1, isReleased: 1, createdAt: -1 });
 
 // --------------------------------------------------
-// 8. Advertiser Deposit Model
+// 9. Advertiser Deposit Model
 // --------------------------------------------------
 const depositSchema = new mongoose.Schema({
   advertiserId: {
@@ -509,18 +592,24 @@ const depositSchema = new mongoose.Schema({
     default: '',
     trim: true
   }
-}, { timestamps: true });
+}, { 
+  timestamps: true,
+  versionKey: false
+});
 
 depositSchema.index({ advertiserId: 1, status: 1, createdAt: -1 });
 
 // --------------------------------------------------
-// 9. Announcement Model
+// 10. Announcement Model
 // --------------------------------------------------
 const announcementSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
   content: { type: String, required: true, trim: true },
   isActive: { type: Boolean, default: true, index: true }
-}, { timestamps: true });
+}, { 
+  timestamps: true,
+  versionKey: false
+});
 
 announcementSchema.index({ isActive: 1, createdAt: -1 });
 
@@ -530,6 +619,7 @@ const Ad = mongoose.models.Ad || mongoose.model('Ad', adSchema);
 const Link = mongoose.models.Link || mongoose.model('Link', linkSchema);
 const Impression = mongoose.models.Impression || mongoose.model('Impression', impressionSchema);
 const ClickSession = mongoose.models.ClickSession || mongoose.model('ClickSession', clickSessionSchema);
+const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
 const Withdraw = mongoose.models.Withdraw || mongoose.model('Withdraw', withdrawSchema);
 const EarningsHold = mongoose.models.EarningsHold || mongoose.model('EarningsHold', earningsHoldSchema);
 const Deposit = mongoose.models.Deposit || mongoose.model('Deposit', depositSchema);
@@ -541,6 +631,7 @@ module.exports = {
   Link,
   Impression,
   ClickSession,
+  Transaction,
   Withdraw,
   EarningsHold,
   Deposit,
