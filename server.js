@@ -28,7 +28,10 @@ app.options('*', cors());
 
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+
+// --- Static Files Middleware (تقديم الملفات الثابتة بشكل صريح وآمن) ---
 app.use(express.static(__dirname));
+app.use('/locales', express.static(path.join(__dirname, 'locales')));
 
 // --- Ensure JSON Response Format in UTF-8 ---
 app.use('/api', (req, res, next) => {
