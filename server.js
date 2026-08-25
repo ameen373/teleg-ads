@@ -29,7 +29,7 @@ app.options('*', cors());
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-// --- Static Files Middleware (تقديم الملفات الثابتة بشكل صريح وآمن) ---
+// --- Static Files Middleware ---
 app.use(express.static(__dirname));
 app.use('/locales', express.static(path.join(__dirname, 'locales')));
 
@@ -228,8 +228,26 @@ const adminMiddleware = async (req, res, next) => {
   next();
 };
 
-// --- Global Admin Middleware Guard for /api/admin/* Routes ---
-app.use('/api/admin/*', authMiddleware, adminMiddleware);
+// ==================================================
+// --- API Routes ---
+// ==================================================
+
+// --- Admin Verification API ---
+app.get('/api/check-admin', (req, res) => {
+  try {
+    const { userId } = req.query;
+    const adminId = process.env.ADMIN_ID || CONFIG.ADMIN_ID;
+
+    if (!userId) {
+      return res.status(400).json({ success: false, error: 'userId parameter is required' });
+    }
+
+    const isAdmin = String(userId).trim() === String(adminId).trim();
+    return res.json({ success: true, isAdmin });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Error checking admin status: ' + err.message });
+  }
+});
 
 // --- Authentication & User Setup ---
 app.post('/api/auth/login', async (req, res, next) => {
@@ -295,7 +313,7 @@ app.post('/api/auth/login', async (req, res, next) => {
   }
 });
 
-// --- Self-Serve Ad Campaign APIs (Strictly Isolated) ---
+// --- Self-Serve Ad Campaign APIs ---
 app.post('/api/ads', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
@@ -382,7 +400,7 @@ app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Deposit Routes (Strictly Isolated) ---
+// --- Deposit Routes ---
 app.post('/api/deposit', authMiddleware, async (req, res, next) => {
   try {
     const { amount, network, txid } = req.body;
@@ -390,11 +408,11 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
     const cleanNetwork = String(network || '').toUpperCase();
     const cleanTxid = String(txid || '').trim();
 
-    if (isNaN(numAmount) || numAmount < 1) {
+    if (!amount || isNaN(numAmount) || numAmount < 1) {
       return res.status(400).json({ success: false, error: 'Minimum deposit amount is $1' });
     }
 
-    if (!['BEP20', 'TRC20'].includes(cleanNetwork)) {
+    if (!cleanNetwork || !['BEP20', 'TRC20'].includes(cleanNetwork)) {
       return res.status(400).json({ success: false, error: 'Please specify a valid network (BEP20 or TRC20)' });
     }
 
@@ -420,13 +438,13 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
       `💳 <b>New Deposit Request!</b>\nUser: <code>${req.user.username}</code>\nAmount: <code>$${numAmount}</code>\nNetwork: <code>${cleanNetwork}</code>\nTxID: <code>${cleanTxid}</code>`
     );
 
-    res.json({ success: true, deposit });
+    return res.json({ success: true, deposit });
   } catch (err) {
-    next(err);
+    return res.status(500).json({ success: false, error: 'Failed to process deposit request: ' + err.message });
   }
 });
 
-// --- Withdraw Routes (Strictly Isolated) ---
+// --- Withdraw Routes ---
 app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
@@ -437,14 +455,14 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
     const cleanWallet = String(walletAddress || '').trim();
     const FEE = 3;
 
-    if (isNaN(numAmt) || numAmt < 30) {
+    if (!amount || isNaN(numAmt) || numAmt < 30) {
       await session.abortTransaction();
       return res.status(400).json({ success: false, error: 'Minimum withdrawal amount is $30' });
     }
 
-    if (!['BEP20', 'TRC20'].includes(cleanNetwork)) {
+    if (!cleanNetwork || !['BEP20', 'TRC20'].includes(cleanNetwork)) {
       await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'Please specify the network (BEP20 or TRC20)' });
+      return res.status(400).json({ success: false, error: 'Please specify a valid network (BEP20 or TRC20)' });
     }
 
     if (!cleanWallet || cleanWallet.length < 10) {
@@ -482,10 +500,10 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
       `🔔 <b>New Withdrawal Request Submitted!</b>\nAmount: <code>$${numAmt}</code>\nFee: <code>$${FEE}</code>\nNet Amount: <code>$${netAmount}</code>\nNetwork: <code>${cleanNetwork}</code>\nWallet: <code>${cleanWallet}</code>\nStatus: ⏳ Under Review\n\nSupport: ${CONFIG.SUPPORT_USERNAME}`
     );
 
-    res.json({ success: true, withdraw: withdrawRequest[0] });
+    return res.json({ success: true, withdraw: withdrawRequest[0] });
   } catch (err) {
     await session.abortTransaction();
-    next(err);
+    return res.status(500).json({ success: false, error: 'Failed to process withdrawal request: ' + err.message });
   } finally {
     session.endSession();
   }
@@ -687,7 +705,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
   }
 });
 
-// --- Link Management (Strictly Isolated) ---
+// --- Link Management ---
 app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res, next) => {
   try {
     let { title, targetUrl } = req.body;
@@ -745,7 +763,7 @@ app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Strict User Data Fetching API ---
+// --- User Data Fetching API ---
 app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   try {
     const [rawLinks, withdraws, announcements, ads, deposits] = await Promise.all([
@@ -805,14 +823,14 @@ app.post('/api/user/settings', authMiddleware, async (req, res, next) => {
     if (language !== undefined) updateData.language = String(language).trim().toLowerCase() || CONFIG.DEFAULT_LANGUAGE;
 
     await User.findByIdAndUpdate(req.user._id, updateData);
-    res.json({ success: true, message: 'Settings updated successfully' });
+    res.json({ success: true });
   } catch (err) {
     next(err);
   }
 });
 
-// --- Admin Panel Routes (Strict Guard Enabled) ---
-app.get('/api/admin/dashboard-data', async (req, res, next) => {
+// --- Admin Panel Routes ---
+app.get('/api/admin/dashboard-data', authMiddleware, adminMiddleware, async (req, res, next) => {
   try {
     const [withdraws, deposits, users, stats, totalAds] = await Promise.all([
       Withdraw.find().populate('userId').sort({ createdAt: -1 }).lean(),
@@ -830,7 +848,7 @@ app.get('/api/admin/dashboard-data', async (req, res, next) => {
   }
 });
 
-app.post('/api/admin/deposit/action', async (req, res, next) => {
+app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (req, res, next) => {
   const { depositId, action, reason } = req.body;
   if (!mongoose.Types.ObjectId.isValid(depositId)) return res.status(400).json({ success: false, error: 'Invalid Deposit ID' });
 
@@ -883,7 +901,7 @@ app.post('/api/admin/deposit/action', async (req, res, next) => {
   }
 });
 
-app.post('/api/admin/withdraw/action', async (req, res, next) => {
+app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (req, res, next) => {
   const { withdrawId, action, reason } = req.body;
   if (!mongoose.Types.ObjectId.isValid(withdrawId)) return res.status(400).json({ success: false, error: 'Invalid Withdraw ID' });
 
@@ -936,7 +954,7 @@ app.post('/api/admin/withdraw/action', async (req, res, next) => {
   }
 });
 
-app.post('/api/admin/distribute-revenue', async (req, res, next) => {
+app.post('/api/admin/distribute-revenue', authMiddleware, adminMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -987,7 +1005,7 @@ app.post('/api/admin/distribute-revenue', async (req, res, next) => {
     }
 
     await session.commitTransaction();
-    res.json({ success: true, message: `Successfully distributed $${revenue} to ${links.length} links (released in 24 hours).` });
+    res.json({ success: true, count: links.length });
   } catch (err) {
     await session.abortTransaction();
     next(err);
@@ -996,7 +1014,7 @@ app.post('/api/admin/distribute-revenue', async (req, res, next) => {
   }
 });
 
-app.post('/api/admin/user/toggle-ban', async (req, res, next) => {
+app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (req, res, next) => {
   const { userId } = req.body;
   if (!mongoose.Types.ObjectId.isValid(userId)) return res.status(400).json({ success: false, error: 'Invalid User ID' });
 
