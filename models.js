@@ -1,15 +1,15 @@
 /**
- * Enterprise Production Models Package (Ultra-Optimized Architecture)
- * Telegram Link Shortener & Mini App Engine v3.0
+ * Enterprise Production Models Package (Ultra-Optimized)
+ * Telegram Link Shortener & Mini App Engine
  */
 
 if (typeof window !== 'undefined') {
-  throw new Error("Mongoose models must run exclusively on the server side environment.");
+  throw new Error("Mongoose and database models cannot be used directly in the browser. This code must run on the server side.");
 }
 
 const mongoose = require('mongoose');
 
-// Precise fixed-point currency formatter (5 decimal places, prevents IEEE 754 precision issues)
+// Utility function to precision-format earnings up to 5 decimal places
 const formatCurrency = (val) => {
   if (typeof val !== 'number' || isNaN(val) || !isFinite(val)) return 0;
   return Math.round((val + Number.EPSILON) * 100000) / 100000;
@@ -56,21 +56,10 @@ const userSchema = new mongoose.Schema({
     min: [0, 'Available balance cannot be negative'],
     set: formatCurrency 
   },
-  advertiserBalance: { 
-    type: Number, 
-    default: 0, 
-    min: [0, 'Advertiser balance cannot be negative'],
-    set: formatCurrency 
-  },
   isBanned: { 
     type: Boolean, 
     default: false, 
     index: true 
-  },
-  banReason: {
-    type: String,
-    default: '',
-    trim: true
   },
   referredBy: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -93,38 +82,18 @@ const userSchema = new mongoose.Schema({
         if (!v || v === '') return true;
         const isTron = /^T[A-Za-z1-9]{33}$/.test(v);
         const isEvm = /^0x[a-fA-F0-9]{40}$/.test(v);
-        return isTron || isEvm;
+        const isTon = /^[a-zA-Z0-9_-]{48}$/.test(v) || /^0:[a-fA-F0-9]{64}$/.test(v);
+        return isTron || isEvm || isTon;
       },
-      message: 'Invalid wallet address format (Must be USDT TRC20 or BEP20/ERC20)'
+      message: 'Invalid wallet address format (Must be USDT TRC20, BEP20/ERC20, or TON)'
     }
   }
 }, { 
   timestamps: true,
-  versionKey: false
+  versionKey: '__v'
 });
 
-// Highly Optimized Compound Indexes for Fast Dynamic Querying
 userSchema.index({ telegramId: 1, isBanned: 1 });
-userSchema.index({ role: 1, createdAt: -1 });
-
-// High-Precision Race-Condition Safe Atomic Mutators
-userSchema.methods.creditAvailableBalance = function(amount, session = null) {
-  const formatted = formatCurrency(amount);
-  return mongoose.model('User').findByIdAndUpdate(
-    this._id,
-    { $inc: { availableBalance: formatted } },
-    { new: true, session, runValidators: true }
-  );
-};
-
-userSchema.methods.deductAdvertiserBalance = function(amount, session = null) {
-  const formatted = formatCurrency(amount);
-  return mongoose.model('User').findOneAndUpdate(
-    { _id: this._id, advertiserBalance: { $gte: formatted } },
-    { $inc: { advertiserBalance: -formatted } },
-    { new: true, session, runValidators: true }
-  );
-};
 
 // --------------------------------------------------
 // 2. Self-Serve Ad Model
@@ -201,38 +170,11 @@ const adSchema = new mongoose.Schema({
     index: true 
   }
 }, { 
-  timestamps: true,
-  versionKey: false
+  timestamps: true 
 });
 
 adSchema.index({ status: 1, remainingBudget: 1, createdAt: -1 });
-adSchema.index({ advertiserId: 1, status: 1, createdAt: -1 });
-
-// Atomic Budget Deduction & Dynamic Auto-Completion Logic
-adSchema.statics.consumeImpressionBudget = async function(adId, costPerImpression, session = null) {
-  const formattedCost = formatCurrency(costPerImpression);
-  
-  // High-performance pipeline update logic
-  return await this.findOneAndUpdate(
-    { _id: adId, status: 'active', remainingBudget: { $gte: formattedCost } },
-    [
-      {
-        $set: {
-          remainingBudget: { $round: [{ $subtract: ["$remainingBudget", formattedCost] }, 5] },
-          impressionsCount: { $add: ["$impressionsCount", 1] },
-          status: {
-            $cond: {
-              if: { $lte: [{ $subtract: ["$remainingBudget", formattedCost] }, 0] },
-              then: 'completed',
-              else: '$status'
-            }
-          }
-        }
-      }
-    ],
-    { new: true, session }
-  );
-};
+adSchema.index({ advertiserId: 1, status: 1 });
 
 // --------------------------------------------------
 // 3. Shortened Link Model
@@ -283,8 +225,7 @@ const linkSchema = new mongoose.Schema({
     min: 0 
   }
 }, { 
-  timestamps: true,
-  versionKey: false
+  timestamps: true 
 });
 
 linkSchema.index({ userId: 1, isActive: 1, createdAt: -1 });
@@ -336,11 +277,10 @@ const impressionSchema = new mongoose.Schema({
     default: Date.now, 
     expires: '60d' 
   }
-}, { versionKey: false });
+});
 
 impressionSchema.index({ linkId: 1, createdAt: -1 });
 impressionSchema.index({ ip: 1, createdAt: -1 });
-impressionSchema.index({ linkId: 1, ip: 1, createdAt: -1 });
 
 // --------------------------------------------------
 // 5. Anti-Bypass Click Session Model
@@ -349,8 +289,7 @@ const clickSessionSchema = new mongoose.Schema({
   linkId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'Link', 
-    required: true,
-    index: true
+    required: true 
   },
   adSource: { 
     type: String, 
@@ -377,77 +316,13 @@ const clickSessionSchema = new mongoose.Schema({
     default: Date.now, 
     expires: 300 
   }
-}, { versionKey: false });
+});
 
 clickSessionSchema.index({ linkId: 1, ip: 1 });
 clickSessionSchema.index({ bridgeToken: 1 }, { unique: true });
 
 // --------------------------------------------------
-// 6. Enterprise Comprehensive Transaction Model
-// --------------------------------------------------
-const transactionSchema = new mongoose.Schema({
-  userId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: [true, 'User ID is required'], 
-    index: true 
-  },
-  type: { 
-    type: String, 
-    enum: [
-      'deposit', 
-      'withdraw', 
-      'impression_earning', 
-      'referral_earning', 
-      'ad_spend', 
-      'manual_adjustment'
-    ], 
-    required: [true, 'Transaction type is required'],
-    lowercase: true,
-    index: true 
-  },
-  amount: { 
-    type: Number, 
-    required: [true, 'Transaction amount is required'], 
-    set: formatCurrency 
-  },
-  referenceId: {
-    type: mongoose.Schema.Types.ObjectId,
-    default: null,
-    index: true
-  },
-  details: { 
-    type: String, 
-    required: [true, 'Payment or withdrawal details are required'], 
-    trim: true 
-  },
-  status: { 
-    type: String, 
-    enum: ['pending', 'approved', 'rejected', 'completed'], 
-    default: 'completed', 
-    lowercase: true,
-    index: true 
-  }
-}, { 
-  timestamps: true,
-  versionKey: false
-});
-
-transactionSchema.index({ userId: 1, type: 1, createdAt: -1 });
-transactionSchema.index({ status: 1, createdAt: -1 });
-
-// Static Engine Method to Record Double-Entry Ledger Transactions
-transactionSchema.statics.recordTransaction = async function(txData, session = null) {
-  const formattedAmount = formatCurrency(txData.amount);
-  const transaction = new this({
-    ...txData,
-    amount: formattedAmount
-  });
-  return await transaction.save({ session });
-};
-
-// --------------------------------------------------
-// 7. Withdraw Request Model
+// 6. Withdraw Request Model
 // --------------------------------------------------
 const withdrawSchema = new mongoose.Schema({
   userId: { 
@@ -502,8 +377,7 @@ const withdrawSchema = new mongoose.Schema({
     trim: true 
   }
 }, { 
-  timestamps: true,
-  versionKey: false
+  timestamps: true 
 });
 
 withdrawSchema.pre('validate', function(next) {
@@ -517,7 +391,7 @@ withdrawSchema.index({ userId: 1, status: 1, createdAt: -1 });
 withdrawSchema.index({ status: 1, createdAt: -1 });
 
 // --------------------------------------------------
-// 8. Temporary Earnings Settlement Hold Model
+// 7. Temporary Earnings Settlement Hold Model
 // --------------------------------------------------
 const earningsHoldSchema = new mongoose.Schema({
   userId: { 
@@ -544,15 +418,14 @@ const earningsHoldSchema = new mongoose.Schema({
     index: true 
   }
 }, { 
-  timestamps: true,
-  versionKey: false
+  timestamps: true 
 });
 
 earningsHoldSchema.index({ isReleased: 1, releaseAt: 1 });
-earningsHoldSchema.index({ userId: 1, isReleased: 1, createdAt: -1 });
+earningsHoldSchema.index({ userId: 1, isReleased: 1 });
 
 // --------------------------------------------------
-// 9. Advertiser Deposit Model
+// 8. Advertiser Deposit Model
 // --------------------------------------------------
 const depositSchema = new mongoose.Schema({
   advertiserId: {
@@ -592,34 +465,27 @@ const depositSchema = new mongoose.Schema({
     default: '',
     trim: true
   }
-}, { 
-  timestamps: true,
-  versionKey: false
-});
+}, { timestamps: true });
 
-depositSchema.index({ advertiserId: 1, status: 1, createdAt: -1 });
+depositSchema.index({ advertiserId: 1, status: 1 });
 
 // --------------------------------------------------
-// 10. Announcement Model
+// 9. Announcement Model
 // --------------------------------------------------
 const announcementSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
   content: { type: String, required: true, trim: true },
   isActive: { type: Boolean, default: true, index: true }
-}, { 
-  timestamps: true,
-  versionKey: false
-});
+}, { timestamps: true });
 
 announcementSchema.index({ isActive: 1, createdAt: -1 });
 
-// Safe singleton instantiation
+// Model exports with fallback check against overwriting existing models
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Ad = mongoose.models.Ad || mongoose.model('Ad', adSchema);
 const Link = mongoose.models.Link || mongoose.model('Link', linkSchema);
 const Impression = mongoose.models.Impression || mongoose.model('Impression', impressionSchema);
 const ClickSession = mongoose.models.ClickSession || mongoose.model('ClickSession', clickSessionSchema);
-const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
 const Withdraw = mongoose.models.Withdraw || mongoose.model('Withdraw', withdrawSchema);
 const EarningsHold = mongoose.models.EarningsHold || mongoose.model('EarningsHold', earningsHoldSchema);
 const Deposit = mongoose.models.Deposit || mongoose.model('Deposit', depositSchema);
@@ -631,7 +497,6 @@ module.exports = {
   Link,
   Impression,
   ClickSession,
-  Transaction,
   Withdraw,
   EarningsHold,
   Deposit,
