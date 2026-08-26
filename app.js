@@ -26,6 +26,13 @@ function triggerHaptic(style = 'light') {
   } catch (e) {}
 }
 
+function getText(key, fallback = '') {
+  if (typeof i18n !== 'undefined' && typeof currentLang !== 'undefined' && i18n[currentLang] && i18n[currentLang][key]) {
+    return i18n[currentLang][key];
+  }
+  return fallback;
+}
+
 function handleNetworkChange(networkVal) {
   triggerHaptic('light');
   const trcCard = document.getElementById('card-addr-trc20');
@@ -69,7 +76,7 @@ function updateWithdrawCalculations() {
 
   if (val > 0) {
     if (feeBox) feeBox.classList.remove('hidden');
-    const fee = 3; // Fixed platform fee as per model
+    const fee = 3; 
     const net = Math.max(0, val - fee);
 
     const calcReq = document.getElementById('calc-req');
@@ -105,7 +112,7 @@ async function safeFetch(endpoint, options = {}) {
     return response;
   } catch (err) {
     console.error("Fetch Network Error:", err);
-    showToast((typeof i18n !== 'undefined' && i18n[currentLang]?.network_error) || "Network error. Please try again.");
+    showToast(getText('network_error', 'Network error. Please try again.'));
     return null;
   }
 }
@@ -185,9 +192,9 @@ function showToast(msg) {
 function copyToClipboard(text) {
   if (!text) return;
   navigator.clipboard.writeText(text).then(() => {
-    showToast((typeof i18n !== 'undefined' && i18n[currentLang]?.copied) || "Copied!");
+    showToast(getText('copied', 'Copied!'));
   }).catch(() => {
-    showToast(currentLang === 'ar' ? "فشل النسخ تلقائياً" : "Failed to copy");
+    showToast(getText('copy_failed', 'Failed to copy'));
   });
 }
 
@@ -197,7 +204,7 @@ function shareReferralLink() {
   const refUrl = refInput.value;
   if (!refUrl) return;
   triggerHaptic('medium');
-  const shareText = encodeURIComponent(currentLang === 'ar' ? "انضم إليّ في أفضل منصة لاختصار الروابط واكسب الأرباح بسهولة! 🚀" : "Join me on the best url shortener platform & earn money! 🚀");
+  const shareText = encodeURIComponent(getText('share_ref_text', 'Join me on the best url shortener platform & earn money! 🚀'));
   const url = `https://t.me/share/url?url=${encodeURIComponent(refUrl)}&text=${shareText}`;
   
   if (tg && tg.openTelegramLink) {
@@ -219,23 +226,20 @@ function toggleWalletEdit() {
     walletInput.removeAttribute('readonly');
     walletInput.focus();
     if (editBtn) {
-      editBtn.innerText = (typeof i18n !== 'undefined' && i18n[currentLang]?.cancel) || "Cancel";
+      editBtn.innerText = getText('cancel', 'Cancel');
       editBtn.className = "btn-small btn-danger";
     }
     if (saveBtn) saveBtn.classList.remove('hidden');
   } else {
     walletInput.setAttribute('readonly', 'readonly');
     if (editBtn) {
-      editBtn.innerText = (typeof i18n !== 'undefined' && i18n[currentLang]?.btn_edit) || "Edit";
+      editBtn.innerText = getText('btn_edit', 'Edit');
       editBtn.className = "btn-small btn-warning";
     }
     if (saveBtn) saveBtn.classList.add('hidden');
   }
 }
 
-// --------------------------------------------------
-// Admin Authorization Verification Verification
-// --------------------------------------------------
 async function checkAdminPermissions() {
   const userId = tg?.initDataUnsafe?.user?.id;
   const adminTabBtn = document.getElementById('tab-btn-admin');
@@ -304,7 +308,7 @@ async function authLogin() {
     }
   } catch (e) {
     console.error("Auth error:", e);
-    showToast(currentLang === 'ar' ? "فشل الاتصال بمركز المصادقة" : "Authentication connection failed");
+    showToast(getText('auth_failed', 'Authentication failed'));
   }
   return false;
 }
@@ -351,7 +355,7 @@ async function loadUserData() {
     const editBtn = document.getElementById('edit-wallet-btn');
     const saveBtn = document.getElementById('save-wallet-btn');
     if (editBtn) {
-      editBtn.innerText = (typeof i18n !== 'undefined' && i18n[currentLang]?.btn_edit) || "Edit";
+      editBtn.innerText = getText('btn_edit', 'Edit');
       editBtn.className = "btn-small btn-warning";
     }
     if (saveBtn) saveBtn.classList.add('hidden');
@@ -374,17 +378,17 @@ async function loadUserData() {
     const withdrawsContainer = document.getElementById('withdraws-list');
     if (withdrawsContainer) {
       if (!data.withdraws || data.withdraws.length === 0) {
-        withdrawsContainer.innerHTML = currentLang === 'ar' ? 'لا توجد طلبات سحب سابقة.' : 'No withdrawal history.';
+        withdrawsContainer.innerHTML = getText('no_withdrawals', 'No withdrawal history.');
       } else {
         withdrawsContainer.innerHTML = data.withdraws.map(w => {
           let statusColor = 'var(--warning)';
-          let statusText = currentLang === 'ar' ? 'قيد المراجعة' : 'Pending';
+          let statusText = getText('status_pending', 'Pending');
           if (w.status === 'approved' || w.status === 'Completed') { 
             statusColor = 'var(--success)'; 
-            statusText = currentLang === 'ar' ? 'مكتمل' : 'Completed'; 
+            statusText = getText('status_completed', 'Completed'); 
           } else if (w.status === 'rejected' || w.status === 'Rejected') { 
             statusColor = 'var(--danger)'; 
-            statusText = currentLang === 'ar' ? 'مرفوض' : 'Rejected'; 
+            statusText = getText('status_rejected', 'Rejected'); 
           }
 
           return `
@@ -403,23 +407,23 @@ async function loadUserData() {
     const linksContainer = document.getElementById('links-list');
     if (linksContainer) {
       if (!data.links || data.links.length === 0) {
-        linksContainer.innerHTML = currentLang === 'ar' ? 'لا توجد روابط مُختصرة حالياً.' : 'No short links created yet.';
+        linksContainer.innerHTML = getText('no_links', 'No short links created yet.');
       } else {
         linksContainer.innerHTML = data.links.map(l => {
           const shortUrl = `${API_BASE}/r/${l.shortCode}`;
           const statusColor = l.isActive ? 'var(--success)' : 'var(--danger)';
-          const statusText = l.isActive ? (currentLang === 'ar' ? 'نشط' : 'Active') : (currentLang === 'ar' ? 'معطل' : 'Disabled');
+          const statusText = l.isActive ? getText('status_active', 'Active') : getText('status_disabled', 'Disabled');
           return `
           <div class="link-item" style="border-left: 3px solid ${statusColor}; border-right: 3px solid ${statusColor};">
             <div class="link-header">
-              <b>${escapeHTML(l.title || (currentLang === 'ar' ? 'رابط بدون عنوان' : 'Untitled Link'))}</b>
+              <b>${escapeHTML(l.title || getText('untitled_link', 'Untitled Link'))}</b>
               <span style="font-size: 10px; color: ${statusColor};">${statusText}</span>
             </div>
             <div style="color:var(--text-muted); font-size:11px; margin-bottom:4px; word-break: break-all;">${escapeHTML(shortUrl)}</div>
             <div>Views: <b>${l.views || 0}</b> | Valid: <b style="color:var(--success);">${l.validImpressions || 0}</b></div>
             <div class="link-actions">
-              <button class="btn-small" onclick="copyToClipboard('${escapeHTML(shortUrl)}')">Copy</button>
-              <button class="btn-small ${l.isActive ? 'btn-danger' : 'btn-warning'}" onclick="toggleLinkStatus('${l._id}')">${l.isActive ? (currentLang === 'ar' ? 'تعطيل' : 'Disable') : (currentLang === 'ar' ? 'تفعيل' : 'Enable')}</button>
+              <button class="btn-small" onclick="copyToClipboard('${escapeHTML(shortUrl)}')">${getText('copy', 'Copy')}</button>
+              <button class="btn-small ${l.isActive ? 'btn-danger' : 'btn-warning'}" onclick="toggleLinkStatus('${l._id}')">${l.isActive ? getText('btn_disable', 'Disable') : getText('btn_enable', 'Enable')}</button>
             </div>
           </div>`;
         }).join('');
@@ -429,7 +433,7 @@ async function loadUserData() {
     const adsContainer = document.getElementById('ads-list');
     if (adsContainer) {
       if (!data.ads || data.ads.length === 0) {
-        adsContainer.innerHTML = currentLang === 'ar' ? 'لا توجد حملات إعلانية نشطة حالياً.' : 'No active ad campaigns.';
+        adsContainer.innerHTML = getText('no_ads', 'No active ad campaigns.');
       } else {
         adsContainer.innerHTML = data.ads.map(ad => {
           let statusColor = ad.status === 'active' ? 'var(--success)' : (ad.status === 'paused' ? 'var(--warning)' : 'var(--text-muted)');
@@ -442,7 +446,7 @@ async function loadUserData() {
             <div style="color:var(--text-muted); font-size:11px; margin-bottom:4px; word-break: break-all;">${escapeHTML(ad.targetUrl)}</div>
             <div>Remaining Budget: <b style="color:var(--success);">$${(ad.remainingBudget || 0).toFixed(2)}</b> / $${parseFloat(ad.totalBudget || 0).toFixed(2)} | Views: <b>${ad.impressionsCount || 0}</b></div>
             <div class="ad-actions">
-              ${ad.status !== 'completed' ? `<button class="btn-small ${ad.status === 'active' ? 'btn-warning' : 'btn-success'}" onclick="toggleAdStatus('${ad._id}')">${ad.status === 'active' ? (currentLang === 'ar' ? 'إيقاف مؤقت' : 'Pause') : (currentLang === 'ar' ? 'تفعيل' : 'Activate')}</button>` : ''}
+              ${ad.status !== 'completed' ? `<button class="btn-small ${ad.status === 'active' ? 'btn-warning' : 'btn-success'}" onclick="toggleAdStatus('${ad._id}')">${ad.status === 'active' ? getText('btn_pause', 'Pause') : getText('btn_activate', 'Activate')}</button>` : ''}
             </div>
           </div>`;
         }).join('');
@@ -466,11 +470,11 @@ async function toggleLinkStatus(linkId) {
     const data = await res.json();
     if (data.error) showToast(data.error);
     else {
-      showToast(data.isActive ? (currentLang === 'ar' ? "تم تفعيل الرابط" : "Link activated") : (currentLang === 'ar' ? "تم تعطيل الرابط" : "Link disabled"));
+      showToast(data.isActive ? getText('link_activated', 'Link activated') : getText('link_disabled', 'Link disabled'));
       loadUserData();
     }
   } catch (e) {
-    showToast(currentLang === 'ar' ? "خطأ أثناء تغيير حالة الرابط" : "Error toggling link status");
+    showToast(getText('error_toggle_link', 'Error toggling link status'));
   }
 }
 
@@ -486,11 +490,11 @@ async function toggleAdStatus(adId) {
     const data = await res.json();
     if (data.error) showToast(data.error);
     else {
-      showToast(currentLang === 'ar' ? "تم تحديث حالة الحملة الإعلانية" : "Ad status updated");
+      showToast(getText('ad_status_updated', 'Ad status updated'));
       loadUserData();
     }
   } catch (e) {
-    showToast(currentLang === 'ar' ? "خطأ أثناء تعديل حالة الإعلان" : "Error toggling ad status");
+    showToast(getText('error_toggle_ad', 'Error toggling ad status'));
   }
 }
 
@@ -499,7 +503,7 @@ async function createAdCampaign() {
   const targetUrl = document.getElementById('ad-target-url')?.value;
   const totalBudget = document.getElementById('ad-budget')?.value;
 
-  if (!title || !targetUrl || !totalBudget) return showToast(currentLang === 'ar' ? "يرجى ملء جميع البيانات المطلوب الإعلان عنها" : "Please fill in all ad details");
+  if (!title || !targetUrl || !totalBudget) return showToast(getText('fill_all_fields', 'Please fill in all ad details'));
 
   triggerHaptic('medium');
   setButtonLoading('btn-create-ad', true);
@@ -514,22 +518,19 @@ async function createAdCampaign() {
     const data = await res.json();
     if (data.error) showToast(data.error);
     else {
-      showToast(currentLang === 'ar' ? "تم إنشاء الحملة الإعلانية وإطلاقها بنجاح!" : "Ad campaign launched successfully!");
+      showToast(getText('ad_created_success', 'Ad campaign launched successfully!'));
       if (document.getElementById('ad-title')) document.getElementById('ad-title').value = '';
       if (document.getElementById('ad-target-url')) document.getElementById('ad-target-url').value = '';
       if (document.getElementById('ad-budget')) document.getElementById('ad-budget').value = '';
       loadUserData();
     }
   } catch (e) {
-    showToast(currentLang === 'ar' ? "حدث خطأ غير متوقع أثناء إطلاق الحملة" : "Unexpected error launching campaign");
+    showToast(getText('error_launch_ad', 'Unexpected error launching campaign'));
   } finally {
-    setButtonLoading('btn-create-ad', false, `<span data-i18n="btn_launch_ad">${(typeof i18n !== 'undefined' && i18n[currentLang]?.btn_launch_ad) || 'Launch Ad Campaign'}</span>`);
+    setButtonLoading('btn-create-ad', false, `<span data-i18n="btn_launch_ad">${getText('btn_launch_ad', 'Launch Ad Campaign')}</span>`);
   }
 }
 
-// --------------------------------------------------
-// Deposit Request Submit Handler
-// --------------------------------------------------
 async function requestDeposit() {
   const amountInput = document.getElementById('deposit-amount');
   const networkInput = document.getElementById('deposit-network');
@@ -540,13 +541,13 @@ async function requestDeposit() {
   const txid = txHashInput?.value?.trim();
 
   if (!network) {
-    return showToast(currentLang === 'ar' ? "يرجى تحديد نوع الشبكة أولاً" : "Select deposit network first");
+    return showToast(getText('select_network_first', 'Select deposit network first'));
   }
   if (!amount || isNaN(amount) || amount <= 0) {
-    return showToast(currentLang === 'ar' ? "يرجى إدخال مبلغ الشحن الصحيح" : "Enter a valid deposit amount");
+    return showToast(getText('invalid_deposit_amount', 'Enter a valid deposit amount'));
   }
   if (!txid || txid.length < 8) {
-    return showToast(currentLang === 'ar' ? "يرجى إدخال رمز العملية TxID الخاص بالمعاملة بشكل صحيح" : "Enter valid TxID hash");
+    return showToast(getText('invalid_txid', 'Enter valid TxID hash'));
   }
 
   triggerHaptic('medium');
@@ -570,9 +571,9 @@ async function requestDeposit() {
     const data = await res.json();
 
     if (data.error || data.message && res.status >= 400) {
-      showToast(data.error || data.message || (currentLang === 'ar' ? "فشل تقديم طلب الشحن" : "Deposit request failed"));
+      showToast(data.error || data.message || getText('deposit_failed', 'Deposit request failed'));
     } else {
-      showToast(currentLang === 'ar' ? "تم إرسال طلب الشحن بنجاح وهو قيد المراجعة!" : "Deposit request submitted successfully!");
+      showToast(getText('deposit_submitted', 'Deposit request submitted successfully!'));
       if (amountInput) amountInput.value = '';
       if (txHashInput) txHashInput.value = '';
       if (networkInput) networkInput.value = '';
@@ -581,15 +582,12 @@ async function requestDeposit() {
     }
   } catch (e) {
     console.error("Deposit Error:", e);
-    showToast(currentLang === 'ar' ? "خطأ أثناء تقديم طلب الشحن" : "Error submitting deposit request");
+    showToast(getText('error_submitting_deposit', 'Error submitting deposit request'));
   } finally {
-    setButtonLoading('btn-request-deposit', false, `<span>${currentLang === 'ar' ? 'تأكيد وإرسال طلب الشحن' : 'Submit Deposit Request'}</span>`);
+    setButtonLoading('btn-request-deposit', false, `<span>${getText('submit_deposit', 'Submit Deposit Request')}</span>`);
   }
 }
 
-// --------------------------------------------------
-// Withdraw Request Submit Handler
-// --------------------------------------------------
 async function requestWithdrawal() {
   const amountInput = document.getElementById('withdraw-amount');
   const networkInput = document.getElementById('withdraw-network');
@@ -600,10 +598,10 @@ async function requestWithdrawal() {
   const walletAddress = walletInput?.value?.trim();
 
   if (!walletAddress) {
-    return showToast(currentLang === 'ar' ? "يرجى إدخال عنوان محفظة السحب أولاً" : "Please enter a wallet address first");
+    return showToast(getText('enter_wallet_first', 'Please enter a wallet address first'));
   }
   if (!amount || isNaN(amount) || amount < 30) {
-    return showToast(currentLang === 'ar' ? "الحد الأدنى للسحب هو 30$" : "Minimum withdrawal is $30");
+    return showToast(getText('min_withdraw_30', 'Minimum withdrawal is $30'));
   }
 
   triggerHaptic('medium');
@@ -625,9 +623,9 @@ async function requestWithdrawal() {
     const data = await res.json();
 
     if (data.error || data.message && res.status >= 400) {
-      showToast(data.error || data.message || (currentLang === 'ar' ? "فشل تقديم طلب السحب" : "Withdrawal request failed"));
+      showToast(data.error || data.message || getText('withdraw_failed', 'Withdrawal request failed'));
     } else {
-      showToast(currentLang === 'ar' ? "تم تقديم طلب السحب بنجاح!" : "Withdrawal requested successfully!");
+      showToast(getText('withdraw_submitted', 'Withdrawal requested successfully!'));
       if (amountInput) amountInput.value = '';
       const feeBox = document.getElementById('withdraw-fee-box');
       if (feeBox) feeBox.classList.add('hidden');
@@ -635,9 +633,9 @@ async function requestWithdrawal() {
     }
   } catch (e) {
     console.error("Withdraw Error:", e);
-    showToast(currentLang === 'ar' ? "خطأ أثناء معالجة الطلب" : "Error processing request");
+    showToast(getText('error_withdraw_request', 'Error processing request'));
   } finally {
-    setButtonLoading('btn-request-withdraw', false, `<span data-i18n="btn_submit_withdraw">${(typeof i18n !== 'undefined' && i18n[currentLang]?.btn_submit_withdraw) || 'Request Withdrawal'}</span>`);
+    setButtonLoading('btn-request-withdraw', false, `<span data-i18n="btn_submit_withdraw">${getText('btn_submit_withdraw', 'Request Withdrawal')}</span>`);
   }
 }
 
@@ -721,12 +719,12 @@ async function completeImpression() {
     if (data.targetUrl) {
       window.location.href = data.targetUrl;
     } else {
-      setButtonLoading('go-btn', false, `<span data-i18n="go_button">${(typeof i18n !== 'undefined' && i18n[currentLang]?.go_button) || 'Continue'}</span>`);
-      showToast(data.error || (currentLang === 'ar' ? "خطأ أثناء عملية التوجيه" : "Redirection error"));
+      setButtonLoading('go-btn', false, `<span data-i18n="go_button">${getText('go_button', 'Continue')}</span>`);
+      showToast(data.error || getText('redirect_error', 'Redirection error'));
     }
   } catch (err) {
-    setButtonLoading('go-btn', false, `<span data-i18n="go_button">${(typeof i18n !== 'undefined' && i18n[currentLang]?.go_button) || 'Continue'}</span>`);
-    showToast(currentLang === 'ar' ? "فشل الاتصال بالخادم" : "Server connection failed");
+    setButtonLoading('go-btn', false, `<span data-i18n="go_button">${getText('go_button', 'Continue')}</span>`);
+    showToast(getText('server_conn_failed', 'Server connection failed'));
   }
 }
 
@@ -735,7 +733,7 @@ async function handleShortenClick() {
   const targetUrl = document.getElementById('link-url')?.value;
 
   if (!targetUrl) {
-    showToast(currentLang === 'ar' ? "يرجى إدخال الرابط الأصلي بشكل صحيح" : "Please enter original URL");
+    showToast(getText('enter_original_url', 'Please enter original URL'));
     return;
   }
 
@@ -753,22 +751,22 @@ async function handleShortenClick() {
     if (data.error) {
       showToast(data.error);
     } else {
-      showToast((typeof i18n !== 'undefined' && i18n[currentLang]?.link_success_msg) || "Link created successfully!");
+      showToast(getText('link_success_msg', 'Link created successfully!'));
       if (document.getElementById('link-title')) document.getElementById('link-title').value = '';
       if (document.getElementById('link-url')) document.getElementById('link-url').value = '';
       loadUserData();
     }
   } catch (e) {
-    showToast(currentLang === 'ar' ? "حدث خطأ غير متوقع" : "An unexpected error occurred");
+    showToast(getText('unexpected_error', 'An unexpected error occurred'));
   } finally {
-    setButtonLoading('btn-create-link', false, `<span data-i18n="btn_shorten">${(typeof i18n !== 'undefined' && i18n[currentLang]?.btn_shorten) || 'Shorten Link Now'}</span>`);
+    setButtonLoading('btn-create-link', false, `<span data-i18n="btn_shorten">${getText('btn_shorten', 'Shorten Link Now')}</span>`);
   }
 }
 
 async function saveSettings() {
   const defaultWallet = document.getElementById('default-wallet')?.value;
   if (!defaultWallet || defaultWallet.trim().length < 5) {
-    return showToast(currentLang === 'ar' ? "عنوان المحفظة غير صالح" : "Invalid wallet address");
+    return showToast(getText('invalid_wallet', 'Invalid wallet address'));
   }
   triggerHaptic('light');
   try {
@@ -781,11 +779,11 @@ async function saveSettings() {
     const data = await res.json();
     if (data.error) showToast(data.error);
     else {
-      showToast(currentLang === 'ar' ? "تم حفظ المحفظة بنجاح" : "Wallet saved successfully");
+      showToast(getText('wallet_saved', 'Wallet saved successfully'));
       loadUserData();
     }
   } catch (e) {
-    showToast(currentLang === 'ar' ? "خطأ أثناء حفظ الإعدادات" : "Error saving settings");
+    showToast(getText('error_saving_settings', 'Error saving settings'));
   }
 }
 
@@ -972,7 +970,6 @@ async function distributeRevenue() {
   }
 }
 
-// Application Lifecycle Event Listener
 window.addEventListener('DOMContentLoaded', async () => {
   try {
     if (tg) {
