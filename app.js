@@ -33,6 +33,27 @@ function getText(key, fallback = '') {
   return fallback;
 }
 
+/* --- التحكم في التنقل وتحديد الأقسام --- */
+
+// دالة الانتقال لفتح نافذة/قسم الإيداع فقط
+function navigateToDepositSection() {
+  triggerHaptic('light');
+  const depositSection = document.getElementById('deposit-section');
+  const shortenerSection = document.getElementById('shortener-section');
+
+  if (depositSection) depositSection.classList.remove('hidden');
+  if (shortenerSection) shortenerSection.classList.add('hidden');
+}
+
+// دالة الانتقال لصفحة اختصار الروابط والجسر
+function navigateToShortenerSection() {
+  const depositSection = document.getElementById('deposit-section');
+  const shortenerSection = document.getElementById('shortener-section');
+
+  if (depositSection) depositSection.classList.add('hidden');
+  if (shortenerSection) shortenerSection.classList.remove('hidden');
+}
+
 function handleNetworkChange(networkVal) {
   triggerHaptic('light');
   const trcCard = document.getElementById('card-addr-trc20');
@@ -640,9 +661,14 @@ async function requestWithdrawal() {
 }
 
 async function initBridge() {
+  navigateToShortenerSection();
+
   const pathParts = window.location.pathname.split('/r/');
   const shortCode = pathParts[1];
   bridgeStartTime = Date.now();
+
+  const goBtn = document.getElementById('go-btn');
+  if (goBtn) goBtn.disabled = true;
 
   try {
     const res = await safeFetch('/api/init-click', {
@@ -673,7 +699,6 @@ async function initBridge() {
 
   let timeLeft = 5;
   const timerElem = document.getElementById('timer');
-  const goBtn = document.getElementById('go-btn');
   const interval = setInterval(() => {
     timeLeft--;
     if (timerElem) timerElem.innerText = timeLeft;
