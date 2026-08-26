@@ -19,20 +19,19 @@ const app = express();
 // --- Setup Server Trust Proxy ---
 app.set('trust proxy', 1);
 
-// --- 1. CORS Configuration (يدعم جميع الطلبات ورؤوس Telegram WebApp) ---
+// --- 1. CORS Configuration ---
 app.use(cors({
   origin: true,
   credentials: true,
   allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'x-telegram-init-data', 'x-demo-user-id'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
-app.options('*', cors());
 
 // --- 2. Request Parsers ---
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-// --- 3. Static Files Setup (خدمة الملفات الثابتة من المجلد الرئيسي) ---
+// --- 3. Static Files Setup ---
 app.use(express.static(__dirname, {
   dotfiles: 'ignore',
   etag: true,
@@ -356,7 +355,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
     await session.commitTransaction();
     res.json({ success: true, ad: ad[0] });
   } catch (err) {
-    await session.abortTransaction();
+    if (session.inTransaction()) await session.abortTransaction();
     next(err);
   } finally {
     session.endSession();
@@ -463,7 +462,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'Invalid wallet address' });
     }
 
-    const netAmount = numAmt - FEE;
+    const netAmount = Number((numAmt - FEE).toFixed(4));
 
     const updatedUser = await User.findOneAndUpdate(
       { _id: req.user._id, availableBalance: { $gte: numAmt } },
@@ -495,7 +494,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
 
     res.json({ success: true, withdraw: withdrawRequest[0] });
   } catch (err) {
-    await session.abortTransaction();
+    if (session.inTransaction()) await session.abortTransaction();
     next(err);
   } finally {
     session.endSession();
@@ -654,7 +653,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
         const costPerImpression = ad.costPerImpression || 0.0015;
         let publisherShare = ad.publisherEarningsPerImpression || 0.00135;
         
-        ad.remainingBudget = Math.max(0, ad.remainingBudget - costPerImpression);
+        ad.remainingBudget = Math.max(0, Number((ad.remainingBudget - costPerImpression).toFixed(6)));
         ad.impressionsCount += 1;
         if (ad.remainingBudget < costPerImpression) {
           ad.status = 'completed';
@@ -691,7 +690,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
     await sessionDb.commitTransaction();
     res.json({ success: true, targetUrl: link.targetUrl, counted: true });
   } catch (err) {
-    await sessionDb.abortTransaction();
+    if (sessionDb.inTransaction()) await sessionDb.abortTransaction();
     next(err);
   } finally {
     sessionDb.endSession();
@@ -886,7 +885,7 @@ app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (re
     await session.commitTransaction();
     res.json({ success: true, deposit });
   } catch (err) {
-    await session.abortTransaction();
+    if (session.inTransaction()) await session.abortTransaction();
     next(err);
   } finally {
     session.endSession();
@@ -939,7 +938,7 @@ app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (r
     await session.commitTransaction();
     res.json({ success: true, withdraw });
   } catch (err) {
-    await session.abortTransaction();
+    if (session.inTransaction()) await session.abortTransaction();
     next(err);
   } finally {
     session.endSession();
@@ -999,7 +998,7 @@ app.post('/api/admin/distribute-revenue', authMiddleware, adminMiddleware, async
     await session.commitTransaction();
     res.json({ success: true, message: `Successfully distributed $${revenue} to ${links.length} links (released in 24 hours).` });
   } catch (err) {
-    await session.abortTransaction();
+    if (session.inTransaction()) await session.abortTransaction();
     next(err);
   } finally {
     session.endSession();
@@ -1054,7 +1053,7 @@ cron.schedule('0 0 * * *', async () => {
           );
         }
       } catch (err) {
-        await session.abortTransaction();
+        if (session.inTransaction()) await session.abortTransaction();
         logger.error(`Error processing hold release for ID ${hold._id}: ${err.message}`);
       } finally {
         session.endSession();
