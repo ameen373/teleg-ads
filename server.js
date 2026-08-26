@@ -2,7 +2,6 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const rateLimit = require('express-rate-limit');
-const cron = require('node-cron');
 const path = require('path');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
@@ -19,7 +18,7 @@ const app = express();
 // --- Setup Server Trust Proxy ---
 app.set('trust proxy', 1);
 
-// --- 1. CORS Configuration (دعم احترافي وكامل لرؤوس Telegram WebApp) ---
+// --- 1. CORS Configuration ---
 const corsOptions = {
   origin: true,
   credentials: true,
@@ -32,7 +31,7 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-// --- 3. Robust Static Files Delivery (حل مشكلة عدم ظهور CSS و JS نهائياً) ---
+// --- 3. Static Files Delivery ---
 app.use(express.static(__dirname, {
   maxAge: '1d',
   etag: true,
@@ -56,14 +55,9 @@ const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(winston.format.timestamp(), winston.format.json()),
   transports: [
-    new winston.transports.File({ filename: 'error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'combined.log' })
+    new winston.transports.Console({ format: winston.format.simple() })
   ]
 });
-
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(new winston.transports.Console({ format: winston.format.simple() }));
-}
 
 app.use(morgan('combined', { stream: { write: (message) => logger.info(message.trim()) } }));
 
@@ -77,7 +71,7 @@ const CONFIG = Object.freeze({
   JWT_SECRET: process.env.JWT_SECRET || 'fallback_jwt_secret_key_32bytes_long!',
   ADSGRAM_BLOCK_ID: process.env.ADSGRAM_BLOCK_ID || '1234',
   APP_DOMAIN: process.env.APP_DOMAIN || 'localhost:3000',
-  REDIS_URL: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
+  REDIS_URL: process.env.REDIS_URL,
   DEFAULT_LANGUAGE: 'en',
   
   OFFICIAL_BOT_URL: process.env.OFFICIAL_BOT_URL || 'https://t.me/Ads_telegabot',
@@ -91,58 +85,71 @@ const CONFIG = Object.freeze({
   SUPPORT_USERNAME: '@' + (process.env.TELEGRAM_SUPPORT_URL || 'https://t.me/Te_AdsNs_bot').split('/').pop()
 });
 
-// --- Redis Client Initialization ---
+// --- Serverless MongoDB Connection Middleware ---
+let isConnected = false;
+const connectDB = async () => {
+  if (isConnected && mongoose.connection.readyState === 1) return;
+  try {
+    const db = await mongoose.connect(CONFIG.MONGO_URI, {
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+    });
+    isConnected = db.connections[0].readyState === 1;
+  } catch (err) {
+    logger.error('⚠️ Database Connection Error: ' + err.message);
+  }
+};
+
+app.use(async (req, res, next) => {
+  await connectDB();
+  next();
+});
+
+// --- Optional Safe Redis Integration ---
+let redis = null;
 let redisIsConnected = false;
-const redis = new Redis(CONFIG.REDIS_URL, {
-  maxRetriesPerRequest: 3,
-  enableReadyCheck: true,
-  lazyConnect: true,
-  retryStrategy: (times) => Math.min(times * 50, 2000)
-});
 
-redis.connect().catch(err => {
-  logger.error('⚠️ Initial Redis Connect Error: ' + err.message);
-});
+if (CONFIG.REDIS_URL) {
+  try {
+    redis = new Redis(CONFIG.REDIS_URL, {
+      maxRetriesPerRequest: 1,
+      enableReadyCheck: false,
+      lazyConnect: true,
+      retryStrategy: () => null
+    });
 
-redis.on('error', (err) => {
-  redisIsConnected = false;
-  logger.error('⚠️ Redis Connection Warning: ' + err.message);
-});
+    redis.on('error', (err) => {
+      redisIsConnected = false;
+    });
 
-redis.on('ready', () => {
-  redisIsConnected = true;
-  console.log('✅ Enterprise Redis Client Connected & Ready');
-});
+    redis.on('ready', () => {
+      redisIsConnected = true;
+    });
+
+    redis.connect().catch(() => {});
+  } catch (e) {
+    redisIsConnected = false;
+  }
+}
 
 async function safeRedisGet(key) {
-  if (!redisIsConnected) return null;
+  if (!redis || !redisIsConnected) return null;
   try { return await redis.get(key); } catch (e) { return null; }
 }
 
 async function safeRedisSet(key, value, mode, duration) {
-  if (!redisIsConnected) return;
+  if (!redis || !redisIsConnected) return;
   try {
     if (mode && duration) await redis.set(key, value, mode, duration);
     else await redis.set(key, value);
-  } catch (e) { logger.error('Redis Set Failed: ' + e.message); }
+  } catch (e) {}
 }
 
 async function safeRedisDel(key) {
-  if (!redisIsConnected) return;
-  try { await redis.del(key); } catch (e) { logger.error('Redis Del Failed: ' + e.message); }
+  if (!redis || !redisIsConnected) return;
+  try { await redis.del(key); } catch (e) {}
 }
-
-// --- Database Connection Pool ---
-mongoose.connect(CONFIG.MONGO_URI, {
-  maxPoolSize: 50,
-  minPoolSize: 10,
-  serverSelectionTimeoutMS: 5000,
-  socketTimeoutMS: 45000,
-}).then(() => console.log('✅ Enterprise MongoDB Pipeline Connected'))
-  .catch(err => {
-    logger.error('❌ Critical MongoDB Connection Failure:', err);
-    process.exit(1);
-  });
 
 // --- Telegram Dispatch Helper ---
 async function sendTelegramNotification(telegramId, message) {
@@ -612,7 +619,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
     }
 
     let dailyIpClicks = 1;
-    if (redisIsConnected) {
+    if (redisIsConnected && redis) {
       const dailyIpClickKey = `daily:ip:${req.ip}`;
       dailyIpClicks = await redis.incr(dailyIpClickKey);
       if (dailyIpClicks === 1) {
@@ -950,91 +957,11 @@ app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (r
   }
 });
 
-app.post('/api/admin/distribute-revenue', authMiddleware, adminMiddleware, async (req, res, next) => {
-  const session = await mongoose.startSession();
-  try {
-    session.startTransaction();
-    const { totalRevenue } = req.body;
-    const revenue = Number(totalRevenue);
-
-    if (isNaN(revenue) || revenue <= 0) {
-      await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'Invalid revenue amount' });
-    }
-
-    const aggregateTotal = await Link.aggregate([
-      { $group: { _id: null, total: { $sum: '$validImpressions' } } }
-    ]).session(session);
-
-    const totalImp = aggregateTotal[0]?.total || 0;
-    if (totalImp === 0) {
-      await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'No validated impressions available for revenue distribution' });
-    }
-
-    const links = await Link.find({ validImpressions: { $gt: 0 } }).populate('userId').session(session);
-    
-    const releaseDate = new Date();
-    releaseDate.setDate(releaseDate.getDate() + 1);
-
-    for (let link of links) {
-      let earned = Number(((link.validImpressions / totalImp) * revenue).toFixed(4));
-
-      if (link.userId && link.userId.referredBy) {
-        const refBonus = Number((earned * 0.10).toFixed(4));
-        earned = Number((earned - refBonus).toFixed(4));
-
-        await User.findByIdAndUpdate(
-          link.userId.referredBy,
-          { $inc: { availableBalance: refBonus, referralEarnings: refBonus } },
-          { session }
-        );
-      }
-
-      if (link.userId) {
-        await User.findByIdAndUpdate(link.userId._id, { $inc: { pendingBalance: earned } }, { session });
-        await EarningsHold.create([{ userId: link.userId._id, amount: earned, releaseAt: releaseDate }], { session });
-      }
-
-      link.validImpressions = 0;
-      await link.save({ session });
-    }
-
-    await session.commitTransaction();
-    res.json({ success: true, message: `Successfully distributed $${revenue} to ${links.length} links (released in 24 hours).` });
-  } catch (err) {
-    await session.abortTransaction();
-    next(err);
-  } finally {
-    session.endSession();
-  }
-});
-
-app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (req, res, next) => {
-  const { userId } = req.body;
-  if (!mongoose.Types.ObjectId.isValid(userId)) return res.status(400).json({ success: false, error: 'Invalid User ID' });
-
-  try {
-    const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ success: false, error: 'User not found' });
-
-    user.isBanned = !user.isBanned;
-    await user.save();
-
-    if (user.isBanned) {
-      sendTelegramNotification(user.telegramId, `🚫 <b>Admin Alert:</b> Your account has been suspended for violating terms of service.\nSupport: ${CONFIG.SUPPORT_USERNAME}`);
-    }
-
-    res.json({ success: true, isBanned: user.isBanned });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// --- Automated Cron Task for Earnings Settlement ---
-cron.schedule('0 0 * * *', async () => {
+// --- Serverless Cron Trigger for Earnings Settlement ---
+app.get('/api/cron/settle-earnings', async (req, res) => {
   try {
     const readyHolds = await EarningsHold.find({ releaseAt: { $lte: new Date() }, isReleased: false }).lean();
+    let releasedCount = 0;
 
     for (let hold of readyHolds) {
       const session = await mongoose.startSession();
@@ -1048,8 +975,8 @@ cron.schedule('0 0 * * *', async () => {
         );
 
         await EarningsHold.findByIdAndUpdate(hold._id, { isReleased: true }, { session });
-
         await session.commitTransaction();
+        releasedCount++;
 
         if (userUpdate && userUpdate.telegramId) {
           sendTelegramNotification(
@@ -1059,17 +986,17 @@ cron.schedule('0 0 * * *', async () => {
         }
       } catch (err) {
         await session.abortTransaction();
-        logger.error(`Error processing hold release for ID ${hold._id}: ${err.message}`);
       } finally {
         session.endSession();
       }
     }
+    res.json({ success: true, releasedCount });
   } catch (err) {
-    logger.error('❌ Error executing Cron Settlement: ' + err.message);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// --- 5. Static HTML Page Delivery & Catch-all SPA Routing ---
+// --- Static HTML Page Delivery & SPA Routing ---
 const sendAppIndex = (req, res) => {
   res.sendFile(path.join(__dirname, 'views.html'));
 };
@@ -1077,40 +1004,26 @@ const sendAppIndex = (req, res) => {
 app.get(['/', '/app', '/admin', '/views.html'], sendAppIndex);
 app.get('/r/:code', sendAppIndex);
 
-// --- Catch-all API 404 Handler ---
 app.use('/api/*', (req, res) => {
   res.status(404).json({ success: false, error: 'Requested endpoint not found' });
 });
 
-// Fallback للصفحات غير الـ API لضمان عمل تطبيقات الـ SPA (Single Page Application)
 app.get('*', sendAppIndex);
 
-// ==================================================
 // --- Global Error Handling Middleware ---
-// ==================================================
 app.use((err, req, res, next) => {
   logger.error('Unhandled Application Error:', err);
-
   const statusCode = err.status || err.statusCode || 500;
-  const message = process.env.NODE_ENV === 'production' 
-    ? 'Internal Server Error' 
-    : (err.message || 'Something went wrong');
-
   res.status(statusCode).json({
     success: false,
-    error: message,
-    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+    error: err.message || 'Internal Server Error'
   });
 });
 
-// --- Global Crash Guard ---
-process.on('uncaughtException', (err) => {
-  logger.error('Uncaught Exception Detected: ' + err.stack);
-});
+// --- Vercel Export & Local Server Execution ---
+if (process.env.NODE_ENV !== 'production') {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => console.log(`🚀 Development Server Active on Port ${PORT}`));
+}
 
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Enterprise Server Active on Port ${PORT}`));
+module.exports = app;
