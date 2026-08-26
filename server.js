@@ -19,7 +19,7 @@ const app = express();
 // --- Setup Server Trust Proxy ---
 app.set('trust proxy', 1);
 
-// --- CORS Configuration ---
+// --- CORS Configuration (تفعيل حزمة cors لجميع الطلبات وتسمح بـ Credentials) ---
 app.use(cors({
   origin: true,
   credentials: true
@@ -28,12 +28,9 @@ app.options('*', cors());
 
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
-
-// --- Static Files Middleware (تقديم الملفات الثابتة بشكل صريح وآمن) ---
 app.use(express.static(__dirname));
-app.use('/locales', express.static(path.join(__dirname, 'locales')));
 
-// --- Ensure JSON Response Format in UTF-8 ---
+// --- التأكد من أن جميع مسارات الـ API ترجع استجابات JSON بترميز UTF-8 ---
 app.use('/api', (req, res, next) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   next();
@@ -61,7 +58,7 @@ app.use(morgan('combined', { stream: { write: (message) => logger.info(message.t
 const CONFIG = Object.freeze({
   BOT_TOKEN: process.env.BOT_TOKEN,
   MONGO_URI: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/shortener',
-  ADMIN_ID: process.env.ADMIN_ID || '549686235',
+  ADMIN_ID: process.env.ADMIN_ID || '123456789',
   JWT_SECRET: process.env.JWT_SECRET || 'fallback_jwt_secret_key_32bytes_long!',
   ADSGRAM_BLOCK_ID: process.env.ADSGRAM_BLOCK_ID || '1234',
   APP_DOMAIN: process.env.APP_DOMAIN || 'localhost:3000',
@@ -223,13 +220,10 @@ const authMiddleware = async (req, res, next) => {
 
 const adminMiddleware = async (req, res, next) => {
   if (!req.user || String(req.user.telegramId) !== String(CONFIG.ADMIN_ID)) {
-    return res.status(403).json({ success: false, error: 'Forbidden: Unauthorized access to admin section' });
+    return res.status(403).json({ success: false, error: 'Unauthorized access to admin section' });
   }
   next();
 };
-
-// --- Global Admin Middleware Guard for /api/admin/* Routes ---
-app.use('/api/admin/*', authMiddleware, adminMiddleware);
 
 // --- Authentication & User Setup ---
 app.post('/api/auth/login', async (req, res, next) => {
@@ -295,7 +289,7 @@ app.post('/api/auth/login', async (req, res, next) => {
   }
 });
 
-// --- Self-Serve Ad Campaign APIs (Strictly Isolated) ---
+// --- Self-Serve Ad Campaign APIs ---
 app.post('/api/ads', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
@@ -382,7 +376,7 @@ app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Deposit Routes (Strictly Isolated) ---
+// --- Deposit Routes ---
 app.post('/api/deposit', authMiddleware, async (req, res, next) => {
   try {
     const { amount, network, txid } = req.body;
@@ -426,7 +420,7 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Withdraw Routes (Strictly Isolated) ---
+// --- Withdraw Routes ---
 app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
@@ -687,7 +681,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
   }
 });
 
-// --- Link Management (Strictly Isolated) ---
+// --- Link Management (Updated & Secured) ---
 app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res, next) => {
   try {
     let { title, targetUrl } = req.body;
@@ -745,7 +739,6 @@ app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Strict User Data Fetching API ---
 app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   try {
     const [rawLinks, withdraws, announcements, ads, deposits] = await Promise.all([
@@ -811,8 +804,8 @@ app.post('/api/user/settings', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Admin Panel Routes (Strict Guard Enabled) ---
-app.get('/api/admin/dashboard-data', async (req, res, next) => {
+// --- Admin Panel Routes ---
+app.get('/api/admin/dashboard-data', authMiddleware, adminMiddleware, async (req, res, next) => {
   try {
     const [withdraws, deposits, users, stats, totalAds] = await Promise.all([
       Withdraw.find().populate('userId').sort({ createdAt: -1 }).lean(),
@@ -830,7 +823,7 @@ app.get('/api/admin/dashboard-data', async (req, res, next) => {
   }
 });
 
-app.post('/api/admin/deposit/action', async (req, res, next) => {
+app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (req, res, next) => {
   const { depositId, action, reason } = req.body;
   if (!mongoose.Types.ObjectId.isValid(depositId)) return res.status(400).json({ success: false, error: 'Invalid Deposit ID' });
 
@@ -883,7 +876,7 @@ app.post('/api/admin/deposit/action', async (req, res, next) => {
   }
 });
 
-app.post('/api/admin/withdraw/action', async (req, res, next) => {
+app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (req, res, next) => {
   const { withdrawId, action, reason } = req.body;
   if (!mongoose.Types.ObjectId.isValid(withdrawId)) return res.status(400).json({ success: false, error: 'Invalid Withdraw ID' });
 
@@ -936,7 +929,7 @@ app.post('/api/admin/withdraw/action', async (req, res, next) => {
   }
 });
 
-app.post('/api/admin/distribute-revenue', async (req, res, next) => {
+app.post('/api/admin/distribute-revenue', authMiddleware, adminMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -996,7 +989,7 @@ app.post('/api/admin/distribute-revenue', async (req, res, next) => {
   }
 });
 
-app.post('/api/admin/user/toggle-ban', async (req, res, next) => {
+app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (req, res, next) => {
   const { userId } = req.body;
   if (!mongoose.Types.ObjectId.isValid(userId)) return res.status(400).json({ success: false, error: 'Invalid User ID' });
 
