@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title data-i18n="app_title">منصة الإعلانات والروابط</title>
+  
+  <!-- مكتبة تيليجرام للأجهزة الذكية -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  
+  <!-- ربط ملف التنسيق -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Toast Notification Container -->
+  <div id="toast"></div>
+
+  <!-- Main Container -->
+  <div class="container">
+
+    <!-- Bridge View (صفحة الجسر والانتقال عند فتح الروابط المختصرة) -->
+    <div id="bridge-view" class="card hidden">
+      <h2 data-i18n="bridge_title">جارٍ تحويلك إلى الرابط...</h2>
+      <p style="color: var(--text-muted); font-size: 13px;" data-i18n="bridge_desc">يرجى الانتظار لبضع ثوانٍ ثم الضغط على الزر أدناه لمتابعة الانتقال.</p>
+      
+      <!-- منطقة الإعلان الداخلي -->
+      <div id="ad-container" class="card" style="background: #0d1527; margin: 14px 0; border: 1px dashed var(--accent);">
+        <small style="color: var(--accent);" data-i18n="ad_loading">إعلان مدعوم</small>
+        <h4 id="bridge-ad-title" style="margin: 6px 0;">--</h4>
+        <p id="bridge-ad-desc" style="font-size: 12px; color: var(--text-muted);">--</p>
+      </div>
+
+      <button id="go-btn" onclick="completeImpression()">
+        <span data-i18n="go_button">متابعة إلى الرابط</span>
+      </button>
+    </div>
+
+    <!-- App View (الواجهة الرئيسية للتطبيق) -->
+    <div id="app-view">
+
+      <!-- Header & Profile Card -->
+      <div class="user-profile-header">
+        <div id="user-avatar-container">
+          <div class="user-avatar-placeholder">U</div>
+        </div>
+        <div style="flex: 1;">
+          <div id="user-display-name" style="font-weight: bold; font-size: 15px;">User Name</div>
+          <div id="user-display-handle" style="font-size: 12px; color: var(--text-muted);">@username</div>
+          <span id="user-premium-badge" class="user-badge hidden" data-i18n="premium_badge">مميز ⭐</span>
+        </div>
+        
+        <!-- عناصر اختيار اللغة -->
+        <div class="language-selector-box" style="width: auto;">
+          <select id="language-select" onchange="changeAppLanguage(this.value)" style="padding: 4px 8px; font-size: 12px; margin: 0;">
+            <option value="ar">العربية 🇸🇦</option>
+            <option value="en">English 🇺🇸</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- الإعلانات الإدارية العامة -->
+      <div id="announcement-box" class="card hidden" style="background: rgba(245, 158, 11, 0.1); border-color: var(--warning);">
+        <h4 id="anc-title" style="margin: 0 0 4px 0; color: var(--warning);">--</h4>
+        <p id="anc-content" style="margin: 0; font-size: 12px; color: var(--text);"></p>
+      </div>
+
+      <!-- TAB 1: الإحصائيات (Stats) -->
+      <div id="tab-content-stats">
+        <div class="stats-grid">
+          <div class="stat-box">
+            <small data-i18n="avail_bal">الرصيد المتاح</small>
+            <h3 id="avail-bal">$0.00</h3>
+          </div>
+          <div class="stat-box">
+            <small data-i18n="pending_bal">الرصيد المعلق</small>
+            <h3 id="pending-bal">$0.00</h3>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 data-i18n="create_link_title">اختصار رابط جديد</h3>
+          <input type="text" id="link-title" data-i18n-ph="ph_link_title" placeholder="عنوان الرابط (اختياري)">
+          <input type="url" id="link-url" data-i18n-ph="ph_link_url" placeholder="الرابط الأصلي (https://...)">
+          <button id="btn-create-link" onclick="handleShortenClick()">
+            <span data-i18n="btn_shorten">اختصار الآن</span>
+          </button>
+        </div>
+
+        <div class="card">
+          <h3 data-i18n="my_links_title">روابطي المختصرة</h3>
+          <div id="links-list">
+            <!-- يتم تحميل الروابط ديناميكياً -->
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: المحفظة (Wallet & Deposit & Withdraw) -->
+      <div id="tab-content-wallet" class="hidden">
+        
+        <!-- أزرار التبديل داخل المحفظة -->
+        <div class="wallet-actions-nav">
+          <button id="wallet-nav-deposit" class="wallet-action-btn active" onclick="switchWalletView('deposit')" data-i18n="tab_deposit">إيداع</button>
+          <button id="wallet-nav-withdraw" class="wallet-action-btn" onclick="switchWalletView('withdraw')" data-i18n="tab_withdraw">سحب</button>
+        </div>
+
+        <!-- قسم الإيداع -->
+        <div id="wallet-view-deposit">
+          <div class="card">
+            <h3 data-i18n="deposit_title">إيداع رصيد للإعلانات</h3>
+            <select id="deposit-network" onchange="handleNetworkChange(this.value)">
+              <option value="" disabled selected data-i18n="select_network_option">اختر شبكة الدفع</option>
+              <option value="USDT_TRC20">USDT (TRC20)</option>
+              <option value="USDT_BEP20">USDT (BEP20)</option>
+            </select>
+
+            <!-- TRC20 Address Card -->
+            <div id="card-addr-trc20" class="address-card hidden">
+              <small style="color: var(--text-muted);" data-i18n="addr_trc20_label">عنوان الإيداع (TRC20):</small>
+              <div class="address-row">
+                <span class="address-text" id="addr-trc20-val">T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb</span>
+                <button class="btn-small" onclick="copyToClipboard('T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb')" data-i18n="btn_copy">نسخ</button>
+              </div>
+            </div>
+
+            <!-- BEP20 Address Card -->
+            <div id="card-addr-bep20" class="address-card hidden">
+              <small style="color: var(--text-muted);" data-i18n="addr_bep20_label">عنوان الإيداع (BEP20):</small>
+              <div class="address-row">
+                <span class="address-text" id="addr-bep20-val">0x71C7656EC7ab88b098defB751B7401B5f6d8976F</span>
+                <button class="btn-small" onclick="copyToClipboard('0x71C7656EC7ab88b098defB751B7401B5f6d8976F')" data-i18n="btn_copy">نسخ</button>
+              </div>
+            </div>
+
+            <input type="number" id="deposit-amount" step="0.1" data-i18n-ph="ph_deposit_amount" placeholder="المبلغ المودع ($)">
+            <input type="text" id="deposit-txhash" data-i18n-ph="ph_deposit_txhash" placeholder="معرف المعاملة TxID / Hash">
+            
+            <button id="btn-request-deposit" onclick="requestDeposit()" style="margin-top: 12px;">
+              <span data-i18n="btn_submit_deposit">تأكيد الإيداع</span>
+            </button>
+
+            <div style="margin-top: 10px; text-align: center;">
+              <button class="btn-small btn-warning" onclick="toggleInstructionsModal(true)" data-i18n="deposit_guide_btn">تعليمات الإيداع المهمة</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- قسم السحب -->
+        <div id="wallet-view-withdraw" class="hidden">
+          <div class="card">
+            <h3 data-i18n="withdraw_request_title">سحب الأرباح</h3>
+            
+            <div style="margin-bottom: 10px;">
+              <label style="font-size: 12px; color: var(--text-muted);" data-i18n="wallet_addr_label">عنوان محفظتك المعين للسحب:</label>
+              <div style="display: flex; gap: 6px; margin-top: 4px;">
+                <input type="text" id="default-wallet" readonly data-i18n-ph="ph_wallet_addr" placeholder="لم يتم تعيين محفظة">
+                <button id="edit-wallet-btn" class="btn-small btn-warning" onclick="toggleWalletEdit()" style="width: auto;" data-i18n="btn_edit">تعديل</button>
+              </div>
+              <button id="save-wallet-btn" class="btn-small btn-success hidden" onclick="saveSettings()" style="margin-top: 6px; width: 100%;" data-i18n="btn_save_wallet">حفظ العنوان الجديد</button>
+            </div>
+
+            <input type="number" id="withdraw-amount" oninput="updateWithdrawCalculations()" data-i18n-ph="ph_withdraw_amount" placeholder="المبلغ المراد سحبه (الحد الأدنى $30)">
+
+            <!-- حاسبة العمولة والصافي -->
+            <div id="withdraw-fee-box" class="fee-breakdown hidden">
+              <div><span data-i18n="calc_req_label">المطلوب:</span> <b id="calc-req">$0.00</b></div>
+              <div><span data-i18n="calc_fee_label">العمولة (10%):</span> <b id="calc-fee" style="color: var(--danger);">$0.00</b></div>
+              <div><span data-i18n="calc_net_label">الصافي:</span> <b id="calc-net" style="color: var(--success);">$0.00</b></div>
+            </div>
+
+            <button id="btn-request-withdraw" onclick="requestWithdrawal()" style="margin-top: 12px;">
+              <span data-i18n="btn_submit_withdraw">إرسال طلب السحب</span>
+            </button>
+          </div>
+
+          <div class="card">
+            <h3 data-i18n="withdraw_history">سجل السحوبات</h3>
+            <div id="withdraws-list">
+              <!-- يتم جلب السجل ديناميكياً -->
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- TAB 3: الحملات الإعلانية (Ads) -->
+      <div id="tab-content-ads" class="hidden">
+        <div class="card">
+          <h3 data-i18n="create_ad_title">إنشاء حملة إعلانية جديدة</h3>
+          <p style="font-size: 11px; color: var(--text-muted);" data-i18n="ad_rate_desc">تكلفة الإعلان: $1.50 لكل 1,000 مشاهدة حقيقية (CPM)</p>
+          <input type="text" id="ad-title" data-i18n-ph="ph_ad_title" placeholder="عنوان الإعلان">
+          <input type="url" id="ad-target-url" data-i18n-ph="ph_ad_target_url" placeholder="رابط الوجهة (https://...)">
+          <input type="number" id="ad-budget" step="1" data-i18n-ph="ph_ad_budget" placeholder="ميزانية الحملة ($)">
+          <button id="btn-create-ad" onclick="createAdCampaign()">
+            <span data-i18n="btn_launch_ad">إطلاق الحملة</span>
+          </button>
+        </div>
+
+        <div class="card">
+          <h3 data-i18n="my_ads_title">حملاتي الإعلانية</h3>
+          <div id="ads-list">
+            <!-- يتم تحميل قائمة الإعلانات ديناميكياً -->
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 4: نظام الإحالة (Referrals) -->
+      <div id="tab-content-ref" class="hidden">
+        <div class="card" style="text-align: center;">
+          <h3 data-i18n="ref_title">نظام الإحالة والتسويق</h3>
+          <p style="font-size: 13px; color: var(--text-muted);" data-i18n="ref_desc">احصل على نسبة من أرباح أصدقائك المنضمين عبر رابطك الخاص مدى الحياة!</p>
+          
+          <div class="stat-box" style="margin: 14px 0;">
+            <small data-i18n="total_ref_earnings">إجمالي أرباح الإحالة</small>
+            <h3 id="ref-earnings" style="color: var(--success);">$0.00</h3>
+          </div>
+
+          <input type="text" id="ref-link" readonly style="text-align: center; font-weight: bold; color: var(--accent);">
+          
+          <div style="display: flex; gap: 8px; margin-top: 10px;">
+            <button class="btn-success" onclick="shareReferralLink()" data-i18n="btn_share_ref">مشاركة عبر تيليجرام</button>
+            <button class="btn-warning" onclick="copyToClipboard(document.getElementById('ref-link').value)" data-i18n="btn_copy">نسخ الرابط</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 5: لوحة التحكم للأدمن (Admin Dashboard) -->
+      <div id="tab-content-admin" class="hidden">
+        <div class="card" style="border-color: var(--danger);">
+          <h3 style="color: var(--danger);" data-i18n="admin_user_mgmt">لوحة التحكم الإدارية</h3>
+          
+          <div class="stats-grid">
+            <div class="stat-box">
+              <small data-i18n="admin_total_users">المستخدمين</small>
+              <h3 id="admin-total-users">0</h3>
+            </div>
+            <div class="stat-box">
+              <small data-i18n="admin_total_pending">معلقات أرباح</small>
+              <h3 id="admin-total-pending">$0.00</h3>
+            </div>
+          </div>
+
+          <h4 data-i18n="admin_pending_deposits" style="margin-top: 14px;">طلبات الإيداع المعلقة:</h4>
+          <div id="admin-deposits-list"></div>
+
+          <h4 data-i18n="admin_pending_withdraws" style="margin-top: 14px;">طلبات السحب المعلقة:</h4>
+          <div id="admin-withdraws-list"></div>
+
+          <h4 data-i18n="admin_user_mgmt" style="margin-top: 14px;">قائمة المستخدمين:</h4>
+          <div id="admin-users-list"></div>
+        </div>
+      </div>
+
+    </div> <!-- End App View -->
+
+  </div> <!-- End Container -->
+
+  <!-- Modal Instructions (تعليمات الإيداع) -->
+  <div id="instructions-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <h3 style="margin-top: 0;" data-i18n="deposit_guide_title">تعليمات عملية الإيداع</h3>
+      <ol style="font-size: 13px; color: var(--text-muted); line-height: 1.6; padding-right: 18px;">
+        <li data-i18n="guide_step1_desc">قم باختيار الشبكة المطلوبة (TRC20 أو BEP20).</li>
+        <li data-i18n="guide_step2_desc">قم بنسخ عنوان المحفظة الظاهر بدقة وتحويل المبلغ المطلوب.</li>
+        <li data-i18n="guide_step3_desc">بعد اكتمال التحويل، اذهب إلى تفاصيل المعاملة وانسخ رقم (TxID / Transaction Hash).</li>
+        <li data-i18n="guide_step4_desc">أدخل قيمة المبلغ ورقم التحويل في الخانات المخصصة واضغط "تأكيد الإيداع".</li>
+      </ol>
+      <button class="btn-danger" onclick="toggleInstructionsModal(false)" style="margin-top: 14px;" data-i18n="btn_close">إغلاق</button>
+    </div>
+  </div>
+
+  <!-- Dynamic Navigation Dock (الشريط السفلي للتنقل) -->
+  <nav class="tg-nav-dock">
+    <button id="tab-btn-stats" class="nav-btn active" onclick="switchTab('stats')">
+      <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+      <span data-i18n="nav_home">الرئيسية</span>
+    </button>
+    
+    <button id="tab-btn-wallet" class="nav-btn" onclick="switchTab('wallet')">
+      <svg viewBox="0 0 24 24"><path d="M21 18v1c0 1.1-.9 2-2 2H5c-1.11 0-2-.9-2-2V5c0-1.1.89-2 2-2h14c1.1 0 2 .9 2 2v1h-9c-1.11 0-2 .9-2 2v8c0 1.1.89 2 2 2h9zm-9-2h10V8H12v8zm4-2.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
+      <span data-i18n="nav_wallet">المحفظة</span>
+    </button>
+    
+    <button id="tab-btn-ads" class="nav-btn" onclick="switchTab('ads')">
+      <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-5 14H4v-4h11v4zm0-5H4V9h11v4zm5 5h-4V9h4v9z"/></svg>
+      <span data-i18n="nav_ads">الحملات</span>
+    </button>
+    
+    <button id="tab-btn-ref" class="nav-btn" onclick="switchTab('ref')">
+      <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+      <span data-i18n="nav_referral">الإحالة</span>
+    </button>
+
+    <button id="tab-btn-admin" class="nav-btn hidden" onclick="switchTab('admin')">
+      <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+      <span data-i18n="admin_user_mgmt">الأدمن</span>
+    </button>
+  </nav>
+
+  <!-- Scripts الخاصة بالمنطق والترجمة باستدعاء عالي بدون ES Modules -->
+  <script src="i18n.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
