@@ -12,6 +12,12 @@ let bridgeStartTime = Date.now();
 let isUserAdmin = false;
 const tg = window.Telegram?.WebApp;
 
+// تهيئة تطبيق التليجرام إن وُجد
+if (tg) {
+  tg.ready();
+  tg.expand();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   if (window.i18n) {
     window.i18n.init();
@@ -24,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initializeApp();
 });
 
+// التنقل بين التبويبات
 window.switchTab = function(tabId) {
   if (tabId === 'admin' && !isUserAdmin) return;
   triggerHaptic('light');
@@ -42,6 +49,7 @@ window.switchTab = function(tabId) {
   }
 };
 
+// تغيير اللغة
 window.changeAppLanguage = function(lang) {
   if (window.i18n) window.i18n.setLanguage(lang);
   loadUserData();
@@ -110,14 +118,19 @@ window.updateWithdrawCalculations = function() {
     const fee = val * 0.10;
     const net = val - fee;
 
-    document.getElementById('calc-req').innerText = `$${val.toFixed(2)}`;
-    document.getElementById('calc-fee').innerText = `$${fee.toFixed(2)}`;
-    document.getElementById('calc-net').innerText = `$${net.toFixed(2)}`;
+    const reqEl = document.getElementById('calc-req');
+    const feeEl = document.getElementById('calc-fee');
+    const netEl = document.getElementById('calc-net');
+
+    if (reqEl) reqEl.innerText = `$${val.toFixed(2)}`;
+    if (feeEl) feeEl.innerText = `$${fee.toFixed(2)}`;
+    if (netEl) netEl.innerText = `$${net.toFixed(2)}`;
   } else {
     feeBox.classList.add('hidden');
   }
 };
 
+// دالة جلب البيانات الآمنة لمعالجة JWT والتحديث التلقائي
 async function safeFetch(endpoint, options = {}) {
   options.headers = options.headers || {};
   if (authToken) {
@@ -294,6 +307,7 @@ async function initializeApp() {
   }
 }
 
+// تحميل بيانات المستخدم وتحديث عناوين الواجهة
 async function loadUserData() {
   try {
     const res = await safeFetch('/api/user/data');
@@ -312,14 +326,20 @@ async function loadUserData() {
     const adminTabBtn = document.getElementById('tab-btn-admin');
     if (adminTabBtn) adminTabBtn.classList.toggle('hidden', !isUserAdmin);
 
-    document.getElementById('pending-bal').innerText = `$${(data.user.pendingBalance || 0).toFixed(2)}`;
-    document.getElementById('avail-bal').innerText = `$${(data.user.availableBalance || 0).toFixed(2)}`;
-    document.getElementById('ref-earnings').innerText = `$${(data.user.referralEarnings || 0).toFixed(2)}`;
+    const pendingEl = document.getElementById('pending-bal');
+    const availEl = document.getElementById('avail-bal');
+    const refEarnEl = document.getElementById('ref-earnings');
+
+    if (pendingEl) pendingEl.innerText = `$${(data.user.pendingBalance || 0).toFixed(2)}`;
+    if (availEl) availEl.innerText = `$${(data.user.availableBalance || 0).toFixed(2)}`;
+    if (refEarnEl) refEarnEl.innerText = `$${(data.user.referralEarnings || 0).toFixed(2)}`;
     
     const walletInput = document.getElementById('default-wallet');
-    if (walletInput) walletInput.value = data.user.defaultWallet || '';
-    
-    if (walletInput) walletInput.setAttribute('readonly', 'readonly');
+    if (walletInput) {
+      walletInput.value = data.user.defaultWallet || '';
+      walletInput.setAttribute('readonly', 'readonly');
+    }
+
     const editWalletBtn = document.getElementById('edit-wallet-btn');
     if (editWalletBtn) {
       editWalletBtn.innerText = window.i18n ? window.i18n.t('btn_edit') : 'تعديل';
@@ -336,13 +356,16 @@ async function loadUserData() {
     if (ancBox) {
       if (data.announcements && data.announcements.length > 0) {
         ancBox.classList.remove('hidden');
-        document.getElementById('anc-title').innerText = data.announcements[0].title;
-        document.getElementById('anc-content').innerText = data.announcements[0].content;
+        const titleEl = document.getElementById('anc-title');
+        const contentEl = document.getElementById('anc-content');
+        if (titleEl) titleEl.innerText = data.announcements[0].title;
+        if (contentEl) contentEl.innerText = data.announcements[0].content;
       } else {
         ancBox.classList.add('hidden');
       }
     }
 
+    // سجل السحوبات
     const withdrawsContainer = document.getElementById('withdraws-list');
     if (withdrawsContainer) {
       if (!data.withdraws || data.withdraws.length === 0) {
@@ -367,6 +390,7 @@ async function loadUserData() {
       }
     }
 
+    // قائمة الروابط
     const linksContainer = document.getElementById('links-list');
     if (linksContainer) {
       if (!data.links || data.links.length === 0) {
@@ -393,6 +417,7 @@ async function loadUserData() {
       }
     }
 
+    // قائمة الحملات الإعلانية
     const adsContainer = document.getElementById('ads-list');
     if (adsContainer) {
       if (!data.ads || data.ads.length === 0) {
@@ -421,6 +446,7 @@ async function loadUserData() {
   }
 }
 
+// تغيير حالة الرابط
 window.toggleLinkStatus = async function(linkId) {
   triggerHaptic('light');
   try {
@@ -441,6 +467,7 @@ window.toggleLinkStatus = async function(linkId) {
   }
 };
 
+// تغيير حالة الإعلان
 window.toggleAdStatus = async function(adId) {
   triggerHaptic('light');
   try {
@@ -461,6 +488,7 @@ window.toggleAdStatus = async function(adId) {
   }
 };
 
+// إنشاء حملة إعلانية
 window.createAdCampaign = async function() {
   const title = document.getElementById('ad-title')?.value;
   const targetUrl = document.getElementById('ad-target-url')?.value;
@@ -494,6 +522,7 @@ window.createAdCampaign = async function() {
   }
 };
 
+// طلب إيداع
 window.requestDeposit = async function() {
   const amount = document.getElementById('deposit-amount')?.value;
   const paymentMethod = document.getElementById('deposit-network')?.value;
@@ -530,6 +559,7 @@ window.requestDeposit = async function() {
   }
 };
 
+// تأكيد المشاهدة والتحويل للرابط الأصلي
 window.completeImpression = async function() {
   triggerHaptic('medium');
   setButtonLoading('go-btn', true);
@@ -556,6 +586,7 @@ window.completeImpression = async function() {
   }
 };
 
+// اختصار رابط جديد
 window.handleShortenClick = async function() {
   const title = document.getElementById('link-title')?.value;
   const targetUrl = document.getElementById('link-url')?.value;
@@ -591,6 +622,7 @@ window.handleShortenClick = async function() {
   }
 };
 
+// طلب سحب الأرباح
 window.requestWithdrawal = async function() {
   const amount = parseFloat(document.getElementById('withdraw-amount')?.value);
   const walletAddress = document.getElementById('default-wallet')?.value;
@@ -613,7 +645,8 @@ window.requestWithdrawal = async function() {
     else {
       showToast(window.i18n ? window.i18n.t('withdraw_success') : 'تم إرسال طلب السحب');
       document.getElementById('withdraw-amount').value = '';
-      document.getElementById('withdraw-fee-box').classList.add('hidden');
+      const feeBox = document.getElementById('withdraw-fee-box');
+      if (feeBox) feeBox.classList.add('hidden');
       loadUserData();
     }
   } catch (e) {
@@ -623,6 +656,7 @@ window.requestWithdrawal = async function() {
   }
 };
 
+// حفظ إعدادات المحفظة
 window.saveSettings = async function() {
   const defaultWallet = document.getElementById('default-wallet')?.value;
   if (!defaultWallet || defaultWallet.trim().length < 5) {
@@ -647,6 +681,7 @@ window.saveSettings = async function() {
   }
 };
 
+// إجراءات لوحة التحكم (الإيداعات والسحوبات)
 window.handleAdminDeposit = async function(depositId, status) {
   triggerHaptic('medium');
   try {
@@ -687,6 +722,7 @@ window.handleAdminWithdraw = async function(withdrawId, status) {
   }
 };
 
+// تحميل بيانات لوحة الإدارة
 async function loadAdminData() {
   try {
     const res = await safeFetch('/api/admin/dashboard-data');
@@ -694,8 +730,11 @@ async function loadAdminData() {
     const data = await res.json();
     if (data.error) return showToast(data.error);
 
-    document.getElementById('admin-total-users').innerText = data.stats?.totalUsers || 0;
-    document.getElementById('admin-total-pending').innerText = `$${(data.stats?.totalPending || 0).toFixed(2)}`;
+    const totalUsersEl = document.getElementById('admin-total-users');
+    const totalPendingEl = document.getElementById('admin-total-pending');
+
+    if (totalUsersEl) totalUsersEl.innerText = data.stats?.totalUsers || 0;
+    if (totalPendingEl) totalPendingEl.innerText = `$${(data.stats?.totalPending || 0).toFixed(2)}`;
 
     const dList = document.getElementById('admin-deposits-list');
     if (dList) {
