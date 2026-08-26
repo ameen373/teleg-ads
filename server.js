@@ -19,24 +19,23 @@ const app = express();
 // --- Setup Server Trust Proxy ---
 app.set('trust proxy', 1);
 
-// --- 1. CORS Configuration ---
-app.use(cors({
+// --- 1. CORS Configuration (دعم احترافي وكامل لرؤوس Telegram WebApp) ---
+const corsOptions = {
   origin: true,
   credentials: true,
   allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'x-telegram-init-data', 'x-demo-user-id'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-}));
+};
+app.use(cors(corsOptions));
 
 // --- 2. Request Parsers ---
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-// --- 3. Static Files Setup ---
+// --- 3. Robust Static Files Delivery (حل مشكلة عدم ظهور CSS و JS نهائياً) ---
 app.use(express.static(__dirname, {
-  dotfiles: 'ignore',
+  maxAge: '1d',
   etag: true,
-  extensions: ['html', 'js', 'css'],
-  index: false,
   setHeaders: (res, filePath) => {
     if (filePath.endsWith('.js')) {
       res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
@@ -97,13 +96,19 @@ let redisIsConnected = false;
 const redis = new Redis(CONFIG.REDIS_URL, {
   maxRetriesPerRequest: 3,
   enableReadyCheck: true,
+  lazyConnect: true,
   retryStrategy: (times) => Math.min(times * 50, 2000)
+});
+
+redis.connect().catch(err => {
+  logger.error('⚠️ Initial Redis Connect Error: ' + err.message);
 });
 
 redis.on('error', (err) => {
   redisIsConnected = false;
   logger.error('⚠️ Redis Connection Warning: ' + err.message);
 });
+
 redis.on('ready', () => {
   redisIsConnected = true;
   console.log('✅ Enterprise Redis Client Connected & Ready');
@@ -355,7 +360,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
     await session.commitTransaction();
     res.json({ success: true, ad: ad[0] });
   } catch (err) {
-    if (session.inTransaction()) await session.abortTransaction();
+    await session.abortTransaction();
     next(err);
   } finally {
     session.endSession();
@@ -462,7 +467,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'Invalid wallet address' });
     }
 
-    const netAmount = Number((numAmt - FEE).toFixed(4));
+    const netAmount = numAmt - FEE;
 
     const updatedUser = await User.findOneAndUpdate(
       { _id: req.user._id, availableBalance: { $gte: numAmt } },
@@ -494,7 +499,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
 
     res.json({ success: true, withdraw: withdrawRequest[0] });
   } catch (err) {
-    if (session.inTransaction()) await session.abortTransaction();
+    await session.abortTransaction();
     next(err);
   } finally {
     session.endSession();
@@ -653,7 +658,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
         const costPerImpression = ad.costPerImpression || 0.0015;
         let publisherShare = ad.publisherEarningsPerImpression || 0.00135;
         
-        ad.remainingBudget = Math.max(0, Number((ad.remainingBudget - costPerImpression).toFixed(6)));
+        ad.remainingBudget = Math.max(0, ad.remainingBudget - costPerImpression);
         ad.impressionsCount += 1;
         if (ad.remainingBudget < costPerImpression) {
           ad.status = 'completed';
@@ -690,7 +695,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
     await sessionDb.commitTransaction();
     res.json({ success: true, targetUrl: link.targetUrl, counted: true });
   } catch (err) {
-    if (sessionDb.inTransaction()) await sessionDb.abortTransaction();
+    await sessionDb.abortTransaction();
     next(err);
   } finally {
     sessionDb.endSession();
@@ -885,7 +890,7 @@ app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (re
     await session.commitTransaction();
     res.json({ success: true, deposit });
   } catch (err) {
-    if (session.inTransaction()) await session.abortTransaction();
+    await session.abortTransaction();
     next(err);
   } finally {
     session.endSession();
@@ -938,7 +943,7 @@ app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (r
     await session.commitTransaction();
     res.json({ success: true, withdraw });
   } catch (err) {
-    if (session.inTransaction()) await session.abortTransaction();
+    await session.abortTransaction();
     next(err);
   } finally {
     session.endSession();
@@ -998,7 +1003,7 @@ app.post('/api/admin/distribute-revenue', authMiddleware, adminMiddleware, async
     await session.commitTransaction();
     res.json({ success: true, message: `Successfully distributed $${revenue} to ${links.length} links (released in 24 hours).` });
   } catch (err) {
-    if (session.inTransaction()) await session.abortTransaction();
+    await session.abortTransaction();
     next(err);
   } finally {
     session.endSession();
@@ -1053,7 +1058,7 @@ cron.schedule('0 0 * * *', async () => {
           );
         }
       } catch (err) {
-        if (session.inTransaction()) await session.abortTransaction();
+        await session.abortTransaction();
         logger.error(`Error processing hold release for ID ${hold._id}: ${err.message}`);
       } finally {
         session.endSession();
@@ -1064,20 +1069,21 @@ cron.schedule('0 0 * * *', async () => {
   }
 });
 
-// --- 5. Static HTML Page Delivery Routes ---
-app.get(['/', '/app', '/admin', '/views.html'], (req, res) => {
+// --- 5. Static HTML Page Delivery & Catch-all SPA Routing ---
+const sendAppIndex = (req, res) => {
   res.sendFile(path.join(__dirname, 'views.html'));
-});
+};
 
-// Bridge View Route for Short Links
-app.get('/r/:code', (req, res) => {
-  res.sendFile(path.join(__dirname, 'views.html'));
-});
+app.get(['/', '/app', '/admin', '/views.html'], sendAppIndex);
+app.get('/r/:code', sendAppIndex);
 
 // --- Catch-all API 404 Handler ---
 app.use('/api/*', (req, res) => {
   res.status(404).json({ success: false, error: 'Requested endpoint not found' });
 });
+
+// Fallback للصفحات غير الـ API لضمان عمل تطبيقات الـ SPA (Single Page Application)
+app.get('*', sendAppIndex);
 
 // ==================================================
 // --- Global Error Handling Middleware ---
