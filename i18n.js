@@ -1,50 +1,59 @@
-const i18n = {
-  en: window.translationsEn || {},
-  ar: window.translationsAr || {}
-};
+import ar from './ar.js';
+import en from './en.js';
 
-let currentLang = localStorage.getItem('appLang') || 'en';
+const translations = { ar, en };
 
-function applyLanguage(lang) {
-  const activeLang = i18n[lang] ? lang : 'en';
-  currentLang = activeLang;
-  
-  document.documentElement.lang = activeLang;
-  document.documentElement.dir = activeLang === 'ar' ? 'rtl' : 'ltr';
-  document.body.style.direction = activeLang === 'ar' ? 'rtl' : 'ltr';
+class I18nManager {
+  constructor() {
+    this.currentLang = localStorage.getItem('appLang') || 'ar';
+  }
 
-  const langSelect = document.getElementById('language-select');
-  if (langSelect) langSelect.value = activeLang;
+  init() {
+    this.applyLanguage(this.currentLang);
+  }
 
-  document.querySelectorAll('[data-i18n]').forEach(el => {
-    const key = el.getAttribute('data-i18n');
-    if (i18n[activeLang] && i18n[activeLang][key]) {
-      el.innerText = i18n[activeLang][key];
-    }
-  });
+  setLanguage(lang) {
+    if (!translations[lang]) lang = 'en';
+    this.currentLang = lang;
+    localStorage.setItem('appLang', lang);
+    this.applyLanguage(lang);
+  }
 
-  document.querySelectorAll('[data-i18n-ph]').forEach(el => {
-    const key = el.getAttribute('data-i18n-ph');
-    if (i18n[activeLang] && i18n[activeLang][key]) {
-      el.placeholder = i18n[activeLang][key];
-    }
-  });
-}
+  getLanguage() {
+    return this.currentLang;
+  }
 
-function changeAppLanguage(lang) {
-  currentLang = i18n[lang] ? lang : 'en';
-  localStorage.setItem('appLang', currentLang);
-  applyLanguage(currentLang);
-  if (typeof loadUserData === 'function') {
-    loadUserData();
+  t(key, fallback = '') {
+    return translations[this.currentLang]?.[key] || translations['en']?.[key] || fallback || key;
+  }
+
+  applyLanguage(lang) {
+    const activeLang = translations[lang] ? lang : 'en';
+    this.currentLang = activeLang;
+
+    document.documentElement.lang = activeLang;
+    document.documentElement.dir = activeLang === 'ar' ? 'rtl' : 'ltr';
+    document.body.style.direction = activeLang === 'ar' ? 'rtl' : 'ltr';
+
+    const langSelect = document.getElementById('language-select');
+    if (langSelect) langSelect.value = activeLang;
+
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.getAttribute('data-i18n');
+      const translation = this.t(key);
+      if (translation) {
+        el.innerText = translation;
+      }
+    });
+
+    document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+      const key = el.getAttribute('data-i18n-ph');
+      const translation = this.t(key);
+      if (translation) {
+        el.placeholder = translation;
+      }
+    });
   }
 }
 
-function initI18n() {
-  applyLanguage(currentLang);
-}
-
-// جعل الدوال متاحة على مستوى window لاستخدامها في باقي الملفات والأحداث
-window.applyLanguage = applyLanguage;
-window.changeAppLanguage = changeAppLanguage;
-window.initI18n = initI18n;
+export const i18n = new I18nManager();
