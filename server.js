@@ -29,11 +29,11 @@ app.options('*', cors());
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-// --- Static Files Middleware ---
+// --- Static Files Middleware (Serves index.html, style.css, app.js, etc.) ---
 app.use(express.static(__dirname));
 app.use('/locales', express.static(path.join(__dirname, 'locales')));
 
-// --- Ensure JSON Response Format in UTF-8 ---
+// --- Ensure JSON Response Format in UTF-8 for API Routes ---
 app.use('/api', (req, res, next) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   next();
@@ -89,6 +89,7 @@ const redis = new Redis(CONFIG.REDIS_URL, {
 
 redis.on('error', (err) => {
   redisIsConnected = false;
+  console.log('⚠️ Redis Connection Warning:', err);
   logger.error('⚠️ Redis Connection Warning: ' + err.message);
 });
 redis.on('ready', () => {
@@ -98,7 +99,7 @@ redis.on('ready', () => {
 
 async function safeRedisGet(key) {
   if (!redisIsConnected) return null;
-  try { return await redis.get(key); } catch (e) { return null; }
+  try { return await redis.get(key); } catch (e) { console.log('Redis Get Error:', e); return null; }
 }
 
 async function safeRedisSet(key, value, mode, duration) {
@@ -106,12 +107,12 @@ async function safeRedisSet(key, value, mode, duration) {
   try {
     if (mode && duration) await redis.set(key, value, mode, duration);
     else await redis.set(key, value);
-  } catch (e) { logger.error('Redis Set Failed: ' + e.message); }
+  } catch (e) { console.log('Redis Set Failed:', e); logger.error('Redis Set Failed: ' + e.message); }
 }
 
 async function safeRedisDel(key) {
   if (!redisIsConnected) return;
-  try { await redis.del(key); } catch (e) { logger.error('Redis Del Failed: ' + e.message); }
+  try { await redis.del(key); } catch (e) { console.log('Redis Del Failed:', e); logger.error('Redis Del Failed: ' + e.message); }
 }
 
 // --- Database Connection Pool ---
@@ -122,6 +123,7 @@ mongoose.connect(CONFIG.MONGO_URI, {
   socketTimeoutMS: 45000,
 }).then(() => console.log('✅ Enterprise MongoDB Pipeline Connected'))
   .catch(err => {
+    console.log('❌ Critical MongoDB Connection Failure:', err);
     logger.error('❌ Critical MongoDB Connection Failure:', err);
     process.exit(1);
   });
@@ -137,6 +139,7 @@ async function sendTelegramNotification(telegramId, message) {
       disable_web_page_preview: true
     }, { timeout: 4000 });
   } catch (err) {
+    console.log(`⚠️ Telegram Dispatch Failed [ID: ${telegramId}]:`, err);
     logger.error(`⚠️ Telegram Dispatch Failed [ID: ${telegramId}]: ${err.message}`);
   }
 }
@@ -168,6 +171,7 @@ function verifyTelegramData(initData) {
     }
     return null;
   } catch (err) {
+    console.log('Verify Telegram Data Error:', err);
     return null;
   }
 }
@@ -217,6 +221,7 @@ const authMiddleware = async (req, res, next) => {
     req.user = user;
     next();
   } catch (err) {
+    console.log('Auth Middleware Error:', err);
     res.status(401).json({ success: false, error: 'Session expired, please log in again' });
   }
 };
@@ -245,6 +250,7 @@ app.get('/api/check-admin', (req, res) => {
     const isAdmin = String(userId).trim() === String(adminId).trim();
     return res.json({ success: true, isAdmin });
   } catch (err) {
+    console.log('Check Admin Error:', err);
     return res.status(500).json({ success: false, error: 'Error checking admin status: ' + err.message });
   }
 });
@@ -309,6 +315,7 @@ app.post('/api/auth/login', async (req, res, next) => {
       }
     });
   } catch (err) {
+    console.log('Login Route Error:', err);
     next(err);
   }
 });
@@ -363,6 +370,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
     await session.commitTransaction();
     res.json({ success: true, ad: ad[0] });
   } catch (err) {
+    console.log('Create Ad Error:', err);
     await session.abortTransaction();
     next(err);
   } finally {
@@ -375,6 +383,7 @@ app.get('/api/user/ads', authMiddleware, async (req, res, next) => {
     const ads = await Ad.find({ advertiserId: req.user._id }).sort({ createdAt: -1 }).lean();
     res.json({ success: true, ads });
   } catch (err) {
+    console.log('Fetch Ads Error:', err);
     next(err);
   }
 });
@@ -396,6 +405,7 @@ app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
 
     res.json({ success: true, status: ad.status });
   } catch (err) {
+    console.log('Toggle Ad Error:', err);
     next(err);
   }
 });
@@ -440,6 +450,7 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
 
     return res.json({ success: true, deposit });
   } catch (err) {
+    console.log('Deposit Error:', err);
     return res.status(500).json({ success: false, error: 'Failed to process deposit request: ' + err.message });
   }
 });
@@ -502,6 +513,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
 
     return res.json({ success: true, withdraw: withdrawRequest[0] });
   } catch (err) {
+    console.log('Withdraw Error:', err);
     await session.abortTransaction();
     return res.status(500).json({ success: false, error: 'Failed to process withdrawal request: ' + err.message });
   } finally {
@@ -582,6 +594,7 @@ app.post('/api/init-click', validateTraffic, async (req, res, next) => {
       } : null
     });
   } catch (err) {
+    console.log('Init Click Error:', err);
     next(err);
   }
 });
@@ -698,6 +711,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
     await sessionDb.commitTransaction();
     res.json({ success: true, targetUrl: link.targetUrl, counted: true });
   } catch (err) {
+    console.log('Impression Error:', err);
     await sessionDb.abortTransaction();
     next(err);
   } finally {
@@ -741,6 +755,7 @@ app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res, nex
       shortUrl: `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`
     });
   } catch (err) {
+    console.log('Create Link Error:', err);
     next(err);
   }
 });
@@ -759,6 +774,7 @@ app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
 
     res.json({ success: true, isActive: link.isActive });
   } catch (err) {
+    console.log('Toggle Link Error:', err);
     next(err);
   }
 });
@@ -810,6 +826,7 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
       }
     });
   } catch (err) {
+    console.log('User Data Fetch Error:', err);
     next(err);
   }
 });
@@ -825,6 +842,7 @@ app.post('/api/user/settings', authMiddleware, async (req, res, next) => {
     await User.findByIdAndUpdate(req.user._id, updateData);
     res.json({ success: true });
   } catch (err) {
+    console.log('User Settings Error:', err);
     next(err);
   }
 });
@@ -844,6 +862,7 @@ app.get('/api/admin/dashboard-data', authMiddleware, adminMiddleware, async (req
 
     res.json({ success: true, withdraws, deposits, users, stats: { ...(stats[0] || {}), totalAds } });
   } catch (err) {
+    console.log('Admin Dashboard Data Error:', err);
     next(err);
   }
 });
@@ -894,6 +913,7 @@ app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (re
     await session.commitTransaction();
     res.json({ success: true, deposit });
   } catch (err) {
+    console.log('Admin Deposit Action Error:', err);
     await session.abortTransaction();
     next(err);
   } finally {
@@ -947,6 +967,7 @@ app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (r
     await session.commitTransaction();
     res.json({ success: true, withdraw });
   } catch (err) {
+    console.log('Admin Withdraw Action Error:', err);
     await session.abortTransaction();
     next(err);
   } finally {
@@ -1007,6 +1028,7 @@ app.post('/api/admin/distribute-revenue', authMiddleware, adminMiddleware, async
     await session.commitTransaction();
     res.json({ success: true, count: links.length });
   } catch (err) {
+    console.log('Distribute Revenue Error:', err);
     await session.abortTransaction();
     next(err);
   } finally {
@@ -1031,6 +1053,7 @@ app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (r
 
     res.json({ success: true, isBanned: user.isBanned });
   } catch (err) {
+    console.log('Toggle Ban Error:', err);
     next(err);
   }
 });
@@ -1063,23 +1086,26 @@ cron.schedule('0 0 * * *', async () => {
         }
       } catch (err) {
         await session.abortTransaction();
+        console.log(`Error processing hold release for ID ${hold._id}:`, err);
         logger.error(`Error processing hold release for ID ${hold._id}: ${err.message}`);
       } finally {
         session.endSession();
       }
     }
   } catch (err) {
+    console.log('Cron Settlement Error:', err);
     logger.error('❌ Error executing Cron Settlement: ' + err.message);
   }
 });
 
 // --- Static HTML Delivery Routes ---
+// المسار الرئيسي يعرض index.html مباشرة
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'views.html'));
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 app.get(['/app', '/admin', '/r/:code'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'views.html'));
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 // --- Catch-all API 404 Handler ---
@@ -1091,6 +1117,8 @@ app.use('/api/*', (req, res) => {
 // --- Global Error Handling Middleware ---
 // ==================================================
 app.use((err, req, res, next) => {
+  // طباعة تفاصيل الخطأ بدقة في الكونسول لتسهيل التشخيص
+  console.log('❌ Internal Server Error Details:', err);
   logger.error('Unhandled Application Error:', err);
 
   const statusCode = err.status || err.statusCode || 500;
@@ -1107,10 +1135,12 @@ app.use((err, req, res, next) => {
 
 // --- Global Crash Guard ---
 process.on('uncaughtException', (err) => {
+  console.log('Uncaught Exception Detected:', err);
   logger.error('Uncaught Exception Detected: ' + err.stack);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
+  console.log('Unhandled Rejection at:', promise, 'reason:', reason);
   logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
