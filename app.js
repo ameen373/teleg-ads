@@ -35,7 +35,6 @@ function getText(key, fallback = '') {
 
 /* --- التحكم في التنقل وتحديد الأقسام --- */
 
-// دالة الانتقال لفتح نافذة/قسم الإيداع فقط
 function navigateToDepositSection() {
   triggerHaptic('light');
   const depositSection = document.getElementById('deposit-section');
@@ -45,7 +44,6 @@ function navigateToDepositSection() {
   if (shortenerSection) shortenerSection.classList.add('hidden');
 }
 
-// دالة الانتقال لصفحة اختصار الروابط والجسر
 function navigateToShortenerSection() {
   const depositSection = document.getElementById('deposit-section');
   const shortenerSection = document.getElementById('shortener-section');
@@ -816,12 +814,17 @@ function switchTab(tabId) {
   if (tabId === 'admin' && !isUserAdmin) return;
   triggerHaptic('light');
 
-  document.querySelectorAll('.tg-nav-dock button').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('#app-view > div[id^="tab-content-"]').forEach(c => c.classList.add('hidden'));
+  // إزالة الحالة النشطة من جميع أزرار الشريط
+  document.querySelectorAll('.tg-nav-dock .nav-btn').forEach(b => b.classList.remove('active'));
   
+  // إخفاء جميع الأقسام (Sections) داخل Container الأساسي
+  document.querySelectorAll('#app-main-content > section').forEach(c => c.classList.add('hidden'));
+  
+  // تفعيل الزر المحدد
   const targetBtn = document.getElementById(`tab-btn-${tabId}`);
   if (targetBtn) targetBtn.classList.add('active');
   
+  // إظهار القسم المحدد
   const tabContent = document.getElementById(`tab-content-${tabId}`);
   if (tabContent) tabContent.classList.remove('hidden');
 
@@ -995,7 +998,8 @@ async function distributeRevenue() {
   }
 }
 
-window.addEventListener('DOMContentLoaded', async () => {
+/* --- ربط مستمعات الأحداث (EventListeners) بعد اكتمال تحميل DOM --- */
+document.addEventListener('DOMContentLoaded', async () => {
   try {
     if (tg) {
       tg.ready();
@@ -1010,6 +1014,15 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
   
   renderTelegramUser();
+
+  // إلحاق Event Listeners بأزرار شريط التنقل
+  const tabs = ['dashboard', 'wallet', 'ads', 'referral', 'settings', 'admin'];
+  tabs.forEach(tabId => {
+    const btn = document.getElementById(`tab-btn-${tabId}`);
+    if (btn) {
+      btn.addEventListener('click', () => switchTab(tabId));
+    }
+  });
 
   if (window.location.pathname.startsWith('/r/')) {
     const bridgeView = document.getElementById('bridge-view');
