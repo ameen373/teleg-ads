@@ -6,7 +6,28 @@ let authToken = localStorage.getItem('authToken');
 let currentSessionId = null;
 let bridgeStartTime = Date.now();
 let isUserAdmin = false;
+
+// 1. التهيئة والتحقق من بيئة العمل (Telegram WebApp SDK)
 const tg = window.Telegram?.WebApp;
+if (tg) {
+  try {
+    tg.ready();
+    tg.expand();
+  } catch (e) {
+    console.warn("Telegram WebApp initialization error:", e);
+  }
+}
+
+// 2. استخراج بيانات المستخدم مع خيار fallback خارج تيليجرام
+const tgUserData = tg?.initDataUnsafe?.user || {
+  id: 123456789,
+  first_name: "Demo",
+  last_name: "User",
+  username: "demo_user",
+  language_code: "en",
+  is_premium: false
+};
+const tgInitData = tg?.initData || '';
 
 function escapeHTML(str) {
   if (!str) return '';
@@ -110,10 +131,19 @@ function updateWithdrawCalculations() {
   }
 }
 
+// 3. دالة safeFetch المحدثة لتضمين initData في الهيدرز ومعالجة الأخطاء
 async function safeFetch(endpoint, options = {}) {
   options.headers = options.headers || {};
+  
   if (authToken) {
     options.headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  
+  // إرسال initData لتأكيد هوية المستخدم عند الاتصال بالسيرفر
+  if (tgInitData) {
+    options.headers['x-telegram-init-data'] = tgInitData;
+  } else {
+    options.headers['x-demo-user-id'] = String(tgUserData.id);
   }
   
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
@@ -149,49 +179,40 @@ function setButtonLoading(btnId, isLoading, originalText) {
   }
 }
 
+// 4. عرض بيانات المستخدم مع الاعتماد على tgUserData
 function renderTelegramUser() {
-  const u = tg?.initDataUnsafe?.user;
+  const u = tgUserData;
   const avatarContainer = document.getElementById('user-avatar-container');
   const nameElem = document.getElementById('user-display-name');
   const handleElem = document.getElementById('user-display-handle');
   const idElem = document.getElementById('user-tg-id');
   const premiumBadge = document.getElementById('user-premium-badge');
 
-  if (u) {
-    const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || 'Telegram User';
-    if (nameElem) nameElem.innerText = fullName;
-    if (handleElem) handleElem.innerText = u.username ? `@${u.username}` : '@no_username';
-    if (idElem) idElem.innerText = `ID: ${u.id}`;
+  const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || 'User';
+  if (nameElem) nameElem.innerText = fullName;
+  if (handleElem) handleElem.innerText = u.username ? `@${u.username}` : '@no_username';
+  if (idElem) idElem.innerText = `ID: ${u.id}`;
 
-    if (u.is_premium && premiumBadge) {
-      premiumBadge.classList.remove('hidden');
-    }
+  if (u.is_premium && premiumBadge) {
+    premiumBadge.classList.remove('hidden');
+  }
 
-    if (avatarContainer) {
-      if (u.photo_url) {
-        avatarContainer.innerHTML = `<img src="${escapeHTML(u.photo_url)}" class="user-avatar-img" alt="Avatar">`;
-      } else {
-        const letter = (u.first_name || 'U').charAt(0).toUpperCase();
-        avatarContainer.innerHTML = `<div class="user-avatar-placeholder">${escapeHTML(letter)}</div>`;
-      }
-    }
-
-    const savedLang = localStorage.getItem('appLang');
-    if (savedLang && typeof i18n !== 'undefined' && i18n[savedLang]) {
-      currentLang = savedLang;
-    } else if (u.language_code && typeof i18n !== 'undefined' && i18n[u.language_code]) {
-      currentLang = u.language_code;
+  if (avatarContainer) {
+    if (u.photo_url) {
+      avatarContainer.innerHTML = `<img src="${escapeHTML(u.photo_url)}" class="user-avatar-img" alt="Avatar">`;
     } else {
-      currentLang = 'en';
+      const letter = (u.first_name || 'U').charAt(0).toUpperCase();
+      avatarContainer.innerHTML = `<div class="user-avatar-placeholder">${escapeHTML(letter)}</div>`;
     }
+  }
+
+  const savedLang = localStorage.getItem('appLang');
+  if (savedLang && typeof i18n !== 'undefined' && i18n[savedLang]) {
+    currentLang = savedLang;
+  } else if (u.language_code && typeof i18n !== 'undefined' && i18n[u.language_code]) {
+    currentLang = u.language_code;
   } else {
-    if (nameElem) nameElem.innerText = 'Demo User';
-    if (handleElem) handleElem.innerText = '@demo_user';
-    if (idElem) idElem.innerText = 'ID: 000000000';
-    if (avatarContainer) avatarContainer.innerHTML = `<div class="user-avatar-placeholder">D</div>`;
-    if (!localStorage.getItem('appLang')) {
-      currentLang = 'en';
-    }
+    currentLang = 'en';
   }
 
   if (typeof applyLanguage === 'function') {
@@ -260,7 +281,7 @@ function toggleWalletEdit() {
 }
 
 async function checkAdminPermissions() {
-  const userId = tg?.initDataUnsafe?.user?.id;
+  const userId = tgUserData.id;
   const adminTabBtn = document.getElementById('tab-btn-admin');
   const adminTabContent = document.getElementById('tab-content-admin');
   const adminSection = document.getElementById('admin-section');
@@ -312,11 +333,8 @@ async function authLogin() {
   try {
     const res = await safeFetch('/api/auth/login', {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        ...(tg?.initData ? {'x-telegram-init-data': tg.initData} : {'x-demo-user-id': 'DEMO_USER_DEV'}) 
-      },
-      body: JSON.stringify({ referrerId: startParam, telegramUserInfo: tg?.initDataUnsafe?.user || {} })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ referrerId: startParam, telegramUserInfo: tgUserData })
     });
     if (!res) return false;
     const data = await res.json();
@@ -379,7 +397,7 @@ async function loadUserData() {
     }
     if (saveBtn) saveBtn.classList.add('hidden');
 
-    const botUsername = window.Telegram?.WebApp?.initDataUnsafe?.bot?.username || 'Ads_telegabot';
+    const botUsername = tg?.initDataUnsafe?.bot?.username || 'Ads_telegabot';
     const refLinkInput = document.getElementById('ref-link');
     if (refLinkInput) {
       refLinkInput.value = `https://t.me/${botUsername}?start=${data.user._id}`;
@@ -493,6 +511,7 @@ async function toggleLinkStatus(linkId) {
       loadUserData();
     }
   } catch (e) {
+    console.error("Link toggle error:", e);
     showToast(getText('error_toggle_link', 'Error toggling link status'));
   }
 }
@@ -513,6 +532,7 @@ async function toggleAdStatus(adId) {
       loadUserData();
     }
   } catch (e) {
+    console.error("Ad toggle error:", e);
     showToast(getText('error_toggle_ad', 'Error toggling ad status'));
   }
 }
@@ -544,6 +564,7 @@ async function createAdCampaign() {
       loadUserData();
     }
   } catch (e) {
+    console.error("Ad campaign creation error:", e);
     showToast(getText('error_launch_ad', 'Unexpected error launching campaign'));
   } finally {
     setButtonLoading('btn-create-ad', false, `<span data-i18n="btn_launch_ad">${getText('btn_launch_ad', 'Launch Ad Campaign')}</span>`);
@@ -692,6 +713,7 @@ async function initBridge() {
       renderFallbackAd();
     }
   } catch (err) {
+    console.error("Init bridge error:", err);
     renderFallbackAd();
   }
 
@@ -737,7 +759,10 @@ async function completeImpression() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ linkCode: shortCode, sessionId: currentSessionId, duration })
     });
-    if (!res) return;
+    if (!res) {
+      setButtonLoading('go-btn', false, `<span data-i18n="go_button">${getText('go_button', 'Continue')}</span>`);
+      return;
+    }
     const data = await res.json();
     if (data.targetUrl) {
       window.location.href = data.targetUrl;
@@ -746,6 +771,7 @@ async function completeImpression() {
       showToast(data.error || getText('redirect_error', 'Redirection error'));
     }
   } catch (err) {
+    console.error("Impression error:", err);
     setButtonLoading('go-btn', false, `<span data-i18n="go_button">${getText('go_button', 'Continue')}</span>`);
     showToast(getText('server_conn_failed', 'Server connection failed'));
   }
@@ -780,6 +806,7 @@ async function handleShortenClick() {
       loadUserData();
     }
   } catch (e) {
+    console.error("Shorten click error:", e);
     showToast(getText('unexpected_error', 'An unexpected error occurred'));
   } finally {
     setButtonLoading('btn-create-link', false, `<span data-i18n="btn_shorten">${getText('btn_shorten', 'Shorten Link Now')}</span>`);
@@ -806,6 +833,7 @@ async function saveSettings() {
       loadUserData();
     }
   } catch (e) {
+    console.error("Save settings error:", e);
     showToast(getText('error_saving_settings', 'Error saving settings'));
   }
 }
@@ -901,6 +929,7 @@ async function loadAdminData() {
       }
     }
   } catch (e) {
+    console.error("Load admin data error:", e);
     showToast("Failed to load admin data");
   }
 }
@@ -921,6 +950,7 @@ async function handleAdminDeposit(depositId, action) {
       loadAdminData();
     }
   } catch (e) {
+    console.error("Admin deposit action error:", e);
     showToast("Deposit action failed");
   }
 }
@@ -947,6 +977,7 @@ async function handleAdminWithdraw(withdrawId, action) {
       loadAdminData();
     }
   } catch (e) {
+    console.error("Admin withdraw action error:", e);
     showToast("Action failed");
   }
 }
@@ -967,6 +998,7 @@ async function toggleUserBan(userId) {
       loadAdminData();
     }
   } catch (e) {
+    console.error("User ban toggle error:", e);
     showToast("Error changing ban state");
   }
 }
@@ -992,6 +1024,7 @@ async function distributeRevenue() {
       if (document.getElementById('revenue-amount')) document.getElementById('revenue-amount').value = '';
     }
   } catch (e) {
+    console.error("Distribute revenue error:", e);
     showToast("Error distributing revenue");
   } finally {
     setButtonLoading('btn-distribute-rev', false, 'Distribute Revenue to Links');
@@ -1000,15 +1033,6 @@ async function distributeRevenue() {
 
 /* --- ربط مستمعات الأحداث (EventListeners) بعد اكتمال تحميل DOM --- */
 document.addEventListener('DOMContentLoaded', async () => {
-  try {
-    if (tg) {
-      tg.ready();
-      tg.expand();
-    }
-  } catch (e) {
-    console.warn("Telegram WebApp API ready error:", e);
-  }
-  
   if (typeof initI18n === 'function') {
     await initI18n();
   }
