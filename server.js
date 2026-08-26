@@ -19,18 +19,31 @@ const app = express();
 // --- Setup Server Trust Proxy ---
 app.set('trust proxy', 1);
 
-// --- CORS Configuration (تفعيل حزمة cors لجميع الطلبات وتسمح بـ Credentials) ---
+// --- 1. CORS Configuration (يدعم جميع الطلبات ورؤوس Telegram WebApp) ---
 app.use(cors({
   origin: true,
-  credentials: true
+  credentials: true,
+  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'x-telegram-init-data', 'x-demo-user-id'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
 app.options('*', cors());
 
+// --- 2. Request Parsers ---
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
-app.use(express.static(__dirname));
 
-// --- التأكد من أن جميع مسارات الـ API ترجع استجابات JSON بترميز UTF-8 ---
+// --- 3. Static Files Setup (ضمان عدم حدوث أخطاء MIME Type مع ES Modules/CSS) ---
+app.use(express.static(__dirname, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    } else if (filePath.endsWith('.css')) {
+      res.setHeader('Content-Type', 'text/css; charset=utf-8');
+    }
+  }
+}));
+
+// --- 4. UTF-8 JSON Response Enforcer for API Routes ---
 app.use('/api', (req, res, next) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   next();
@@ -681,7 +694,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
   }
 });
 
-// --- Link Management (Updated & Secured) ---
+// --- Link Management ---
 app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res, next) => {
   try {
     let { title, targetUrl } = req.body;
@@ -1048,12 +1061,13 @@ cron.schedule('0 0 * * *', async () => {
   }
 });
 
-// --- Static HTML Delivery Routes ---
-app.get('/', (req, res) => {
+// --- 5. Static HTML Page Delivery Routes ---
+app.get(['/', '/app', '/admin', '/views.html'], (req, res) => {
   res.sendFile(path.join(__dirname, 'views.html'));
 });
 
-app.get(['/app', '/admin', '/r/:code'], (req, res) => {
+// Bridge View Route for Short Links
+app.get('/r/:code', (req, res) => {
   res.sendFile(path.join(__dirname, 'views.html'));
 });
 
