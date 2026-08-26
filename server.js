@@ -32,8 +32,12 @@ app.options('*', cors());
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-// --- 3. Static Files Setup (ضمان عدم حدوث أخطاء MIME Type مع ES Modules/CSS) ---
+// --- 3. Static Files Setup (خدمة الملفات الثابتة من المجلد الرئيسي) ---
 app.use(express.static(__dirname, {
+  dotfiles: 'ignore',
+  etag: true,
+  extensions: ['html', 'js', 'css'],
+  index: false,
   setHeaders: (res, filePath) => {
     if (filePath.endsWith('.js')) {
       res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
