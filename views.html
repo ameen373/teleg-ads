@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Shortener & Ads Platform</title>
+  <title>Telega.ads Platform</title>
+  <!-- Telegram & Adsgram WebApp SDKs -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
   <link rel="stylesheet" href="style.css">
@@ -13,7 +14,7 @@
   <div class="container">
     <div id="toast"></div>
 
-    <!-- Modal: instructions -->
+    <!-- Modal: Instructions Guide -->
     <div id="instructions-modal" class="modal-overlay hidden">
       <div class="modal-content">
         <h3 class="modal-title">Deposit & TxID Guide</h3>
@@ -33,7 +34,7 @@
       </div>
     </div>
 
-    <!-- Bridge View -->
+    <!-- Bridge View (Shortener Page) -->
     <div id="bridge-view" class="card hidden">
       <h2 class="text-center mb-6" data-i18n="bridge_title">Preparing your link...</h2>
       <p class="text-center text-muted font-12 m-0" data-i18n="bridge_desc">Please wait while we redirect you to your destination</p>
@@ -42,7 +43,12 @@
         <span class="text-muted font-12" data-i18n="ad_loading">Loading advertisement...</span>
       </div>
 
-      <p class="text-center font-14"><span data-i18n="timer_text">Button unlocks in:</span> <b id="timer" class="timer-bold">5</b> <span data-i18n="seconds">seconds</span></p>
+      <p class="text-center font-14">
+        <span data-i18n="timer_text">Button unlocks in:</span> 
+        <b id="timer" class="timer-bold">5</b> 
+        <span data-i18n="seconds">seconds</span>
+      </p>
+      
       <button id="go-btn" disabled onclick="completeImpression()">
         <span id="go-btn-text" data-i18n="go_button">Continue to Destination</span>
       </button>
@@ -153,7 +159,7 @@
           </div>
 
           <h4 class="sub-h4 mt-14">Submit Deposit Proof:</h4>
-          <input type="number" id="deposit-amount" placeholder="Deposited Amount ($)">
+          <input type="number" id="deposit-amount" placeholder="Deposited Amount ($)" min="1" step="any">
           <input type="text" id="deposit-txhash" placeholder="Transaction TxID / TxHash">
           
           <button id="btn-request-deposit" class="btn-success mt-10" onclick="requestDeposit()">
@@ -174,7 +180,7 @@
             <button id="save-wallet-btn" class="hidden btn-small mt-6 w-100" onclick="saveSettings()" data-i18n="btn_save_wallet">Save New Address</button>
           </div>
 
-          <input type="number" id="withdraw-amount" placeholder="Amount (Min. $30)" min="30" oninput="updateWithdrawCalculations()">
+          <input type="number" id="withdraw-amount" placeholder="Amount (Min. $30)" min="30" step="any" oninput="updateWithdrawCalculations()">
           
           <div class="fee-breakdown hidden" id="withdraw-fee-box">
             <span>Amount: <b id="calc-req">$0</b></span>
@@ -200,7 +206,7 @@
           
           <input type="text" id="ad-title" data-i18n-ph="ph_ad_title" placeholder="Ad Title">
           <input type="url" id="ad-target-url" data-i18n-ph="ph_ad_target_url" placeholder="Target URL (https://...)">
-          <input type="number" id="ad-budget" data-i18n-ph="ph_ad_budget" placeholder="Total Budget (Min. $5)">
+          <input type="number" id="ad-budget" data-i18n-ph="ph_ad_budget" placeholder="Total Budget (Min. $5)" min="5" step="any">
           
           <button id="btn-create-ad" onclick="createAdCampaign()">
             <span data-i18n="btn_launch_ad">Launch Ad Campaign</span>
@@ -276,7 +282,7 @@
 
         <div class="card">
           <h4 class="card-h4-m0">Revenue Distribution</h4>
-          <input type="number" id="revenue-amount" placeholder="Total Revenue ($)">
+          <input type="number" id="revenue-amount" placeholder="Total Revenue ($)" min="0" step="any">
           <button id="btn-distribute-rev" onclick="distributeRevenue()">Distribute Revenue to Links</button>
         </div>
 
