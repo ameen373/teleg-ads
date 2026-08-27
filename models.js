@@ -1,15 +1,15 @@
 /**
- * Enterprise Production Models Package (Ultra-Optimized & Fully Synchronized)
- * Telegram Link Shortener & Mini App Engine
+ * Enterprise Production Models Package (Ultra-Optimized)
+ * Telega.ads Platform Architecture
  */
 
 if (typeof window !== 'undefined') {
-  throw new Error("Mongoose and database models cannot be used directly in the browser.");
+  throw new Error("Mongoose and database models cannot be used directly in the browser. This code must run on the server side.");
 }
 
 const mongoose = require('mongoose');
 
-// Helper formatting precision to 5 decimal places
+// Utility function to precision-format earnings up to 5 decimal places
 const formatCurrency = (val) => {
   if (typeof val !== 'number' || isNaN(val) || !isFinite(val)) return 0;
   return Math.round((val + Number.EPSILON) * 100000) / 100000;
@@ -322,7 +322,7 @@ clickSessionSchema.index({ linkId: 1, ip: 1 });
 clickSessionSchema.index({ bridgeToken: 1 }, { unique: true });
 
 // --------------------------------------------------
-// 6. Withdraw Request Model (Fixed Fee Calculation Sync)
+// 6. Withdraw Request Model
 // --------------------------------------------------
 const withdrawSchema = new mongoose.Schema({
   userId: { 
@@ -339,7 +339,7 @@ const withdrawSchema = new mongoose.Schema({
   },
   fee: {
     type: Number,
-    required: true,
+    default: 3,
     set: formatCurrency
   },
   netAmount: {
@@ -381,11 +381,9 @@ const withdrawSchema = new mongoose.Schema({
 });
 
 withdrawSchema.pre('validate', function(next) {
-  const amt = typeof this.amount === 'number' ? this.amount : 0;
-  if (!this.fee) {
-    this.fee = formatCurrency(amt * 0.10);
-  }
-  this.netAmount = formatCurrency(Math.max(0, amt - this.fee));
+  const amount = typeof this.amount === 'number' ? this.amount : 0;
+  const fee = typeof this.fee === 'number' ? this.fee : 3;
+  this.netAmount = formatCurrency(Math.max(0, amount - fee));
   next();
 });
 
