@@ -1,6 +1,6 @@
 // ==========================================
-// TELEGA.ADS - Production-Ready app.js v3.0
-// Fully Unified, Optimized & Error-Free Client Core
+// TELEGA.ADS - Production-Ready Client Core v4.0
+// Fully Unified, Highly Optimized & Fast
 // ==========================================
 
 const API_BASE = window.location.protocol.startsWith('file') 
@@ -21,32 +21,188 @@ const i18n = {
     network_error: "خطأ في الشبكة. يجدر التحقق من الاتصال والمحاولة مجدداً.",
     btn_edit: "تعديل",
     cancel: "إلغاء",
+    close: "إغلاق",
     go_button: "متابعة الرابط ↗",
-    btn_shorten: "اختصار الرابط",
+    btn_shorten: "اختصار الرابط الآن",
     btn_launch_ad: "إطلاق الحملة الإعلانية",
     btn_submit_withdraw: "تأكيد طلب السحب",
-    link_success_msg: "تم إنشاء الرابط المختصر بنجاح!"
+    btn_submit_deposit: "تأكيد وإرسال طلب الشحن",
+    link_success_msg: "تم إنشاء الرابط المختصر بنجاح!",
+    guide_title: "دليل الشحن ورمز المعاملة (TxID)",
+    guide_step1: "اختر الشبكة: حدد (USDT TRC20 أو BEP20) لمشاهدة عنوان المحفظة ثم اضغط نسخ.",
+    guide_step2: "تحويل الأموال: افتح محفظتك (Binance, Trust Wallet, OKX) وقم بإرسال المبلغ للعنوان المنسوخ.",
+    guide_step3: "نسخ رمز العملية (TxID): بعد نجاح التحويل قم بنسخ الـ TxHash / TxID الخاص بالمعاملة.",
+    guide_example: "صيغة رمز المعاملة (TxID) التجريبية:",
+    guide_step4: "إرسال الطلب: عد هنا، أدخل المبلغ المحول ورمز المعاملة ثم اضغط تأكيد وإرسال.",
+    bridge_title: "جاري تجهيز الرابط الخاص بك...",
+    bridge_desc: "يرجى الانتظار لحين إعادة التوجيه للوجهة المطلوبة",
+    ad_loading: "جاري تحميل الإعلان...",
+    timer_text: "سيتم فتح الزر خلال:",
+    seconds: "ثوانٍ",
+    official_channel: "القناة الرسمية",
+    about_title: "ℹ️ عن المنصة وشروط الاستخدام",
+    about_desc: "هذا البوت مخصص بأمان لاختصار الروابط وإدارة الحملات الإعلانية. باستخدامك للمنصة فإنك توافق على الالتزام بشروط الخدمة وجودة الزيارات.",
+    create_link_title: "اختصار رابط جديد",
+    ph_link_title: "عنوان الرابط (اختياري)",
+    ph_link_url: "الرابط الأصلي (https://...)",
+    my_links_title: "روابطك المُختصرة",
+    loading: "جاري التحميل...",
+    pending_bal: "الرصيد المعلق",
+    avail_bal: "الرصيد المتاح",
+    btn_deposit_tab: "شحن المحفظة",
+    btn_withdraw_tab: "سحب الأرباح",
+    deposit_title: "شحن الرصيد (USDT)",
+    btn_guide: "❓ دليل الشحن",
+    select_network: "اختر شبكة الإيداع:",
+    opt_choose_net: "-- اختر الشبكة لعرض العنوان --",
+    lbl_trc20: "عنوان إيداع USDT - TRC20 (Tron):",
+    lbl_bep20: "عنوان إيداع USDT - BEP20 (BNB Smart Chain):",
+    btn_copy: "نسخ",
+    submit_proof: "إرسال إثبات الشحن:",
+    ph_dep_amount: "المبلغ المودع ($)",
+    ph_dep_txid: "رمز المعاملة TxID / TxHash",
+    withdraw_request_title: "سحب الأرباح",
+    wallet_addr_label: "محفظة السحب (USDT TRC20)",
+    btn_save_wallet: "حفظ العنوان الجديد",
+    ph_withdraw_amount: "المبلغ (الحد الأدنى 30$)",
+    calc_amt: "المبلغ:",
+    calc_fee: "الرسوم (10%):",
+    calc_net: "الصافي:",
+    withdraw_history: "سجل السحوبات",
+    create_ad_title: "إنشاء حملة إعلانية جديدة",
+    ad_rate_desc: "سعر الإعلان: $1.50 لكل 1,000 ظهور حقيقي (CPM)",
+    ph_ad_title: "عنوان الإعلان",
+    ph_ad_target_url: "رابط الوجهة (https://...)",
+    ph_ad_budget: "إجمالي الميزانية (الحد الأدنى 5$)",
+    my_ads_title: "حملاتك الإعلانية",
+    ref_title: "نظام الإحالة (10%)",
+    ref_desc: "قم بدعوة أصدقائك واكسب فوراً 10% من إجمالي أرباحهم.",
+    btn_share_ref: "مشاركة الرابط عبر تليجرام",
+    total_ref_earnings: "إجمالي أرباح الإحالة",
+    lang_settings_title: "Language / تغيير اللغة",
+    faq_title: "الأسئلة الشائعة والدعم الفني",
+    faq_q1: "كيف يتم حساب الأرباح؟",
+    faq_a1: "تعتمد الأرباح على العائدات الإعلانية ويتم توزيعها تناسبياً بناءً على الزيارات المؤكدة.",
+    faq_q2: "ما هي فترة التعليق لمدة 1 يوم؟",
+    faq_a2: "هي فترة مراجعة لفحص مصادر الزيارات ومنع الاحتيال قبل تحويل الأرباح للرصيد المتاح خلال 24 ساعة.",
+    support_text: "تواصل مع الدعم الفني عبر تليجرام:",
+    btn_bot: "🤖 البوت الرسمي",
+    btn_channel: "📢 القناة الرسمية",
+    btn_support: "🎧 الدعم الفني",
+    adm_total_users: "إجمالي المستخدمين",
+    adm_total_pending: "إجمالي المعلق",
+    adm_pending_dep: "طلبات الشحن المعلقة",
+    adm_pending_withdraw: "طلبات السحب المعلقة",
+    adm_user_mgmt: "إدارة المستخدمين",
+    nav_home: "الرئيسية",
+    nav_wallet: "المحفظة",
+    nav_ads: "الإعلانات",
+    nav_referral: "الإحالات",
+    nav_settings: "الإعدادات"
   },
   en: {
     copied: "Copied successfully!",
     network_error: "Network error. Please check your connection and try again.",
     btn_edit: "Edit",
     cancel: "Cancel",
+    close: "Close",
     go_button: "Continue to Link ↗",
-    btn_shorten: "Shorten URL",
+    btn_shorten: "Shorten Link Now",
     btn_launch_ad: "Launch Ad Campaign",
     btn_submit_withdraw: "Submit Withdrawal Request",
-    link_success_msg: "Short link created successfully!"
+    btn_submit_deposit: "Submit Deposit Request",
+    link_success_msg: "Short link created successfully!",
+    guide_title: "Deposit & TxID Guide",
+    guide_step1: "Select Network: Choose (USDT TRC20 or BEP20) to view your deposit address, then click Copy.",
+    guide_step2: "Transfer Funds: Open your wallet (Binance, Trust Wallet, OKX, etc.) and send USDT to the copied address.",
+    guide_step3: "Copy Transaction Hash (TxID): After the transfer succeeds, copy the TxHash / TxID.",
+    guide_example: "Example TxID format:",
+    guide_step4: "Submit Request: Return here, enter the deposit amount and TxID, then click Submit Deposit Request.",
+    bridge_title: "Preparing your link...",
+    bridge_desc: "Please wait while we redirect you to your destination",
+    ad_loading: "Loading advertisement...",
+    timer_text: "Button unlocks in:",
+    seconds: "seconds",
+    official_channel: "Official Channel",
+    about_title: "ℹ️ About & Terms of Use",
+    about_desc: "This bot is securely dedicated to shortening links and managing promotional campaigns safely. By using this platform, you agree to comply with our traffic quality guidelines and terms of service.",
+    create_link_title: "Shorten New Link",
+    ph_link_title: "Title (Optional)",
+    ph_link_url: "Original URL (https://...)",
+    my_links_title: "Your Links",
+    loading: "Loading...",
+    pending_bal: "Pending Balance",
+    avail_bal: "Available Balance",
+    btn_deposit_tab: "Deposit",
+    btn_withdraw_tab: "Withdraw",
+    deposit_title: "Deposit Funds (USDT)",
+    btn_guide: "❓ Deposit Guide",
+    select_network: "Select Deposit Network:",
+    opt_choose_net: "-- Choose Network to View Address --",
+    lbl_trc20: "USDT - TRC20 (Tron) Deposit Address:",
+    lbl_bep20: "USDT - BEP20 (BNB Smart Chain) Deposit Address:",
+    btn_copy: "Copy",
+    submit_proof: "Submit Deposit Proof:",
+    ph_dep_amount: "Deposited Amount ($)",
+    ph_dep_txid: "Transaction TxID / TxHash",
+    withdraw_request_title: "Withdraw Earnings",
+    wallet_addr_label: "Withdrawal Wallet (USDT TRC20)",
+    btn_save_wallet: "Save New Address",
+    ph_withdraw_amount: "Amount (Min. $30)",
+    calc_amt: "Amount:",
+    calc_fee: "Fee (10%):",
+    calc_net: "Net:",
+    withdraw_history: "Withdrawal History",
+    create_ad_title: "Create New Ad Campaign",
+    ad_rate_desc: "Ad Rate: $1.50 per 1,000 real impressions (CPM)",
+    ph_ad_title: "Ad Title",
+    ph_ad_target_url: "Target URL (https://...)",
+    ph_ad_budget: "Total Budget (Min. $5)",
+    my_ads_title: "Your Ad Campaigns",
+    ref_title: "Referral System (10%)",
+    ref_desc: "Invite your friends and instantly earn 10% of their total revenues.",
+    btn_share_ref: "Share Link via Telegram",
+    total_ref_earnings: "Total Referral Earnings",
+    lang_settings_title: "Language / تغيير اللغة",
+    faq_title: "FAQ & Support",
+    faq_q1: "How are earnings calculated?",
+    faq_a1: "Earnings depend on ad revenue and are distributed proportionally based on verified visits.",
+    faq_q2: "What is the 1-day pending period?",
+    faq_a2: "It is a hold period to review traffic sources and prevent fraud before transferring earnings to available balance within 1 day.",
+    support_text: "Contact technical support on Telegram:",
+    btn_bot: "🤖 Official Bot",
+    btn_channel: "📢 Official Channel",
+    btn_support: "🎧 Support",
+    adm_total_users: "Total Users",
+    adm_total_pending: "Total Pending",
+    adm_pending_dep: "Pending Deposit Requests",
+    adm_pending_withdraw: "Pending Withdrawal Requests",
+    adm_user_mgmt: "User Management",
+    nav_home: "Home",
+    nav_wallet: "Wallet",
+    nav_ads: "Ads",
+    nav_referral: "Referrals",
+    nav_settings: "Settings"
   }
 };
 
 function applyLanguage(lang) {
   currentLang = i18n[lang] ? lang : 'en';
   localStorage.setItem('appLang', currentLang);
+  document.documentElement.setAttribute('dir', currentLang === 'ar' ? 'rtl' : 'ltr');
+  document.documentElement.setAttribute('lang', currentLang);
+
   document.querySelectorAll('[data-i18n]').forEach(el => {
     const key = el.getAttribute('data-i18n');
     if (i18n[currentLang] && i18n[currentLang][key]) {
       el.innerText = i18n[currentLang][key];
+    }
+  });
+
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+    const key = el.getAttribute('data-i18n-ph');
+    if (i18n[currentLang] && i18n[currentLang][key]) {
+      el.setAttribute('placeholder', i18n[currentLang][key]);
     }
   });
 
@@ -411,7 +567,7 @@ async function loadUserData() {
         adsContainer.innerHTML = data.ads.map(ad => {
           let statusColor = ad.status === 'active' ? 'var(--success)' : (ad.status === 'paused' ? 'var(--warning)' : 'var(--text-muted)');
           return `
-          <div class="ad-item" style="border-left: 3px solid ${statusColor};">
+          <div class="ad-item" style="border-left: 3px solid ${statusColor}; border-right: 3px solid ${statusColor};">
             <div class="ad-header">
               <b>${escapeHTML(ad.title)}</b>
               <span style="font-size: 10px; color: ${statusColor};">${escapeHTML(String(ad.status).toUpperCase())}</span>
@@ -546,7 +702,7 @@ async function requestDeposit() {
   } catch (e) {
     showToast(currentLang === 'ar' ? "خطأ أثناء تقديم طلب الشحن" : "Error submitting deposit request");
   } finally {
-    setButtonLoading('btn-request-deposit', false, `<span>${currentLang === 'ar' ? 'تأكيد وإرسال طلب الشحن' : 'Submit Deposit Request'}</span>`);
+    setButtonLoading('btn-request-deposit', false, `<span data-i18n="btn_submit_deposit">${i18n[currentLang].btn_submit_deposit}</span>`);
   }
 }
 
@@ -809,7 +965,7 @@ async function loadAdminData() {
       if (!data.users || data.users.length === 0) uList.innerHTML = 'No users found.';
       else {
         uList.innerHTML = data.users.map(u => `
-          <div style="background:#0d1527; padding:8px; margin-bottom:6px; border-radius:6px; display: flex; justify-content: space-between; align-items: center; border-left: 3px solid ${u.isBanned ? 'var(--danger)' : 'var(--success)'};">
+          <div style="background:#0d1527; padding:8px; margin-bottom:6px; border-radius:6px; display: flex; justify-content: space-between; align-items: center; border-left: 3px solid ${u.isBanned ? 'var(--danger)' : 'var(--success)'}; border-right: 3px solid ${u.isBanned ? 'var(--danger)' : 'var(--success)'};">
             <div>
               <b>${escapeHTML(u.username || 'Unknown')}</b> (${escapeHTML(String(u.telegramId || ''))})<br>
               <span style="color: var(--text-muted);">Available: $${(u.availableBalance || 0).toFixed(2)}</span>
@@ -907,6 +1063,7 @@ window.addEventListener('DOMContentLoaded', () => {
     console.warn("Telegram WebApp API ready error:", e);
   }
   
+  applyLanguage(currentLang);
   renderTelegramUser();
 
   const bridgeView = document.getElementById('bridge-view');
