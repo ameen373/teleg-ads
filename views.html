@@ -3,63 +3,356 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Telega.ads Platform</title>
-  <!-- Telegram & Adsgram WebApp SDKs -->
+  <title>Shortener & Ads Platform</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
-  <link rel="stylesheet" href="style.css">
+  <style>
+    :root {
+      --bg-main: #0f172a;
+      --card-bg: #1e293b;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --danger: #ef4444;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --border-color: #334155;
+      --nav-bg: rgba(15, 23, 42, 0.95);
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { 
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+      background: var(--bg-main); 
+      color: var(--text); 
+      margin: 0; 
+      padding: 12px; 
+      padding-bottom: 95px;
+      direction: ltr; 
+    }
+    .container { max-width: 500px; margin: 0 auto; }
+    .card { 
+      background: var(--card-bg); 
+      border-radius: 16px; 
+      padding: 18px; 
+      margin-bottom: 14px; 
+      border: 1px solid var(--border-color); 
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3); 
+    }
+
+    /* Header Profile */
+    .user-profile-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      background: rgba(30, 41, 59, 0.7);
+      border-radius: 14px;
+      margin-bottom: 14px;
+      border: 1px solid var(--border-color);
+    }
+    .user-avatar-img {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid var(--accent);
+    }
+    .user-avatar-placeholder {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 20px;
+    }
+    .user-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      font-size: 10px;
+      border-radius: 10px;
+      background: rgba(59, 130, 246, 0.2);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      margin-top: 2px;
+    }
+
+    /* Navigation Bar */
+    .tg-nav-dock {
+      position: fixed;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 96%;
+      max-width: 480px;
+      height: 64px;
+      background: var(--nav-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      padding: 0 4px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      z-index: 9999;
+    }
+
+    .nav-btn {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 6px 0;
+      border-radius: 20px;
+      transition: all 0.2s ease-in-out;
+      margin: 0;
+    }
+
+    .nav-btn svg { width: 18px; height: 18px; fill: currentColor; transition: transform 0.2s; }
+    .nav-btn.active { color: var(--accent); background: rgba(59, 130, 246, 0.15); }
+    .nav-btn.active svg { transform: scale(1.1); }
+
+    /* Inputs & Buttons */
+    input, button, select { 
+      width: 100%; 
+      padding: 12px 14px; 
+      margin-top: 8px; 
+      border-radius: 10px; 
+      border: 1px solid var(--border-color); 
+      background: #0f172a; 
+      color: var(--text); 
+      font-size: 14px; 
+      outline: none; 
+    }
+    input:focus, select:focus { border-color: var(--accent); }
+    input:read-only { background: #090d16; color: var(--text-muted); cursor: not-allowed; }
+    button { 
+      background: var(--accent); 
+      font-weight: 700; 
+      cursor: pointer; 
+      border: none; 
+      transition: background 0.2s, transform 0.1s; 
+      color: #fff; 
+      display: inline-flex; 
+      align-items: center; 
+      justify-content: center; 
+      gap: 8px; 
+    }
+    button:active { transform: scale(0.98); }
+    button:disabled { background: #334155; cursor: not-allowed; opacity: 0.7; }
+    .btn-danger { background: var(--danger); }
+    .btn-warning { background: var(--warning); color: #000; }
+    .btn-success { background: var(--success); color: #fff; }
+    .btn-small { padding: 6px 10px; font-size: 11px; width: auto; margin: 0 2px; }
+
+    /* Action Switcher inside Wallet */
+    .wallet-actions-nav {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .wallet-action-btn {
+      flex: 1;
+      padding: 10px;
+      font-size: 13px;
+      background: #0d1527;
+      color: var(--text-muted);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      margin: 0;
+    }
+    .wallet-action-btn.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    /* Crypto Address Box */
+    .address-card {
+      background: #0d1527;
+      border: 1px dashed var(--border-color);
+      border-radius: 10px;
+      padding: 10px;
+      margin-top: 8px;
+    }
+    .address-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      margin-top: 4px;
+    }
+    .address-text {
+      font-family: monospace;
+      font-size: 11px;
+      color: var(--warning);
+      word-break: break-all;
+      background: #050811;
+      padding: 6px 8px;
+      border-radius: 6px;
+      flex: 1;
+    }
+
+    /* Fee Details Box */
+    .fee-breakdown {
+      background: #0d1527;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 10px;
+      margin-top: 10px;
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* Modal Overlay */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.8);
+      backdrop-filter: blur(4px);
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal-content {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 20px;
+      max-width: 440px;
+      width: 100%;
+      max-height: 85vh;
+      overflow-y: auto;
+    }
+
+    /* Quick Links Group */
+    .tg-links-group {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .tg-links-group a {
+      flex: 1;
+      text-decoration: none;
+    }
+
+    /* Stats Grid */
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+    .stat-box { background: #0d1527; padding: 14px; border-radius: 12px; border: 1px solid var(--border-color); text-align: center; }
+    .stat-box small { color: var(--text-muted); font-size: 11px; display: block; margin-bottom: 4px; }
+    .stat-box h3 { margin: 0; font-size: 18px; color: var(--text); }
+
+    .link-item, .ad-item { background: #0d1527; padding: 12px; border-radius: 10px; margin-bottom: 8px; border: 1px solid var(--border-color); font-size: 13px; }
+    .link-header, .ad-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .link-actions, .ad-actions { display: flex; justify-content: flex-end; margin-top: 8px; gap: 4px; }
+
+    .hidden { display: none !important; }
+
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #toast { 
+      visibility: hidden; 
+      min-width: 220px; 
+      background-color: var(--card-bg); 
+      color: #fff; 
+      text-align: center; 
+      border-radius: 8px; 
+      padding: 12px; 
+      position: fixed; 
+      z-index: 10001; 
+      left: 50%; 
+      bottom: 90px; 
+      transform: translateX(-50%); 
+      border: 1px solid var(--accent); 
+      font-size: 13px; 
+      opacity: 0; 
+      transition: opacity 0.3s; 
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
+    #toast.show { visibility: visible; opacity: 1; }
+
+    details {
+      background: #0d1527;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      margin-bottom: 8px;
+    }
+    summary { font-weight: bold; cursor: pointer; outline: none; }
+  </style>
 </head>
 <body>
 
   <div class="container">
     <div id="toast"></div>
 
-    <!-- Modal: Deposit Instructions Guide -->
+    <!-- Modal: instructions -->
     <div id="instructions-modal" class="modal-overlay hidden">
       <div class="modal-content">
-        <h3 class="modal-title" data-i18n="guide_title">Deposit & TxID Guide</h3>
-        <hr class="modal-divider">
-        <ol class="instructions-list">
-          <li data-i18n="guide_step1"><b>Select Network:</b> Choose (USDT TRC20 or BEP20) to view your deposit address, then click <i>Copy</i>.</li>
-          <li data-i18n="guide_step2"><b>Transfer Funds:</b> Open your wallet (Binance, Trust Wallet, OKX, etc.) and send USDT to the copied address.</li>
-          <li><span data-i18n="guide_step3"><b>Copy Transaction Hash (TxID):</b> After the transfer succeeds, copy the <b>TxHash / TxID</b>.</span>
-            <div class="txid-example">
-              <small style="color: var(--text-muted);" data-i18n="guide_example">Example TxID format:</small><br>
+        <h3 style="margin-top: 0; color: var(--accent); font-size: 16px;">Deposit & TxID Guide</h3>
+        <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 10px 0;">
+        <ol style="font-size: 12px; color: var(--text); padding-left: 18px; line-height: 1.6;">
+          <li><b>Select Network:</b> Choose (USDT TRC20 or BEP20) to view your deposit address, then click <i>Copy</i>.</li>
+          <li><b>Transfer Funds:</b> Open your wallet (Binance, Trust Wallet, OKX, etc.) and send USDT to the copied address.</li>
+          <li><b>Copy Transaction Hash (TxID):</b> After the transfer succeeds, copy the <b>TxHash / TxID</b>.
+            <div style="background: #050811; padding: 8px; border-radius: 8px; margin: 6px 0; border: 1px solid var(--border-color); text-align: center;">
+              <small style="color: var(--text-muted);">Example TxID format:</small><br>
               <code style="color: var(--success); font-size: 10px;">4a8f92b...e83120c91</code>
             </div>
           </li>
-          <li data-i18n="guide_step4"><b>Submit Request:</b> Return here, enter the deposit amount and TxID, then click <b>Submit Deposit Request</b>.</li>
+          <li><b>Submit Request:</b> Return here, enter the deposit amount and TxID, then click <b>Submit Deposit Request</b>.</li>
         </ol>
-        <button class="btn-danger btn-modal-close w-100" onclick="toggleInstructionsModal(false)" data-i18n="close">Close</button>
+        <button class="btn-danger" style="margin-top: 12px;" onclick="toggleInstructionsModal(false)">Close</button>
       </div>
     </div>
 
-    <!-- Bridge View (Shortener Page) -->
+    <!-- Bridge View -->
     <div id="bridge-view" class="card hidden">
-      <h2 class="text-center mb-6" data-i18n="bridge_title">Preparing your link...</h2>
-      <p class="text-center text-muted font-12 m-0" data-i18n="bridge_desc">Please wait while we redirect you to your destination</p>
+      <h2 style="text-align: center; margin-bottom: 6px;" data-i18n="bridge_title">Preparing your link...</h2>
+      <p style="text-align: center; color: var(--text-muted); font-size: 12px; margin: 0;" data-i18n="bridge_desc">Please wait while we redirect you to your destination</p>
       
-      <div id="ad-container" class="ad-container">
-        <span class="text-muted font-12" data-i18n="ad_loading">Loading advertisement...</span>
+      <div id="ad-container" style="min-height: 220px; background: #000; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 16px 0; border: 1px dashed var(--border-color); overflow: hidden; padding: 12px; text-align: center;">
+        <span style="color: var(--text-muted); font-size: 12px;" data-i18n="ad_loading">Loading advertisement...</span>
       </div>
 
-      <p class="text-center font-14">
-        <span data-i18n="timer_text">Button unlocks in:</span> 
-        <b id="timer" class="timer-bold">5</b> 
-        <span data-i18n="seconds">seconds</span>
-      </p>
-      
+      <p style="text-align: center; font-size: 14px;"><span data-i18n="timer_text">Button unlocks in:</span> <b id="timer" style="color: var(--accent); font-size: 18px;">5</b> <span data-i18n="seconds">seconds</span></p>
       <button id="go-btn" disabled onclick="completeImpression()">
         <span id="go-btn-text" data-i18n="go_button">Continue to Destination</span>
       </button>
 
-      <div class="bridge-footer">
-        <p class="m-0-0-6">
-          All rights reserved for <a href="https://t.me/Ads_telegabot" target="_blank" rel="noopener noreferrer" class="link-bold">Telega.ads</a> | Powered by <a href="https://t.me/Ads_telegabot" target="_blank" rel="noopener noreferrer" class="link-bold">Telega.ads</a>
+      <div style="margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border-color); text-align: center; font-size: 11px; color: var(--text-muted);">
+        <p style="margin: 0 0 6px 0;">
+          All rights reserved for <a href="https://t.me/Ads_telegabot" target="_blank" rel="noopener noreferrer" style="color: var(--accent); text-decoration: none; font-weight: bold;">Telega.ads</a> | Powered by <a href="https://t.me/Ads_telegabot" target="_blank" rel="noopener noreferrer" style="color: var(--accent); text-decoration: none; font-weight: bold;">Telega.ads</a>
         </p>
-        <div class="mt-8">
-          <a href="https://t.me/ttelega_ads" target="_blank" rel="noopener noreferrer" class="official-channel-btn">
-            📢 <span data-i18n="official_channel">Official Channel</span>
+        <div style="margin-top: 8px;">
+          <a href="https://t.me/ttelega_ads" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: rgba(59, 130, 246, 0.15); border: 1px solid var(--accent); border-radius: 20px; color: var(--accent); text-decoration: none; font-weight: bold;">
+            📢 Official Channel
           </a>
         </div>
       </div>
@@ -71,32 +364,33 @@
       <!-- User Profile Header -->
       <div class="user-profile-header">
         <div id="user-avatar-container"></div>
-        <div class="flex-1">
-          <div class="flex-center-gap6">
-            <span id="user-display-name" class="user-name">...</span>
+        <div style="flex: 1;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span id="user-display-name" style="font-weight: bold; font-size: 15px;">...</span>
             <span id="user-premium-badge" class="user-badge hidden">★ Premium</span>
           </div>
-          <div id="user-display-handle" class="user-handle">@user</div>
-          <div id="user-tg-id" class="user-id">ID: -</div>
+          <div id="user-display-handle" style="font-size: 12px; color: var(--text-muted);">@user</div>
+          <div id="user-tg-id" style="font-size: 10px; color: var(--text-muted); margin-top: 1px;">ID: -</div>
         </div>
       </div>
 
       <!-- 1. Dashboard Tab -->
       <div id="tab-content-dashboard">
-        <div class="card card-accent-bg">
-          <h4 class="card-accent-title" data-i18n="about_title">ℹ️ About & Terms of Use</h4>
-          <p class="card-desc" data-i18n="about_desc">
+        <!-- نبذة وشروط الاستخدام لتلبية متطلبات المراجعة -->
+        <div class="card" style="border-color: var(--accent); background: rgba(30, 41, 59, 0.9);">
+          <h4 style="margin: 0 0 6px 0; color: var(--accent); font-size: 14px;" data-i18n="about_title">ℹ️ About & Terms of Use</h4>
+          <p style="margin: 0; font-size: 12px; color: var(--text-muted); line-height: 1.5;" data-i18n="about_desc">
             This bot is securely dedicated to shortening links and managing promotional campaigns safely. By using this platform, you agree to comply with our traffic quality guidelines and terms of service.
           </p>
         </div>
 
-        <div id="announcement-box" class="card hidden border-accent">
-          <h4 id="anc-title" class="anc-title"></h4>
-          <p id="anc-content" class="anc-content"></p>
+        <div id="announcement-box" class="card hidden" style="border-color: var(--accent);">
+          <h4 id="anc-title" style="margin: 0 0 6px 0; color: var(--accent);"></h4>
+          <p id="anc-content" style="margin: 0; font-size: 12px; color: var(--text-muted);"></p>
         </div>
 
         <div class="card">
-          <h3 class="card-h3" data-i18n="create_link_title">Shorten New Link</h3>
+          <h3 style="font-size: 15px; margin-top:0;" data-i18n="create_link_title">Shorten New Link</h3>
           <input type="text" id="link-title" data-i18n-ph="ph_link_title" placeholder="Title (Optional)">
           <input type="url" id="link-url" data-i18n-ph="ph_link_url" placeholder="Original URL (https://...)">
           <button id="btn-create-link" onclick="handleShortenClick()">
@@ -105,8 +399,8 @@
         </div>
 
         <div class="card">
-          <h3 class="card-h3" data-i18n="my_links_title">Your Links</h3>
-          <div id="links-list" class="text-muted font-12" data-i18n="loading">Loading...</div>
+          <h3 style="font-size: 15px; margin-top:0;" data-i18n="my_links_title">Your Links</h3>
+          <div id="links-list" style="color: var(--text-muted); font-size: 12px;" data-i18n="loading">Loading...</div>
         </div>
       </div>
 
@@ -115,89 +409,86 @@
         <div class="stats-grid">
           <div class="stat-box">
             <small data-i18n="pending_bal">Pending Balance</small>
-            <h3 id="pending-bal" class="val-warning">$0.00</h3>
+            <h3 id="pending-bal" style="color:#f59e0b;">$0.00</h3>
           </div>
           <div class="stat-box">
             <small data-i18n="avail_bal">Available Balance</small>
-            <h3 id="avail-bal" class="val-success">$0.00</h3>
+            <h3 id="avail-bal" style="color:var(--success);">$0.00</h3>
           </div>
         </div>
 
+        <!-- Action Nav -->
         <div class="wallet-actions-nav">
-          <button id="wallet-nav-deposit" class="wallet-action-btn active" onclick="switchWalletView('deposit')">
-            <span>📥</span> <span data-i18n="btn_deposit_tab">Deposit</span>
-          </button>
-          <button id="wallet-nav-withdraw" class="wallet-action-btn" onclick="switchWalletView('withdraw')">
-            <span>📤</span> <span data-i18n="btn_withdraw_tab">Withdraw</span>
-          </button>
+          <button id="wallet-nav-deposit" class="wallet-action-btn active" onclick="switchWalletView('deposit')">📥 Deposit</button>
+          <button id="wallet-nav-withdraw" class="wallet-action-btn" onclick="switchWalletView('withdraw')">📤 Withdraw</button>
         </div>
 
         <!-- Deposit View -->
         <div id="wallet-view-deposit" class="card">
-          <div class="flex-between-center mb-8">
-            <h3 class="card-h3 m-0" data-i18n="deposit_title">Deposit Funds (USDT)</h3>
-            <button class="btn-small btn-warning w-auto" onclick="toggleInstructionsModal(true)" data-i18n="btn_guide">❓ Deposit Guide</button>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h3 style="font-size: 15px; margin:0;">Deposit Funds (USDT)</h3>
+            <button class="btn-small btn-warning" style="width: auto;" onclick="toggleInstructionsModal(true)">❓ Deposit Guide</button>
           </div>
           
-          <h4 class="sub-h4" data-i18n="select_network">Select Deposit Network:</h4>
+          <h4 style="font-size: 13px; margin: 8px 0 4px 0;">Select Deposit Network:</h4>
           <select id="deposit-network" onchange="handleNetworkChange(this.value)">
-            <option value="" data-i18n="opt_choose_net">-- Choose Network to View Address --</option>
-            <option value="TRC20">USDT (TRC20 Network)</option>
-            <option value="BEP20">USDT (BEP20 Network)</option>
+            <option value="">-- Choose Network to View Address --</option>
+            <option value="USDT_TRC20">USDT (TRC20 Network)</option>
+            <option value="USDT_BEP20">USDT (BEP20 Network)</option>
           </select>
 
           <div id="card-addr-trc20" class="address-card hidden">
-            <small class="text-muted" data-i18n="lbl_trc20">USDT - TRC20 (Tron) Deposit Address:</small>
+            <small style="color: var(--text-muted);">USDT - TRC20 (Tron) Deposit Address:</small>
             <div class="address-row">
               <span class="address-text" id="addr-trc20">TYqN8xM9KzL3pQ2vA5wR7jH4uE1sD8fX9k</span>
-              <button class="btn-small" onclick="copyToClipboard(document.getElementById('addr-trc20').innerText)" data-i18n="btn_copy">Copy</button>
+              <button class="btn-small" onclick="copyToClipboard(document.getElementById('addr-trc20').innerText)">Copy</button>
             </div>
           </div>
 
           <div id="card-addr-bep20" class="address-card hidden">
-            <small class="text-muted" data-i18n="lbl_bep20">USDT - BEP20 (BNB Smart Chain) Deposit Address:</small>
+            <small style="color: var(--text-muted);">USDT - BEP20 (BNB Smart Chain) Deposit Address:</small>
             <div class="address-row">
               <span class="address-text" id="addr-bep20">0x71C7656EC7ab88b098defB751B7401B5f6d8976F</span>
-              <button class="btn-small" onclick="copyToClipboard(document.getElementById('addr-bep20').innerText)" data-i18n="btn_copy">Copy</button>
+              <button class="btn-small" onclick="copyToClipboard(document.getElementById('addr-bep20').innerText)">Copy</button>
             </div>
           </div>
 
-          <h4 class="sub-h4 mt-14" data-i18n="submit_proof">Submit Deposit Proof:</h4>
-          <input type="number" id="deposit-amount" data-i18n-ph="ph_dep_amount" placeholder="Deposited Amount ($)" min="1" step="any">
-          <input type="text" id="deposit-txhash" data-i18n-ph="ph_dep_txid" placeholder="Transaction TxID / TxHash">
+          <h4 style="font-size: 13px; margin: 14px 0 6px 0;">Submit Deposit Proof:</h4>
+          <input type="number" id="deposit-amount" placeholder="Deposited Amount ($)">
+          <input type="text" id="deposit-txhash" placeholder="Transaction TxID / TxHash">
           
-          <button id="btn-request-deposit" class="btn-success mt-10" onclick="requestDeposit()">
-            <span data-i18n="btn_submit_deposit">Submit Deposit Request</span>
+          <button id="btn-request-deposit" class="btn-success" style="margin-top: 10px;" onclick="requestDeposit()">
+            <span>Submit Deposit Request</span>
           </button>
         </div>
 
         <!-- Withdraw View -->
         <div id="wallet-view-withdraw" class="card hidden">
-          <h3 class="card-h3" data-i18n="withdraw_request_title">Withdraw Earnings</h3>
+          <h3 style="font-size: 15px; margin-top:0;" data-i18n="withdraw_request_title">Withdraw Earnings</h3>
           
-          <div class="mb-12">
-            <label class="input-label" data-i18n="wallet_addr_label">Withdrawal Wallet (USDT TRC20)</label>
-            <div class="flex-gap-6">
-              <input type="text" id="default-wallet" placeholder="Enter wallet address" readonly class="mt-0">
-              <button class="btn-small btn-warning mt-0 w-auto" id="edit-wallet-btn" onclick="toggleWalletEdit()" data-i18n="btn_edit">Edit</button>
+          <div style="margin-bottom: 12px;">
+            <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;" data-i18n="wallet_addr_label">Withdrawal Wallet (USDT TRC20)</label>
+            <div style="display: flex; gap: 6px;">
+              <input type="text" id="default-wallet" placeholder="Enter wallet address" readonly style="margin-top: 0;">
+              <button class="btn-small btn-warning" id="edit-wallet-btn" onclick="toggleWalletEdit()" style="margin-top: 0; width: auto;" data-i18n="btn_edit">Edit</button>
             </div>
-            <button id="save-wallet-btn" class="hidden btn-small mt-6 w-100" onclick="saveSettings()" data-i18n="btn_save_wallet">Save New Address</button>
+            <button id="save-wallet-btn" class="hidden btn-small" onclick="saveSettings()" style="margin-top: 6px; width: 100%;" data-i18n="btn_save_wallet">Save New Address</button>
           </div>
 
-          <input type="number" id="withdraw-amount" data-i18n-ph="ph_withdraw_amount" placeholder="Amount (Min. $30)" min="30" step="any" oninput="updateWithdrawCalculations()">
+          <input type="number" id="withdraw-amount" placeholder="Amount (Min. $30)" min="30" oninput="updateWithdrawCalculations()">
           
           <div class="fee-breakdown hidden" id="withdraw-fee-box">
-            <span><span data-i18n="calc_amt">Amount:</span> <b id="calc-req">$0</b></span>
-            <span><span data-i18n="calc_fee">Fee (10%):</span> <b id="calc-fee" class="val-danger">$0</b></span>
-            <span><span data-i18n="calc_net">Net:</span> <b id="calc-net" class="val-success">$0</b></span>
+            <span>Amount: <b id="calc-req">$0</b></span>
+            <span>Fee (10%): <b id="calc-fee" style="color: var(--danger);">$0</b></span>
+            <span>Net: <b id="calc-net" style="color: var(--success);">$0</b></span>
           </div>
 
-          <button id="btn-request-withdraw" class="mt-12" onclick="requestWithdrawal()">
+          <button id="btn-request-withdraw" style="margin-top: 12px;" onclick="requestWithdrawal()">
             <span data-i18n="btn_submit_withdraw">Request Withdrawal</span>
           </button>
 
-          <h4 class="sub-h4-border" data-i18n="withdraw_history">Withdrawal History</h4>
-          <div id="withdraws-list" class="font-12 text-muted" data-i18n="loading">Loading...</div>
+          <h4 style="font-size: 13px; margin: 16px 0 8px 0; border-top: 1px solid var(--border-color); padding-top: 12px;" data-i18n="withdraw_history">Withdrawal History</h4>
+          <div id="withdraws-list" style="font-size: 12px; color: var(--text-muted);" data-i18n="loading">Loading...</div>
         </div>
 
       </div>
@@ -205,12 +496,12 @@
       <!-- 3. Self-Serve Ads Tab -->
       <div id="tab-content-ads" class="hidden">
         <div class="card">
-          <h3 class="card-h3" data-i18n="create_ad_title">Create New Ad Campaign</h3>
-          <p class="ad-rate-desc" data-i18n="ad_rate_desc">Ad Rate: $1.50 per 1,000 real impressions (CPM)</p>
+          <h3 style="font-size: 15px; margin-top:0;" data-i18n="create_ad_title">Create New Ad Campaign</h3>
+          <p style="font-size: 11px; color: var(--text-muted); margin-top:-4px;" data-i18n="ad_rate_desc">Ad Rate: $1.50 per 1,000 real impressions (CPM)</p>
           
           <input type="text" id="ad-title" data-i18n-ph="ph_ad_title" placeholder="Ad Title">
           <input type="url" id="ad-target-url" data-i18n-ph="ph_ad_target_url" placeholder="Target URL (https://...)">
-          <input type="number" id="ad-budget" data-i18n-ph="ph_ad_budget" placeholder="Total Budget (Min. $5)" min="5" step="any">
+          <input type="number" id="ad-budget" data-i18n-ph="ph_ad_budget" placeholder="Total Budget (Min. $5)">
           
           <button id="btn-create-ad" onclick="createAdCampaign()">
             <span data-i18n="btn_launch_ad">Launch Ad Campaign</span>
@@ -218,23 +509,23 @@
         </div>
 
         <div class="card">
-          <h3 class="card-h3" data-i18n="my_ads_title">Your Ad Campaigns</h3>
-          <div id="ads-list" class="text-muted font-12" data-i18n="loading">Loading...</div>
+          <h3 style="font-size: 15px; margin-top:0;" data-i18n="my_ads_title">Your Ad Campaigns</h3>
+          <div id="ads-list" style="color: var(--text-muted); font-size: 12px;" data-i18n="loading">Loading...</div>
         </div>
       </div>
 
       <!-- 4. Referral Tab -->
       <div id="tab-content-referral" class="hidden">
         <div class="card">
-          <h3 class="card-h3-alt" data-i18n="ref_title">Referral System (10%)</h3>
-          <p class="ref-desc" data-i18n="ref_desc">Invite your friends and instantly earn 10% of their total revenues.</p>
+          <h3 style="margin-top:0;" data-i18n="ref_title">Referral System (10%)</h3>
+          <p style="font-size: 12px; color: var(--text-muted); line-height: 1.5;" data-i18n="ref_desc">Invite your friends and instantly earn 10% of their total revenues.</p>
           <input type="text" id="ref-link" readonly onclick="copyToClipboard(this.value)">
-          <button class="btn-success mt-10" onclick="shareReferralLink()">
+          <button class="btn-success" style="margin-top: 10px;" onclick="shareReferralLink()">
             <span data-i18n="btn_share_ref">Share Link via Telegram</span>
           </button>
-          <div class="stat-box mt-14">
+          <div class="stat-box" style="margin-top:14px;">
             <small data-i18n="total_ref_earnings">Total Referral Earnings</small>
-            <h3 id="ref-earnings" class="val-success">$0.00</h3>
+            <h3 id="ref-earnings" style="color:var(--success);">$0.00</h3>
           </div>
         </div>
       </div>
@@ -242,7 +533,7 @@
       <!-- 5. Settings Tab -->
       <div id="tab-content-settings" class="hidden">
         <div class="card">
-          <h3 class="card-h3-alt" data-i18n="lang_settings_title">Language / تغيير اللغة</h3>
+          <h3 style="margin-top:0; font-size: 15px;" data-i18n="lang_settings_title">Language / تغيير اللغة</h3>
           <select id="language-select" onchange="changeAppLanguage(this.value)">
             <option value="en">English (الإنجليزية)</option>
             <option value="ar">العربية (Arabic)</option>
@@ -250,27 +541,27 @@
         </div>
 
         <div class="card">
-          <h3 class="card-h3-alt" data-i18n="faq_title">FAQ & Support</h3>
+          <h3 style="margin-top:0; font-size: 15px;" data-i18n="faq_title">FAQ & Support</h3>
           <details>
             <summary data-i18n="faq_q1">How are earnings calculated?</summary>
-            <p class="faq-ans" data-i18n="faq_a1">Earnings depend on ad revenue and are distributed proportionally based on verified visits.</p>
+            <p style="color: var(--text-muted); font-size: 12px; margin-top: 6px;" data-i18n="faq_a1">Earnings depend on ad revenue and are distributed proportionally based on verified visits.</p>
           </details>
           <details>
             <summary data-i18n="faq_q2">What is the 1-day pending period?</summary>
-            <p class="faq-ans" data-i18n="faq_a2">It is a hold period to review traffic sources and prevent fraud before transferring earnings to available balance within 1 day.</p>
+            <p style="color: var(--text-muted); font-size: 12px; margin-top: 6px;" data-i18n="faq_a2">It is a hold period to review traffic sources and prevent fraud before transferring earnings to available balance within 1 day.</p>
           </details>
           
-          <div class="support-box">
+          <div style="margin-top: 16px; padding: 12px; background: #0d1527; border-radius: 10px; border: 1px solid var(--border-color); font-size: 12px; text-align: center;">
             <span data-i18n="support_text">Contact technical support on Telegram:</span>
-            <div class="tg-links-group flex-wrap">
+            <div class="tg-links-group" style="flex-wrap: wrap;">
               <a href="https://t.me/Ads_telegabot" target="_blank" rel="noopener noreferrer">
-                <button class="btn-small btn-accent-full" data-i18n="btn_bot">🤖 Official Bot</button>
+                <button class="btn-small" style="width: 100%; background: var(--accent);">🤖 Official Bot</button>
               </a>
               <a href="https://t.me/ttelega_ads" target="_blank" rel="noopener noreferrer">
-                <button class="btn-small btn-success w-100" data-i18n="btn_channel">📢 Official Channel</button>
+                <button class="btn-small btn-success" style="width: 100%;">📢 Official Channel</button>
               </a>
               <a href="https://t.me/Te_AdsNs_bot" target="_blank" rel="noopener noreferrer">
-                <button class="btn-small btn-warning w-100" data-i18n="btn_support">🎧 Support</button>
+                <button class="btn-small btn-warning" style="width: 100%;">🎧 Support</button>
               </a>
             </div>
           </div>
@@ -279,24 +570,30 @@
 
       <!-- 6. Admin Tab -->
       <div id="tab-content-admin" class="hidden">
-        <div class="stats-grid mb-15">
-          <div class="stat-box"><small data-i18n="adm_total_users">Total Users</small><h3 id="admin-total-users">0</h3></div>
-          <div class="stat-box"><small data-i18n="adm_total_pending">Total Pending</small><h3 id="admin-total-pending" class="val-warning">$0.00</h3></div>
+        <div class="stats-grid" style="margin-bottom: 15px;">
+          <div class="stat-box"><small>Total Users</small><h3 id="admin-total-users">0</h3></div>
+          <div class="stat-box"><small>Total Pending</small><h3 id="admin-total-pending" style="color: var(--warning);">$0.00</h3></div>
         </div>
 
         <div class="card">
-          <h4 class="card-h4-m0" data-i18n="adm_pending_dep">Pending Deposit Requests</h4>
-          <div id="admin-deposits-list" class="font-12">No pending deposits.</div>
+          <h4 style="margin-top:0;">Revenue Distribution</h4>
+          <input type="number" id="revenue-amount" placeholder="Total Revenue ($)">
+          <button id="btn-distribute-rev" onclick="distributeRevenue()">Distribute Revenue to Links</button>
         </div>
 
         <div class="card">
-          <h4 class="card-h4-m0" data-i18n="adm_pending_withdraw">Pending Withdrawal Requests</h4>
-          <div id="admin-withdraws-list" class="font-12">No pending withdrawals.</div>
+          <h4 style="margin-top:0;">Pending Deposit Requests</h4>
+          <div id="admin-deposits-list" style="font-size: 12px;">No pending deposits.</div>
+        </div>
+
+        <div class="card">
+          <h4 style="margin-top:0;">Pending Withdrawal Requests</h4>
+          <div id="admin-withdraws-list" style="font-size: 12px;">No pending withdrawals.</div>
         </div>
         
         <div class="card">
-          <h4 class="card-h4-m0" data-i18n="adm_user_mgmt">User Management</h4>
-          <div id="admin-users-list" class="font-12">Loading...</div>
+          <h4 style="margin-top:0;">User Management</h4>
+          <div id="admin-users-list" style="font-size: 12px;">Loading...</div>
         </div>
       </div>
 
@@ -327,7 +624,7 @@
           <span data-i18n="nav_settings">Settings</span>
         </button>
 
-        <button onclick="switchTab('admin')" class="nav-btn hidden btn-admin-nav" id="tab-btn-admin">
+        <button onclick="switchTab('admin')" class="nav-btn hidden" id="tab-btn-admin" style="color: var(--warning);">
           <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-5.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
           <span>Admin</span>
         </button>
@@ -336,6 +633,10 @@
     </div>
   </div>
 
+  <!-- الربط بالترتيب الصحيح لتفادي أخطاء ReferenceError -->
+  <script src="ar.js"></script>
+  <script src="en.js"></script>
+  <script src="i18n.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
