@@ -1,4 +1,4 @@
-const en = {
+const enTranslations = {
   nav_home: "Home",
   nav_wallet: "Wallet",
   nav_ads: "Ads",
@@ -44,7 +44,6 @@ const en = {
   seconds: "seconds",
   go_button: "Continue to Destination",
   cancel: "Cancel",
-  close: "Close",
   network_error: "Network connection error. Please check your internet connection.",
   about_title: "ℹ️ About & Terms of Use",
   about_desc: "This bot is securely dedicated to shortening links and managing promotional campaigns safely. By using this platform, you agree to comply with our traffic quality guidelines and terms of service.",
