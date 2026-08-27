@@ -14,23 +14,23 @@
   <div class="container">
     <div id="toast"></div>
 
-    <!-- Modal: Instructions Guide -->
+    <!-- Modal: Deposit Instructions Guide -->
     <div id="instructions-modal" class="modal-overlay hidden">
       <div class="modal-content">
-        <h3 class="modal-title">Deposit & TxID Guide</h3>
+        <h3 class="modal-title" data-i18n="guide_title">Deposit & TxID Guide</h3>
         <hr class="modal-divider">
         <ol class="instructions-list">
-          <li><b>Select Network:</b> Choose (USDT TRC20 or BEP20) to view your deposit address, then click <i>Copy</i>.</li>
-          <li><b>Transfer Funds:</b> Open your wallet (Binance, Trust Wallet, OKX, etc.) and send USDT to the copied address.</li>
-          <li><b>Copy Transaction Hash (TxID):</b> After the transfer succeeds, copy the <b>TxHash / TxID</b>.
+          <li data-i18n="guide_step1"><b>Select Network:</b> Choose (USDT TRC20 or BEP20) to view your deposit address, then click <i>Copy</i>.</li>
+          <li data-i18n="guide_step2"><b>Transfer Funds:</b> Open your wallet (Binance, Trust Wallet, OKX, etc.) and send USDT to the copied address.</li>
+          <li><span data-i18n="guide_step3"><b>Copy Transaction Hash (TxID):</b> After the transfer succeeds, copy the <b>TxHash / TxID</b>.</span>
             <div class="txid-example">
-              <small style="color: var(--text-muted);">Example TxID format:</small><br>
+              <small style="color: var(--text-muted);" data-i18n="guide_example">Example TxID format:</small><br>
               <code style="color: var(--success); font-size: 10px;">4a8f92b...e83120c91</code>
             </div>
           </li>
-          <li><b>Submit Request:</b> Return here, enter the deposit amount and TxID, then click <b>Submit Deposit Request</b>.</li>
+          <li data-i18n="guide_step4"><b>Submit Request:</b> Return here, enter the deposit amount and TxID, then click <b>Submit Deposit Request</b>.</li>
         </ol>
-        <button class="btn-danger btn-modal-close" onclick="toggleInstructionsModal(false)" data-i18n="close">Close</button>
+        <button class="btn-danger btn-modal-close w-100" onclick="toggleInstructionsModal(false)" data-i18n="close">Close</button>
       </div>
     </div>
 
@@ -59,7 +59,7 @@
         </p>
         <div class="mt-8">
           <a href="https://t.me/ttelega_ads" target="_blank" rel="noopener noreferrer" class="official-channel-btn">
-            📢 Official Channel
+            📢 <span data-i18n="official_channel">Official Channel</span>
           </a>
         </div>
       </div>
@@ -124,46 +124,50 @@
         </div>
 
         <div class="wallet-actions-nav">
-          <button id="wallet-nav-deposit" class="wallet-action-btn active" onclick="switchWalletView('deposit')">📥 Deposit</button>
-          <button id="wallet-nav-withdraw" class="wallet-action-btn" onclick="switchWalletView('withdraw')">📤 Withdraw</button>
+          <button id="wallet-nav-deposit" class="wallet-action-btn active" onclick="switchWalletView('deposit')">
+            <span>📥</span> <span data-i18n="btn_deposit_tab">Deposit</span>
+          </button>
+          <button id="wallet-nav-withdraw" class="wallet-action-btn" onclick="switchWalletView('withdraw')">
+            <span>📤</span> <span data-i18n="btn_withdraw_tab">Withdraw</span>
+          </button>
         </div>
 
         <!-- Deposit View -->
         <div id="wallet-view-deposit" class="card">
           <div class="flex-between-center mb-8">
-            <h3 class="card-h3 m-0">Deposit Funds (USDT)</h3>
-            <button class="btn-small btn-warning w-auto" onclick="toggleInstructionsModal(true)">❓ Deposit Guide</button>
+            <h3 class="card-h3 m-0" data-i18n="deposit_title">Deposit Funds (USDT)</h3>
+            <button class="btn-small btn-warning w-auto" onclick="toggleInstructionsModal(true)" data-i18n="btn_guide">❓ Deposit Guide</button>
           </div>
           
-          <h4 class="sub-h4">Select Deposit Network:</h4>
+          <h4 class="sub-h4" data-i18n="select_network">Select Deposit Network:</h4>
           <select id="deposit-network" onchange="handleNetworkChange(this.value)">
-            <option value="">-- Choose Network to View Address --</option>
+            <option value="" data-i18n="opt_choose_net">-- Choose Network to View Address --</option>
             <option value="TRC20">USDT (TRC20 Network)</option>
             <option value="BEP20">USDT (BEP20 Network)</option>
           </select>
 
           <div id="card-addr-trc20" class="address-card hidden">
-            <small class="text-muted">USDT - TRC20 (Tron) Deposit Address:</small>
+            <small class="text-muted" data-i18n="lbl_trc20">USDT - TRC20 (Tron) Deposit Address:</small>
             <div class="address-row">
               <span class="address-text" id="addr-trc20">TYqN8xM9KzL3pQ2vA5wR7jH4uE1sD8fX9k</span>
-              <button class="btn-small" onclick="copyToClipboard(document.getElementById('addr-trc20').innerText)">Copy</button>
+              <button class="btn-small" onclick="copyToClipboard(document.getElementById('addr-trc20').innerText)" data-i18n="btn_copy">Copy</button>
             </div>
           </div>
 
           <div id="card-addr-bep20" class="address-card hidden">
-            <small class="text-muted">USDT - BEP20 (BNB Smart Chain) Deposit Address:</small>
+            <small class="text-muted" data-i18n="lbl_bep20">USDT - BEP20 (BNB Smart Chain) Deposit Address:</small>
             <div class="address-row">
               <span class="address-text" id="addr-bep20">0x71C7656EC7ab88b098defB751B7401B5f6d8976F</span>
-              <button class="btn-small" onclick="copyToClipboard(document.getElementById('addr-bep20').innerText)">Copy</button>
+              <button class="btn-small" onclick="copyToClipboard(document.getElementById('addr-bep20').innerText)" data-i18n="btn_copy">Copy</button>
             </div>
           </div>
 
-          <h4 class="sub-h4 mt-14">Submit Deposit Proof:</h4>
-          <input type="number" id="deposit-amount" placeholder="Deposited Amount ($)" min="1" step="any">
-          <input type="text" id="deposit-txhash" placeholder="Transaction TxID / TxHash">
+          <h4 class="sub-h4 mt-14" data-i18n="submit_proof">Submit Deposit Proof:</h4>
+          <input type="number" id="deposit-amount" data-i18n-ph="ph_dep_amount" placeholder="Deposited Amount ($)" min="1" step="any">
+          <input type="text" id="deposit-txhash" data-i18n-ph="ph_dep_txid" placeholder="Transaction TxID / TxHash">
           
           <button id="btn-request-deposit" class="btn-success mt-10" onclick="requestDeposit()">
-            <span>Submit Deposit Request</span>
+            <span data-i18n="btn_submit_deposit">Submit Deposit Request</span>
           </button>
         </div>
 
@@ -180,12 +184,12 @@
             <button id="save-wallet-btn" class="hidden btn-small mt-6 w-100" onclick="saveSettings()" data-i18n="btn_save_wallet">Save New Address</button>
           </div>
 
-          <input type="number" id="withdraw-amount" placeholder="Amount (Min. $30)" min="30" step="any" oninput="updateWithdrawCalculations()">
+          <input type="number" id="withdraw-amount" data-i18n-ph="ph_withdraw_amount" placeholder="Amount (Min. $30)" min="30" step="any" oninput="updateWithdrawCalculations()">
           
           <div class="fee-breakdown hidden" id="withdraw-fee-box">
-            <span>Amount: <b id="calc-req">$0</b></span>
-            <span>Fee (10%): <b id="calc-fee" class="val-danger">$0</b></span>
-            <span>Net: <b id="calc-net" class="val-success">$0</b></span>
+            <span><span data-i18n="calc_amt">Amount:</span> <b id="calc-req">$0</b></span>
+            <span><span data-i18n="calc_fee">Fee (10%):</span> <b id="calc-fee" class="val-danger">$0</b></span>
+            <span><span data-i18n="calc_net">Net:</span> <b id="calc-net" class="val-success">$0</b></span>
           </div>
 
           <button id="btn-request-withdraw" class="mt-12" onclick="requestWithdrawal()">
@@ -260,13 +264,13 @@
             <span data-i18n="support_text">Contact technical support on Telegram:</span>
             <div class="tg-links-group flex-wrap">
               <a href="https://t.me/Ads_telegabot" target="_blank" rel="noopener noreferrer">
-                <button class="btn-small btn-accent-full">🤖 Official Bot</button>
+                <button class="btn-small btn-accent-full" data-i18n="btn_bot">🤖 Official Bot</button>
               </a>
               <a href="https://t.me/ttelega_ads" target="_blank" rel="noopener noreferrer">
-                <button class="btn-small btn-success w-100">📢 Official Channel</button>
+                <button class="btn-small btn-success w-100" data-i18n="btn_channel">📢 Official Channel</button>
               </a>
               <a href="https://t.me/Te_AdsNs_bot" target="_blank" rel="noopener noreferrer">
-                <button class="btn-small btn-warning w-100">🎧 Support</button>
+                <button class="btn-small btn-warning w-100" data-i18n="btn_support">🎧 Support</button>
               </a>
             </div>
           </div>
@@ -276,22 +280,22 @@
       <!-- 6. Admin Tab -->
       <div id="tab-content-admin" class="hidden">
         <div class="stats-grid mb-15">
-          <div class="stat-box"><small>Total Users</small><h3 id="admin-total-users">0</h3></div>
-          <div class="stat-box"><small>Total Pending</small><h3 id="admin-total-pending" class="val-warning">$0.00</h3></div>
+          <div class="stat-box"><small data-i18n="adm_total_users">Total Users</small><h3 id="admin-total-users">0</h3></div>
+          <div class="stat-box"><small data-i18n="adm_total_pending">Total Pending</small><h3 id="admin-total-pending" class="val-warning">$0.00</h3></div>
         </div>
 
         <div class="card">
-          <h4 class="card-h4-m0">Pending Deposit Requests</h4>
+          <h4 class="card-h4-m0" data-i18n="adm_pending_dep">Pending Deposit Requests</h4>
           <div id="admin-deposits-list" class="font-12">No pending deposits.</div>
         </div>
 
         <div class="card">
-          <h4 class="card-h4-m0">Pending Withdrawal Requests</h4>
+          <h4 class="card-h4-m0" data-i18n="adm_pending_withdraw">Pending Withdrawal Requests</h4>
           <div id="admin-withdraws-list" class="font-12">No pending withdrawals.</div>
         </div>
         
         <div class="card">
-          <h4 class="card-h4-m0">User Management</h4>
+          <h4 class="card-h4-m0" data-i18n="adm_user_mgmt">User Management</h4>
           <div id="admin-users-list" class="font-12">Loading...</div>
         </div>
       </div>
