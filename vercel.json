@@ -9,15 +9,23 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/server.js"
+      "dest": "server.js"
     },
     {
       "src": "/r/(.*)",
-      "dest": "/server.js"
+      "dest": "server.js"
+    },
+    {
+      "src": "/app",
+      "dest": "server.js"
+    },
+    {
+      "src": "/admin",
+      "dest": "server.js"
     },
     {
       "src": "/(.*)",
-      "dest": "/server.js"
+      "dest": "server.js"
     }
   ]
 }
