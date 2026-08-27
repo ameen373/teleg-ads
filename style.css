@@ -21,7 +21,16 @@ body {
   margin: 0; 
   padding: 12px; 
   padding-bottom: 95px;
-  direction: ltr; 
+}
+
+html[dir="rtl"] body {
+  direction: rtl;
+  text-align: right;
+}
+
+html[dir="ltr"] body {
+  direction: ltr;
+  text-align: left;
 }
 
 .container { max-width: 500px; margin: 0 auto; }
@@ -169,6 +178,10 @@ button:disabled { background: #334155; cursor: not-allowed; opacity: 0.7; }
   border: 1px solid var(--border-color);
   border-radius: 12px;
   margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 .wallet-action-btn.active {
   background: var(--accent);
@@ -200,6 +213,8 @@ button:disabled { background: #334155; cursor: not-allowed; opacity: 0.7; }
   padding: 6px 8px;
   border-radius: 6px;
   flex: 1;
+  direction: ltr !important;
+  text-align: left !important;
 }
 
 /* Fee Details Box */
@@ -326,6 +341,7 @@ summary { font-weight: bold; cursor: pointer; outline: none; }
 .modal-title { margin-top: 0; color: var(--accent); font-size: 16px; }
 .modal-divider { border: 0; border-top: 1px solid var(--border-color); margin: 10px 0; }
 .instructions-list { font-size: 12px; color: var(--text); padding-left: 18px; line-height: 1.6; }
+html[dir="rtl"] .instructions-list { padding-left: 0; padding-right: 18px; }
 .txid-example { background: #050811; padding: 8px; border-radius: 8px; margin: 6px 0; border: 1px solid var(--border-color); text-align: center; }
 .btn-modal-close { margin-top: 12px; }
 .ad-container { min-height: 220px; background: #000; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 16px 0; border: 1px dashed var(--border-color); overflow: hidden; padding: 12px; text-align: center; }
