@@ -1,15 +1,15 @@
 /**
- * Enterprise Production Models Package (Ultra-Optimized)
+ * Enterprise Production Models Package (Ultra-Optimized & Fully Synchronized)
  * Telegram Link Shortener & Mini App Engine
  */
 
 if (typeof window !== 'undefined') {
-  throw new Error("Mongoose and database models cannot be used directly in the browser. This code must run on the server side.");
+  throw new Error("Mongoose and database models cannot be used directly in the browser.");
 }
 
 const mongoose = require('mongoose');
 
-// Utility function to precision-format earnings up to 5 decimal places
+// Helper formatting precision to 5 decimal places
 const formatCurrency = (val) => {
   if (typeof val !== 'number' || isNaN(val) || !isFinite(val)) return 0;
   return Math.round((val + Number.EPSILON) * 100000) / 100000;
@@ -322,7 +322,7 @@ clickSessionSchema.index({ linkId: 1, ip: 1 });
 clickSessionSchema.index({ bridgeToken: 1 }, { unique: true });
 
 // --------------------------------------------------
-// 6. Withdraw Request Model
+// 6. Withdraw Request Model (Fixed Fee Calculation Sync)
 // --------------------------------------------------
 const withdrawSchema = new mongoose.Schema({
   userId: { 
@@ -339,7 +339,7 @@ const withdrawSchema = new mongoose.Schema({
   },
   fee: {
     type: Number,
-    default: 3,
+    required: true,
     set: formatCurrency
   },
   netAmount: {
@@ -381,9 +381,11 @@ const withdrawSchema = new mongoose.Schema({
 });
 
 withdrawSchema.pre('validate', function(next) {
-  const amount = typeof this.amount === 'number' ? this.amount : 0;
-  const fee = typeof this.fee === 'number' ? this.fee : 3;
-  this.netAmount = formatCurrency(Math.max(0, amount - fee));
+  const amt = typeof this.amount === 'number' ? this.amount : 0;
+  if (!this.fee) {
+    this.fee = formatCurrency(amt * 0.10);
+  }
+  this.netAmount = formatCurrency(Math.max(0, amt - this.fee));
   next();
 });
 
@@ -480,25 +482,14 @@ const announcementSchema = new mongoose.Schema({
 
 announcementSchema.index({ isActive: 1, createdAt: -1 });
 
-// Model exports with fallback check against overwriting existing models
-const User = mongoose.models.User || mongoose.model('User', userSchema);
-const Ad = mongoose.models.Ad || mongoose.model('Ad', adSchema);
-const Link = mongoose.models.Link || mongoose.model('Link', linkSchema);
-const Impression = mongoose.models.Impression || mongoose.model('Impression', impressionSchema);
-const ClickSession = mongoose.models.ClickSession || mongoose.model('ClickSession', clickSessionSchema);
-const Withdraw = mongoose.models.Withdraw || mongoose.model('Withdraw', withdrawSchema);
-const EarningsHold = mongoose.models.EarningsHold || mongoose.model('EarningsHold', earningsHoldSchema);
-const Deposit = mongoose.models.Deposit || mongoose.model('Deposit', depositSchema);
-const Announcement = mongoose.models.Announcement || mongoose.model('Announcement', announcementSchema);
-
 module.exports = {
-  User,
-  Ad,
-  Link,
-  Impression,
-  ClickSession,
-  Withdraw,
-  EarningsHold,
-  Deposit,
-  Announcement
+  User: mongoose.models.User || mongoose.model('User', userSchema),
+  Ad: mongoose.models.Ad || mongoose.model('Ad', adSchema),
+  Link: mongoose.models.Link || mongoose.model('Link', linkSchema),
+  Impression: mongoose.models.Impression || mongoose.model('Impression', impressionSchema),
+  ClickSession: mongoose.models.ClickSession || mongoose.model('ClickSession', clickSessionSchema),
+  Withdraw: mongoose.models.Withdraw || mongoose.model('Withdraw', withdrawSchema),
+  EarningsHold: mongoose.models.EarningsHold || mongoose.model('EarningsHold', earningsHoldSchema),
+  Deposit: mongoose.models.Deposit || mongoose.model('Deposit', depositSchema),
+  Announcement: mongoose.models.Announcement || mongoose.model('Announcement', announcementSchema)
 };
