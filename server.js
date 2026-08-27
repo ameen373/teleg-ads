@@ -11,14 +11,19 @@ const validUrl = require('valid-url');
 const axios = require('axios');
 const Redis = require('ioredis');
 const cors = require('cors');
+const helmet = require('helmet');
 
-// استدعاء الكيانات من ملف النماذج
 const { User, Ad, Link, Impression, ClickSession, Withdraw, EarningsHold, Deposit, Announcement } = require('./models');
 
 const app = express();
 
-// --- Setup Server Trust Proxy ---
+// --- Setup Server Security & Trust Proxy ---
 app.set('trust proxy', 1);
+
+app.use(helmet({
+  contentSecurityPolicy: false, // Turned off for Telegram WebApp embedding
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 
 // --- 1. CORS Configuration ---
 const corsOptions = {
@@ -87,40 +92,45 @@ const CONFIG = Object.freeze({
   SUPPORT_USERNAME: '@' + (process.env.TELEGRAM_SUPPORT_URL || 'https://t.me/Te_AdsNs_bot').split('/').pop()
 });
 
-// --- Serverless MongoDB & Redis Connection Caching ---
-let cachedDb = null;
+// --- Connection Pooling & Caching ---
+let cachedDbPromise = null;
 let redis = null;
 
 async function connectServices() {
-  if (!cachedDb && CONFIG.MONGO_URI) {
-    cachedDb = await mongoose.connect(CONFIG.MONGO_URI, {
+  if (!cachedDbPromise && CONFIG.MONGO_URI) {
+    cachedDbPromise = mongoose.connect(CONFIG.MONGO_URI, {
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
     });
   }
+  if (cachedDbPromise) {
+    await cachedDbPromise;
+  }
+
   if (!redis && CONFIG.REDIS_URL) {
-    redis = new Redis(CONFIG.REDIS_URL, {
-      maxRetriesPerRequest: 2,
-      enableReadyCheck: false,
-      lazyConnect: true
-    });
     try {
-      await redis.connect();
+      const client = new Redis(CONFIG.REDIS_URL, {
+        maxRetriesPerRequest: 1,
+        enableReadyCheck: false,
+        lazyConnect: true
+      });
+      await client.connect();
+      redis = client;
     } catch (e) {
-      logger.error('⚠️ Redis Connect Error: ' + e.message);
+      logger.error('⚠️ Redis Connection Warning: ' + e.message);
+      redis = null;
     }
   }
 }
 
-// Middleware لضمان اتصال قواعد البيانات قبل تنفيذ أي الطلب
 app.use(async (req, res, next) => {
   try {
     await connectServices();
     next();
   } catch (err) {
-    logger.error('❌ Service Connection Failed:', err);
-    res.status(500).json({ success: false, error: 'Database connection failed' });
+    logger.error('❌ Database Connection Failure:', err);
+    res.status(500).json({ success: false, error: 'Database service unavailable' });
   }
 });
 
@@ -210,7 +220,7 @@ const validateTraffic = (req, res, next) => {
   const ua = req.get('User-Agent') || '';
   const botPattern = /bot|crawler|spider|datacenter|proxy|httpclient|curl|python|axios|headless|selenium|puppeteer/i;
   if (botPattern.test(ua)) {
-    return res.status(403).json({ success: false, error: 'Automated traffic rejected (Bot Traffic Rejected)' });
+    return res.status(403).json({ success: false, error: 'Automated traffic rejected' });
   }
   next();
 };
@@ -223,13 +233,17 @@ const isPhishingOrMalicious = (url) => {
 
 const authMiddleware = async (req, res, next) => {
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return res.status(401).json({ success: false, error: 'Access token missing' });
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ success: false, error: 'Access token missing' });
+  }
 
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
     const user = await User.findById(decoded.userId).lean();
-    if (!user || user.isBanned) return res.status(403).json({ success: false, error: 'Unauthorized access' });
+    if (!user || user.isBanned) {
+      return res.status(403).json({ success: false, error: 'Unauthorized access' });
+    }
     req.user = user;
     next();
   } catch (err) {
@@ -253,9 +267,11 @@ app.post('/api/auth/login', async (req, res, next) => {
     const tgId = telegramUser ? String(telegramUser.id) : (process.env.NODE_ENV !== 'production' ? String(req.headers['x-demo-user-id'] || '') : null);
     const { referrerId } = req.body;
 
-    if (!tgId) return res.status(401).json({ success: false, error: 'Invalid or tampered Telegram initData authentication.' });
+    if (!tgId) {
+      return res.status(401).json({ success: false, error: 'Invalid or tampered Telegram authentication.' });
+    }
 
-    const currentUsername = telegramUser?.username || `User_${tgId.slice(-4)}`;
+    const currentUsername = telegramUser?.username || `user_${tgId.slice(-4)}`;
     const userLanguage = telegramUser?.language_code || CONFIG.DEFAULT_LANGUAGE;
 
     let user = await User.findOne({ telegramId: tgId });
@@ -279,7 +295,9 @@ app.post('/api/auth/login', async (req, res, next) => {
       if (updated) await user.save();
     }
 
-    if (user.isBanned) return res.status(403).json({ success: false, error: `Your account is suspended due to policy violations. Contact support: ${CONFIG.SUPPORT_USERNAME}` });
+    if (user.isBanned) {
+      return res.status(403).json({ success: false, error: `Account suspended. Contact support: ${CONFIG.SUPPORT_USERNAME}` });
+    }
 
     const token = jwt.sign(
       { userId: user._id, telegramId: user.telegramId, role: user.role },
@@ -339,7 +357,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
 
     if (!updatedUser) {
       await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'Insufficient balance to launch this campaign ($5 minimum)' });
+      return res.status(400).json({ success: false, error: 'Insufficient balance to launch campaign ($5 minimum)' });
     }
 
     const ad = await Ad.create([{
@@ -380,10 +398,10 @@ app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
     if (!mongoose.Types.ObjectId.isValid(adId)) return res.status(400).json({ success: false, error: 'Invalid Ad ID' });
 
     const ad = await Ad.findOne({ _id: adId, advertiserId: req.user._id });
-    if (!ad) return res.status(404).json({ success: false, error: 'Ad not found' });
+    if (!ad) return res.status(404).json({ success: false, error: 'Ad campaign not found' });
 
     if (ad.status === 'completed') {
-      return res.status(400).json({ success: false, error: 'Cannot activate a completed campaign with exhausted budget' });
+      return res.status(400).json({ success: false, error: 'Cannot toggle an exhausted campaign' });
     }
 
     ad.status = ad.status === 'active' ? 'paused' : 'active';
@@ -408,16 +426,16 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
     }
 
     if (!['BEP20', 'TRC20'].includes(cleanNetwork)) {
-      return res.status(400).json({ success: false, error: 'Please specify a valid network (BEP20 or TRC20)' });
+      return res.status(400).json({ success: false, error: 'Invalid network (BEP20 or TRC20 required)' });
     }
 
     if (!cleanTxid || cleanTxid.length < 8) {
-      return res.status(400).json({ success: false, error: 'Please enter a valid Transaction Hash (TxID)' });
+      return res.status(400).json({ success: false, error: 'Invalid Transaction Hash (TxID)' });
     }
 
     const existingDeposit = await Deposit.findOne({ txid: cleanTxid });
     if (existingDeposit) {
-      return res.status(400).json({ success: false, error: 'This TxID has already been submitted' });
+      return res.status(400).json({ success: false, error: 'TxID has already been submitted' });
     }
 
     const deposit = await Deposit.create({
@@ -439,7 +457,7 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Withdraw Routes ---
+// --- Withdraw Routes (Synchronized Fee Calculation) ---
 app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
@@ -471,7 +489,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
 
     if (!updatedUser) {
       await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'Insufficient available balance to execute withdrawal' });
+      return res.status(400).json({ success: false, error: 'Insufficient available balance' });
     }
 
     const withdrawRequest = await Withdraw.create([{
@@ -488,7 +506,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
 
     sendTelegramNotification(
       req.user.telegramId,
-      `🔔 <b>New Withdrawal Request Submitted!</b>\nAmount: <code>$${numAmt}</code>\nFee (10%): <code>$${fee}</code>\nNet Amount: <code>$${netAmount}</code>\nNetwork: <code>${cleanNetwork}</code>\nWallet: <code>${cleanWallet}</code>\nStatus: ⏳ Under Review\n\nSupport: ${CONFIG.SUPPORT_USERNAME}`
+      `🔔 <b>Withdrawal Submitted!</b>\nAmount: <code>$${numAmt}</code>\nFee (10%): <code>$${fee}</code>\nNet Amount: <code>$${netAmount}</code>\nNetwork: <code>${cleanNetwork}</code>\nWallet: <code>${cleanWallet}</code>\nStatus: ⏳ Under Review`
     );
 
     res.json({ success: true, withdraw: withdrawRequest[0] });
@@ -618,7 +636,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
     const clickSession = await ClickSession.findById(sessionId).session(sessionDb);
     if (!clickSession || clickSession.ip !== req.ip) {
       await sessionDb.abortTransaction();
-      return res.status(403).json({ success: false, error: 'Invalid or insecure session' });
+      return res.status(403).json({ success: false, error: 'Invalid session context' });
     }
 
     const dwellTime = Date.now() - new Date(clickSession.createdAt).getTime();
@@ -645,7 +663,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 
     if (!link) {
       await sessionDb.abortTransaction();
-      return res.status(404).json({ success: false, error: 'Link not found' });
+      return res.status(404).json({ success: false, error: 'Link missing' });
     }
 
     if (isDuplicate || dailyIpClicks > 20) {
@@ -718,7 +736,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
   }
 });
 
-// --- Serverless Cron Trigger Endpoint (إجراء تسوية الأرباح) ---
+// --- Serverless Cron Trigger Endpoint ---
 app.all('/api/cron/settle-earnings', async (req, res) => {
   const authHeader = req.headers.authorization;
   if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -922,7 +940,7 @@ app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (re
 
     if (!['approved', 'rejected'].includes(action)) {
       await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'Invalid action (must be approved or rejected)' });
+      return res.status(400).json({ success: false, error: 'Invalid action (approved/rejected required)' });
     }
 
     deposit.status = action;
@@ -945,7 +963,7 @@ app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (re
     } else {
       sendTelegramNotification(
         deposit.advertiserId.telegramId,
-        `❌ <b>Deposit Request Rejected</b>\nAmount: <code>$${deposit.amount}</code>\n⚠️ <b>Reason:</b> ${deposit.rejectReason}\n\nSupport: ${CONFIG.SUPPORT_USERNAME}`
+        `❌ <b>Deposit Request Rejected</b>\nAmount: <code>$${deposit.amount}</code>\n⚠️ <b>Reason:</b> ${deposit.rejectReason}`
       );
     }
 
@@ -975,7 +993,7 @@ app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (r
 
     if (!['approved', 'rejected'].includes(action)) {
       await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'Invalid action (must be approved or rejected)' });
+      return res.status(400).json({ success: false, error: 'Invalid action (approved/rejected required)' });
     }
 
     withdraw.status = action;
@@ -993,77 +1011,17 @@ app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (r
 
       sendTelegramNotification(
         withdraw.userId.telegramId,
-        `❌ <b>Withdrawal Request Rejected</b>\nTotal Amount: <code>$${withdraw.amount}</code>\n⚠️ <b>Reason:</b> ${withdraw.rejectReason}\nFunds refunded to your available balance.\nSupport: ${CONFIG.SUPPORT_USERNAME}`
+        `❌ <b>Withdrawal Request Rejected</b>\nTotal Amount: <code>$${withdraw.amount}</code>\n⚠️ <b>Reason:</b> ${withdraw.rejectReason}`
       );
     } else if (action === 'approved') {
       sendTelegramNotification(
         withdraw.userId.telegramId,
-        `🎉 <b>Withdrawal Approved!</b>\nTotal Amount: <code>$${withdraw.amount}</code>\nNet Amount Transferred: <code>$${withdraw.netAmount}</code>\nNetwork: <code>${withdraw.network}</code>\nThank you for using our platform!`
+        `🎉 <b>Withdrawal Approved!</b>\nTotal Amount: <code>$${withdraw.amount}</code>\nNet Transferred: <code>$${withdraw.netAmount}</code>`
       );
     }
 
     await session.commitTransaction();
     res.json({ success: true, withdraw });
-  } catch (err) {
-    await session.abortTransaction();
-    next(err);
-  } finally {
-    session.endSession();
-  }
-});
-
-app.post('/api/admin/distribute-revenue', authMiddleware, adminMiddleware, async (req, res, next) => {
-  const session = await mongoose.startSession();
-  try {
-    session.startTransaction();
-    const { totalRevenue } = req.body;
-    const revenue = Number(totalRevenue);
-
-    if (isNaN(revenue) || revenue <= 0) {
-      await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'Invalid revenue amount' });
-    }
-
-    const aggregateTotal = await Link.aggregate([
-      { $group: { _id: null, total: { $sum: '$validImpressions' } } }
-    ]).session(session);
-
-    const totalImp = aggregateTotal[0]?.total || 0;
-    if (totalImp === 0) {
-      await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'No validated impressions available for revenue distribution' });
-    }
-
-    const links = await Link.find({ validImpressions: { $gt: 0 } }).populate('userId').session(session);
-    
-    const releaseDate = new Date();
-    releaseDate.setDate(releaseDate.getDate() + 1);
-
-    for (let link of links) {
-      let earned = Number(((link.validImpressions / totalImp) * revenue).toFixed(4));
-
-      if (link.userId && link.userId.referredBy) {
-        const refBonus = Number((earned * 0.10).toFixed(4));
-        earned = Number((earned - refBonus).toFixed(4));
-
-        await User.findByIdAndUpdate(
-          link.userId.referredBy,
-          { $inc: { availableBalance: refBonus, referralEarnings: refBonus } },
-          { session }
-        );
-      }
-
-      if (link.userId) {
-        await User.findByIdAndUpdate(link.userId._id, { $inc: { pendingBalance: earned } }, { session });
-        await EarningsHold.create([{ userId: link.userId._id, amount: earned, releaseAt: releaseDate }], { session });
-      }
-
-      link.validImpressions = 0;
-      await link.save({ session });
-    }
-
-    await session.commitTransaction();
-    res.json({ success: true, message: `Successfully distributed $${revenue} to ${links.length} links (released in 24 hours).` });
   } catch (err) {
     await session.abortTransaction();
     next(err);
@@ -1084,7 +1042,7 @@ app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (r
     await user.save();
 
     if (user.isBanned) {
-      sendTelegramNotification(user.telegramId, `🚫 <b>Admin Alert:</b> Your account has been suspended for violating terms of service.\nSupport: ${CONFIG.SUPPORT_USERNAME}`);
+      sendTelegramNotification(user.telegramId, `🚫 <b>Admin Alert:</b> Your account has been suspended.`);
     }
 
     res.json({ success: true, isBanned: user.isBanned });
@@ -1123,5 +1081,12 @@ app.use((err, req, res, next) => {
   });
 });
 
-// تصدير الخادم لاستخدامه في بيئة Vercel Serverless
+// Server listener for standalone deployments (PM2/Termux)
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    logger.info(`🚀 Server running on port ${PORT}`);
+  });
+}
+
 module.exports = app;
