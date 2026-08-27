@@ -138,8 +138,8 @@
           <h4 class="sub-h4">Select Deposit Network:</h4>
           <select id="deposit-network" onchange="handleNetworkChange(this.value)">
             <option value="">-- Choose Network to View Address --</option>
-            <option value="USDT_TRC20">USDT (TRC20 Network)</option>
-            <option value="USDT_BEP20">USDT (BEP20 Network)</option>
+            <option value="TRC20">USDT (TRC20 Network)</option>
+            <option value="BEP20">USDT (BEP20 Network)</option>
           </select>
 
           <div id="card-addr-trc20" class="address-card hidden">
@@ -281,12 +281,6 @@
         </div>
 
         <div class="card">
-          <h4 class="card-h4-m0">Revenue Distribution</h4>
-          <input type="number" id="revenue-amount" placeholder="Total Revenue ($)" min="0" step="any">
-          <button id="btn-distribute-rev" onclick="distributeRevenue()">Distribute Revenue to Links</button>
-        </div>
-
-        <div class="card">
           <h4 class="card-h4-m0">Pending Deposit Requests</h4>
           <div id="admin-deposits-list" class="font-12">No pending deposits.</div>
         </div>
@@ -338,10 +332,6 @@
     </div>
   </div>
 
-  <!-- Script Files Execution Order -->
-  <script src="ar.js"></script>
-  <script src="en.js"></script>
-  <script src="i18n.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
