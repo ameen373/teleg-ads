@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Shortener & Ads Platform</title>
+  <title>Telega.ads - Shortener & Ads Platform</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
   <style>
@@ -315,20 +315,20 @@
     <!-- Modal: instructions -->
     <div id="instructions-modal" class="modal-overlay hidden">
       <div class="modal-content">
-        <h3 style="margin-top: 0; color: var(--accent); font-size: 16px;">Deposit & TxID Guide</h3>
+        <h3 style="margin-top: 0; color: var(--accent); font-size: 16px;" data-i18n="guide_title">Deposit & TxID Guide</h3>
         <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 10px 0;">
         <ol style="font-size: 12px; color: var(--text); padding-left: 18px; line-height: 1.6;">
-          <li><b>Select Network:</b> Choose (USDT TRC20 or BEP20) to view your deposit address, then click <i>Copy</i>.</li>
-          <li><b>Transfer Funds:</b> Open your wallet (Binance, Trust Wallet, OKX, etc.) and send USDT to the copied address.</li>
-          <li><b>Copy Transaction Hash (TxID):</b> After the transfer succeeds, copy the <b>TxHash / TxID</b>.
+          <li data-i18n="guide_step1"><b>Select Network:</b> Choose (USDT TRC20 or BEP20) to view your deposit address, then click <i>Copy</i>.</li>
+          <li data-i18n="guide_step2"><b>Transfer Funds:</b> Open your wallet (Binance, Trust Wallet, OKX, etc.) and send USDT to the copied address.</li>
+          <li><span data-i18n="guide_step3"><b>Copy Transaction Hash (TxID):</b> After the transfer succeeds, copy the TxHash / TxID.</span>
             <div style="background: #050811; padding: 8px; border-radius: 8px; margin: 6px 0; border: 1px solid var(--border-color); text-align: center;">
-              <small style="color: var(--text-muted);">Example TxID format:</small><br>
+              <small style="color: var(--text-muted);" data-i18n="example_txid">Example TxID format:</small><br>
               <code style="color: var(--success); font-size: 10px;">4a8f92b...e83120c91</code>
             </div>
           </li>
-          <li><b>Submit Request:</b> Return here, enter the deposit amount and TxID, then click <b>Submit Deposit Request</b>.</li>
+          <li data-i18n="guide_step4"><b>Submit Request:</b> Return here, enter the deposit amount and TxID, then click <b>Submit Deposit Request</b>.</li>
         </ol>
-        <button class="btn-danger" style="margin-top: 12px;" onclick="toggleInstructionsModal(false)">Close</button>
+        <button class="btn-danger" style="margin-top: 12px;" onclick="toggleInstructionsModal(false)" data-i18n="btn_close">Close</button>
       </div>
     </div>
 
@@ -376,7 +376,6 @@
 
       <!-- 1. Dashboard Tab -->
       <div id="tab-content-dashboard">
-        <!-- نبذة وشروط الاستخدام لتلبية متطلبات المراجعة -->
         <div class="card" style="border-color: var(--accent); background: rgba(30, 41, 59, 0.9);">
           <h4 style="margin: 0 0 6px 0; color: var(--accent); font-size: 14px;" data-i18n="about_title">ℹ️ About & Terms of Use</h4>
           <p style="margin: 0; font-size: 12px; color: var(--text-muted); line-height: 1.5;" data-i18n="about_desc">
@@ -419,46 +418,46 @@
 
         <!-- Action Nav -->
         <div class="wallet-actions-nav">
-          <button id="wallet-nav-deposit" class="wallet-action-btn active" onclick="switchWalletView('deposit')">📥 Deposit</button>
-          <button id="wallet-nav-withdraw" class="wallet-action-btn" onclick="switchWalletView('withdraw')">📤 Withdraw</button>
+          <button id="wallet-nav-deposit" class="wallet-action-btn active" onclick="switchWalletView('deposit')" data-i18n="nav_deposit">📥 Deposit</button>
+          <button id="wallet-nav-withdraw" class="wallet-action-btn" onclick="switchWalletView('withdraw')" data-i18n="nav_withdraw">📤 Withdraw</button>
         </div>
 
         <!-- Deposit View -->
         <div id="wallet-view-deposit" class="card">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <h3 style="font-size: 15px; margin:0;">Deposit Funds (USDT)</h3>
-            <button class="btn-small btn-warning" style="width: auto;" onclick="toggleInstructionsModal(true)">❓ Deposit Guide</button>
+            <h3 style="font-size: 15px; margin:0;" data-i18n="deposit_title">Deposit Funds (USDT)</h3>
+            <button class="btn-small btn-warning" style="width: auto;" onclick="toggleInstructionsModal(true)" data-i18n="btn_guide">❓ Deposit Guide</button>
           </div>
           
-          <h4 style="font-size: 13px; margin: 8px 0 4px 0;">Select Deposit Network:</h4>
+          <h4 style="font-size: 13px; margin: 8px 0 4px 0;" data-i18n="select_network">Select Deposit Network:</h4>
           <select id="deposit-network" onchange="handleNetworkChange(this.value)">
-            <option value="">-- Choose Network to View Address --</option>
+            <option value="" data-i18n="opt_choose_net">-- Choose Network to View Address --</option>
             <option value="USDT_TRC20">USDT (TRC20 Network)</option>
             <option value="USDT_BEP20">USDT (BEP20 Network)</option>
           </select>
 
           <div id="card-addr-trc20" class="address-card hidden">
-            <small style="color: var(--text-muted);">USDT - TRC20 (Tron) Deposit Address:</small>
+            <small style="color: var(--text-muted);" data-i18n="lbl_trc20">USDT - TRC20 (Tron) Deposit Address:</small>
             <div class="address-row">
-              <span class="address-text" id="addr-trc20">TYqN8xM9KzL3pQ2vA5wR7jH4uE1sD8fX9k</span>
-              <button class="btn-small" onclick="copyToClipboard(document.getElementById('addr-trc20').innerText)">Copy</button>
+              <span class="address-text" id="addr-trc20">Loading TRC20 address...</span>
+              <button class="btn-small" onclick="copyToClipboard(document.getElementById('addr-trc20').innerText)" data-i18n="btn_copy">Copy</button>
             </div>
           </div>
 
           <div id="card-addr-bep20" class="address-card hidden">
-            <small style="color: var(--text-muted);">USDT - BEP20 (BNB Smart Chain) Deposit Address:</small>
+            <small style="color: var(--text-muted);" data-i18n="lbl_bep20">USDT - BEP20 (BNB Smart Chain) Deposit Address:</small>
             <div class="address-row">
-              <span class="address-text" id="addr-bep20">0x71C7656EC7ab88b098defB751B7401B5f6d8976F</span>
-              <button class="btn-small" onclick="copyToClipboard(document.getElementById('addr-bep20').innerText)">Copy</button>
+              <span class="address-text" id="addr-bep20">Loading BEP20 address...</span>
+              <button class="btn-small" onclick="copyToClipboard(document.getElementById('addr-bep20').innerText)" data-i18n="btn_copy">Copy</button>
             </div>
           </div>
 
-          <h4 style="font-size: 13px; margin: 14px 0 6px 0;">Submit Deposit Proof:</h4>
-          <input type="number" id="deposit-amount" placeholder="Deposited Amount ($)">
-          <input type="text" id="deposit-txhash" placeholder="Transaction TxID / TxHash">
+          <h4 style="font-size: 13px; margin: 14px 0 6px 0;" data-i18n="submit_proof_title">Submit Deposit Proof:</h4>
+          <input type="number" id="deposit-amount" data-i18n-ph="ph_deposit_amount" placeholder="Deposited Amount ($)">
+          <input type="text" id="deposit-txhash" data-i18n-ph="ph_deposit_txhash" placeholder="Transaction TxID / TxHash">
           
           <button id="btn-request-deposit" class="btn-success" style="margin-top: 10px;" onclick="requestDeposit()">
-            <span>Submit Deposit Request</span>
+            <span data-i18n="btn_submit_deposit">Submit Deposit Request</span>
           </button>
         </div>
 
@@ -469,18 +468,18 @@
           <div style="margin-bottom: 12px;">
             <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;" data-i18n="wallet_addr_label">Withdrawal Wallet (USDT TRC20)</label>
             <div style="display: flex; gap: 6px;">
-              <input type="text" id="default-wallet" placeholder="Enter wallet address" readonly style="margin-top: 0;">
+              <input type="text" id="default-wallet" data-i18n-ph="ph_wallet_addr" placeholder="Enter wallet address" readonly style="margin-top: 0;">
               <button class="btn-small btn-warning" id="edit-wallet-btn" onclick="toggleWalletEdit()" style="margin-top: 0; width: auto;" data-i18n="btn_edit">Edit</button>
             </div>
             <button id="save-wallet-btn" class="hidden btn-small" onclick="saveSettings()" style="margin-top: 6px; width: 100%;" data-i18n="btn_save_wallet">Save New Address</button>
           </div>
 
-          <input type="number" id="withdraw-amount" placeholder="Amount (Min. $30)" min="30" oninput="updateWithdrawCalculations()">
+          <input type="number" id="withdraw-amount" data-i18n-ph="ph_withdraw_amount" placeholder="Amount (Min. $30)" min="30" oninput="updateWithdrawCalculations()">
           
           <div class="fee-breakdown hidden" id="withdraw-fee-box">
-            <span>Amount: <b id="calc-req">$0</b></span>
-            <span>Fee (10%): <b id="calc-fee" style="color: var(--danger);">$0</b></span>
-            <span>Net: <b id="calc-net" style="color: var(--success);">$0</b></span>
+            <span><span data-i18n="lbl_amount">Amount</span>: <b id="calc-req">$0</b></span>
+            <span><span data-i18n="lbl_fee">Fee (10%)</span>: <b id="calc-fee" style="color: var(--danger);">$0</b></span>
+            <span><span data-i18n="lbl_net">Net</span>: <b id="calc-net" style="color: var(--success);">$0</b></span>
           </div>
 
           <button id="btn-request-withdraw" style="margin-top: 12px;" onclick="requestWithdrawal()">
@@ -555,13 +554,13 @@
             <span data-i18n="support_text">Contact technical support on Telegram:</span>
             <div class="tg-links-group" style="flex-wrap: wrap;">
               <a href="https://t.me/Ads_telegabot" target="_blank" rel="noopener noreferrer">
-                <button class="btn-small" style="width: 100%; background: var(--accent);">🤖 Official Bot</button>
+                <button class="btn-small" style="width: 100%; background: var(--accent);" data-i18n="btn_bot">🤖 Official Bot</button>
               </a>
               <a href="https://t.me/ttelega_ads" target="_blank" rel="noopener noreferrer">
-                <button class="btn-small btn-success" style="width: 100%;">📢 Official Channel</button>
+                <button class="btn-small btn-success" style="width: 100%;" data-i18n="btn_channel">📢 Official Channel</button>
               </a>
               <a href="https://t.me/Te_AdsNs_bot" target="_blank" rel="noopener noreferrer">
-                <button class="btn-small btn-warning" style="width: 100%;">🎧 Support</button>
+                <button class="btn-small btn-warning" style="width: 100%;" data-i18n="btn_support">🎧 Support</button>
               </a>
             </div>
           </div>
@@ -571,29 +570,31 @@
       <!-- 6. Admin Tab -->
       <div id="tab-content-admin" class="hidden">
         <div class="stats-grid" style="margin-bottom: 15px;">
-          <div class="stat-box"><small>Total Users</small><h3 id="admin-total-users">0</h3></div>
-          <div class="stat-box"><small>Total Pending</small><h3 id="admin-total-pending" style="color: var(--warning);">$0.00</h3></div>
+          <div class="stat-box"><small data-i18n="admin_total_users">Total Users</small><h3 id="admin-total-users">0</h3></div>
+          <div class="stat-box"><small data-i18n="admin_total_pending">Total Pending</small><h3 id="admin-total-pending" style="color: var(--warning);">$0.00</h3></div>
         </div>
 
         <div class="card">
-          <h4 style="margin-top:0;">Revenue Distribution</h4>
-          <input type="number" id="revenue-amount" placeholder="Total Revenue ($)">
-          <button id="btn-distribute-rev" onclick="distributeRevenue()">Distribute Revenue to Links</button>
+          <h4 style="margin-top:0;" data-i18n="admin_rev_dist_title">Revenue Distribution</h4>
+          <input type="number" id="revenue-amount" data-i18n-ph="ph_total_revenue" placeholder="Total Revenue ($)">
+          <button id="btn-distribute-rev" onclick="distributeRevenue()">
+            <span data-i18n="btn_distribute">Distribute Revenue to Links</span>
+          </button>
         </div>
 
         <div class="card">
-          <h4 style="margin-top:0;">Pending Deposit Requests</h4>
-          <div id="admin-deposits-list" style="font-size: 12px;">No pending deposits.</div>
+          <h4 style="margin-top:0;" data-i18n="admin_pending_deps">Pending Deposit Requests</h4>
+          <div id="admin-deposits-list" style="font-size: 12px;" data-i18n="admin_no_deps">No pending deposits.</div>
         </div>
 
         <div class="card">
-          <h4 style="margin-top:0;">Pending Withdrawal Requests</h4>
-          <div id="admin-withdraws-list" style="font-size: 12px;">No pending withdrawals.</div>
+          <h4 style="margin-top:0;" data-i18n="admin_pending_withs">Pending Withdrawal Requests</h4>
+          <div id="admin-withdraws-list" style="font-size: 12px;" data-i18n="admin_no_withs">No pending withdrawals.</div>
         </div>
         
         <div class="card">
-          <h4 style="margin-top:0;">User Management</h4>
-          <div id="admin-users-list" style="font-size: 12px;">Loading...</div>
+          <h4 style="margin-top:0;" data-i18n="admin_user_mgnt">User Management</h4>
+          <div id="admin-users-list" style="font-size: 12px;" data-i18n="loading">Loading...</div>
         </div>
       </div>
 
@@ -626,14 +627,13 @@
 
         <button onclick="switchTab('admin')" class="nav-btn hidden" id="tab-btn-admin" style="color: var(--warning);">
           <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-5.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
-          <span>Admin</span>
+          <span data-i18n="nav_admin">Admin</span>
         </button>
       </nav>
 
     </div>
   </div>
 
-  <!-- الربط بالترتيب الصحيح لتفادي أخطاء ReferenceError -->
   <script src="ar.js"></script>
   <script src="en.js"></script>
   <script src="i18n.js"></script>
