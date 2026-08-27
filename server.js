@@ -909,8 +909,8 @@ app.post('/api/user/settings', authMiddleware, async (req, res, next) => {
 app.get('/api/admin/dashboard-data', authMiddleware, adminMiddleware, async (req, res, next) => {
   try {
     const [withdraws, deposits, users, stats, totalAds] = await Promise.all([
-      Withdraw.find().populate('userId').sort({ createdAt: -1 }).lean(),
-      Deposit.find().populate('advertiserId').sort({ createdAt: -1 }).lean(),
+      Withdraw.find({ status: 'pending' }).populate('userId').sort({ createdAt: -1 }).lean(),
+      Deposit.find({ status: 'pending' }).populate('advertiserId').sort({ createdAt: -1 }).lean(),
       User.find().sort({ createdAt: -1 }).limit(100).lean(),
       User.aggregate([
         { $group: { _id: null, totalPending: { $sum: "$pendingBalance" }, totalAvailable: { $sum: "$availableBalance" }, totalUsers: { $sum: 1 } } }
@@ -1042,7 +1042,9 @@ app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (r
     await user.save();
 
     if (user.isBanned) {
-      sendTelegramNotification(user.telegramId, `🚫 <b>Admin Alert:</b> Your account has been suspended.`);
+      sendTelegramNotification(user.telegramId, `🚫 <b>Account Suspended</b>\nYour account has been restricted by administration.`);
+    } else {
+      sendTelegramNotification(user.telegramId, `✅ <b>Account Activated</b>\nYour account status has been restored.`);
     }
 
     res.json({ success: true, isBanned: user.isBanned });
@@ -1051,42 +1053,18 @@ app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (r
   }
 });
 
-// --- Static SPA Delivery Engine ---
-const sendAppIndex = (req, res) => {
+// Fallback Wildcard Navigation
+app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'views.html'));
-};
-
-app.get(['/', '/app', '/admin', '/views.html', '/r/:code'], sendAppIndex);
-
-// --- Catch-all API 404 Handler ---
-app.use('/api/*', (req, res) => {
-  res.status(404).json({ success: false, error: 'Requested endpoint not found' });
 });
 
-app.get('*', sendAppIndex);
-
-// --- Global Error Handler ---
+// Global Centralized Error Handler
 app.use((err, req, res, next) => {
-  logger.error('Unhandled Application Error:', err);
-
-  const statusCode = err.status || err.statusCode || 500;
-  const message = process.env.NODE_ENV === 'production' 
-    ? 'Internal Server Error' 
-    : (err.message || 'Something went wrong');
-
-  res.status(statusCode).json({
-    success: false,
-    error: message,
-    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
-  });
+  logger.error('Unhandled System Error:', err);
+  res.status(500).json({ success: false, error: 'Internal Server Error' });
 });
 
-// Server listener for standalone deployments (PM2/Termux)
-if (require.main === module) {
-  const PORT = process.env.PORT || 3000;
-  app.listen(PORT, () => {
-    logger.info(`🚀 Server running on port ${PORT}`);
-  });
-}
-
-module.exports = app;
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  logger.info(`🚀 Telega.ads Platform Core Engine Online on Port ${PORT}`);
+});
