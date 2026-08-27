@@ -1,18 +1,14 @@
-const i18n = { en, ar };
+const i18n = {
+  ar: typeof arTranslations !== 'undefined' ? arTranslations : {},
+  en: typeof enTranslations !== 'undefined' ? enTranslations : {}
+};
 
 let currentLang = localStorage.getItem('appLang') || 'en';
 
-function changeAppLanguage(lang) {
-  currentLang = i18n[lang] ? lang : 'en';
-  localStorage.setItem('appLang', currentLang);
-  applyLanguage(currentLang);
-  if (typeof loadUserData === 'function') {
-    loadUserData();
-  }
-}
-
 function applyLanguage(lang) {
   const activeLang = i18n[lang] ? lang : 'en';
+  currentLang = activeLang;
+  
   document.documentElement.lang = activeLang;
   document.documentElement.dir = activeLang === 'ar' ? 'rtl' : 'ltr';
   document.body.style.direction = activeLang === 'ar' ? 'rtl' : 'ltr';
@@ -33,4 +29,13 @@ function applyLanguage(lang) {
       el.placeholder = i18n[activeLang][key];
     }
   });
+}
+
+function changeAppLanguage(lang) {
+  currentLang = i18n[lang] ? lang : 'en';
+  localStorage.setItem('appLang', currentLang);
+  applyLanguage(currentLang);
+  if (typeof loadUserData === 'function') {
+    loadUserData();
+  }
 }
