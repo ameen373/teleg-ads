@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const rateLimit = require('express-rate-limit');
+const cron = require('node-cron');
 const path = require('path');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
@@ -18,7 +19,7 @@ const app = express();
 // --- Setup Server Trust Proxy ---
 app.set('trust proxy', 1);
 
-// --- CORS Configuration ---
+// --- CORS Configuration (تفعيل حزمة cors لجميع الطلبات وتسمح بـ Credentials) ---
 app.use(cors({
   origin: true,
   credentials: true
@@ -27,9 +28,12 @@ app.options('*', cors());
 
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
-app.use(express.static(__dirname));
 
-// --- UTF-8 JSON Response Headers for APIs ---
+// --- تقديم الملفات الاستاتيكية من المجلد الحالي ---
+app.use(express.static(__dirname));
+app.use(express.static(path.join(__dirname, 'public')));
+
+// --- التأكد من أن جميع مسارات الـ API ترجع استجابات JSON بترميز UTF-8 ---
 app.use('/api', (req, res, next) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   next();
@@ -62,7 +66,6 @@ const CONFIG = Object.freeze({
   ADSGRAM_BLOCK_ID: process.env.ADSGRAM_BLOCK_ID || '1234',
   APP_DOMAIN: process.env.APP_DOMAIN || 'localhost:3000',
   REDIS_URL: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
-  CRON_SECRET: process.env.CRON_SECRET || '',
   DEFAULT_LANGUAGE: 'en',
   
   OFFICIAL_BOT_URL: process.env.OFFICIAL_BOT_URL || 'https://t.me/Ads_telegabot',
@@ -681,7 +684,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
   }
 });
 
-// --- Link Management ---
+// --- Link Management (Updated & Secured) ---
 app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res, next) => {
   try {
     let { title, targetUrl } = req.body;
@@ -1010,18 +1013,10 @@ app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (r
   }
 });
 
-// --- Serverless-compatible API Endpoint for Earnings Settlement ---
-app.get('/api/cron/settle-earnings', async (req, res, next) => {
-  if (CONFIG.CRON_SECRET) {
-    const authHeader = req.headers.authorization;
-    if (authHeader !== `Bearer ${CONFIG.CRON_SECRET}`) {
-      return res.status(401).json({ success: false, error: 'Unauthorized Cron Trigger' });
-    }
-  }
-
+// --- Automated Cron Task for Earnings Settlement ---
+cron.schedule('0 0 * * *', async () => {
   try {
     const readyHolds = await EarningsHold.find({ releaseAt: { $lte: new Date() }, isReleased: false }).lean();
-    let processedCount = 0;
 
     for (let hold of readyHolds) {
       const session = await mongoose.startSession();
@@ -1037,7 +1032,6 @@ app.get('/api/cron/settle-earnings', async (req, res, next) => {
         await EarningsHold.findByIdAndUpdate(hold._id, { isReleased: true }, { session });
 
         await session.commitTransaction();
-        processedCount++;
 
         if (userUpdate && userUpdate.telegramId) {
           sendTelegramNotification(
@@ -1052,12 +1046,18 @@ app.get('/api/cron/settle-earnings', async (req, res, next) => {
         session.endSession();
       }
     }
-
-    res.json({ success: true, processedCount, message: `Successfully settled ${processedCount} holds.` });
   } catch (err) {
-    logger.error('❌ Error executing Settlement API: ' + err.message);
-    next(err);
+    logger.error('❌ Error executing Cron Settlement: ' + err.message);
   }
+});
+
+// --- Explicit Static Asset Handlers ---
+app.get('/style.css', (req, res) => {
+  res.sendFile(path.join(__dirname, 'style.css'));
+});
+
+app.get('/app.js', (req, res) => {
+  res.sendFile(path.join(__dirname, 'app.js'));
 });
 
 // --- Static HTML Delivery Routes ---
