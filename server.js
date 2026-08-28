@@ -19,7 +19,7 @@ const app = express();
 // --- Setup Server Trust Proxy ---
 app.set('trust proxy', 1);
 
-// --- CORS Configuration (تفعيل حزمة cors لجميع الطلبات وتسمح بـ Credentials) ---
+// --- CORS Configuration ---
 app.use(cors({
   origin: true,
   credentials: true
@@ -29,7 +29,7 @@ app.options('*', cors());
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-// --- تقديم الملفات الاستاتيكية من المجلد الحالي ---
+// --- تقديم الملفات الاستاتيكية صراحةً ---
 app.use(express.static(__dirname));
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -684,7 +684,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
   }
 });
 
-// --- Link Management (Updated & Secured) ---
+// --- Link Management ---
 app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res, next) => {
   try {
     let { title, targetUrl } = req.body;
