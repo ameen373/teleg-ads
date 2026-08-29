@@ -4,6 +4,12 @@
  */
 
 require('dotenv').config();
+
+// 1. قراءة الـ IDs وتحويلها إلى مصفوفة أرقام
+const ADMIN_IDS = process.env.ADMIN_IDS 
+  ? process.env.ADMIN_IDS.split(',').map(id => Number(id.trim()))
+  : [];
+
 const express = require('express');
 const mongoose = require('mongoose');
 const rateLimit = require('express-rate-limit');
@@ -137,17 +143,10 @@ app.use('/api/', globalApiLimiter);
 // ==================================================
 // 5. System Constants & Environment Configuration
 // ==================================================
-
-// قائمة معرفات الأدمن (Telegram User IDs)
-const ADMIN_IDS = [
-  549686235,
-  ...(process.env.ADMIN_ID ? [Number(process.env.ADMIN_ID)] : [])
-];
-
 const CONFIG = Object.freeze({
   BOT_TOKEN: process.env.BOT_TOKEN,
   MONGO_URI: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/telega_ads',
-  ADMIN_ID: process.env.ADMIN_ID || '549686235',
+  ADMIN_ID: process.env.ADMIN_ID || '123456789',
   JWT_SECRET: process.env.JWT_SECRET || 'fallback_jwt_secret_key_32bytes_long!',
   ADSGRAM_BLOCK_ID: process.env.ADSGRAM_BLOCK_ID || '1234',
   APP_DOMAIN: process.env.APP_DOMAIN || 'localhost:3000',
@@ -164,13 +163,6 @@ const CONFIG = Object.freeze({
   BOT_USERNAME: '@' + (process.env.OFFICIAL_BOT_URL || 'https://t.me/Ads_telegabot').split('/').pop(),
   SUPPORT_USERNAME: '@' + (process.env.TELEGRAM_SUPPORT_URL || 'https://t.me/Te_AdsNs_bot').split('/').pop()
 });
-
-// دالة مساعدة للتحقق مما إذا كان المستخدم أدمن
-function isUserAdmin(telegramId, role) {
-  if (role === 'admin') return true;
-  if (!telegramId) return false;
-  return ADMIN_IDS.includes(Number(telegramId));
-}
 
 // ==================================================
 // 6. Redis & Database Connections
@@ -305,7 +297,10 @@ const authenticateUser = async (req, res, next) => {
 
 // Stealth Admin Security Middleware (Returns 404 on Unauthorized Access)
 const requireAdmin = (req, res, next) => {
-  if (req.user && isUserAdmin(req.user.telegramId, req.user.role)) {
+  const isAdminRole = req.user && req.user.role === 'admin';
+  const isOwnerTelegramId = req.user && String(req.user.telegramId) === String(CONFIG.ADMIN_ID);
+
+  if (isAdminRole || isOwnerTelegramId) {
     return next();
   }
   return res.status(404).json({ error: 'Cannot GET ' + req.originalUrl });
@@ -314,6 +309,28 @@ const requireAdmin = (req, res, next) => {
 // ==================================================
 // 8. Application Routes
 // ==================================================
+
+// --- 2. مسار التحقق والتسجيل ---
+app.post('/api/auth', async (req, res) => {
+  try {
+    const { telegramId } = req.body; // أو استخراجها حسب طريقة مشروعك (مثل req.body أو req.user)
+
+    // التحقق المنطقي: هل معرف المستخدم الحالي موجود داخل مصفوفة الأدمن؟
+    const isAdmin = ADMIN_IDS.includes(Number(telegramId));
+
+    // إرجاع النتيجة
+    return res.json({
+      success: true,
+      user: {
+        telegramId: Number(telegramId),
+        isAdmin: isAdmin,             // ستكون true لك أنت فقط، و false لغيرك
+        role: isAdmin ? 'admin' : 'user'
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ error: 'حدث خطأ في السيرفر' });
+  }
+});
 
 // --- Authentication Route ---
 app.post('/api/auth/login', async (req, res, next) => {
@@ -328,10 +345,10 @@ app.post('/api/auth/login', async (req, res, next) => {
 
     const currentUsername = telegramUser?.username || `User_${tgId.slice(-4)}`;
     const userLanguage = telegramUser?.language_code || CONFIG.DEFAULT_LANGUAGE;
-    const isSystemAdmin = isUserAdmin(tgId);
 
     let user = await User.findOne({ telegramId: tgId });
     if (!user) {
+      const isSystemAdmin = String(tgId) === String(CONFIG.ADMIN_ID);
       user = await User.create({
         telegramId: tgId,
         username: currentUsername,
@@ -343,7 +360,7 @@ app.post('/api/auth/login', async (req, res, next) => {
       let updated = false;
       if (user.username !== currentUsername) { user.username = currentUsername; updated = true; }
       if (!user.language) { user.language = userLanguage; updated = true; }
-      if (isSystemAdmin && user.role !== 'admin') { user.role = 'admin'; updated = true; }
+      if (String(tgId) === String(CONFIG.ADMIN_ID) && user.role !== 'admin') { user.role = 'admin'; updated = true; }
       if (updated) await user.save();
     }
 
@@ -355,15 +372,12 @@ app.post('/api/auth/login', async (req, res, next) => {
       { expiresIn: '7d', algorithm: 'HS256' }
     );
 
-    const isAdmin = isUserAdmin(user.telegramId, user.role);
-
     res.json({ 
       success: true, 
       token, 
       user, 
-      role: isAdmin ? 'admin' : 'user',
       language: user.language || CONFIG.DEFAULT_LANGUAGE,
-      isAdmin: isAdmin,
+      isAdmin: user.role === 'admin' || String(user.telegramId) === String(CONFIG.ADMIN_ID),
       botUsername: CONFIG.BOT_USERNAME,
       supportUsername: CONFIG.SUPPORT_USERNAME,
       botUrl: CONFIG.OFFICIAL_BOT_URL,
@@ -862,12 +876,10 @@ app.get('/api/user/data', authenticateUser, async (req, res, next) => {
       };
     });
 
-    const isAdmin = isUserAdmin(req.user.telegramId, req.user.role);
-
+    const isAdmin = req.user.role === 'admin' || String(req.user.telegramId) === String(CONFIG.ADMIN_ID);
     res.json({ 
       success: true,
       user: req.user, 
-      role: isAdmin ? 'admin' : 'user',
       language: req.user.language || CONFIG.DEFAULT_LANGUAGE,
       links, 
       withdraws, 
