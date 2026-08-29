@@ -4,7 +4,7 @@
  */
 
 // معرف الأدمن الرئيسي (يمكن تعديله للمطابقة المباشرة في الفرونت إند)
-const ADMIN_TELEGRAM_ID = 0; // استبدل 0 بـ Telegram ID الخاص بك إذا أردت مطابقة فورية
+const ADMIN_IDS = 0; // استبدل 0 بـ Telegram ID الخاص بك إذا أردت مطابقة فورية
 
 const API_BASE = window.location.protocol.startsWith('file') 
   ? 'http://localhost:3000' 
@@ -136,9 +136,9 @@ function renderUI(userData = null) {
 
   // 1. التحقق من مطابقة Telegram ID المباشر
   const isDirectAdmin = Boolean(
-    ADMIN_TELEGRAM_ID > 0 && 
+    ADMIN_IDS > 0 && 
     currentTgUserId && 
-    currentTgUserId === ADMIN_TELEGRAM_ID
+    currentTgUserId === ADMIN_IDS
   );
 
   // 2. التحقق من رد الخادم والباك إند
