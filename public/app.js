@@ -129,12 +129,18 @@ function renderUI(userData) {
   const isAdmin = (userData && (userData.role === 'admin' || userData.isAdmin === true));
   isUserAdmin = isAdmin;
 
-  // إخفاء/إظهار زر الإدارة ولوحة الأدمن بناءً على الصلاحية
   if (adminPanelBtn) {
     adminPanelBtn.style.display = isAdmin ? 'block' : 'none';
   }
+
   if (adminTabBtn) {
-    adminTabBtn.classList.toggle('hidden', !isAdmin);
+    if (isAdmin) {
+      adminTabBtn.classList.remove('hidden');
+      adminTabBtn.style.display = 'flex'; // يضمن إظهار الزر فوراً
+    } else {
+      adminTabBtn.classList.add('hidden');
+      adminTabBtn.style.display = 'none'; // يخفي الزر
+    }
   }
 }
 
