@@ -1,7 +1,17 @@
+/**
+ * Enterprise Production Core Engine & Security Middleware
+ * Telega.ads Platform Architecture
+ */
+
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
+const cors = require('cors');
+const mongoSanitize = require('express-mongo-sanitize');
+const xss = require('xss-clean');
+const hpp = require('hpp');
 const cron = require('node-cron');
 const path = require('path');
 const crypto = require('crypto');
@@ -11,35 +21,74 @@ const winston = require('winston');
 const validUrl = require('valid-url');
 const axios = require('axios');
 const Redis = require('ioredis');
-const cors = require('cors');
-const { User, Ad, Link, Impression, ClickSession, Withdraw, EarningsHold, Deposit, Announcement } = require('./models');
+
+const { 
+  User, 
+  Ad, 
+  Link, 
+  Impression, 
+  ClickSession, 
+  Withdraw, 
+  EarningsHold, 
+  Deposit, 
+  Announcement 
+} = require('./models');
 
 const app = express();
 
-// --- Setup Server Trust Proxy ---
+// ==================================================
+// 1. Trust Proxy Setup
+// ==================================================
 app.set('trust proxy', 1);
 
-// --- CORS Configuration ---
+// ==================================================
+// 2. Security Middlewares Infrastructure
+// ==================================================
+
+// A. Security Headers via Helmet
+app.use(helmet({
+  contentSecurityPolicy: false, // مخصص لعمل Telegram Mini App داخل الـ Webview
+  crossOriginEmbedderPolicy: false
+}));
+
+// B. CORS Security Configuration
+const allowedOrigins = process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',') : ['*'];
 app.use(cors({
-  origin: true,
-  credentials: true
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS policy violation'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data']
 }));
 app.options('*', cors());
 
+// C. Request Body Parsers with Strict Size Limits
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-// --- تقديم الملفات الاستاتيكية صراحةً ---
+// D. NoSQL Injection & Data Sanitization
+app.use(mongoSanitize());
+app.use(xss());
+app.use(hpp());
+
+// E. Static Files Serving
 app.use(express.static(__dirname));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- التأكد من أن جميع مسارات الـ API ترجع استجابات JSON بترميز UTF-8 ---
+// F. Ensure API JSON UTF-8 Charset
 app.use('/api', (req, res, next) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   next();
 });
 
-// --- Centralized Logging Engine ---
+// ==================================================
+// 3. Centralized Logging Engine
+// ==================================================
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(winston.format.timestamp(), winston.format.json()),
@@ -56,11 +105,41 @@ if (process.env.NODE_ENV !== 'production') {
 app.use(morgan('combined', { stream: { write: (message) => logger.info(message.trim()) } }));
 
 // ==================================================
-// --- System Constants & Environment Variables ---
+// 4. Rate Limiters & Protection Policies
+// ==================================================
+const globalApiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'تم تجاوز عدد الطلبات المسموح بها، حاول لاحقاً.' }
+});
+
+const linkCreationLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Daily limit for link creation exceeded' }
+});
+
+const clickLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.ip,
+  message: { success: false, error: 'Too many requests. Please wait.' }
+});
+
+app.use('/api/', globalApiLimiter);
+
+// ==================================================
+// 5. System Constants & Environment Configuration
 // ==================================================
 const CONFIG = Object.freeze({
   BOT_TOKEN: process.env.BOT_TOKEN,
-  MONGO_URI: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/shortener',
+  MONGO_URI: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/telega_ads',
   ADMIN_ID: process.env.ADMIN_ID || '123456789',
   JWT_SECRET: process.env.JWT_SECRET || 'fallback_jwt_secret_key_32bytes_long!',
   ADSGRAM_BLOCK_ID: process.env.ADSGRAM_BLOCK_ID || '1234',
@@ -79,7 +158,9 @@ const CONFIG = Object.freeze({
   SUPPORT_USERNAME: '@' + (process.env.TELEGRAM_SUPPORT_URL || 'https://t.me/Te_AdsNs_bot').split('/').pop()
 });
 
-// --- Redis Client Initialization ---
+// ==================================================
+// 6. Redis & Database Connections
+// ==================================================
 let redisIsConnected = false;
 const redis = new Redis(CONFIG.REDIS_URL, {
   maxRetriesPerRequest: 3,
@@ -114,7 +195,6 @@ async function safeRedisDel(key) {
   try { await redis.del(key); } catch (e) { logger.error('Redis Del Failed: ' + e.message); }
 }
 
-// --- Database Connection Pool ---
 mongoose.connect(CONFIG.MONGO_URI, {
   maxPoolSize: 50,
   minPoolSize: 10,
@@ -126,7 +206,9 @@ mongoose.connect(CONFIG.MONGO_URI, {
     process.exit(1);
   });
 
-// --- Telegram Dispatch Helper ---
+// ==================================================
+// 7. Security Helpers & Authentication Middlewares
+// ==================================================
 async function sendTelegramNotification(telegramId, message) {
   if (!CONFIG.BOT_TOKEN || !telegramId) return;
   try {
@@ -141,7 +223,6 @@ async function sendTelegramNotification(telegramId, message) {
   }
 }
 
-// --- Cryptographic Telegram Authenticator ---
 function verifyTelegramData(initData) {
   if (!initData) return null;
   try {
@@ -172,24 +253,6 @@ function verifyTelegramData(initData) {
   }
 }
 
-// --- Middlewares ---
-const linkCreationLimiter = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000,
-  max: 100,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { success: false, error: 'Daily limit for link creation exceeded' }
-});
-
-const clickLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 15,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => req.ip,
-  message: { success: false, error: 'Too many requests. Please wait.' }
-});
-
 const validateTraffic = (req, res, next) => {
   const ua = req.get('User-Agent') || '';
   const botPattern = /bot|crawler|spider|datacenter|proxy|httpclient|curl|python|axios|headless|selenium|puppeteer/i;
@@ -205,30 +268,43 @@ const isPhishingOrMalicious = (url) => {
   return blacklistedKeywords.some(keyword => lowerUrl.includes(keyword));
 };
 
-const authMiddleware = async (req, res, next) => {
+// Data Isolation Authenticator Middleware
+const authenticateUser = async (req, res, next) => {
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return res.status(401).json({ success: false, error: 'Access token missing' });
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ success: false, error: 'غير مصرح بالدخول' });
+  }
 
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
     const user = await User.findById(decoded.userId).lean();
-    if (!user || user.isBanned) return res.status(403).json({ success: false, error: 'Unauthorized access' });
+    if (!user || user.isBanned) {
+      return res.status(403).json({ success: false, error: 'الحساب غير متاح أو محظور' });
+    }
     req.user = user;
     next();
   } catch (err) {
-    res.status(401).json({ success: false, error: 'Session expired, please log in again' });
+    return res.status(401).json({ success: false, error: 'التوكين غير صالح أو منتهي الصلاحية' });
   }
 };
 
-const adminMiddleware = async (req, res, next) => {
-  if (!req.user || String(req.user.telegramId) !== String(CONFIG.ADMIN_ID)) {
-    return res.status(403).json({ success: false, error: 'Unauthorized access to admin section' });
+// Stealth Admin Security Middleware (Returns 404 on Unauthorized Access)
+const requireAdmin = (req, res, next) => {
+  const isAdminRole = req.user && req.user.role === 'admin';
+  const isOwnerTelegramId = req.user && String(req.user.telegramId) === String(CONFIG.ADMIN_ID);
+
+  if (isAdminRole || isOwnerTelegramId) {
+    return next();
   }
-  next();
+  return res.status(404).json({ error: 'Cannot GET ' + req.originalUrl });
 };
 
-// --- Authentication & User Setup ---
+// ==================================================
+// 8. Application Routes
+// ==================================================
+
+// --- Authentication Route ---
 app.post('/api/auth/login', async (req, res, next) => {
   try {
     const initData = req.headers['x-telegram-init-data'];
@@ -244,26 +320,23 @@ app.post('/api/auth/login', async (req, res, next) => {
 
     let user = await User.findOne({ telegramId: tgId });
     if (!user) {
+      const isSystemAdmin = String(tgId) === String(CONFIG.ADMIN_ID);
       user = await User.create({
         telegramId: tgId,
         username: currentUsername,
         language: userLanguage,
+        role: isSystemAdmin ? 'admin' : 'user',
         referredBy: mongoose.Types.ObjectId.isValid(referrerId) ? referrerId : null
       });
     } else {
       let updated = false;
-      if (user.username !== currentUsername) {
-        user.username = currentUsername;
-        updated = true;
-      }
-      if (!user.language) {
-        user.language = userLanguage;
-        updated = true;
-      }
+      if (user.username !== currentUsername) { user.username = currentUsername; updated = true; }
+      if (!user.language) { user.language = userLanguage; updated = true; }
+      if (String(tgId) === String(CONFIG.ADMIN_ID) && user.role !== 'admin') { user.role = 'admin'; updated = true; }
       if (updated) await user.save();
     }
 
-    if (user.isBanned) return res.status(403).json({ success: false, error: `Your account is suspended due to policy violations. Contact support: ${CONFIG.SUPPORT_USERNAME}` });
+    if (user.isBanned) return res.status(403).json({ success: false, error: `Your account is suspended. Contact support: ${CONFIG.SUPPORT_USERNAME}` });
 
     const token = jwt.sign(
       { userId: user._id, telegramId: user.telegramId, role: user.role },
@@ -276,7 +349,7 @@ app.post('/api/auth/login', async (req, res, next) => {
       token, 
       user, 
       language: user.language || CONFIG.DEFAULT_LANGUAGE,
-      isAdmin: String(user.telegramId) === String(CONFIG.ADMIN_ID),
+      isAdmin: user.role === 'admin' || String(user.telegramId) === String(CONFIG.ADMIN_ID),
       botUsername: CONFIG.BOT_USERNAME,
       supportUsername: CONFIG.SUPPORT_USERNAME,
       botUrl: CONFIG.OFFICIAL_BOT_URL,
@@ -292,8 +365,8 @@ app.post('/api/auth/login', async (req, res, next) => {
   }
 });
 
-// --- Self-Serve Ad Campaign APIs ---
-app.post('/api/ads', authMiddleware, async (req, res, next) => {
+// --- Ad Campaigns Routes ---
+app.post('/api/ads', authenticateUser, async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -349,7 +422,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
   }
 });
 
-app.get('/api/user/ads', authMiddleware, async (req, res, next) => {
+app.get('/api/user/ads', authenticateUser, async (req, res, next) => {
   try {
     const ads = await Ad.find({ advertiserId: req.user._id }).sort({ createdAt: -1 }).lean();
     res.json({ success: true, ads });
@@ -358,7 +431,7 @@ app.get('/api/user/ads', authMiddleware, async (req, res, next) => {
   }
 });
 
-app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
+app.post('/api/ads/toggle', authenticateUser, async (req, res, next) => {
   try {
     const { adId } = req.body;
     if (!mongoose.Types.ObjectId.isValid(adId)) return res.status(400).json({ success: false, error: 'Invalid Ad ID' });
@@ -379,8 +452,18 @@ app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Deposit Routes ---
-app.post('/api/deposit', authMiddleware, async (req, res, next) => {
+// --- User Isolated Campaigns Route ---
+app.get('/api/my-campaigns', authenticateUser, async (req, res, next) => {
+  try {
+    const campaigns = await Ad.find({ advertiserId: req.user._id }).lean();
+    res.json({ success: true, campaigns });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- Financial Deposit & Withdraw Routes ---
+app.post('/api/deposit', authenticateUser, async (req, res, next) => {
   try {
     const { amount, network, txid } = req.body;
     const numAmount = Number(amount);
@@ -391,8 +474,8 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'Minimum deposit amount is $1' });
     }
 
-    if (!['BEP20', 'TRC20'].includes(cleanNetwork)) {
-      return res.status(400).json({ success: false, error: 'Please specify a valid network (BEP20 or TRC20)' });
+    if (!['BEP20', 'TRC20', 'TON'].includes(cleanNetwork)) {
+      return res.status(400).json({ success: false, error: 'Please specify a valid network (BEP20, TRC20, or TON)' });
     }
 
     if (!cleanTxid || cleanTxid.length < 8) {
@@ -423,8 +506,7 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Withdraw Routes ---
-app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
+app.post('/api/withdraw', authenticateUser, async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -439,9 +521,9 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'Minimum withdrawal amount is $30' });
     }
 
-    if (!['BEP20', 'TRC20'].includes(cleanNetwork)) {
+    if (!['BEP20', 'TRC20', 'TON'].includes(cleanNetwork)) {
       await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'Please specify the network (BEP20 or TRC20)' });
+      return res.status(400).json({ success: false, error: 'Please specify the network' });
     }
 
     if (!cleanWallet || cleanWallet.length < 10) {
@@ -476,7 +558,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
 
     sendTelegramNotification(
       req.user.telegramId,
-      `🔔 <b>New Withdrawal Request Submitted!</b>\nAmount: <code>$${numAmt}</code>\nFee: <code>$${FEE}</code>\nNet Amount: <code>$${netAmount}</code>\nNetwork: <code>${cleanNetwork}</code>\nWallet: <code>${cleanWallet}</code>\nStatus: ⏳ Under Review\n\nSupport: ${CONFIG.SUPPORT_USERNAME}`
+      `🔔 <b>New Withdrawal Request Submitted!</b>\nAmount: <code>$${numAmt}</code>\nFee: <code>$${FEE}</code>\nNet Amount: <code>$${netAmount}</code>\nNetwork: <code>${cleanNetwork}</code>\nStatus: ⏳ Under Review`
     );
 
     res.json({ success: true, withdraw: withdrawRequest[0] });
@@ -488,7 +570,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Bridge Page & Traffic Redirect Engine ---
+// --- Traffic & Bridge Page Routing Engine ---
 app.post('/api/init-click', validateTraffic, async (req, res, next) => {
   try {
     const { linkCode } = req.body;
@@ -684,8 +766,8 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
   }
 });
 
-// --- Link Management ---
-app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res, next) => {
+// --- Shortened Links Engine ---
+app.post('/api/links', authenticateUser, linkCreationLimiter, async (req, res, next) => {
   try {
     let { title, targetUrl } = req.body;
     const cleanUrl = String(targetUrl || '').trim();
@@ -724,7 +806,7 @@ app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res, nex
   }
 });
 
-app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
+app.post('/api/links/toggle', authenticateUser, async (req, res, next) => {
   try {
     const { linkId } = req.body;
     if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'Invalid Link ID' });
@@ -742,7 +824,7 @@ app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
   }
 });
 
-app.get('/api/user/data', authMiddleware, async (req, res, next) => {
+app.get('/api/user/data', authenticateUser, async (req, res, next) => {
   try {
     const [rawLinks, withdraws, announcements, ads, deposits] = await Promise.all([
       Link.find({ userId: req.user._id }).sort({ createdAt: -1 }).lean(),
@@ -766,7 +848,7 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
       };
     });
 
-    const isAdmin = String(req.user.telegramId) === String(CONFIG.ADMIN_ID);
+    const isAdmin = req.user.role === 'admin' || String(req.user.telegramId) === String(CONFIG.ADMIN_ID);
     res.json({ 
       success: true,
       user: req.user, 
@@ -792,7 +874,7 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   }
 });
 
-app.post('/api/user/settings', authMiddleware, async (req, res, next) => {
+app.post('/api/user/settings', authenticateUser, async (req, res, next) => {
   try {
     const { defaultWallet, language } = req.body;
     const updateData = {};
@@ -807,8 +889,17 @@ app.post('/api/user/settings', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Admin Panel Routes ---
-app.get('/api/admin/dashboard-data', authMiddleware, adminMiddleware, async (req, res, next) => {
+// --- Stealth Admin Panel Routes (Return 404 for Non-Admins) ---
+app.get('/api/admin/dashboard', authenticateUser, requireAdmin, async (req, res, next) => {
+  try {
+    const allUsers = await User.find().lean();
+    res.json({ status: 'Welcome Admin', users: allUsers });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/admin/dashboard-data', authenticateUser, requireAdmin, async (req, res, next) => {
   try {
     const [withdraws, deposits, users, stats, totalAds] = await Promise.all([
       Withdraw.find().populate('userId').sort({ createdAt: -1 }).lean(),
@@ -826,7 +917,7 @@ app.get('/api/admin/dashboard-data', authMiddleware, adminMiddleware, async (req
   }
 });
 
-app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (req, res, next) => {
+app.post('/api/admin/deposit/action', authenticateUser, requireAdmin, async (req, res, next) => {
   const { depositId, action, reason } = req.body;
   if (!mongoose.Types.ObjectId.isValid(depositId)) return res.status(400).json({ success: false, error: 'Invalid Deposit ID' });
 
@@ -842,7 +933,7 @@ app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (re
 
     if (!['approved', 'rejected'].includes(action)) {
       await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'Invalid action (must be approved or rejected)' });
+      return res.status(400).json({ success: false, error: 'Invalid action' });
     }
 
     deposit.status = action;
@@ -865,7 +956,7 @@ app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (re
     } else {
       sendTelegramNotification(
         deposit.advertiserId.telegramId,
-        `❌ <b>Deposit Request Rejected</b>\nAmount: <code>$${deposit.amount}</code>\n⚠️ <b>Reason:</b> ${deposit.rejectReason}\n\nSupport: ${CONFIG.SUPPORT_USERNAME}`
+        `❌ <b>Deposit Request Rejected</b>\nAmount: <code>$${deposit.amount}</code>\nReason: ${deposit.rejectReason}`
       );
     }
 
@@ -879,7 +970,7 @@ app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (re
   }
 });
 
-app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (req, res, next) => {
+app.post('/api/admin/withdraw/action', authenticateUser, requireAdmin, async (req, res, next) => {
   const { withdrawId, action, reason } = req.body;
   if (!mongoose.Types.ObjectId.isValid(withdrawId)) return res.status(400).json({ success: false, error: 'Invalid Withdraw ID' });
 
@@ -895,7 +986,7 @@ app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (r
 
     if (!['approved', 'rejected'].includes(action)) {
       await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'Invalid action (must be approved or rejected)' });
+      return res.status(400).json({ success: false, error: 'Invalid action' });
     }
 
     withdraw.status = action;
@@ -913,12 +1004,12 @@ app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (r
 
       sendTelegramNotification(
         withdraw.userId.telegramId,
-        `❌ <b>Withdrawal Request Rejected</b>\nTotal Amount: <code>$${withdraw.amount}</code>\n⚠️ <b>Reason:</b> ${withdraw.rejectReason}\nFunds refunded to your available balance.\nSupport: ${CONFIG.SUPPORT_USERNAME}`
+        `❌ <b>Withdrawal Request Rejected</b>\nTotal Amount: <code>$${withdraw.amount}</code>\nReason: ${withdraw.rejectReason}`
       );
     } else if (action === 'approved') {
       sendTelegramNotification(
         withdraw.userId.telegramId,
-        `🎉 <b>Withdrawal Approved!</b>\nTotal Amount: <code>$${withdraw.amount}</code>\nNet Amount Transferred: <code>$${withdraw.netAmount}</code>\nNetwork: <code>${withdraw.network}</code>\nThank you for using our platform!`
+        `🎉 <b>Withdrawal Approved!</b>\nTotal Amount: <code>$${withdraw.amount}</code>\nNet Amount: <code>$${withdraw.netAmount}</code>`
       );
     }
 
@@ -932,67 +1023,7 @@ app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (r
   }
 });
 
-app.post('/api/admin/distribute-revenue', authMiddleware, adminMiddleware, async (req, res, next) => {
-  const session = await mongoose.startSession();
-  try {
-    session.startTransaction();
-    const { totalRevenue } = req.body;
-    const revenue = Number(totalRevenue);
-
-    if (isNaN(revenue) || revenue <= 0) {
-      await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'Invalid revenue amount' });
-    }
-
-    const aggregateTotal = await Link.aggregate([
-      { $group: { _id: null, total: { $sum: '$validImpressions' } } }
-    ]).session(session);
-
-    const totalImp = aggregateTotal[0]?.total || 0;
-    if (totalImp === 0) {
-      await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'No validated impressions available for revenue distribution' });
-    }
-
-    const links = await Link.find({ validImpressions: { $gt: 0 } }).populate('userId').session(session);
-    
-    const releaseDate = new Date();
-    releaseDate.setDate(releaseDate.getDate() + 1);
-
-    for (let link of links) {
-      let earned = Number(((link.validImpressions / totalImp) * revenue).toFixed(4));
-
-      if (link.userId && link.userId.referredBy) {
-        const refBonus = Number((earned * 0.10).toFixed(4));
-        earned = Number((earned - refBonus).toFixed(4));
-
-        await User.findByIdAndUpdate(
-          link.userId.referredBy,
-          { $inc: { availableBalance: refBonus, referralEarnings: refBonus } },
-          { session }
-        );
-      }
-
-      if (link.userId) {
-        await User.findByIdAndUpdate(link.userId._id, { $inc: { pendingBalance: earned } }, { session });
-        await EarningsHold.create([{ userId: link.userId._id, amount: earned, releaseAt: releaseDate }], { session });
-      }
-
-      link.validImpressions = 0;
-      await link.save({ session });
-    }
-
-    await session.commitTransaction();
-    res.json({ success: true, message: `Successfully distributed $${revenue} to ${links.length} links (released in 24 hours).` });
-  } catch (err) {
-    await session.abortTransaction();
-    next(err);
-  } finally {
-    session.endSession();
-  }
-});
-
-app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (req, res, next) => {
+app.post('/api/admin/user/toggle-ban', authenticateUser, requireAdmin, async (req, res, next) => {
   const { userId } = req.body;
   if (!mongoose.Types.ObjectId.isValid(userId)) return res.status(400).json({ success: false, error: 'Invalid User ID' });
 
@@ -1004,7 +1035,7 @@ app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (r
     await user.save();
 
     if (user.isBanned) {
-      sendTelegramNotification(user.telegramId, `🚫 <b>Admin Alert:</b> Your account has been suspended for violating terms of service.\nSupport: ${CONFIG.SUPPORT_USERNAME}`);
+      sendTelegramNotification(user.telegramId, `🚫 <b>Admin Alert:</b> Your account has been suspended.`);
     }
 
     res.json({ success: true, isBanned: user.isBanned });
@@ -1013,7 +1044,9 @@ app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (r
   }
 });
 
-// --- Automated Cron Task for Earnings Settlement ---
+// ==================================================
+// 9. Automated Tasks & Cron Jobs
+// ==================================================
 cron.schedule('0 0 * * *', async () => {
   try {
     const readyHolds = await EarningsHold.find({ releaseAt: { $lte: new Date() }, isReleased: false }).lean();
@@ -1051,32 +1084,21 @@ cron.schedule('0 0 * * *', async () => {
   }
 });
 
-// --- Explicit Static Asset Handlers ---
-app.get('/style.css', (req, res) => {
-  res.sendFile(path.join(__dirname, 'style.css'));
-});
+// ==================================================
+// 10. File Delivery & Fallback Handlers
+// ==================================================
+app.get('/style.css', (req, res) => res.sendFile(path.join(__dirname, 'style.css')));
+app.get('/app.js', (req, res) => res.sendFile(path.join(__dirname, 'app.js')));
 
-app.get('/app.js', (req, res) => {
-  res.sendFile(path.join(__dirname, 'app.js'));
-});
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'views.html')));
+app.get(['/app', '/admin', '/r/:code'], (req, res) => res.sendFile(path.join(__dirname, 'views.html')));
 
-// --- Static HTML Delivery Routes ---
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'views.html'));
-});
-
-app.get(['/app', '/admin', '/r/:code'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'views.html'));
-});
-
-// --- Catch-all API 404 Handler ---
+// Catch-all 404 for API endpoints
 app.use('/api/*', (req, res) => {
   res.status(404).json({ success: false, error: 'Requested endpoint not found' });
 });
 
-// ==================================================
-// --- Global Error Handling Middleware ---
-// ==================================================
+// Global Error Handler
 app.use((err, req, res, next) => {
   logger.error('Unhandled Application Error:', err);
 
@@ -1092,7 +1114,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-// --- Global Crash Guard ---
+// Process Guard
 process.on('uncaughtException', (err) => {
   logger.error('Uncaught Exception Detected: ' + err.stack);
 });
@@ -1102,4 +1124,4 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Enterprise Server Active on Port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Secure Enterprise Server Active on Port ${PORT}`));
