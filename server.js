@@ -47,7 +47,7 @@ const ADMIN_IDS = process.env.ADMIN_IDS
 const CONFIG = Object.freeze({
   BOT_TOKEN: process.env.BOT_TOKEN,
   MONGO_URI: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/telega_ads',
-  ADMIN_ID: process.env.ADMIN_ID ? Number(process.env.ADMIN_ID) : null,
+  ADMIN_IDS: process.env.ADMIN_IDS ? Number(process.env.ADMIN_IDS) : null,
   JWT_SECRET: process.env.JWT_SECRET || 'fallback_jwt_secret_key_32bytes_long!',
   ADSGRAM_BLOCK_ID: process.env.ADSGRAM_BLOCK_ID || '1234',
   APP_DOMAIN: process.env.APP_DOMAIN || 'localhost:3000',
@@ -65,9 +65,9 @@ const CONFIG = Object.freeze({
   SUPPORT_USERNAME: '@' + (process.env.TELEGRAM_SUPPORT_URL || 'https://t.me/Te_AdsNs_bot').split('/').pop()
 });
 
-// إضافة ADMIN_ID الرئيسي إلى مصفوفة المسؤولين لضمان المطابقة
-if (CONFIG.ADMIN_ID && !ADMIN_IDS.includes(CONFIG.ADMIN_ID)) {
-  ADMIN_IDS.push(CONFIG.ADMIN_ID);
+// إضافة ADMIN_IDS الرئيسي إلى مصفوفة المسؤولين لضمان المطابقة
+if (CONFIG.ADMIN_IDS && !ADMIN_IDS.includes(CONFIG.ADMIN_IDS)) {
+  ADMIN_IDS.push(CONFIG.ADMIN_IDS);
 }
 
 // ==================================================
@@ -532,9 +532,9 @@ app.post('/api/deposit', authenticateUser, async (req, res, next) => {
       status: 'pending'
     });
 
-    if (CONFIG.ADMIN_ID) {
+    if (CONFIG.ADMIN_IDS) {
       sendTelegramNotification(
-        CONFIG.ADMIN_ID,
+        CONFIG.ADMIN_IDS,
         `💳 <b>New Deposit Request!</b>\nUser: <code>${req.user.username}</code>\nAmount: <code>$${numAmount}</code>\nNetwork: <code>${cleanNetwork}</code>\nTxID: <code>${cleanTxid}</code>`
       );
     }
