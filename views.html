@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   
-  <!-- Content Security Policy (CSP) لمنع XSS والـ Data Injections -->
+  <!-- Content Security Policy (CSP) لحماية التطبيق وزيادة الأمان -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self' https:; script-src 'self' 'unsafe-inline' https://telegram.org https://sad.adsgram.ai; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; iframe-src 'self' https://adsterra.com https://*.adsterra.com; connect-src 'self' https:;">
 
   <title>Shortener & Ads Platform</title>
@@ -67,9 +67,9 @@
     <!-- Main Telegram Mini App View -->
     <div id="app-view" class="hidden">
       
-      <!-- قسم الإدارة (مخفي افتراضياً ويتحكم به app.js) -->
-      <div id="admin-section" style="display: none; margin-bottom: 12px;">
-        <button class="btn-warning" style="width: 100%; font-weight: bold;" onclick="openAdminPanel()">
+      <!-- زر الانتقال السريع للوحة الإدارة (مخفي تماماً افتراضياً ويتم إظهاره عبر JS للمسؤول فقط) -->
+      <div id="admin-banner-shortcut" class="admin-only hidden" style="margin-bottom: 12px;">
+        <button class="btn-warning" style="width: 100%; font-weight: bold;" onclick="switchTab('admin')">
           ⚙️ لوحة التحكم للإدارة (Admin Panel)
         </button>
       </div>
@@ -280,8 +280,8 @@
         </div>
       </div>
 
-      <!-- 6. Admin Tab -->
-      <div id="tab-content-admin" class="hidden">
+      <!-- 6. Admin Tab (لوحة التحكم المخفية بالكامل مع كلاس admin-only) -->
+      <div id="tab-content-admin" class="admin-only hidden">
         <div class="stats-grid" style="margin-bottom: 15px;">
           <div class="stat-box"><small>Total Users</small><h3 id="admin-total-users">0</h3></div>
           <div class="stat-box"><small>Total Pending</small><h3 id="admin-total-pending" style="color: var(--warning);">$0.00</h3></div>
@@ -336,7 +336,8 @@
           <span data-i18n="nav_settings">Settings</span>
         </button>
 
-        <button onclick="switchTab('admin')" class="nav-btn hidden" id="tab-btn-admin" style="color: var(--warning);">
+        <!-- زر الأدمن في الشريط السفلي (مخفي افتراضياً بـ class admin-only) -->
+        <button onclick="switchTab('admin')" class="nav-btn admin-only hidden" id="tab-btn-admin" style="color: var(--warning);">
           <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-5.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
           <span>Admin</span>
         </button>
