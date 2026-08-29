@@ -1,7 +1,10 @@
 /**
  * Main Frontend Application Engine
- * Unified & Optimized for Production
+ * Unified, Secure & Production-Ready
  */
+
+// معرف الأدمن الرئيسي (يمكن تعديله للمطابقة المباشرة في الفرونت إند)
+const ADMIN_TELEGRAM_ID = 0; // استبدل 0 بـ Telegram ID الخاص بك إذا أردت مطابقة فورية
 
 const API_BASE = window.location.protocol.startsWith('file') 
   ? 'http://localhost:3000' 
@@ -13,6 +16,10 @@ let bridgeStartTime = Date.now();
 let isUserAdmin = false;
 let currentLang = localStorage.getItem('appLang') || 'en';
 const tg = window.Telegram?.WebApp;
+
+// قراءة بيانات المستخدم المباشرة من التليجرام
+const currentTgUser = tg?.initDataUnsafe?.user || null;
+const currentTgUserId = currentTgUser?.id ? Number(currentTgUser.id) : null;
 
 const i18n = {
   en: {
@@ -120,25 +127,37 @@ const i18n = {
 };
 
 /**
- * تحديث واجهة المستخدم بناءً على الصلاحيات والإدارة
+ * تحديث واجهة المستخدم والتحقق الصارم من صلاحيات الأدمن
  */
-function renderUI(userData) {
+function renderUI(userData = null) {
   const adminPanelBtn = document.getElementById('admin-panel-btn');
   const adminTabBtn = document.getElementById('tab-btn-admin');
   const adminSection = document.getElementById('admin-section');
-  
-  const isAdmin = !!(userData && (userData.role === 'admin' || userData.isAdmin === true));
-  isUserAdmin = isAdmin;
 
-  // التحقق الصارم: إظهار أو إخفاء قسم الإدارة والزر المخصص للأدمن
+  // 1. التحقق من مطابقة Telegram ID المباشر
+  const isDirectAdmin = Boolean(
+    ADMIN_TELEGRAM_ID > 0 && 
+    currentTgUserId && 
+    currentTgUserId === ADMIN_TELEGRAM_ID
+  );
+
+  // 2. التحقق من رد الخادم والباك إند
+  const isBackendAdmin = Boolean(
+    userData && (userData.role === 'admin' || userData.isAdmin === true)
+  );
+
+  // تحديث الصلاحية النهائية
+  isUserAdmin = isDirectAdmin || isBackendAdmin;
+
+  // تطبيق حالة الإظهار / الإخفاء في الواجهة
   if (adminSection) {
-    adminSection.style.display = isAdmin ? 'block' : 'none';
+    adminSection.style.display = isUserAdmin ? 'block' : 'none';
   }
   if (adminPanelBtn) {
-    adminPanelBtn.style.display = isAdmin ? 'block' : 'none';
+    adminPanelBtn.style.display = isUserAdmin ? 'block' : 'none';
   }
   if (adminTabBtn) {
-    adminTabBtn.classList.toggle('hidden', !isAdmin);
+    adminTabBtn.classList.toggle('hidden', !isUserAdmin);
   }
 }
 
@@ -247,7 +266,7 @@ function setButtonLoading(btnId, isLoading, originalText) {
 }
 
 function renderTelegramUser() {
-  const u = tg?.initDataUnsafe?.user;
+  const u = currentTgUser;
   const avatarContainer = document.getElementById('user-avatar-container');
   const nameElem = document.getElementById('user-display-name');
   const handleElem = document.getElementById('user-display-handle');
@@ -388,7 +407,7 @@ async function authLogin() {
         'Content-Type': 'application/json',
         ...(tg?.initData ? {'x-telegram-init-data': tg.initData} : {'x-demo-user-id': 'DEMO_USER_DEV'}) 
       },
-      body: JSON.stringify({ referrerId: startParam, telegramUserInfo: tg?.initDataUnsafe?.user || {} })
+      body: JSON.stringify({ referrerId: startParam, telegramUserInfo: currentTgUser || {} })
     });
     if (!res) return false;
     const data = await res.json();
@@ -400,7 +419,7 @@ async function authLogin() {
       const role = data.isAdmin ? 'admin' : (data.role || 'user');
       localStorage.setItem('user_role', role);
 
-      // التحقق الصارم وإظهار أو إخفاء قسم الإدارة بناءً على الاستجابة
+      // إعادة تقييم الواجهة بعد تأكيد الاستجابة من الباك إند
       renderUI({ role: role, isAdmin: data.isAdmin === true || (data.user && data.user.isAdmin === true) });
 
       return true;
@@ -428,6 +447,7 @@ async function loadUserData() {
     const data = await res.json();
     if (!data || !data.user) return;
 
+    // تحديث الواجهة وتطبيق صلاحية الأدمن
     renderUI({ role: data.user.role, isAdmin: data.isAdmin === true || data.user.isAdmin === true });
 
     if (document.getElementById('pending-bal')) document.getElementById('pending-bal').innerText = `$${(data.user.pendingBalance || 0).toFixed(2)}`;
@@ -1005,6 +1025,9 @@ async function distributeRevenue() {
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
+  // 1. الإخفاء المباشر والأولي لقسم الإدارة لحين إثبات الصلاحية
+  renderUI(null);
+
   try {
     if (tg) {
       tg.ready();
