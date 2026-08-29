@@ -125,22 +125,20 @@ const i18n = {
 function renderUI(userData) {
   const adminPanelBtn = document.getElementById('admin-panel-btn');
   const adminTabBtn = document.getElementById('tab-btn-admin');
+  const adminSection = document.getElementById('admin-section');
   
-  const isAdmin = (userData && (userData.role === 'admin' || userData.isAdmin === true));
+  const isAdmin = !!(userData && (userData.role === 'admin' || userData.isAdmin === true));
   isUserAdmin = isAdmin;
 
+  // التحقق الصارم: إظهار أو إخفاء قسم الإدارة والزر المخصص للأدمن
+  if (adminSection) {
+    adminSection.style.display = isAdmin ? 'block' : 'none';
+  }
   if (adminPanelBtn) {
     adminPanelBtn.style.display = isAdmin ? 'block' : 'none';
   }
-
   if (adminTabBtn) {
-    if (isAdmin) {
-      adminTabBtn.classList.remove('hidden');
-      adminTabBtn.style.display = 'flex'; // يضمن إظهار الزر فوراً
-    } else {
-      adminTabBtn.classList.add('hidden');
-      adminTabBtn.style.display = 'none'; // يخفي الزر
-    }
+    adminTabBtn.classList.toggle('hidden', !isAdmin);
   }
 }
 
@@ -401,7 +399,9 @@ async function authLogin() {
       
       const role = data.isAdmin ? 'admin' : (data.role || 'user');
       localStorage.setItem('user_role', role);
-      renderUI({ role: role, isAdmin: data.isAdmin });
+
+      // التحقق الصارم وإظهار أو إخفاء قسم الإدارة بناءً على الاستجابة
+      renderUI({ role: role, isAdmin: data.isAdmin === true || (data.user && data.user.isAdmin === true) });
 
       return true;
     }
@@ -428,7 +428,7 @@ async function loadUserData() {
     const data = await res.json();
     if (!data || !data.user) return;
 
-    renderUI({ role: data.user.role, isAdmin: data.isAdmin });
+    renderUI({ role: data.user.role, isAdmin: data.isAdmin === true || data.user.isAdmin === true });
 
     if (document.getElementById('pending-bal')) document.getElementById('pending-bal').innerText = `$${(data.user.pendingBalance || 0).toFixed(2)}`;
     if (document.getElementById('avail-bal')) document.getElementById('avail-bal').innerText = `$${(data.user.availableBalance || 0).toFixed(2)}`;
