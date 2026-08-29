@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ar" dir="auto">
+<html lang="en" dir="ltr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -8,7 +8,7 @@
   <!-- Content Security Policy (CSP) لمنع XSS والـ Data Injections -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self' https:; script-src 'self' 'unsafe-inline' https://telegram.org https://sad.adsgram.ai; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; iframe-src 'self' https://adsterra.com https://*.adsterra.com; connect-src 'self' https:;">
 
-  <title>Telega.ads | Shortener & Ads Platform</title>
+  <title>Shortener & Ads Platform</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
   <link rel="stylesheet" href="/style.css">
@@ -67,6 +67,13 @@
     <!-- Main Telegram Mini App View -->
     <div id="app-view" class="hidden">
       
+      <!-- قسم الإدارة (مخفي افتراضياً ويتحكم به app.js) -->
+      <div id="admin-section" style="display: none; margin-bottom: 12px;">
+        <button class="btn-warning" style="width: 100%; font-weight: bold;" onclick="openAdminPanel()">
+          ⚙️ لوحة التحكم للإدارة (Admin Panel)
+        </button>
+      </div>
+
       <!-- User Profile Header -->
       <div class="user-profile-header">
         <div id="user-avatar-container"></div>
@@ -273,8 +280,8 @@
         </div>
       </div>
 
-      <!-- 6. Admin Tab (Protected: display:none + hidden class to avoid UI leak before validation) -->
-      <div id="tab-content-admin" class="hidden" style="display: none;">
+      <!-- 6. Admin Tab -->
+      <div id="tab-content-admin" class="hidden">
         <div class="stats-grid" style="margin-bottom: 15px;">
           <div class="stat-box"><small>Total Users</small><h3 id="admin-total-users">0</h3></div>
           <div class="stat-box"><small>Total Pending</small><h3 id="admin-total-pending" style="color: var(--warning);">$0.00</h3></div>
@@ -329,8 +336,7 @@
           <span data-i18n="nav_settings">Settings</span>
         </button>
 
-        <!-- Admin Dock Button (Protected: hidden & display:none) -->
-        <button onclick="switchTab('admin')" class="nav-btn hidden" id="tab-btn-admin" style="color: var(--warning); display: none;">
+        <button onclick="switchTab('admin')" class="nav-btn hidden" id="tab-btn-admin" style="color: var(--warning);">
           <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-5.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
           <span>Admin</span>
         </button>
