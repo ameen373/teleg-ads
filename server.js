@@ -5,11 +5,6 @@
 
 require('dotenv').config();
 
-// 1. قراءة الـ IDs وتحويلها إلى مصفوفة أرقام
-const ADMIN_IDS = process.env.ADMIN_IDS 
-  ? process.env.ADMIN_IDS.split(',').map(id => Number(id.trim()))
-  : [];
-
 const express = require('express');
 const mongoose = require('mongoose');
 const rateLimit = require('express-rate-limit');
@@ -43,21 +38,51 @@ const {
 const app = express();
 
 // ==================================================
-// 1. Trust Proxy Setup
+// 1. System Constants & Environment Configuration
+// ==================================================
+const ADMIN_IDS = process.env.ADMIN_IDS 
+  ? process.env.ADMIN_IDS.split(',').map(id => Number(id.trim())).filter(id => !isNaN(id))
+  : [];
+
+const CONFIG = Object.freeze({
+  BOT_TOKEN: process.env.BOT_TOKEN,
+  MONGO_URI: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/telega_ads',
+  ADMIN_ID: process.env.ADMIN_ID ? Number(process.env.ADMIN_ID) : null,
+  JWT_SECRET: process.env.JWT_SECRET || 'fallback_jwt_secret_key_32bytes_long!',
+  ADSGRAM_BLOCK_ID: process.env.ADSGRAM_BLOCK_ID || '1234',
+  APP_DOMAIN: process.env.APP_DOMAIN || 'localhost:3000',
+  REDIS_URL: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
+  DEFAULT_LANGUAGE: 'en',
+  
+  OFFICIAL_BOT_URL: process.env.OFFICIAL_BOT_URL || 'https://t.me/Ads_telegabot',
+  OFFICIAL_CHANNEL_URL: process.env.OFFICIAL_CHANNEL_URL || 'https://t.me/ttelega_ads',
+  TELEGRAM_SUPPORT_URL: process.env.TELEGRAM_SUPPORT_URL || 'https://t.me/Te_AdsNs_bot',
+  
+  DEPOSIT_USDT_BEP20: process.env.DEPOSIT_USDT_BEP20 || '',
+  DEPOSIT_USDT_TRC20: process.env.DEPOSIT_USDT_TRC20 || '',
+
+  BOT_USERNAME: '@' + (process.env.OFFICIAL_BOT_URL || 'https://t.me/Ads_telegabot').split('/').pop(),
+  SUPPORT_USERNAME: '@' + (process.env.TELEGRAM_SUPPORT_URL || 'https://t.me/Te_AdsNs_bot').split('/').pop()
+});
+
+// إضافة ADMIN_ID الرئيسي إلى مصفوفة المسؤولين لضمان المطابقة
+if (CONFIG.ADMIN_ID && !ADMIN_IDS.includes(CONFIG.ADMIN_ID)) {
+  ADMIN_IDS.push(CONFIG.ADMIN_ID);
+}
+
+// ==================================================
+// 2. Trust Proxy Setup
 // ==================================================
 app.set('trust proxy', 1);
 
 // ==================================================
-// 2. Security Middlewares Infrastructure
+// 3. Security Middlewares Infrastructure
 // ==================================================
-
-// A. Security Headers via Helmet
 app.use(helmet({
-  contentSecurityPolicy: false, // مخصص لعمل Telegram Mini App داخل الـ Webview
+  contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false
 }));
 
-// B. CORS Security Configuration
 const allowedOrigins = process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',') : ['*'];
 app.use(cors({
   origin: (origin, callback) => {
@@ -73,27 +98,23 @@ app.use(cors({
 }));
 app.options('*', cors());
 
-// C. Request Body Parsers with Strict Size Limits
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-// D. NoSQL Injection & Data Sanitization
 app.use(mongoSanitize());
 app.use(xss());
 app.use(hpp());
 
-// E. Static Files Serving
 app.use(express.static(__dirname));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// F. Ensure API JSON UTF-8 Charset
 app.use('/api', (req, res, next) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   next();
 });
 
 // ==================================================
-// 3. Centralized Logging Engine
+// 4. Centralized Logging Engine
 // ==================================================
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
@@ -111,7 +132,7 @@ if (process.env.NODE_ENV !== 'production') {
 app.use(morgan('combined', { stream: { write: (message) => logger.info(message.trim()) } }));
 
 // ==================================================
-// 4. Rate Limiters & Protection Policies
+// 5. Rate Limiters & Protection Policies
 // ==================================================
 const globalApiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -139,30 +160,6 @@ const clickLimiter = rateLimit({
 });
 
 app.use('/api/', globalApiLimiter);
-
-// ==================================================
-// 5. System Constants & Environment Configuration
-// ==================================================
-const CONFIG = Object.freeze({
-  BOT_TOKEN: process.env.BOT_TOKEN,
-  MONGO_URI: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/telega_ads',
-  ADMIN_ID: process.env.ADMIN_ID || '123456789',
-  JWT_SECRET: process.env.JWT_SECRET || 'fallback_jwt_secret_key_32bytes_long!',
-  ADSGRAM_BLOCK_ID: process.env.ADSGRAM_BLOCK_ID || '1234',
-  APP_DOMAIN: process.env.APP_DOMAIN || 'localhost:3000',
-  REDIS_URL: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
-  DEFAULT_LANGUAGE: 'en',
-  
-  OFFICIAL_BOT_URL: process.env.OFFICIAL_BOT_URL || 'https://t.me/Ads_telegabot',
-  OFFICIAL_CHANNEL_URL: process.env.OFFICIAL_CHANNEL_URL || 'https://t.me/ttelega_ads',
-  TELEGRAM_SUPPORT_URL: process.env.TELEGRAM_SUPPORT_URL || 'https://t.me/Te_AdsNs_bot',
-  
-  DEPOSIT_USDT_BEP20: process.env.DEPOSIT_USDT_BEP20 || '',
-  DEPOSIT_USDT_TRC20: process.env.DEPOSIT_USDT_TRC20 || '',
-
-  BOT_USERNAME: '@' + (process.env.OFFICIAL_BOT_URL || 'https://t.me/Ads_telegabot').split('/').pop(),
-  SUPPORT_USERNAME: '@' + (process.env.TELEGRAM_SUPPORT_URL || 'https://t.me/Te_AdsNs_bot').split('/').pop()
-});
 
 // ==================================================
 // 6. Redis & Database Connections
@@ -229,6 +226,7 @@ async function sendTelegramNotification(telegramId, message) {
   }
 }
 
+// دالة فحص وتوثيق صحة initData القادمة من Telegram Web App
 function verifyTelegramData(initData) {
   if (!initData) return null;
   try {
@@ -258,6 +256,30 @@ function verifyTelegramData(initData) {
     return null;
   }
 }
+
+// ==================================================
+// Middleware: التحقق المباشر من initData ومعرف الآدمن
+// ==================================================
+const verifyTelegramAdminWebapp = (req, res, next) => {
+  const initData = req.headers['x-telegram-init-data'] || req.body.initData;
+
+  if (!initData) {
+    return res.status(403).json({ success: false, error: 'Access Forbidden: Missing Telegram initData' });
+  }
+
+  const telegramUser = verifyTelegramData(initData);
+  if (!telegramUser || !telegramUser.id) {
+    return res.status(403).json({ success: false, error: 'Access Forbidden: Invalid or tampered initData' });
+  }
+
+  const userId = Number(telegramUser.id);
+  if (!ADMIN_IDS.includes(userId)) {
+    return res.status(403).json({ success: false, error: 'Access Forbidden: Administrator privileges required' });
+  }
+
+  req.telegramAdminUser = telegramUser;
+  next();
+};
 
 const validateTraffic = (req, res, next) => {
   const ua = req.get('User-Agent') || '';
@@ -295,10 +317,10 @@ const authenticateUser = async (req, res, next) => {
   }
 };
 
-// Stealth Admin Security Middleware (Returns 404 on Unauthorized Access)
+// Stealth Admin Security Middleware
 const requireAdmin = (req, res, next) => {
   const isAdminRole = req.user && req.user.role === 'admin';
-  const isOwnerTelegramId = req.user && String(req.user.telegramId) === String(CONFIG.ADMIN_ID);
+  const isOwnerTelegramId = req.user && ADMIN_IDS.includes(Number(req.user.telegramId));
 
   if (isAdminRole || isOwnerTelegramId) {
     return next();
@@ -310,32 +332,19 @@ const requireAdmin = (req, res, next) => {
 // 8. Application Routes
 // ==================================================
 
-// --- 2. مسار التحقق والتسجيل ---
-app.post('/api/auth', async (req, res) => {
-  try {
-    const { telegramId } = req.body; // أو استخراجها حسب طريقة مشروعك (مثل req.body أو req.user)
-
-    // التحقق المنطقي: هل معرف المستخدم الحالي موجود داخل مصفوفة الأدمن؟
-    const isAdmin = ADMIN_IDS.includes(Number(telegramId));
-
-    // إرجاع النتيجة
-    return res.json({
-      success: true,
-      user: {
-        telegramId: Number(telegramId),
-        isAdmin: isAdmin,             // ستكون true لك أنت فقط، و false لغيرك
-        role: isAdmin ? 'admin' : 'user'
-      }
-    });
-  } catch (error) {
-    return res.status(500).json({ error: 'حدث خطأ في السيرفر' });
-  }
+// --- API للتحقق المباشر من بيانات initData الخاصة بالآدمن ---
+app.post('/api/admin/verify-webapp', verifyTelegramAdminWebapp, (req, res) => {
+  return res.json({
+    success: true,
+    message: 'Access granted successfully',
+    user: req.telegramAdminUser
+  });
 });
 
 // --- Authentication Route ---
 app.post('/api/auth/login', async (req, res, next) => {
   try {
-    const initData = req.headers['x-telegram-init-data'];
+    const initData = req.headers['x-telegram-init-data'] || req.body.initData;
     const telegramUser = verifyTelegramData(initData);
 
     const tgId = telegramUser ? String(telegramUser.id) : (process.env.NODE_ENV !== 'production' ? String(req.headers['x-demo-user-id'] || '') : null);
@@ -346,9 +355,10 @@ app.post('/api/auth/login', async (req, res, next) => {
     const currentUsername = telegramUser?.username || `User_${tgId.slice(-4)}`;
     const userLanguage = telegramUser?.language_code || CONFIG.DEFAULT_LANGUAGE;
 
+    const isSystemAdmin = ADMIN_IDS.includes(Number(tgId));
+
     let user = await User.findOne({ telegramId: tgId });
     if (!user) {
-      const isSystemAdmin = String(tgId) === String(CONFIG.ADMIN_ID);
       user = await User.create({
         telegramId: tgId,
         username: currentUsername,
@@ -360,7 +370,7 @@ app.post('/api/auth/login', async (req, res, next) => {
       let updated = false;
       if (user.username !== currentUsername) { user.username = currentUsername; updated = true; }
       if (!user.language) { user.language = userLanguage; updated = true; }
-      if (String(tgId) === String(CONFIG.ADMIN_ID) && user.role !== 'admin') { user.role = 'admin'; updated = true; }
+      if (isSystemAdmin && user.role !== 'admin') { user.role = 'admin'; updated = true; }
       if (updated) await user.save();
     }
 
@@ -377,7 +387,7 @@ app.post('/api/auth/login', async (req, res, next) => {
       token, 
       user, 
       language: user.language || CONFIG.DEFAULT_LANGUAGE,
-      isAdmin: user.role === 'admin' || String(user.telegramId) === String(CONFIG.ADMIN_ID),
+      isAdmin: user.role === 'admin' || isSystemAdmin,
       botUsername: CONFIG.BOT_USERNAME,
       supportUsername: CONFIG.SUPPORT_USERNAME,
       botUrl: CONFIG.OFFICIAL_BOT_URL,
@@ -480,7 +490,6 @@ app.post('/api/ads/toggle', authenticateUser, async (req, res, next) => {
   }
 });
 
-// --- User Isolated Campaigns Route ---
 app.get('/api/my-campaigns', authenticateUser, async (req, res, next) => {
   try {
     const campaigns = await Ad.find({ advertiserId: req.user._id }).lean();
@@ -523,10 +532,12 @@ app.post('/api/deposit', authenticateUser, async (req, res, next) => {
       status: 'pending'
     });
 
-    sendTelegramNotification(
-      CONFIG.ADMIN_ID,
-      `💳 <b>New Deposit Request!</b>\nUser: <code>${req.user.username}</code>\nAmount: <code>$${numAmount}</code>\nNetwork: <code>${cleanNetwork}</code>\nTxID: <code>${cleanTxid}</code>`
-    );
+    if (CONFIG.ADMIN_ID) {
+      sendTelegramNotification(
+        CONFIG.ADMIN_ID,
+        `💳 <b>New Deposit Request!</b>\nUser: <code>${req.user.username}</code>\nAmount: <code>$${numAmount}</code>\nNetwork: <code>${cleanNetwork}</code>\nTxID: <code>${cleanTxid}</code>`
+      );
+    }
 
     res.json({ success: true, deposit });
   } catch (err) {
@@ -876,7 +887,7 @@ app.get('/api/user/data', authenticateUser, async (req, res, next) => {
       };
     });
 
-    const isAdmin = req.user.role === 'admin' || String(req.user.telegramId) === String(CONFIG.ADMIN_ID);
+    const isAdmin = req.user.role === 'admin' || ADMIN_IDS.includes(Number(req.user.telegramId));
     res.json({ 
       success: true,
       user: req.user, 
