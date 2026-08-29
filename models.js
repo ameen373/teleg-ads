@@ -1,5 +1,5 @@
 /**
- * Enterprise Production Models Package (Ultra-Optimized)
+ * Enterprise Production Models Package (Ultra-Optimized & Secure)
  * Telega.ads Platform Architecture
  */
 
@@ -8,8 +8,51 @@ if (typeof window !== 'undefined') {
 }
 
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
-// Utility function to precision-format earnings up to 5 decimal places
+// --------------------------------------------------
+// Encryption Setup (AES-256-GCM)
+// --------------------------------------------------
+const ALGORITHM = 'aes-256-gcm';
+const rawKey = process.env.ENCRYPTION_KEY || '12345678901234567890123456789012';
+const ENCRYPTION_KEY = Buffer.from(rawKey.padEnd(32, '0').slice(0, 32));
+
+function encrypt(text) {
+  if (text === null || text === undefined || text === '') return text;
+  try {
+    const stringValue = typeof text === 'number' ? text.toString() : text;
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
+    let encrypted = cipher.update(stringValue, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    const authTag = cipher.getAuthTag().toString('hex');
+    return `${iv.toString('hex')}:${authTag}:${encrypted}`;
+  } catch (err) {
+    console.error('Encryption error:', err);
+    return text;
+  }
+}
+
+function decrypt(text) {
+  if (!text || typeof text !== 'string' || !text.includes(':')) return text;
+  try {
+    const parts = text.split(':');
+    if (parts.length !== 3) return text;
+    const iv = Buffer.from(parts[0], 'hex');
+    const authTag = Buffer.from(parts[1], 'hex');
+    const encryptedText = parts[2];
+    const decipher = crypto.createDecipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
+    decipher.setAuthTag(authTag);
+    let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  } catch (err) {
+    return text;
+  }
+}
+
+// Format currency values up to 5 decimal places
 const formatCurrency = (val) => {
   if (typeof val !== 'number' || isNaN(val) || !isFinite(val)) return 0;
   return Math.round((val + Number.EPSILON) * 100000) / 100000;
@@ -31,6 +74,10 @@ const userSchema = new mongoose.Schema({
     default: '', 
     trim: true,
     lowercase: true 
+  },
+  password: { 
+    type: String,
+    select: false
   },
   language: {
     type: String,
@@ -77,21 +124,26 @@ const userSchema = new mongoose.Schema({
     type: String, 
     default: '', 
     trim: true,
-    validate: {
-      validator: function(v) {
-        if (!v || v === '') return true;
-        const isTron = /^T[A-Za-z1-9]{33}$/.test(v);
-        const isEvm = /^0x[a-fA-F0-9]{40}$/.test(v);
-        const isTon = /^[a-zA-Z0-9_-]{48}$/.test(v) || /^0:[a-fA-F0-9]{64}$/.test(v);
-        return isTron || isEvm || isTon;
-      },
-      message: 'Invalid wallet address format (Must be USDT TRC20, BEP20/ERC20, or TON)'
-    }
+    set: encrypt,
+    get: decrypt
   }
 }, { 
   timestamps: true,
-  versionKey: '__v'
+  versionKey: '__v',
+  toJSON: { getters: true, virtuals: true },
+  toObject: { getters: true, virtuals: true }
 });
+
+userSchema.pre('save', async function (next) {
+  if (this.isModified('password') && this.password) {
+    this.password = await bcrypt.hash(this.password, 12);
+  }
+  next();
+});
+
+userSchema.methods.comparePassword = async function (candidatePassword) {
+  return await bcrypt.compare(candidatePassword, this.password);
+};
 
 userSchema.index({ telegramId: 1, isBanned: 1 });
 
@@ -349,15 +401,17 @@ const withdrawSchema = new mongoose.Schema({
   },
   network: {
     type: String,
-    enum: ['BEP20', 'TRC20'],
-    required: [true, 'Please select network (BEP20 or TRC20)'],
+    enum: ['BEP20', 'TRC20', 'TON'],
+    required: [true, 'Please select network'],
     trim: true,
     uppercase: true
   },
   walletAddress: { 
     type: String, 
     required: [true, 'Wallet address is required'], 
-    trim: true 
+    trim: true,
+    set: encrypt,
+    get: decrypt
   },
   status: { 
     type: String, 
@@ -377,7 +431,9 @@ const withdrawSchema = new mongoose.Schema({
     trim: true 
   }
 }, { 
-  timestamps: true 
+  timestamps: true,
+  toJSON: { getters: true, virtuals: true },
+  toObject: { getters: true, virtuals: true }
 });
 
 withdrawSchema.pre('validate', function(next) {
@@ -442,8 +498,8 @@ const depositSchema = new mongoose.Schema({
   },
   network: {
     type: String,
-    enum: ['BEP20', 'TRC20'],
-    required: [true, 'Please select network (BEP20 or TRC20)'],
+    enum: ['BEP20', 'TRC20', 'TON'],
+    required: [true, 'Please select network'],
     trim: true,
     uppercase: true
   },
