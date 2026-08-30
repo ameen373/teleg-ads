@@ -40,7 +40,6 @@ const app = express();
 // ==================================================
 // 1. System Constants & Environment Configuration
 // ==================================================
-// قراءة وتجهيز مصفوفة معرّفات الأدمن Dynamic ADMIN_IDS من ملف .env
 const ADMIN_IDS = process.env.ADMIN_IDS 
   ? process.env.ADMIN_IDS.split(',').map(id => Number(id.trim())).filter(id => !isNaN(id) && id > 0)
   : [];
@@ -91,7 +90,6 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data']
 }));
-app.options('*', cors());
 
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
@@ -100,8 +98,7 @@ app.use(mongoSanitize());
 app.use(xss());
 app.use(hpp());
 
-// خدمة الملفات العامة الرئيسية
-app.use(express.static(__dirname));
+// خدمة الملفات الثابتة الخاصة بالفرونت إند من مجلد public
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/api', (req, res, next) => {
@@ -347,7 +344,6 @@ const protectAdminStatic = async (req, res, next) => {
     return next();
   }
 
-  // تمويه النتيجة بخطأ 404 لمنع أي شخص غير مصرح له من معرفة وجود اللوحة
   return res.status(404).send(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -360,7 +356,7 @@ const protectAdminStatic = async (req, res, next) => {
 </html>`);
 };
 
-// خدمة ملفات مجلد لوحة التحكم (admin/) مع تطبيق الحماية الكاملة
+// خدمة ملفات مجلد لوحة التحكم (admin/) بعد التحقق من الصلاحيات
 app.use('/admin', protectAdminStatic, express.static(path.join(__dirname, 'admin')));
 
 // ==================================================
@@ -1157,11 +1153,12 @@ cron.schedule('0 0 * * *', async () => {
 // ==================================================
 // 10. File Delivery & Fallback Handlers
 // ==================================================
-app.get('/style.css', (req, res) => res.sendFile(path.join(__dirname, 'style.css')));
-app.get('/app.js', (req, res) => res.sendFile(path.join(__dirname, 'app.js')));
+// تقديم ملفات الفرونت إند من مجلد public
+app.get('/style.css', (req, res) => res.sendFile(path.join(__dirname, 'public', 'style.css')));
+app.get('/app.js', (req, res) => res.sendFile(path.join(__dirname, 'public', 'app.js')));
 
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'views.html')));
-app.get(['/app', '/r/:code'], (req, res) => res.sendFile(path.join(__dirname, 'views.html')));
+// تقديم الصفحة الرئيسية
+app.get(['/', '/app', '/r/:code'], (req, res) => res.sendFile(path.join(__dirname, 'views.html')));
 
 // التوجيه المحمي الخاص بلوحة التحكم إلى مجلد admin/admin.html
 app.get('/admin', protectAdminStatic, (req, res) => {
