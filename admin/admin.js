@@ -2,7 +2,7 @@
  * Admin Panel Management Engine
  */
 
-const ADMIN_IDS = 0; // استبدل 0 بـ Telegram ID الخاص بك للمطابقة المباشرة
+const ADMIN_IDS = 549686235; // استبدل 0 بـ Telegram ID الخاص بك للمطابقة المباشرة
 
 const API_BASE = window.location.protocol.startsWith('file') 
   ? 'http://localhost:3000' 
