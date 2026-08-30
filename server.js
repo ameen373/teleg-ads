@@ -65,7 +65,6 @@ const CONFIG = Object.freeze({
   SUPPORT_USERNAME: '@' + (process.env.TELEGRAM_SUPPORT_URL || 'https://t.me/Te_AdsNs_bot').split('/').pop()
 });
 
-// إضافة ADMIN_IDS الرئيسي إلى مصفوفة المسؤولين لضمان المطابقة
 if (CONFIG.ADMIN_IDS && !ADMIN_IDS.includes(CONFIG.ADMIN_IDS)) {
   ADMIN_IDS.push(CONFIG.ADMIN_IDS);
 }
@@ -105,8 +104,12 @@ app.use(mongoSanitize());
 app.use(xss());
 app.use(hpp());
 
+// خدمة الملفات العامة الرئيسية
 app.use(express.static(__dirname));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// خدمة ملفات مجلد لوحة التحكم (admin/) كـ Static Files
+app.use('/admin', express.static(path.join(__dirname, 'admin')));
 
 app.use('/api', (req, res, next) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -226,7 +229,6 @@ async function sendTelegramNotification(telegramId, message) {
   }
 }
 
-// دالة فحص وتوثيق صحة initData القادمة من Telegram Web App
 function verifyTelegramData(initData) {
   if (!initData) return null;
   try {
@@ -257,9 +259,6 @@ function verifyTelegramData(initData) {
   }
 }
 
-// ==================================================
-// Middleware: التحقق المباشر من initData ومعرف الآدمن
-// ==================================================
 const verifyTelegramAdminWebapp = (req, res, next) => {
   const initData = req.headers['x-telegram-init-data'] || req.body.initData;
 
@@ -296,7 +295,6 @@ const isPhishingOrMalicious = (url) => {
   return blacklistedKeywords.some(keyword => lowerUrl.includes(keyword));
 };
 
-// Data Isolation Authenticator Middleware
 const authenticateUser = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -317,7 +315,6 @@ const authenticateUser = async (req, res, next) => {
   }
 };
 
-// Stealth Admin Security Middleware
 const requireAdmin = (req, res, next) => {
   const isAdminRole = req.user && req.user.role === 'admin';
   const isOwnerTelegramId = req.user && ADMIN_IDS.includes(Number(req.user.telegramId));
@@ -332,7 +329,6 @@ const requireAdmin = (req, res, next) => {
 // 8. Application Routes
 // ==================================================
 
-// --- API للتحقق المباشر من بيانات initData الخاصة بالآدمن ---
 app.post('/api/admin/verify-webapp', verifyTelegramAdminWebapp, (req, res) => {
   return res.json({
     success: true,
@@ -341,7 +337,6 @@ app.post('/api/admin/verify-webapp', verifyTelegramAdminWebapp, (req, res) => {
   });
 });
 
-// --- Authentication Route ---
 app.post('/api/auth/login', async (req, res, next) => {
   try {
     const initData = req.headers['x-telegram-init-data'] || req.body.initData;
@@ -403,7 +398,6 @@ app.post('/api/auth/login', async (req, res, next) => {
   }
 });
 
-// --- Ad Campaigns Routes ---
 app.post('/api/ads', authenticateUser, async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
@@ -499,7 +493,6 @@ app.get('/api/my-campaigns', authenticateUser, async (req, res, next) => {
   }
 });
 
-// --- Financial Deposit & Withdraw Routes ---
 app.post('/api/deposit', authenticateUser, async (req, res, next) => {
   try {
     const { amount, network, txid } = req.body;
@@ -609,7 +602,6 @@ app.post('/api/withdraw', authenticateUser, async (req, res, next) => {
   }
 });
 
-// --- Traffic & Bridge Page Routing Engine ---
 app.post('/api/init-click', validateTraffic, async (req, res, next) => {
   try {
     const { linkCode } = req.body;
@@ -805,7 +797,6 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
   }
 });
 
-// --- Shortened Links Engine ---
 app.post('/api/links', authenticateUser, linkCreationLimiter, async (req, res, next) => {
   try {
     let { title, targetUrl } = req.body;
@@ -1130,7 +1121,12 @@ app.get('/style.css', (req, res) => res.sendFile(path.join(__dirname, 'style.css
 app.get('/app.js', (req, res) => res.sendFile(path.join(__dirname, 'app.js')));
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'views.html')));
-app.get(['/app', '/admin', '/r/:code'], (req, res) => res.sendFile(path.join(__dirname, 'views.html')));
+app.get(['/app', '/r/:code'], (req, res) => res.sendFile(path.join(__dirname, 'views.html')));
+
+// التوجيه الخاص بلوحة التحكم إلى مجلد admin/admin.html
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin', 'admin.html'));
+});
 
 // Catch-all 404 for API endpoints
 app.use('/api/*', (req, res) => {
