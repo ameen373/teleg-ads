@@ -35,7 +35,7 @@ async function fetchAdminAPI(endpoint, options = {}) {
 
   try {
     const response = await fetch(`${API_BASE}${endpoint}`, config);
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
     
     if (response.status === 401 || response.status === 403) {
       showToast('عذراً، لا تملك صلاحيات الأدمن للوصول إلى هذه اللوحة.', 'error');
@@ -123,7 +123,7 @@ async function initAdminPanel() {
 
 async function loadAdminDashboard() {
   const res = await fetchAdminAPI('/api/admin/stats');
-  if (res.ok && res.data.success) {
+  if (res.ok && res.data?.success) {
     adminStats = res.data;
     renderStatsOverview(res.data.stats || {});
     renderPendingDeposits(res.data.pendingDeposits || []);
@@ -138,7 +138,7 @@ async function loadAdminDashboard() {
 // ==========================================
 // 4. Render Admin Components
 // ==========================================
-function renderStatsOverview(stats) {
+function renderStatsOverview(stats = {}) {
   const totalUsersEl = document.getElementById('stat-total-users');
   const totalBalanceEl = document.getElementById('stat-total-balance');
   const totalDepositsEl = document.getElementById('stat-total-deposits');
@@ -146,17 +146,17 @@ function renderStatsOverview(stats) {
   const activeAdsEl = document.getElementById('stat-active-ads');
 
   if (totalUsersEl) totalUsersEl.innerText = stats.totalUsers || 0;
-  if (totalBalanceEl) totalBalanceEl.innerText = `$${(stats.totalUserBalance || 0).toFixed(2)}`;
-  if (totalDepositsEl) totalDepositsEl.innerText = `$${(stats.totalDepositsApproved || 0).toFixed(2)}`;
-  if (totalWithdrawsEl) totalWithdrawsEl.innerText = `$${(stats.totalWithdrawsApproved || 0).toFixed(2)}`;
+  if (totalBalanceEl) totalBalanceEl.innerText = `$${(Number(stats.totalUserBalance) || 0).toFixed(2)}`;
+  if (totalDepositsEl) totalDepositsEl.innerText = `$${(Number(stats.totalDepositsApproved) || 0).toFixed(2)}`;
+  if (totalWithdrawsEl) totalWithdrawsEl.innerText = `$${(Number(stats.totalWithdrawsApproved) || 0).toFixed(2)}`;
   if (activeAdsEl) activeAdsEl.innerText = stats.activeAdsCount || 0;
 }
 
-function renderPendingDeposits(deposits) {
+function renderPendingDeposits(deposits = []) {
   const container = document.getElementById('admin-deposits-list');
   if (!container) return;
 
-  if (deposits.length === 0) {
+  if (!Array.isArray(deposits) || deposits.length === 0) {
     container.innerHTML = '<div class="empty-state">لا توجد طلبات إيداع معلقة حالياً.</div>';
     return;
   }
@@ -168,10 +168,10 @@ function renderPendingDeposits(deposits) {
         <span class="badge warning">معلق</span>
       </div>
       <div class="admin-card-body">
-        <p><b>المبلغ:</b> $${dep.amount.toFixed(2)}</p>
-        <p><b>الشبكة:</b> ${dep.network}</p>
+        <p><b>المبلغ:</b> $${(Number(dep.amount) || 0).toFixed(2)}</p>
+        <p><b>الشبكة:</b> ${escapeHtml(dep.network)}</p>
         <p><b>TxID:</b> <code class="txid-code">${escapeHtml(dep.txid)}</code></p>
-        <p><small><b>التاريخ:</b> ${new Date(dep.createdAt).toLocaleString('ar-EG')}</small></p>
+        <p><small><b>التاريخ:</b> ${new Date(dep.createdAt || Date.now()).toLocaleString('ar-EG')}</small></p>
       </div>
       <div class="admin-card-actions">
         <button class="btn btn-success" onclick="processDeposit('${dep._id}', 'approve')">قبول الإيداع</button>
@@ -181,11 +181,11 @@ function renderPendingDeposits(deposits) {
   `).join('');
 }
 
-function renderPendingWithdraws(withdraws) {
+function renderPendingWithdraws(withdraws = []) {
   const container = document.getElementById('admin-withdraws-list');
   if (!container) return;
 
-  if (withdraws.length === 0) {
+  if (!Array.isArray(withdraws) || withdraws.length === 0) {
     container.innerHTML = '<div class="empty-state">لا توجد طلبات سحب معلقة حالياً.</div>';
     return;
   }
@@ -197,10 +197,10 @@ function renderPendingWithdraws(withdraws) {
         <span class="badge warning">معلق</span>
       </div>
       <div class="admin-card-body">
-        <p><b>المبلغ:</b> $${w.amount.toFixed(2)}</p>
-        <p><b>الشبكة:</b> ${w.network}</p>
+        <p><b>المبلغ:</b> $${(Number(w.amount) || 0).toFixed(2)}</p>
+        <p><b>الشبكة:</b> ${escapeHtml(w.network)}</p>
         <p><b>المحفظة:</b> <code class="txid-code">${escapeHtml(w.walletAddress)}</code></p>
-        <p><small><b>التاريخ:</b> ${new Date(w.createdAt).toLocaleString('ar-EG')}</small></p>
+        <p><small><b>التاريخ:</b> ${new Date(w.createdAt || Date.now()).toLocaleString('ar-EG')}</small></p>
       </div>
       <div class="admin-card-actions">
         <button class="btn btn-success" onclick="processWithdraw('${w._id}', 'approve')">تأكيد تحويل السحب</button>
@@ -210,11 +210,11 @@ function renderPendingWithdraws(withdraws) {
   `).join('');
 }
 
-function renderUsersList(users) {
+function renderUsersList(users = []) {
   const container = document.getElementById('admin-users-list');
   if (!container) return;
 
-  if (users.length === 0) {
+  if (!Array.isArray(users) || users.length === 0) {
     container.innerHTML = '<div class="empty-state">لا يوجد مستخدمون مسجلون بعد.</div>';
     return;
   }
@@ -222,16 +222,16 @@ function renderUsersList(users) {
   container.innerHTML = users.map(u => `
     <div class="admin-card">
       <div class="admin-card-header">
-        <span><b>${escapeHtml(u.username || 'مستخدم بدون اسم')}</b> (${u.telegramId})</span>
+        <span><b>${escapeHtml(u.username || 'مستخدم بدون اسم')}</b> (${u.telegramId || 'N/A'})</span>
         <span class="badge ${u.isBanned ? 'danger' : 'success'}">${u.isBanned ? 'محظور' : 'نشط'}</span>
       </div>
       <div class="admin-card-body">
-        <p><b>الرصيد المتاح:</b> $${(u.availableBalance || 0).toFixed(4)}</p>
-        <p><b>الرصيد المعلق:</b> $${(u.pendingBalance || 0).toFixed(4)}</p>
+        <p><b>الرصيد المتاح:</b> $${(Number(u.availableBalance) || 0).toFixed(4)}</p>
+        <p><b>الرصيد المعلق:</b> $${(Number(u.pendingBalance) || 0).toFixed(4)}</p>
         <p><b>الرتبة:</b> ${u.role === 'admin' ? '<b>أدمن</b>' : 'عضو'}</p>
       </div>
       <div class="admin-card-actions">
-        <button class="btn btn-warning" onclick="promptAdjustBalance('${u._id}', ${u.availableBalance})">تعديل الرصيد</button>
+        <button class="btn btn-warning" onclick="promptAdjustBalance('${u._id}', ${Number(u.availableBalance) || 0})">تعديل الرصيد</button>
         <button class="btn ${u.isBanned ? 'btn-success' : 'btn-danger'}" onclick="toggleUserBan('${u._id}', ${!u.isBanned})">
           ${u.isBanned ? 'فك الحظر' : 'حظر الحساب'}
         </button>
@@ -240,7 +240,7 @@ function renderUsersList(users) {
   `).join('');
 }
 
-function renderSystemSettings(settings) {
+function renderSystemSettings(settings = {}) {
   const trcInput = document.getElementById('setting-trc20');
   const bepInput = document.getElementById('setting-bep20');
   const cpmInput = document.getElementById('setting-cpm');
@@ -261,7 +261,7 @@ async function processDeposit(depositId, action) {
     body: JSON.stringify({ depositId, action })
   });
 
-  if (res.ok && res.data.success) {
+  if (res.ok && res.data?.success) {
     showToast('تمت معالجة طلب الإيداع بنجاح', 'success');
     loadAdminDashboard();
   } else {
@@ -277,7 +277,7 @@ async function processWithdraw(withdrawId, action) {
     body: JSON.stringify({ withdrawId, action })
   });
 
-  if (res.ok && res.data.success) {
+  if (res.ok && res.data?.success) {
     showToast('تمت معالجة طلب السحب بنجاح', 'success');
     loadAdminDashboard();
   } else {
@@ -300,7 +300,7 @@ async function promptAdjustBalance(userId, currentBalance) {
     body: JSON.stringify({ userId, newBalance })
   });
 
-  if (res.ok && res.data.success) {
+  if (res.ok && res.data?.success) {
     showToast('تم تحديث رصيد المستخدم بنجاح', 'success');
     loadAdminDashboard();
   } else {
@@ -317,7 +317,7 @@ async function toggleUserBan(userId, shouldBan) {
     body: JSON.stringify({ userId, isBanned: shouldBan })
   });
 
-  if (res.ok && res.data.success) {
+  if (res.ok && res.data?.success) {
     showToast(`تم ${actionText} المستخدم بنجاح`, 'success');
     loadAdminDashboard();
   } else {
@@ -338,7 +338,7 @@ async function saveAdminSettings() {
     })
   });
 
-  if (res.ok && res.data.success) {
+  if (res.ok && res.data?.success) {
     showToast('تم حفظ إعدادات النظام بنجاح', 'success');
     loadAdminDashboard();
   } else {
@@ -363,7 +363,7 @@ async function createBroadcastAnnouncement() {
     body: JSON.stringify({ title, message })
   });
 
-  if (res.ok && res.data.success) {
+  if (res.ok && res.data?.success) {
     showToast('تم نشر الإعلان بنجاح للجميع!', 'success');
     if (titleInput) titleInput.value = '';
     if (messageInput) messageInput.value = '';
@@ -396,7 +396,6 @@ function switchAdminTab(tabId) {
   if (targetNav) targetNav.classList.add('active');
 }
 
-// Back to User Dashboard
 function goToUserDashboard() {
   window.location.href = '/';
 }
