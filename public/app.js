@@ -31,6 +31,7 @@ async function fetchWithAuth(endpoint, options = {}) {
     headers['Authorization'] = `Bearer ${authToken}`;
   }
   
+  // إرسال بيئة تيليجرام للأمان والتأكيد
   if (window.Telegram?.WebApp?.initData) {
     headers['x-telegram-init-data'] = window.Telegram.WebApp.initData;
   }
@@ -46,7 +47,7 @@ async function fetchWithAuth(endpoint, options = {}) {
 
   try {
     const response = await fetch(`${API_BASE}${endpoint}`, config);
-    const data = await response.json();
+    const data = await response.json().catch(() => ({ success: false, error: 'استجابة غير صالحة من السيرفر' }));
     
     if (response.status === 401 || response.status === 403) {
       if (data.error && data.error.includes('banned')) {
@@ -123,7 +124,8 @@ function showToast(message, type = 'info') {
 // ==========================================
 async function initApp() {
   try {
-    if (window.Telegram?.WebApp) {
+    // تهيئة واجهة تيليجرام بأمان منعاً لتجميد الواجهة (Blank Screen)
+    if (window.Telegram && window.Telegram.WebApp) {
       window.Telegram.WebApp.ready();
       window.Telegram.WebApp.expand();
     }
@@ -174,7 +176,8 @@ async function loadUserData() {
     renderDepositsList(res.data.deposits || []);
     renderAnnouncements(res.data.announcements || []);
     
-    checkAdminAccess(res.data.isAdmin);
+    // التحقق المباشر والآمن من صلاحية الأدمن المرجعة من السيرفر
+    checkAdminAccess(res.data.isAdmin || userData?.isAdmin || false);
   } else {
     showToast('تعذر تحميل بيانات حسابك.', 'error');
     renderHeaderInfo();
@@ -209,7 +212,7 @@ function renderHeaderInfo() {
   if (usernameEl) usernameEl.innerText = username;
   
   if (refLinkEl && userData) {
-    const refUrl = `${appConfig.botUrl}?start=ref_${userData._id}`;
+    const refUrl = `${appConfig.botUrl}?start=ref_${userData.telegramId || userData._id}`;
     refLinkEl.value = refUrl;
   }
   
@@ -231,7 +234,7 @@ async function createShortLink() {
   const title = titleInput?.value?.trim();
 
   if (!targetUrl) {
-    showToast('يرجى أدخال الرابط المراد اختصاره', 'error');
+    showToast('يرجى إدخال الرابط المراد اختصاره', 'error');
     return;
   }
 
@@ -258,7 +261,7 @@ function renderLinksList(links) {
   const container = document.getElementById('links-container');
   if (!container) return;
 
-  if (links.length === 0) {
+  if (!Array.isArray(links) || links.length === 0) {
     container.innerHTML = '<div class="empty-state">لا توجد روابط اختصار حتى الآن.</div>';
     return;
   }
@@ -272,7 +275,7 @@ function renderLinksList(links) {
         </button>
       </div>
       <div class="link-url-box">
-        <input type="text" readonly value="${link.shortUrl}" id="short-${link._id}">
+        <input type="text" readonly value="${link.shortUrl || ''}" id="short-${link._id}">
         <button onclick="copyToClipboard('short-${link._id}')">نسخ</button>
       </div>
       <div class="link-stats">
@@ -345,7 +348,7 @@ function renderAdsList(ads) {
   const container = document.getElementById('ads-container');
   if (!container) return;
 
-  if (ads.length === 0) {
+  if (!Array.isArray(ads) || ads.length === 0) {
     container.innerHTML = '<div class="empty-state">لا توجد حملات إعلانية حالية.</div>';
     return;
   }
@@ -439,7 +442,7 @@ async function submitWithdrawRequest() {
   }
 
   if (!walletAddress) {
-    showToast('يرجى أدخال عنوان المحفظة بشكل صحيح', 'error');
+    showToast('يرجى إدخال عنوان المحفظة بشكل صحيح', 'error');
     return;
   }
 
@@ -465,7 +468,7 @@ function renderWithdrawsList(withdraws) {
   const container = document.getElementById('withdraws-container');
   if (!container) return;
 
-  if (withdraws.length === 0) {
+  if (!Array.isArray(withdraws) || withdraws.length === 0) {
     container.innerHTML = '<div class="empty-state">لا توجد عمليات سحب سابقة.</div>';
     return;
   }
@@ -487,7 +490,7 @@ function renderDepositsList(deposits) {
   const container = document.getElementById('deposits-container');
   if (!container) return;
 
-  if (deposits.length === 0) {
+  if (!Array.isArray(deposits) || deposits.length === 0) {
     container.innerHTML = '<div class="empty-state">لا توجد عمليات إيداع سابقة.</div>';
     return;
   }
@@ -529,7 +532,7 @@ function renderAnnouncements(announcements) {
   const container = document.getElementById('announcements-container');
   if (!container) return;
 
-  if (announcements.length === 0) {
+  if (!Array.isArray(announcements) || announcements.length === 0) {
     container.style.display = 'none';
     return;
   }
@@ -549,7 +552,7 @@ function copyToClipboard(elementId) {
   input.select();
   input.setSelectionRange(0, 99999);
 
-  if (navigator.clipboard) {
+  if (navigator.clipboard && window.isSecureContext) {
     navigator.clipboard.writeText(input.value).then(() => {
       showToast('تم النسخ إلى الحافظة!', 'success');
     }).catch(() => {
@@ -586,9 +589,9 @@ function switchTab(tabId) {
   if (targetNav) targetNav.classList.add('active');
 }
 
-// Open Admin Panel Directly
+// فتح لوحة التحكم مباشرة للأدمن
 function openAdminPanel() {
-  window.location.href = '/admin';
+  window.location.href = '/admin/admin.html';
 }
 
 // ==========================================
