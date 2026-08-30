@@ -1,6 +1,6 @@
 /**
  * Enterprise Production Core Engine & Security Middleware
- * Telega.ads Platform Architecture - Fully Secured Admin Subsystem
+ * Telega.ads Platform Architecture
  */
 
 require('dotenv').config();
@@ -40,14 +40,14 @@ const app = express();
 // ==================================================
 // 1. System Constants & Environment Configuration
 // ==================================================
+// قراءة وتجهيز مصفوفة معرّفات الأدمن Dynamic ADMIN_IDS من ملف .env
 const ADMIN_IDS = process.env.ADMIN_IDS 
-  ? process.env.ADMIN_IDS.split(',').map(id => Number(id.trim())).filter(id => !isNaN(id))
+  ? process.env.ADMIN_IDS.split(',').map(id => Number(id.trim())).filter(id => !isNaN(id) && id > 0)
   : [];
 
 const CONFIG = Object.freeze({
   BOT_TOKEN: process.env.BOT_TOKEN,
   MONGO_URI: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/telega_ads',
-  ADMIN_IDS: ADMIN_IDS,
   JWT_SECRET: process.env.JWT_SECRET || 'fallback_jwt_secret_key_32bytes_long!',
   ADSGRAM_BLOCK_ID: process.env.ADSGRAM_BLOCK_ID || '1234',
   APP_DOMAIN: process.env.APP_DOMAIN || 'localhost:3000',
@@ -99,6 +99,15 @@ app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(mongoSanitize());
 app.use(xss());
 app.use(hpp());
+
+// خدمة الملفات العامة الرئيسية
+app.use(express.static(__dirname));
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.use('/api', (req, res, next) => {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  next();
+});
 
 // ==================================================
 // 4. Centralized Logging Engine
@@ -243,6 +252,27 @@ function verifyTelegramData(initData) {
   }
 }
 
+const verifyTelegramAdminWebapp = (req, res, next) => {
+  const initData = req.headers['x-telegram-init-data'] || req.body.initData;
+
+  if (!initData) {
+    return res.status(404).json({ success: false, error: 'Cannot POST ' + req.originalUrl });
+  }
+
+  const telegramUser = verifyTelegramData(initData);
+  if (!telegramUser || !telegramUser.id) {
+    return res.status(404).json({ success: false, error: 'Cannot POST ' + req.originalUrl });
+  }
+
+  const userId = Number(telegramUser.id);
+  if (!ADMIN_IDS.includes(userId)) {
+    return res.status(404).json({ success: false, error: 'Cannot POST ' + req.originalUrl });
+  }
+
+  req.telegramAdminUser = telegramUser;
+  next();
+};
+
 const validateTraffic = (req, res, next) => {
   const ua = req.get('User-Agent') || '';
   const botPattern = /bot|crawler|spider|datacenter|proxy|httpclient|curl|python|axios|headless|selenium|puppeteer/i;
@@ -272,7 +302,6 @@ const authenticateUser = async (req, res, next) => {
       return res.status(403).json({ success: false, error: 'الحساب غير متاح أو محظور' });
     }
     req.user = user;
-    req.isAdmin = decoded.isAdmin || false;
     next();
   } catch (err) {
     return res.status(401).json({ success: false, error: 'التوكين غير صالح أو منتهي الصلاحية' });
@@ -282,75 +311,67 @@ const authenticateUser = async (req, res, next) => {
 const requireAdmin = (req, res, next) => {
   const isAdminRole = req.user && req.user.role === 'admin';
   const isOwnerTelegramId = req.user && ADMIN_IDS.includes(Number(req.user.telegramId));
-  const isJwtAdmin = req.isAdmin === true;
 
-  if (isAdminRole || isOwnerTelegramId || isJwtAdmin) {
+  if (isAdminRole || isOwnerTelegramId) {
     return next();
   }
-  
-  // Stealth Behavior: Return 404 instead of 403
-  return res.status(404).send('<!DOCTYPE html><html lang="en"><head><title>404 Not Found</title></head><body><h1>Not Found</h1><p>The requested URL was not found on this server.</p></body></html>');
+  return res.status(404).json({ error: 'Cannot GET ' + req.originalUrl });
 };
 
-// ==================================================
-// 8. Stealth Admin Middleware & Static File Protection
-// ==================================================
-
-// Middleware لخدمة ملفات لوحة التحكم فقط للأدمن وتشفير وجود المجلد (404) للآخرين
-app.use('/admin', (req, res, next) => {
+// ميدلوير لحماية ملفات الاستاتيك الخاصة باللوحة /admin
+const protectAdminStatic = async (req, res, next) => {
   const authHeader = req.headers.authorization;
-  let token = null;
+  const initData = req.headers['x-telegram-init-data'];
 
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    token = authHeader.split(' ')[1];
-  } else if (req.query && req.query.token) {
-    token = req.query.token;
-  }
+  let isAdmin = false;
 
-  if (!token) {
-    return res.status(404).send('<!DOCTYPE html><html lang="en"><head><title>404 Not Found</title></head><body><h1>Not Found</h1><p>The requested URL was not found on this server.</p></body></html>');
-  }
-
-  try {
-    const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
-    const isSystemAdmin = ADMIN_IDS.includes(Number(decoded.telegramId));
-    
-    if (decoded.isAdmin || decoded.role === 'admin' || isSystemAdmin) {
-      return express.static(path.join(__dirname, 'admin'))(req, res, next);
+  if (initData) {
+    const tgUser = verifyTelegramData(initData);
+    if (tgUser && ADMIN_IDS.includes(Number(tgUser.id))) {
+      isAdmin = true;
     }
-  } catch (err) {
-    // Ignore error and fallthrough to 404
   }
 
-  return res.status(404).send('<!DOCTYPE html><html lang="en"><head><title>404 Not Found</title></head><body><h1>Not Found</h1><p>The requested URL was not found on this server.</p></body></html>');
-});
+  if (!isAdmin && authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      const token = authHeader.split(' ')[1];
+      const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
+      const user = await User.findById(decoded.userId).lean();
+      if (user && (user.role === 'admin' || ADMIN_IDS.includes(Number(user.telegramId)))) {
+        isAdmin = true;
+      }
+    } catch (e) {}
+  }
 
-// خدمة الملفات العامة الرئيسية
-app.use(express.static(__dirname));
-app.use(express.static(path.join(__dirname, 'public')));
+  if (isAdmin) {
+    return next();
+  }
 
-app.use('/api', (req, res, next) => {
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  next();
-});
+  // تمويه النتيجة بخطأ 404 لمنع أي شخص غير مصرح له من معرفة وجود اللوحة
+  return res.status(404).send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Error</title>
+</head>
+<body>
+<pre>Cannot GET ${req.originalUrl}</pre>
+</body>
+</html>`);
+};
+
+// خدمة ملفات مجلد لوحة التحكم (admin/) مع تطبيق الحماية الكاملة
+app.use('/admin', protectAdminStatic, express.static(path.join(__dirname, 'admin')));
 
 // ==================================================
-// 9. Application Routes
+// 8. Application Routes
 // ==================================================
 
-app.get('/api/auth/check', authenticateUser, (req, res) => {
-  const isSystemAdmin = ADMIN_IDS.includes(Number(req.user.telegramId));
-  const isAdmin = req.user.role === 'admin' || isSystemAdmin || req.isAdmin;
-
-  res.json({
+app.post('/api/admin/verify-webapp', verifyTelegramAdminWebapp, (req, res) => {
+  return res.json({
     success: true,
-    isAdmin,
-    user: {
-      id: req.user._id,
-      telegramId: req.user.telegramId,
-      username: req.user.username,
-      role: req.user.role
-    }
+    message: 'Access granted successfully',
+    user: req.telegramAdminUser
   });
 });
 
@@ -388,10 +409,8 @@ app.post('/api/auth/login', async (req, res, next) => {
 
     if (user.isBanned) return res.status(403).json({ success: false, error: `Your account is suspended. Contact support: ${CONFIG.SUPPORT_USERNAME}` });
 
-    const isAdmin = user.role === 'admin' || isSystemAdmin;
-
     const token = jwt.sign(
-      { userId: user._id, telegramId: user.telegramId, role: user.role, isAdmin },
+      { userId: user._id, telegramId: user.telegramId, role: user.role },
       CONFIG.JWT_SECRET,
       { expiresIn: '7d', algorithm: 'HS256' }
     );
@@ -401,7 +420,7 @@ app.post('/api/auth/login', async (req, res, next) => {
       token, 
       user, 
       language: user.language || CONFIG.DEFAULT_LANGUAGE,
-      isAdmin,
+      isAdmin: user.role === 'admin' || isSystemAdmin,
       botUsername: CONFIG.BOT_USERNAME,
       supportUsername: CONFIG.SUPPORT_USERNAME,
       botUrl: CONFIG.OFFICIAL_BOT_URL,
@@ -899,8 +918,7 @@ app.get('/api/user/data', authenticateUser, async (req, res, next) => {
       };
     });
 
-    const isAdmin = req.user.role === 'admin' || ADMIN_IDS.includes(Number(req.user.telegramId)) || req.isAdmin;
-    
+    const isAdmin = req.user.role === 'admin' || ADMIN_IDS.includes(Number(req.user.telegramId));
     res.json({ 
       success: true,
       user: req.user, 
@@ -941,7 +959,7 @@ app.post('/api/user/settings', authenticateUser, async (req, res, next) => {
   }
 });
 
-// --- Stealth Admin Panel API Routes (Return 404 for Non-Admins) ---
+// --- Stealth Admin Panel Routes (Return 404 for Non-Admins) ---
 app.get('/api/admin/dashboard', authenticateUser, requireAdmin, async (req, res, next) => {
   try {
     const allUsers = await User.find().lean();
@@ -983,19 +1001,18 @@ app.post('/api/admin/deposit/action', authenticateUser, requireAdmin, async (req
       return res.status(400).json({ success: false, error: 'Invalid or previously processed deposit request' });
     }
 
-    if (!['approved', 'rejected', 'Completed'].includes(action)) {
+    if (!['approved', 'rejected'].includes(action)) {
       await session.abortTransaction();
       return res.status(400).json({ success: false, error: 'Invalid action' });
     }
 
-    const isApprove = action === 'approved' || action === 'Completed';
-    deposit.status = isApprove ? 'approved' : 'rejected';
-    if (!isApprove) {
+    deposit.status = action;
+    if (action === 'rejected') {
       deposit.rejectReason = String(reason || 'No reason specified').trim();
     }
     await deposit.save({ session });
 
-    if (isApprove) {
+    if (action === 'approved') {
       await User.findByIdAndUpdate(
         deposit.advertiserId._id,
         { $inc: { availableBalance: deposit.amount } },
@@ -1024,7 +1041,7 @@ app.post('/api/admin/deposit/action', authenticateUser, requireAdmin, async (req
 });
 
 app.post('/api/admin/withdraw/action', authenticateUser, requireAdmin, async (req, res, next) => {
-  const { withdrawId, action, rejectReason } = req.body;
+  const { withdrawId, action, reason } = req.body;
   if (!mongoose.Types.ObjectId.isValid(withdrawId)) return res.status(400).json({ success: false, error: 'Invalid Withdraw ID' });
 
   const session = await mongoose.startSession();
@@ -1037,14 +1054,18 @@ app.post('/api/admin/withdraw/action', authenticateUser, requireAdmin, async (re
       return res.status(400).json({ success: false, error: 'Invalid or previously processed request' });
     }
 
-    const isApprove = action === 'approved' || action === 'Completed';
-    withdraw.status = isApprove ? 'Completed' : 'Rejected';
-    if (!isApprove) {
-      withdraw.rejectReason = String(rejectReason || 'No reason specified').trim();
+    if (!['approved', 'rejected'].includes(action)) {
+      await session.abortTransaction();
+      return res.status(400).json({ success: false, error: 'Invalid action' });
+    }
+
+    withdraw.status = action;
+    if (action === 'rejected') {
+      withdraw.rejectReason = String(reason || 'No reason specified').trim();
     }
     await withdraw.save({ session });
 
-    if (!isApprove) {
+    if (action === 'rejected') {
       await User.findByIdAndUpdate(
         withdraw.userId._id, 
         { $inc: { availableBalance: withdraw.amount } }, 
@@ -1055,7 +1076,7 @@ app.post('/api/admin/withdraw/action', authenticateUser, requireAdmin, async (re
         withdraw.userId.telegramId,
         `❌ <b>Withdrawal Request Rejected</b>\nTotal Amount: <code>$${withdraw.amount}</code>\nReason: ${withdraw.rejectReason}`
       );
-    } else {
+    } else if (action === 'approved') {
       sendTelegramNotification(
         withdraw.userId.telegramId,
         `🎉 <b>Withdrawal Approved!</b>\nTotal Amount: <code>$${withdraw.amount}</code>\nNet Amount: <code>$${withdraw.netAmount}</code>`
@@ -1094,7 +1115,7 @@ app.post('/api/admin/user/toggle-ban', authenticateUser, requireAdmin, async (re
 });
 
 // ==================================================
-// 10. Automated Tasks & Cron Jobs
+// 9. Automated Tasks & Cron Jobs
 // ==================================================
 cron.schedule('0 0 * * *', async () => {
   try {
@@ -1134,13 +1155,18 @@ cron.schedule('0 0 * * *', async () => {
 });
 
 // ==================================================
-// 11. File Delivery & Fallback Handlers
+// 10. File Delivery & Fallback Handlers
 // ==================================================
 app.get('/style.css', (req, res) => res.sendFile(path.join(__dirname, 'style.css')));
-app.get('/app.js', (req, res) => res.sendFile(path.join(__dirname, 'public', 'app.js')));
+app.get('/app.js', (req, res) => res.sendFile(path.join(__dirname, 'app.js')));
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'views.html')));
 app.get(['/app', '/r/:code'], (req, res) => res.sendFile(path.join(__dirname, 'views.html')));
+
+// التوجيه المحمي الخاص بلوحة التحكم إلى مجلد admin/admin.html
+app.get('/admin', protectAdminStatic, (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin', 'admin.html'));
+});
 
 // Catch-all 404 for API endpoints
 app.use('/api/*', (req, res) => {
