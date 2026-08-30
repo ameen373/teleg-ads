@@ -2,7 +2,7 @@
  * Admin Panel Management Engine
  */
 
-const ADMIN_IDS = 549686235; // استبدل 0 بـ Telegram ID الخاص بك للمطابقة المباشرة
+const ADMIN_IDS = 0; // استبدل 0 بـ Telegram ID الخاص بك للمطابقة المباشرة
 
 const API_BASE = window.location.protocol.startsWith('file') 
   ? 'http://localhost:3000' 
@@ -57,15 +57,32 @@ function setButtonLoading(btnId, isLoading, originalText) {
 
 async function safeFetch(endpoint, options = {}) {
   options.headers = options.headers || {};
+  
+  // إرسال التوكين وتفاصيل التليجرام المباشرة لتأكيد الهوية
   if (authToken) {
     options.headers['Authorization'] = `Bearer ${authToken}`;
   }
-  
+  if (tg?.initData) {
+    options.headers['x-telegram-init-data'] = tg.initData;
+  }
+  if (currentTgUserId) {
+    options.headers['x-telegram-id'] = String(currentTgUserId);
+  }
+
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const targetUrl = endpoint.startsWith('http') ? endpoint : `${API_BASE}${cleanEndpoint}`;
-  
+
   try {
-    return await fetch(targetUrl, options);
+    const response = await fetch(targetUrl, options);
+    
+    // التعامل المخصص مع عدم وجود صلاحيات 403 / 401
+    if (response.status === 403 || response.status === 401) {
+      showToast("Access Denied: You are not authorized to access Admin APIs.");
+      renderUI(null); // حجب وإخفاء قسم الإدارة مباشرة
+      return null;
+    }
+
+    return response;
   } catch (err) {
     console.error("Fetch Network Error:", err);
     showToast("Network error. Please try again.");
@@ -98,6 +115,13 @@ function renderUI(userData = null) {
   }
   if (adminTabBtn) {
     adminTabBtn.classList.toggle('hidden', !isUserAdmin);
+  }
+
+  // إذا تم العثور على المستخدم حالياً في تبويب الأدمن ولكن تم رفض صلاحياته، انقل الصفحة للرئيسية
+  if (!isUserAdmin && adminSection && !adminSection.classList.contains('hidden')) {
+    if (typeof switchTab === 'function') {
+      switchTab('home');
+    }
   }
 }
 
