@@ -53,6 +53,10 @@
       "dest": "/"
     },
     {
+      "src": "/admin/(.*)",
+      "dest": "/admin/$1"
+    },
+    {
       "handle": "filesystem"
     },
     {
