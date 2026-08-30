@@ -31,7 +31,6 @@ async function fetchWithAuth(endpoint, options = {}) {
     headers['Authorization'] = `Bearer ${authToken}`;
   }
   
-  // إرسال بيئة تيليجرام للأمان والتأكيد
   if (window.Telegram?.WebApp?.initData) {
     headers['x-telegram-init-data'] = window.Telegram.WebApp.initData;
   }
@@ -47,7 +46,7 @@ async function fetchWithAuth(endpoint, options = {}) {
 
   try {
     const response = await fetch(`${API_BASE}${endpoint}`, config);
-    const data = await response.json().catch(() => ({ success: false, error: 'استجابة غير صالحة من السيرفر' }));
+    const data = await response.json().catch(() => ({}));
     
     if (response.status === 401 || response.status === 403) {
       if (data.error && data.error.includes('banned')) {
@@ -124,8 +123,7 @@ function showToast(message, type = 'info') {
 // ==========================================
 async function initApp() {
   try {
-    // تهيئة واجهة تيليجرام بأمان منعاً لتجميد الواجهة (Blank Screen)
-    if (window.Telegram && window.Telegram.WebApp) {
+    if (window.Telegram?.WebApp) {
       window.Telegram.WebApp.ready();
       window.Telegram.WebApp.expand();
     }
@@ -137,9 +135,9 @@ async function initApp() {
       body: JSON.stringify({ initData })
     });
 
-    if (res.ok && res.data.success) {
-      authToken = res.data.token;
-      localStorage.setItem('token', authToken);
+    if (res.ok && res.data?.success) {
+      authToken = res.data.token || authToken;
+      if (authToken) localStorage.setItem('token', authToken);
       
       if (res.data.botUsername) appConfig.botUsername = res.data.botUsername;
       if (res.data.supportUsername) appConfig.supportUsername = res.data.supportUsername;
@@ -150,8 +148,9 @@ async function initApp() {
 
       await loadUserData();
     } else {
-      showToast(res.data?.error || 'تعذر تسجيل الدخول التلقائي، يتم التحميل كزائر.', 'error');
       renderHeaderInfo();
+      renderLinksList([]);
+      renderAdsList([]);
     }
   } catch (err) {
     console.error('Initialization error:', err);
@@ -164,8 +163,8 @@ async function initApp() {
 // ==========================================
 async function loadUserData() {
   const res = await fetchWithAuth('/api/user/data');
-  if (res.ok && res.data.success) {
-    userData = res.data.user;
+  if (res.ok && res.data?.success) {
+    userData = res.data.user || {};
     
     if (res.data.depositWallets) appConfig.depositWallets = res.data.depositWallets;
     
@@ -176,10 +175,9 @@ async function loadUserData() {
     renderDepositsList(res.data.deposits || []);
     renderAnnouncements(res.data.announcements || []);
     
-    // التحقق المباشر والآمن من صلاحية الأدمن المرجعة من السيرفر
-    checkAdminAccess(res.data.isAdmin || userData?.isAdmin || false);
+    checkAdminAccess(res.data.isAdmin || false);
   } else {
-    showToast('تعذر تحميل بيانات حسابك.', 'error');
+    showToast('تعذر تحميل بيانات حسابك الكاملة.', 'error');
     renderHeaderInfo();
   }
 }
@@ -203,16 +201,16 @@ function renderHeaderInfo() {
   const usernameEl = document.getElementById('user-name');
   const refLinkEl = document.getElementById('referral-link');
 
-  const availableBalance = userData?.availableBalance || 0;
-  const pendingBalance = userData?.pendingBalance || 0;
+  const availableBalance = Number(userData?.availableBalance || 0);
+  const pendingBalance = Number(userData?.pendingBalance || 0);
   const username = userData?.username || (userData?.telegramId ? `User_${userData.telegramId}` : 'ضيف');
 
   if (balanceEl) balanceEl.innerText = `$${availableBalance.toFixed(4)}`;
   if (pendingEl) pendingEl.innerText = `$${pendingBalance.toFixed(4)}`;
   if (usernameEl) usernameEl.innerText = username;
   
-  if (refLinkEl && userData) {
-    const refUrl = `${appConfig.botUrl}?start=ref_${userData.telegramId || userData._id}`;
+  if (refLinkEl) {
+    const refUrl = userData?._id ? `${appConfig.botUrl}?start=ref_${userData._id}` : appConfig.botUrl;
     refLinkEl.value = refUrl;
   }
   
@@ -247,7 +245,7 @@ async function createShortLink() {
 
   if (createBtn) createBtn.disabled = false;
 
-  if (res.ok && res.data.success) {
+  if (res.ok && res.data?.success) {
     showToast('تم إنشاء الرابط بنجاح!', 'success');
     if (urlInput) urlInput.value = '';
     if (titleInput) titleInput.value = '';
@@ -257,7 +255,7 @@ async function createShortLink() {
   }
 }
 
-function renderLinksList(links) {
+function renderLinksList(links = []) {
   const container = document.getElementById('links-container');
   if (!container) return;
 
@@ -275,7 +273,7 @@ function renderLinksList(links) {
         </button>
       </div>
       <div class="link-url-box">
-        <input type="text" readonly value="${link.shortUrl || ''}" id="short-${link._id}">
+        <input type="text" readonly value="${escapeHtml(link.shortUrl || '')}" id="short-${link._id}">
         <button onclick="copyToClipboard('short-${link._id}')">نسخ</button>
       </div>
       <div class="link-stats">
@@ -293,7 +291,7 @@ async function toggleLinkStatus(linkId) {
     body: JSON.stringify({ linkId })
   });
 
-  if (res.ok && res.data.success) {
+  if (res.ok && res.data?.success) {
     showToast('تم تغيير حالة الرابط', 'success');
     loadUserData();
   } else {
@@ -333,7 +331,7 @@ async function createAdCampaign() {
 
   if (btn) btn.disabled = false;
 
-  if (res.ok && res.data.success) {
+  if (res.ok && res.data?.success) {
     showToast('تم إطلاق الحملة الإعلانية بنجاح!', 'success');
     if (titleInput) titleInput.value = '';
     if (urlInput) urlInput.value = '';
@@ -344,7 +342,7 @@ async function createAdCampaign() {
   }
 }
 
-function renderAdsList(ads) {
+function renderAdsList(ads = []) {
   const container = document.getElementById('ads-container');
   if (!container) return;
 
@@ -362,8 +360,8 @@ function renderAdsList(ads) {
         </button>
       </div>
       <div class="ad-details">
-        <div>الميزانية الكلية: <b>$${(ad.totalBudget || 0).toFixed(2)}</b></div>
-        <div>المتبقي: <b>$${(ad.remainingBudget || 0).toFixed(2)}</b></div>
+        <div>الميزانية الكلية: <b>$${(Number(ad.totalBudget) || 0).toFixed(2)}</b></div>
+        <div>المتبقي: <b>$${(Number(ad.remainingBudget) || 0).toFixed(2)}</b></div>
         <div>الظهور: <b>${ad.impressionsCount || 0}</b></div>
       </div>
     </div>
@@ -376,7 +374,7 @@ async function toggleAdStatus(adId) {
     body: JSON.stringify({ adId })
   });
 
-  if (res.ok && res.data.success) {
+  if (res.ok && res.data?.success) {
     showToast('تم تحديث حالة الحملة', 'success');
     loadUserData();
   } else {
@@ -416,7 +414,7 @@ async function submitDepositRequest() {
 
   if (btn) btn.disabled = false;
 
-  if (res.ok && res.data.success) {
+  if (res.ok && res.data?.success) {
     showToast('تم إرسال طلب الإيداع وهو قيد المراجعة الان.', 'success');
     if (amountInput) amountInput.value = '';
     if (txidInput) txidInput.value = '';
@@ -455,7 +453,7 @@ async function submitWithdrawRequest() {
 
   if (btn) btn.disabled = false;
 
-  if (res.ok && res.data.success) {
+  if (res.ok && res.data?.success) {
     showToast('تم إرسال طلب السحب بنجاح!', 'success');
     if (amountInput) amountInput.value = '';
     loadUserData();
@@ -464,7 +462,7 @@ async function submitWithdrawRequest() {
   }
 }
 
-function renderWithdrawsList(withdraws) {
+function renderWithdrawsList(withdraws = []) {
   const container = document.getElementById('withdraws-container');
   if (!container) return;
 
@@ -476,7 +474,7 @@ function renderWithdrawsList(withdraws) {
   container.innerHTML = withdraws.map(w => `
     <div class="transaction-item">
       <div>
-        <div><b>$${(w.amount || 0).toFixed(2)}</b> (${escapeHtml(w.network || 'USDT')})</div>
+        <div><b>$${(Number(w.amount) || 0).toFixed(2)}</b> (${escapeHtml(w.network || 'USDT')})</div>
         <small>${new Date(w.createdAt || Date.now()).toLocaleDateString('ar-EG')}</small>
       </div>
       <span class="status-badge ${w.status}">
@@ -486,7 +484,7 @@ function renderWithdrawsList(withdraws) {
   `).join('');
 }
 
-function renderDepositsList(deposits) {
+function renderDepositsList(deposits = []) {
   const container = document.getElementById('deposits-container');
   if (!container) return;
 
@@ -498,7 +496,7 @@ function renderDepositsList(deposits) {
   container.innerHTML = deposits.map(d => `
     <div class="transaction-item">
       <div>
-        <div><b>$${(d.amount || 0).toFixed(2)}</b> (${escapeHtml(d.network || 'USDT')})</div>
+        <div><b>$${(Number(d.amount) || 0).toFixed(2)}</b> (${escapeHtml(d.network || 'USDT')})</div>
         <small>${new Date(d.createdAt || Date.now()).toLocaleDateString('ar-EG')}</small>
       </div>
       <span class="status-badge ${d.status}">
@@ -520,7 +518,7 @@ async function saveUserSettings() {
     body: JSON.stringify({ defaultWallet: walletAddress })
   });
 
-  if (res.ok && res.data.success) {
+  if (res.ok && res.data?.success) {
     showToast('تم حفظ الإعدادات بنجاح', 'success');
     loadUserData();
   } else {
@@ -528,7 +526,7 @@ async function saveUserSettings() {
   }
 }
 
-function renderAnnouncements(announcements) {
+function renderAnnouncements(announcements = []) {
   const container = document.getElementById('announcements-container');
   if (!container) return;
 
@@ -552,7 +550,7 @@ function copyToClipboard(elementId) {
   input.select();
   input.setSelectionRange(0, 99999);
 
-  if (navigator.clipboard && window.isSecureContext) {
+  if (navigator.clipboard) {
     navigator.clipboard.writeText(input.value).then(() => {
       showToast('تم النسخ إلى الحافظة!', 'success');
     }).catch(() => {
@@ -589,9 +587,8 @@ function switchTab(tabId) {
   if (targetNav) targetNav.classList.add('active');
 }
 
-// فتح لوحة التحكم مباشرة للأدمن
 function openAdminPanel() {
-  window.location.href = '/admin/admin.html';
+  window.location.href = '/admin';
 }
 
 // ==========================================
