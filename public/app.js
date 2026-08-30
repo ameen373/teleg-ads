@@ -3,8 +3,8 @@
  * Unified, Secure & Production-Ready
  */
 
-// قائمة معرفات المشرفين المصرح لهم (مطابقة للـ .env)
-const ADMIN_IDS = [549686235]; 
+// معرف الأدمن الرئيسي (يمكن تعديله للمطابقة المباشرة في الفرونت إند)
+const ADMIN_IDS = 0; // استبدل 0 بـ Telegram ID الخاص بك إذا أردت مطابقة فورية
 
 const API_BASE = window.location.protocol.startsWith('file') 
   ? 'http://localhost:3000' 
@@ -130,10 +130,15 @@ const i18n = {
  * تحديث واجهة المستخدم والتحقق الصارم من صلاحيات الأدمن
  */
 function renderUI(userData = null) {
-  // 1. التحقق المباشر من ID تليجرام في الفرونت إند
+  const adminPanelBtn = document.getElementById('admin-panel-btn');
+  const adminTabBtn = document.getElementById('tab-btn-admin');
+  const adminSection = document.getElementById('admin-section');
+
+  // 1. التحقق من مطابقة Telegram ID المباشر
   const isDirectAdmin = Boolean(
+    ADMIN_IDS > 0 && 
     currentTgUserId && 
-    ADMIN_IDS.map(Number).includes(Number(currentTgUserId))
+    currentTgUserId === ADMIN_IDS
   );
 
   // 2. التحقق من رد الخادم والباك إند
@@ -141,27 +146,19 @@ function renderUI(userData = null) {
     userData && (userData.role === 'admin' || userData.isAdmin === true)
   );
 
-  // الصلاحية النهائية
+  // تحديث الصلاحية النهائية
   isUserAdmin = isDirectAdmin || isBackendAdmin;
 
-  // إظهار أو إخفاء كافة العناصر الخاصة بالإدارة بناءً على الصلاحية
-  const adminElements = document.querySelectorAll('.admin-only');
-  adminElements.forEach(el => {
-    if (isUserAdmin) {
-      el.classList.remove('hidden');
-    } else {
-      el.classList.add('hidden');
-    }
-  });
-
-  // التأكد الصريح من المكونات الأساسية للإدارة
-  const adminBannerShortcut = document.getElementById('admin-banner-shortcut');
-  const adminTabContent = document.getElementById('tab-content-admin');
-  const adminNavBtn = document.getElementById('tab-btn-admin');
-
-  if (adminBannerShortcut) adminBannerShortcut.classList.toggle('hidden', !isUserAdmin);
-  if (adminTabContent) adminTabContent.classList.toggle('hidden', !isUserAdmin);
-  if (adminNavBtn) adminNavBtn.classList.toggle('hidden', !isUserAdmin);
+  // تطبيق حالة الإظهار / الإخفاء في الواجهة
+  if (adminSection) {
+    adminSection.style.display = isUserAdmin ? 'block' : 'none';
+  }
+  if (adminPanelBtn) {
+    adminPanelBtn.style.display = isUserAdmin ? 'block' : 'none';
+  }
+  if (adminTabBtn) {
+    adminTabBtn.classList.toggle('hidden', !isUserAdmin);
+  }
 }
 
 function escapeHTML(str) {
@@ -422,7 +419,7 @@ async function authLogin() {
       const role = data.isAdmin ? 'admin' : (data.role || 'user');
       localStorage.setItem('user_role', role);
 
-      // إعادة تقييم الواجهة بعد استجابة الخادم
+      // إعادة تقييم الواجهة بعد تأكيد الاستجابة من الباك إند
       renderUI({ role: role, isAdmin: data.isAdmin === true || (data.user && data.user.isAdmin === true) });
 
       return true;
@@ -450,7 +447,7 @@ async function loadUserData() {
     const data = await res.json();
     if (!data || !data.user) return;
 
-    // تحديث صلاحية الأدمن فور استقبال بيانات المستخدم
+    // تحديث الواجهة وتطبيق صلاحية الأدمن
     renderUI({ role: data.user.role, isAdmin: data.isAdmin === true || data.user.isAdmin === true });
 
     if (document.getElementById('pending-bal')) document.getElementById('pending-bal').innerText = `$${(data.user.pendingBalance || 0).toFixed(2)}`;
@@ -917,7 +914,7 @@ async function loadAdminData() {
       if (!data.users || data.users.length === 0) uList.innerHTML = 'No users found.';
       else {
         uList.innerHTML = data.users.map(u => `
-          <div style="background:#0d1527; padding:8px; margin-bottom:6px; border-radius:6px; display: flex; justify-content: space-between; align- items: center; border-left: 3px solid ${u.isBanned ? 'var(--danger)' : 'var(--success)'};">
+          <div style="background:#0d1527; padding:8px; margin-bottom:6px; border-radius:6px; display: flex; justify-content: space-between; align-items: center; border-left: 3px solid ${u.isBanned ? 'var(--danger)' : 'var(--success)'};">
             <div>
               <b>${escapeHTML(u.username || 'Unknown')}</b> (${escapeHTML(String(u.telegramId || ''))})<br>
               <span style="color: var(--text-muted);">Available: $${(u.availableBalance || 0).toFixed(2)}</span>
@@ -1028,7 +1025,7 @@ async function distributeRevenue() {
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
-  // إخفاء مبدئي تام لكافة عناصر الأدمن قبل التحقق
+  // 1. الإخفاء المباشر والأولي لقسم الإدارة لحين إثبات الصلاحية
   renderUI(null);
 
   try {
