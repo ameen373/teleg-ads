@@ -3,9 +3,6 @@
  * Unified, Secure & Production-Ready
  */
 
-// معرف الأدمن الرئيسي (يمكن تعديله للمطابقة المباشرة في الفرونت إند)
-const ADMIN_IDS = 0; // استبدل 0 بـ Telegram ID الخاص بك إذا أردت مطابقة فورية
-
 const API_BASE = window.location.protocol.startsWith('file') 
   ? 'http://localhost:3000' 
   : window.location.origin;
@@ -125,32 +122,38 @@ function showToast(message, type = 'info') {
 // 3. Authentication & Startup Handler
 // ==========================================
 async function initApp() {
-  if (window.Telegram?.WebApp) {
-    window.Telegram.WebApp.ready();
-    window.Telegram.WebApp.expand();
-  }
+  try {
+    if (window.Telegram?.WebApp) {
+      window.Telegram.WebApp.ready();
+      window.Telegram.WebApp.expand();
+    }
 
-  const initData = window.Telegram?.WebApp?.initData || '';
-  
-  const res = await fetchWithAuth('/api/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({ initData })
-  });
-
-  if (res.ok && res.data.success) {
-    authToken = res.data.token;
-    localStorage.setItem('token', authToken);
+    const initData = window.Telegram?.WebApp?.initData || '';
     
-    if (res.data.botUsername) appConfig.botUsername = res.data.botUsername;
-    if (res.data.supportUsername) appConfig.supportUsername = res.data.supportUsername;
-    if (res.data.botUrl) appConfig.botUrl = res.data.botUrl;
-    if (res.data.officialChannelUrl) appConfig.officialChannelUrl = res.data.officialChannelUrl;
-    if (res.data.supportUrl) appConfig.supportUrl = res.data.supportUrl;
-    if (res.data.depositWallets) appConfig.depositWallets = res.data.depositWallets;
+    const res = await fetchWithAuth('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ initData })
+    });
 
-    await loadUserData();
-  } else {
-    showToast(res.data?.error || 'فشل تسجيل الدخول تلقائياً.', 'error');
+    if (res.ok && res.data.success) {
+      authToken = res.data.token;
+      localStorage.setItem('token', authToken);
+      
+      if (res.data.botUsername) appConfig.botUsername = res.data.botUsername;
+      if (res.data.supportUsername) appConfig.supportUsername = res.data.supportUsername;
+      if (res.data.botUrl) appConfig.botUrl = res.data.botUrl;
+      if (res.data.officialChannelUrl) appConfig.officialChannelUrl = res.data.officialChannelUrl;
+      if (res.data.supportUrl) appConfig.supportUrl = res.data.supportUrl;
+      if (res.data.depositWallets) appConfig.depositWallets = res.data.depositWallets;
+
+      await loadUserData();
+    } else {
+      showToast(res.data?.error || 'تعذر تسجيل الدخول التلقائي، يتم التحميل كزائر.', 'error');
+      renderHeaderInfo();
+    }
+  } catch (err) {
+    console.error('Initialization error:', err);
+    renderHeaderInfo();
   }
 }
 
@@ -174,6 +177,7 @@ async function loadUserData() {
     checkAdminAccess(res.data.isAdmin);
   } else {
     showToast('تعذر تحميل بيانات حسابك.', 'error');
+    renderHeaderInfo();
   }
 }
 
@@ -191,24 +195,26 @@ function checkAdminAccess(isAdmin) {
 }
 
 function renderHeaderInfo() {
-  if (!userData) return;
-  
   const balanceEl = document.getElementById('user-balance');
   const pendingEl = document.getElementById('user-pending');
   const usernameEl = document.getElementById('user-name');
   const refLinkEl = document.getElementById('referral-link');
 
-  if (balanceEl) balanceEl.innerText = `$${(userData.availableBalance || 0).toFixed(4)}`;
-  if (pendingEl) pendingEl.innerText = `$${(userData.pendingBalance || 0).toFixed(4)}`;
-  if (usernameEl) usernameEl.innerText = userData.username || `User_${userData.telegramId}`;
+  const availableBalance = userData?.availableBalance || 0;
+  const pendingBalance = userData?.pendingBalance || 0;
+  const username = userData?.username || (userData?.telegramId ? `User_${userData.telegramId}` : 'ضيف');
+
+  if (balanceEl) balanceEl.innerText = `$${availableBalance.toFixed(4)}`;
+  if (pendingEl) pendingEl.innerText = `$${pendingBalance.toFixed(4)}`;
+  if (usernameEl) usernameEl.innerText = username;
   
-  if (refLinkEl) {
+  if (refLinkEl && userData) {
     const refUrl = `${appConfig.botUrl}?start=ref_${userData._id}`;
     refLinkEl.value = refUrl;
   }
   
   const walletInput = document.getElementById('setting-wallet');
-  if (walletInput && userData.defaultWallet) {
+  if (walletInput && userData?.defaultWallet) {
     walletInput.value = userData.defaultWallet;
   }
 }
@@ -467,8 +473,8 @@ function renderWithdrawsList(withdraws) {
   container.innerHTML = withdraws.map(w => `
     <div class="transaction-item">
       <div>
-        <div><b>$${w.amount.toFixed(2)}</b> (${w.network})</div>
-        <small>${new Date(w.createdAt).toLocaleDateString('ar-EG')}</small>
+        <div><b>$${(w.amount || 0).toFixed(2)}</b> (${escapeHtml(w.network || 'USDT')})</div>
+        <small>${new Date(w.createdAt || Date.now()).toLocaleDateString('ar-EG')}</small>
       </div>
       <span class="status-badge ${w.status}">
         ${w.status === 'approved' ? 'مكتمل' : w.status === 'rejected' ? 'مرفوض' : 'قيد الانتظار'}
@@ -489,8 +495,8 @@ function renderDepositsList(deposits) {
   container.innerHTML = deposits.map(d => `
     <div class="transaction-item">
       <div>
-        <div><b>$${d.amount.toFixed(2)}</b> (${d.network})</div>
-        <small>${new Date(d.createdAt).toLocaleDateString('ar-EG')}</small>
+        <div><b>$${(d.amount || 0).toFixed(2)}</b> (${escapeHtml(d.network || 'USDT')})</div>
+        <small>${new Date(d.createdAt || Date.now()).toLocaleDateString('ar-EG')}</small>
       </div>
       <span class="status-badge ${d.status}">
         ${d.status === 'approved' ? 'مقبول' : d.status === 'rejected' ? 'مرفوض' : 'قيد الانتظار'}
@@ -546,6 +552,9 @@ function copyToClipboard(elementId) {
   if (navigator.clipboard) {
     navigator.clipboard.writeText(input.value).then(() => {
       showToast('تم النسخ إلى الحافظة!', 'success');
+    }).catch(() => {
+      document.execCommand('copy');
+      showToast('تم النسخ إلى الحافظة!', 'success');
     });
   } else {
     document.execCommand('copy');
@@ -555,7 +564,7 @@ function copyToClipboard(elementId) {
 
 function escapeHtml(text) {
   if (!text) return '';
-  return text
+  return String(text)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
