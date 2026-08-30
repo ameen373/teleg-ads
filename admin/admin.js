@@ -1,8 +1,7 @@
 /**
  * Admin Panel Management Engine
+ * Authenticated & Stealth Access Engine
  */
-
-const ADMIN_IDS = 0; // استبدل 0 بـ Telegram ID الخاص بك للمطابقة المباشرة
 
 const API_BASE = window.location.protocol.startsWith('file') 
   ? 'http://localhost:3000' 
@@ -11,9 +10,6 @@ const API_BASE = window.location.protocol.startsWith('file')
 let authToken = localStorage.getItem('authToken') || localStorage.getItem('user_token');
 let isUserAdmin = false;
 const tg = window.Telegram?.WebApp;
-
-const currentTgUser = tg?.initDataUnsafe?.user || null;
-const currentTgUserId = currentTgUser?.id ? Number(currentTgUser.id) : null;
 
 function escapeHTML(str) {
   if (!str) return '';
@@ -42,30 +38,28 @@ function showToast(msg) {
   setTimeout(() => { toast.classList.remove("show"); }, 3000);
 }
 
-function setButtonLoading(btnId, isLoading, originalText) {
-  const btn = document.getElementById(btnId);
-  if (!btn) return;
-  if (isLoading) {
-    btn.disabled = true;
-    btn.dataset.oldContent = btn.innerHTML;
-    btn.innerHTML = `<div class="spinner"></div>`;
-  } else {
-    btn.disabled = false;
-    btn.innerHTML = originalText || btn.dataset.oldContent || '';
-  }
-}
-
 async function safeFetch(endpoint, options = {}) {
   options.headers = options.headers || {};
+  
+  // إرسال توكين التوثيق دائماً لجميع طلبات الأدمن
   if (authToken) {
     options.headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  if (tg && tg.initData) {
+    options.headers['x-telegram-init-data'] = tg.initData;
   }
   
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const targetUrl = endpoint.startsWith('http') ? endpoint : `${API_BASE}${cleanEndpoint}`;
   
   try {
-    return await fetch(targetUrl, options);
+    const response = await fetch(targetUrl, options);
+    if (response.status === 404) {
+      // التعامل مع حالة التمويه والتوجيه التلقائي في حالة فشل الصلاحية
+      document.body.innerHTML = '<h1>404 Not Found</h1><p>The requested URL was not found on this server.</p>';
+      return null;
+    }
+    return response;
   } catch (err) {
     console.error("Fetch Network Error:", err);
     showToast("Network error. Please try again.");
@@ -73,32 +67,19 @@ async function safeFetch(endpoint, options = {}) {
   }
 }
 
-function renderUI(userData = null) {
-  const adminPanelBtn = document.getElementById('admin-banner-shortcut');
-  const adminTabBtn = document.getElementById('tab-btn-admin');
-  const adminSection = document.getElementById('tab-content-admin');
-
-  const isDirectAdmin = Boolean(
-    ADMIN_IDS > 0 && 
-    currentTgUserId && 
-    currentTgUserId === ADMIN_IDS
-  );
-
-  const isBackendAdmin = Boolean(
-    userData && (userData.role === 'admin' || userData.isAdmin === true)
-  );
-
-  isUserAdmin = isDirectAdmin || isBackendAdmin;
-
-  if (adminSection) {
-    adminSection.style.display = isUserAdmin ? 'block' : 'none';
+async function verifyAdminAccess() {
+  const res = await safeFetch('/api/auth/check');
+  if (!res) return false;
+  
+  const data = await res.json();
+  if (data && data.success && data.isAdmin) {
+    isUserAdmin = true;
+    return true;
   }
-  if (adminPanelBtn) {
-    adminPanelBtn.style.display = isUserAdmin ? 'block' : 'none';
-  }
-  if (adminTabBtn) {
-    adminTabBtn.classList.toggle('hidden', !isUserAdmin);
-  }
+  
+  // حجب الواجهة وإظهار صفحة 404 بديلة فوراً إذا لم يكن المستخدم مديراً
+  document.body.innerHTML = '<h1>404 Not Found</h1><p>The requested URL was not found on this server.</p>';
+  return false;
 }
 
 async function loadAdminData() {
@@ -119,8 +100,8 @@ async function loadAdminData() {
         dList.innerHTML = data.deposits.map(d => `
           <div style="background:#0d1527; padding:8px; margin-bottom:6px; border-radius:6px; border: 1px solid var(--border-color);">
             User: <b>${escapeHTML(d.advertiserId?.username || d.advertiserId?.telegramId || 'Unknown')}</b><br>
-            Amount: <b style="color:var(--success);">$${parseFloat(d.amount || 0).toFixed(2)}</b> | Network: <code>${escapeHTML(d.paymentMethod)}</code><br>
-            TxID: <code style="color: var(--warning); word-break: break-all;">${escapeHTML(d.txHash || 'N/A')}</code><br>
+            Amount: <b style="color:var(--success);">$${parseFloat(d.amount || 0).toFixed(2)}</b> | Network: <code>${escapeHTML(d.network || d.paymentMethod)}</code><br>
+            TxID: <code style="color: var(--warning); word-break: break-all;">${escapeHTML(d.txid || d.txHash || 'N/A')}</code><br>
             <div style="margin-top: 6px; display: flex; gap: 4px;">
               <button class="btn-small btn-success" onclick="handleAdminDeposit('${d._id}', 'Completed')">Approve</button>
               <button class="btn-small btn-danger" onclick="handleAdminDeposit('${d._id}', 'Rejected')">Reject</button>
@@ -236,38 +217,14 @@ async function toggleUserBan(userId) {
   }
 }
 
-async function distributeRevenue() {
-  const totalRevenue = document.getElementById('revenue-amount')?.value;
-  if (!totalRevenue || totalRevenue <= 0) return showToast("Enter a valid amount");
-
-  triggerHaptic('medium');
-  setButtonLoading('btn-distribute-rev', true);
-
-  try {
-    const res = await safeFetch('/api/admin/distribute-revenue', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ totalRevenue })
-    });
-    if (!res) return;
-    const data = await res.json();
-    if (data.error) showToast(data.error);
-    else {
-      showToast(data.message || "Revenue distributed successfully");
-      if (document.getElementById('revenue-amount')) document.getElementById('revenue-amount').value = '';
-    }
-  } catch (e) {
-    showToast("Error distributing revenue");
-  } finally {
-    setButtonLoading('btn-distribute-rev', false, 'Distribute Revenue to Links');
-  }
-}
-
 window.addEventListener('DOMContentLoaded', async () => {
-  renderUI(null);
   if (tg) {
     tg.ready();
     tg.expand();
   }
-  loadAdminData();
+  
+  const authorized = await verifyAdminAccess();
+  if (authorized) {
+    loadAdminData();
+  }
 });
