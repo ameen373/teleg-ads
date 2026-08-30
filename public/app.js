@@ -67,7 +67,8 @@ const i18n = {
     network_error: "Network connection error. Please check your internet connection.",
     about_title: "ℹ️ About & Terms of Use",
     about_desc: "This bot is securely dedicated to shortening links and managing promotional campaigns safely. By using this platform, you agree to comply with our traffic quality guidelines and terms of service.",
-    link_success_msg: "Link shortened successfully!"
+    link_success_msg: "Link shortened successfully!",
+    access_denied: "Access denied. You do not have administrator permissions."
   },
   ar: {
     nav_home: "الرئيسية",
@@ -118,7 +119,8 @@ const i18n = {
     network_error: "تعذر الاتصال بالشبكة، يرجى التحقق من اتصال الإنترنت لديك.",
     about_title: "ℹ️ نبذة وشروط الاستخدام",
     about_desc: "هذا البوت مخصص لااختصار الروابط بأمان وإدارة الحملات الإعلانية بكفاءة عالية. باستخدامك لهذه المنصة، فإنك توافق على الالتزام بشروط الاستخدام وسياسة الجودة لدينا.",
-    link_success_msg: "تم اختصار الرابط بنجاح!"
+    link_success_msg: "تم اختصار الرابط بنجاح!",
+    access_denied: "عذراً، غير مصرح لك بالوصول إلى لوحة الإدارة."
   }
 };
 
@@ -189,15 +191,25 @@ function updateWithdrawCalculations() {
 
 async function safeFetch(endpoint, options = {}) {
   options.headers = options.headers || {};
+  
+  // تمرير التوكين والـ Telegram InitData ومعرّف المستخدم المباشر في الـ Headers
   if (authToken) {
     options.headers['Authorization'] = `Bearer ${authToken}`;
   }
-  
+  if (tg?.initData) {
+    options.headers['x-telegram-init-data'] = tg.initData;
+  }
+  if (currentTgUserId) {
+    options.headers['x-telegram-id'] = String(currentTgUserId);
+  }
+
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const targetUrl = endpoint.startsWith('http') ? endpoint : `${API_BASE}${cleanEndpoint}`;
-  
+
   try {
     let response = await fetch(targetUrl, options);
+    
+    // التعامل المخصص مع إعادة التوثيق 401
     if (response.status === 401) {
       const reAuth = await authLogin();
       if (reAuth) {
@@ -205,6 +217,16 @@ async function safeFetch(endpoint, options = {}) {
         response = await fetch(targetUrl, options);
       }
     }
+
+    // التعامل المخصص مع 403 (عدم وجود صلاحيات للأدمن)
+    if (response.status === 403) {
+      showToast(i18n[currentLang]?.access_denied || "Access Denied: Admin privileges required.");
+      if (typeof renderUI === 'function') {
+        renderUI(null); // إخفاء عناصر لوحة الأدمن
+      }
+      return null;
+    }
+
     return response;
   } catch (err) {
     console.error("Fetch Network Error:", err);
@@ -365,8 +387,7 @@ async function authLogin() {
     const res = await safeFetch('/api/auth/login', {
       method: 'POST',
       headers: { 
-        'Content-Type': 'application/json',
-        ...(tg?.initData ? {'x-telegram-init-data': tg.initData} : {'x-demo-user-id': 'DEMO_USER_DEV'}) 
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({ referrerId: startParam, telegramUserInfo: currentTgUser || {} })
     });
@@ -404,6 +425,10 @@ async function loadUserData() {
     if (!res) return;
     const data = await res.json();
     if (!data || !data.user) return;
+
+    if (typeof renderUI === 'function') {
+      renderUI(data.user);
+    }
 
     if (document.getElementById('pending-bal')) document.getElementById('pending-bal').innerText = `$${(data.user.pendingBalance || 0).toFixed(2)}`;
     if (document.getElementById('avail-bal')) document.getElementById('avail-bal').innerText = `$${(data.user.availableBalance || 0).toFixed(2)}`;
