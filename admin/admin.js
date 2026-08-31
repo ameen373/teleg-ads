@@ -2,8 +2,6 @@
  * Admin Panel Management Engine
  */
 
-const ADMIN_IDS = 0; // استبدل 0 بـ Telegram ID الخاص بك للمطابقة المباشرة
-
 const API_BASE = window.location.protocol.startsWith('file') 
   ? 'http://localhost:3000' 
   : window.location.origin;
@@ -58,7 +56,6 @@ function setButtonLoading(btnId, isLoading, originalText) {
 async function safeFetch(endpoint, options = {}) {
   options.headers = options.headers || {};
   
-  // إرسال التوكين وتفاصيل التليجرام المباشرة لتأكيد الهوية
   if (authToken) {
     options.headers['Authorization'] = `Bearer ${authToken}`;
   }
@@ -75,10 +72,8 @@ async function safeFetch(endpoint, options = {}) {
   try {
     const response = await fetch(targetUrl, options);
     
-    // التعامل المخصص مع عدم وجود صلاحيات 403 / 401
     if (response.status === 403 || response.status === 401) {
-      showToast("Access Denied: You are not authorized to access Admin APIs.");
-      renderUI(null); // حجب وإخفاء قسم الإدارة مباشرة
+      showForbiddenView();
       return null;
     }
 
@@ -90,38 +85,64 @@ async function safeFetch(endpoint, options = {}) {
   }
 }
 
-function renderUI(userData = null) {
-  const adminPanelBtn = document.getElementById('admin-banner-shortcut');
-  const adminTabBtn = document.getElementById('tab-btn-admin');
-  const adminSection = document.getElementById('tab-content-admin');
+function showLoadingState() {
+  const loadingView = document.getElementById('admin-loading');
+  const adminContent = document.getElementById('admin-content');
+  const forbiddenView = document.getElementById('admin-forbidden');
 
-  const isDirectAdmin = Boolean(
-    ADMIN_IDS > 0 && 
-    currentTgUserId && 
-    currentTgUserId === ADMIN_IDS
-  );
+  if (loadingView) loadingView.style.display = 'block';
+  if (adminContent) adminContent.style.display = 'none';
+  if (forbiddenView) forbiddenView.style.display = 'none';
+}
 
-  const isBackendAdmin = Boolean(
-    userData && (userData.role === 'admin' || userData.isAdmin === true)
-  );
+function showAdminView() {
+  const loadingView = document.getElementById('admin-loading');
+  const adminContent = document.getElementById('admin-content');
+  const forbiddenView = document.getElementById('admin-forbidden');
 
-  isUserAdmin = isDirectAdmin || isBackendAdmin;
+  if (loadingView) loadingView.style.display = 'none';
+  if (adminContent) adminContent.style.display = 'block';
+  if (forbiddenView) forbiddenView.style.display = 'none';
+}
 
-  if (adminSection) {
-    adminSection.style.display = isUserAdmin ? 'block' : 'none';
-  }
-  if (adminPanelBtn) {
-    adminPanelBtn.style.display = isUserAdmin ? 'block' : 'none';
-  }
-  if (adminTabBtn) {
-    adminTabBtn.classList.toggle('hidden', !isUserAdmin);
-  }
+function showForbiddenView() {
+  isUserAdmin = false;
+  const loadingView = document.getElementById('admin-loading');
+  const adminContent = document.getElementById('admin-content');
+  const forbiddenView = document.getElementById('admin-forbidden');
 
-  // إذا تم العثور على المستخدم حالياً في تبويب الأدمن ولكن تم رفض صلاحياته، انقل الصفحة للرئيسية
-  if (!isUserAdmin && adminSection && !adminSection.classList.contains('hidden')) {
-    if (typeof switchTab === 'function') {
-      switchTab('home');
+  if (loadingView) loadingView.style.display = 'none';
+  if (adminContent) adminContent.style.display = 'none';
+  if (forbiddenView) forbiddenView.style.display = 'block';
+}
+
+async function verifyAdminAccess() {
+  showLoadingState();
+
+  try {
+    const res = await safeFetch('/api/admin/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ telegram_id: currentTgUserId })
+    });
+
+    if (!res) {
+      showForbiddenView();
+      return false;
     }
+
+    const data = await res.json();
+    if (data && data.success && data.isAdmin) {
+      isUserAdmin = true;
+      showAdminView();
+      return true;
+    } else {
+      showForbiddenView();
+      return false;
+    }
+  } catch (err) {
+    showForbiddenView();
+    return false;
   }
 }
 
@@ -143,11 +164,11 @@ async function loadAdminData() {
         dList.innerHTML = data.deposits.map(d => `
           <div style="background:#0d1527; padding:8px; margin-bottom:6px; border-radius:6px; border: 1px solid var(--border-color);">
             User: <b>${escapeHTML(d.advertiserId?.username || d.advertiserId?.telegramId || 'Unknown')}</b><br>
-            Amount: <b style="color:var(--success);">$${parseFloat(d.amount || 0).toFixed(2)}</b> | Network: <code>${escapeHTML(d.paymentMethod)}</code><br>
-            TxID: <code style="color: var(--warning); word-break: break-all;">${escapeHTML(d.txHash || 'N/A')}</code><br>
+            Amount: <b style="color:var(--success);">$${parseFloat(d.amount || 0).toFixed(2)}</b> | Network: <code>${escapeHTML(d.paymentMethod || d.network || 'N/A')}</code><br>
+            TxID: <code style="color: var(--warning); word-break: break-all;">${escapeHTML(d.txHash || d.txid || 'N/A')}</code><br>
             <div style="margin-top: 6px; display: flex; gap: 4px;">
-              <button class="btn-small btn-success" onclick="handleAdminDeposit('${d._id}', 'Completed')">Approve</button>
-              <button class="btn-small btn-danger" onclick="handleAdminDeposit('${d._id}', 'Rejected')">Reject</button>
+              <button class="btn-small btn-success" onclick="handleAdminDeposit('${d._id}', 'approved')">Approve</button>
+              <button class="btn-small btn-danger" onclick="handleAdminDeposit('${d._id}', 'rejected')">Reject</button>
             </div>
           </div>
         `).join('');
@@ -164,8 +185,8 @@ async function loadAdminData() {
             Amount: <b style="color:var(--success);">$${parseFloat(w.amount || 0).toFixed(2)}</b><br>
             Wallet: <code>${escapeHTML(w.walletAddress)}</code><br>
             <div style="margin-top: 6px; display: flex; gap: 4px;">
-              <button class="btn-small btn-success" onclick="handleAdminWithdraw('${w._id}', 'Completed')">Approve</button>
-              <button class="btn-small btn-danger" onclick="handleAdminWithdraw('${w._id}', 'Rejected')">Reject</button>
+              <button class="btn-small btn-success" onclick="handleAdminWithdraw('${w._id}', 'approved')">Approve</button>
+              <button class="btn-small btn-danger" onclick="handleAdminWithdraw('${w._id}', 'rejected')">Reject</button>
             </div>
           </div>
         `).join('');
@@ -195,12 +216,18 @@ async function loadAdminData() {
 }
 
 async function handleAdminDeposit(depositId, action) {
+  let reason = '';
+  if (action === 'rejected') {
+    reason = prompt("Rejection reason (shown to user):");
+    if (reason === null) return;
+  }
+
   triggerHaptic('medium');
   try {
     const res = await safeFetch('/api/admin/deposit/action', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ depositId, action })
+      body: JSON.stringify({ depositId, action, reason })
     });
     if (!res) return;
     const data = await res.json();
@@ -215,10 +242,10 @@ async function handleAdminDeposit(depositId, action) {
 }
 
 async function handleAdminWithdraw(withdrawId, action) {
-  let rejectReason = '';
-  if (action === 'Rejected') {
-    rejectReason = prompt("Rejection reason (shown to user):");
-    if (rejectReason === null) return;
+  let reason = '';
+  if (action === 'rejected') {
+    reason = prompt("Rejection reason (shown to user):");
+    if (reason === null) return;
   }
 
   triggerHaptic('medium');
@@ -226,7 +253,7 @@ async function handleAdminWithdraw(withdrawId, action) {
     const res = await safeFetch('/api/admin/withdraw/action', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ withdrawId, action, rejectReason })
+      body: JSON.stringify({ withdrawId, action, reason })
     });
     if (!res) return;
     const data = await res.json();
@@ -288,10 +315,13 @@ async function distributeRevenue() {
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
-  renderUI(null);
   if (tg) {
     tg.ready();
     tg.expand();
   }
-  loadAdminData();
+  
+  const isAuthorized = await verifyAdminAccess();
+  if (isAuthorized) {
+    loadAdminData();
+  }
 });
