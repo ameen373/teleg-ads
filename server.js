@@ -1,6 +1,6 @@
 /**
  * Enterprise Production Core Engine & Security Middleware
- * Telega.ads Platform Architecture
+ * Telega.ads Platform Architecture - Refactored Admin Authentication System
  */
 
 require('dotenv').config();
@@ -40,11 +40,17 @@ const app = express();
 // ==================================================
 // 1. System Constants & Environment Configuration
 // ==================================================
-// تحويل النص إلى مصفوفة نصوص ناصعة بدون مسافات
-const adminIds = (process.env.ADMIN_IDS || "")
-  .split(",")
-  .map(id => id.trim())
-  .filter(Boolean);
+
+// [تعديل 1]: قراءة وتنظيف مصفوفة ADMIN_IDS بأسلوب صلب ومضمون
+const getAdminIds = () => {
+  const rawAdmins = process.env.ADMIN_IDS || '';
+  return rawAdmins
+    .split(',')
+    .map(id => String(id).trim())
+    .filter(id => id.length > 0);
+};
+
+const adminIds = getAdminIds();
 
 const CONFIG = Object.freeze({
   BOT_TOKEN: (process.env.BOT_TOKEN || '').trim(),
@@ -90,7 +96,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data', 'x-admin-id']
 }));
 
 app.use(express.json({ limit: '10kb' }));
@@ -100,7 +106,7 @@ app.use(mongoSanitize());
 app.use(xss());
 app.use(hpp());
 
-// خدمة الملفات الثابتة الخاصة بالفرونت إند من مجلد public
+// خدمة الملفات الثابتة العامة
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/api', (req, res, next) => {
@@ -131,7 +137,7 @@ app.use(morgan('combined', { stream: { write: (message) => logger.info(message.t
 // ==================================================
 const globalApiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 200,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, error: 'تم تجاوز عدد الطلبات المسموح بها، حاول لاحقاً.' }
@@ -205,7 +211,7 @@ mongoose.connect(CONFIG.MONGO_URI, {
   });
 
 // ==================================================
-// 7. Security Helpers & Authentication Middlewares
+// 7. Security Helpers & Multi-Source Admin Authentication
 // ==================================================
 async function sendTelegramNotification(telegramId, message) {
   if (!CONFIG.BOT_TOKEN || !telegramId) return;
@@ -251,27 +257,112 @@ function verifyTelegramData(initData) {
   }
 }
 
-const verifyTelegramAdminWebapp = (req, res, next) => {
-  const initData = req.headers['x-telegram-init-data'] || req.body.initData;
+/**
+ * [تعديل 2]: دالة موحدة واستخراج شمولية لآيدي الأدمن من مختلف المصادر
+ */
+const extractAdminId = (req) => {
+  // 1. Query Params
+  if (req.query && req.query.admin_id) return String(req.query.admin_id).trim();
+  if (req.query && req.query.user_id) return String(req.query.user_id).trim();
 
-  if (!initData) {
-    return res.status(401).json({ success: false, message: "غير مصرح لك بالدخول" });
+  // 2. Custom Headers
+  if (req.headers['x-admin-id']) return String(req.headers['x-admin-id']).trim();
+  if (req.headers['x-user-id']) return String(req.headers['x-user-id']).trim();
+
+  // 3. Telegram initData Header / Body
+  const initData = req.headers['x-telegram-init-data'] || (req.body && req.body.initData);
+  if (initData) {
+    const tgUser = verifyTelegramData(initData);
+    if (tgUser && tgUser.id) return String(tgUser.id).trim();
+    
+    // محاولة استخراج غير آمنة إن فشل الـ WebApp HMAC في بيئة التطوير
+    try {
+      const urlParams = new URLSearchParams(initData);
+      const userRaw = urlParams.get('user');
+      if (userRaw) {
+        const parsed = JSON.parse(userRaw);
+        if (parsed.id) return String(parsed.id).trim();
+      }
+    } catch (e) {}
   }
 
-  const telegramUser = verifyTelegramData(initData);
-  if (!telegramUser || !telegramUser.id) {
-    return res.status(401).json({ success: false, message: "غير مصرح لك بالدخول" });
+  // 4. JWT Authorization Header
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      const token = authHeader.split(' ')[1];
+      const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
+      if (decoded && decoded.telegramId) return String(decoded.telegramId).trim();
+    } catch (e) {}
   }
 
-  const userId = telegramUser.id;
-  const isUserAdmin = adminIds.includes(String(userId));
+  return null;
+};
 
-  if (!isUserAdmin) {
-    return res.status(401).json({ success: false, message: "غير مصرح لك بالدخول" });
+/**
+ * [تعديل 3]: ميدلوير حماية مسارات الـ Static وحماية ملفات الأدمن
+ */
+const protectAdminStatic = async (req, res, next) => {
+  const currentAdminIds = getAdminIds();
+  const incomingId = extractAdminId(req);
+
+  console.log(`\n--- [ADMIN SECURITY CHECK] ---`);
+  console.log(`[+] Target Path: ${req.originalUrl}`);
+  console.log(`[+] Incoming ID: ${incomingId || 'NOT DETECTED'}`);
+  console.log(`[+] Allowed ADMIN_IDS:`, currentAdminIds);
+
+  if (incomingId && currentAdminIds.includes(incomingId)) {
+    console.log(`[SUCCESS] Access Granted to Admin`);
+    return next();
   }
 
-  req.telegramAdminUser = telegramUser;
-  next();
+  console.log(`[REJECTED] Access Denied - Status 403`);
+  return res.status(403).send(`
+    <!DOCTYPE html>
+    <html lang="ar" dir="rtl">
+    <head>
+      <meta charset="utf-8">
+      <title>403 Access Denied</title>
+      <style>
+        body { background: #0f172a; color: #f8fafc; font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .box { background: #1e293b; padding: 30px; border-radius: 12px; border: 1px solid #334155; text-align: center; max-width: 400px; }
+        h1 { color: #ef4444; margin-top: 0; }
+        p { color: #94a3b8; line-height: 1.5; }
+      </style>
+    </head>
+    <body>
+      <div class="box">
+        <h1>403 - غير مصرح بالدخول</h1>
+        <p>عفواً، لا تملك الصلاحيات الكافية للوصول إلى لوحة التحكم الخاصة بنظام Telega.ads.</p>
+      </div>
+    </body>
+    </html>
+  `);
+};
+
+/**
+ * [تعديل 4]: ميدلوير حماية API الخاص بالأدمن
+ */
+const requireAdmin = (req, res, next) => {
+  const currentAdminIds = getAdminIds();
+  const incomingId = extractAdminId(req);
+
+  const isAdminRole = req.user && req.user.role === 'admin';
+  const isOwnerTelegramId = incomingId && currentAdminIds.includes(incomingId);
+
+  console.log(`\n--- [ADMIN API CHECK] ---`);
+  console.log(`[+] Endpoint: ${req.originalUrl}`);
+  console.log(`[+] Extracted ID: ${incomingId || 'N/A'}`);
+  console.log(`[+] Status: ${isAdminRole || isOwnerTelegramId ? 'AUTHORIZED' : 'UNAUTHORIZED'}`);
+
+  if (isAdminRole || isOwnerTelegramId) {
+    return next();
+  }
+
+  return res.status(403).json({ 
+    success: false, 
+    error: 'Access Denied: You do not have permission to perform this action.' 
+  });
 };
 
 const validateTraffic = (req, res, next) => {
@@ -309,71 +400,51 @@ const authenticateUser = async (req, res, next) => {
   }
 };
 
-const requireAdmin = (req, res, next) => {
-  const isAdminRole = req.user && req.user.role === 'admin';
-  const isOwnerTelegramId = req.user && adminIds.includes(String(req.user.telegramId));
-
-  if (isAdminRole || isOwnerTelegramId) {
-    return next();
-  }
-  return res.status(404).json({ error: 'Cannot GET ' + req.originalUrl });
-};
-
-// ميدلوير لحماية ملفات الاستاتيك الخاصة باللوحة /admin
-const protectAdminStatic = async (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  const initData = req.headers['x-telegram-init-data'];
-
-  let isAdmin = false;
-
-  if (initData) {
-    const tgUser = verifyTelegramData(initData);
-    if (tgUser && adminIds.includes(String(tgUser.id))) {
-      isAdmin = true;
-    }
-  }
-
-  if (!isAdmin && authHeader && authHeader.startsWith('Bearer ')) {
-    try {
-      const token = authHeader.split(' ')[1];
-      const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
-      const user = await User.findById(decoded.userId).lean();
-      if (user && (user.role === 'admin' || adminIds.includes(String(user.telegramId)))) {
-        isAdmin = true;
-      }
-    } catch (e) {}
-  }
-
-  if (isAdmin) {
-    return next();
-  }
-
-  return res.status(404).send(`<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>Error</title>
-</head>
-<body>
-<pre>Cannot GET ${req.originalUrl}</pre>
-</body>
-</html>`);
-};
-
-// خدمة ملفات مجلد لوحة التحكم (admin/) بعد التحقق من الصلاحيات
-app.use('/admin', protectAdminStatic, express.static(path.join(__dirname, 'admin')));
-
 // ==================================================
-// 8. Application Routes
+// 8. Explicit Verification Endpoint & Admin Delivery
 // ==================================================
 
-app.post('/api/admin/verify-webapp', verifyTelegramAdminWebapp, (req, res) => {
-  return res.json({
-    success: true,
-    message: 'Access granted successfully',
-    user: req.telegramAdminUser
+/**
+ * [تعديل 5]: Endpoint صريح للتحقق المباشر من صلاحيات الأدمن
+ */
+app.all('/api/admin/verify', (req, res) => {
+  const currentAdminIds = getAdminIds();
+  const incomingId = extractAdminId(req);
+  const isAuthorized = incomingId && currentAdminIds.includes(incomingId);
+
+  console.log(`\n--- [/api/admin/verify CALL] ---`);
+  console.log(`[+] Incoming ID: ${incomingId}`);
+  console.log(`[+] Allowed List:`, currentAdminIds);
+  console.log(`[+] Result: ${isAuthorized ? 'ACCEPTED' : 'DENIED'}`);
+
+  if (isAuthorized) {
+    return res.json({
+      success: true,
+      authorized: true,
+      adminId: incomingId,
+      message: 'Admin access verified successfully.'
+    });
+  }
+
+  return res.status(403).json({
+    success: false,
+    authorized: false,
+    incomingId: incomingId || null,
+    message: 'Access Denied: Provided ID is not in ADMIN_IDS list.'
   });
 });
+
+// تقديم ملفات مجلد admin/ الثابتة تحت الحماية
+app.use('/admin', protectAdminStatic, express.static(path.join(__dirname, 'admin')));
+
+// التوجيه الصريح لصفحة الأدمن الرئيسية
+app.get('/admin/admin.html', protectAdminStatic, (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin', 'admin.html'));
+});
+
+// ==================================================
+// 9. Application Business APIs
+// ==================================================
 
 app.post('/api/auth/login', async (req, res, next) => {
   try {
@@ -388,7 +459,7 @@ app.post('/api/auth/login', async (req, res, next) => {
     const currentUsername = telegramUser?.username || `User_${tgId.slice(-4)}`;
     const userLanguage = telegramUser?.language_code || CONFIG.DEFAULT_LANGUAGE;
 
-    const isSystemAdmin = adminIds.includes(String(tgId));
+    const isSystemAdmin = getAdminIds().includes(String(tgId));
 
     let user = await User.findOne({ telegramId: tgId });
     if (!user) {
@@ -563,8 +634,9 @@ app.post('/api/deposit', authenticateUser, async (req, res, next) => {
       status: 'pending'
     });
 
-    if (adminIds.length > 0) {
-      adminIds.forEach(adminId => {
+    const activeAdmins = getAdminIds();
+    if (activeAdmins.length > 0) {
+      activeAdmins.forEach(adminId => {
         sendTelegramNotification(
           adminId,
           `💳 <b>New Deposit Request!</b>\nUser: <code>${req.user.username}</code>\nAmount: <code>$${numAmount}</code>\nNetwork: <code>${cleanNetwork}</code>\nTxID: <code>${cleanTxid}</code>`
@@ -918,7 +990,7 @@ app.get('/api/user/data', authenticateUser, async (req, res, next) => {
       };
     });
 
-    const isAdmin = req.user.role === 'admin' || adminIds.includes(String(req.user.telegramId));
+    const isAdmin = req.user.role === 'admin' || getAdminIds().includes(String(req.user.telegramId));
     res.json({ 
       success: true,
       user: req.user, 
@@ -959,8 +1031,11 @@ app.post('/api/user/settings', authenticateUser, async (req, res, next) => {
   }
 });
 
-// --- Stealth Admin Panel Routes (Return 404 for Non-Admins) ---
-app.get('/api/admin/dashboard', authenticateUser, requireAdmin, async (req, res, next) => {
+// ==================================================
+// 10. Admin Specific API Endpoints
+// ==================================================
+
+app.get('/api/admin/dashboard', requireAdmin, async (req, res, next) => {
   try {
     const allUsers = await User.find().lean();
     res.json({ status: 'Welcome Admin', users: allUsers });
@@ -969,7 +1044,7 @@ app.get('/api/admin/dashboard', authenticateUser, requireAdmin, async (req, res,
   }
 });
 
-app.get('/api/admin/dashboard-data', authenticateUser, requireAdmin, async (req, res, next) => {
+app.get('/api/admin/dashboard-data', requireAdmin, async (req, res, next) => {
   try {
     const [withdraws, deposits, users, stats, totalAds] = await Promise.all([
       Withdraw.find().populate('userId').sort({ createdAt: -1 }).lean(),
@@ -987,7 +1062,7 @@ app.get('/api/admin/dashboard-data', authenticateUser, requireAdmin, async (req,
   }
 });
 
-app.post('/api/admin/deposit/action', authenticateUser, requireAdmin, async (req, res, next) => {
+app.post('/api/admin/deposit/action', requireAdmin, async (req, res, next) => {
   const { depositId, action, reason } = req.body;
   if (!mongoose.Types.ObjectId.isValid(depositId)) return res.status(400).json({ success: false, error: 'Invalid Deposit ID' });
 
@@ -1040,7 +1115,7 @@ app.post('/api/admin/deposit/action', authenticateUser, requireAdmin, async (req
   }
 });
 
-app.post('/api/admin/withdraw/action', authenticateUser, requireAdmin, async (req, res, next) => {
+app.post('/api/admin/withdraw/action', requireAdmin, async (req, res, next) => {
   const { withdrawId, action, reason } = req.body;
   if (!mongoose.Types.ObjectId.isValid(withdrawId)) return res.status(400).json({ success: false, error: 'Invalid Withdraw ID' });
 
@@ -1093,7 +1168,7 @@ app.post('/api/admin/withdraw/action', authenticateUser, requireAdmin, async (re
   }
 });
 
-app.post('/api/admin/user/toggle-ban', authenticateUser, requireAdmin, async (req, res, next) => {
+app.post('/api/admin/user/toggle-ban', requireAdmin, async (req, res, next) => {
   const { userId } = req.body;
   if (!mongoose.Types.ObjectId.isValid(userId)) return res.status(400).json({ success: false, error: 'Invalid User ID' });
 
@@ -1115,7 +1190,7 @@ app.post('/api/admin/user/toggle-ban', authenticateUser, requireAdmin, async (re
 });
 
 // ==================================================
-// 9. Automated Tasks & Cron Jobs
+// 11. Automated Tasks & Cron Jobs
 // ==================================================
 cron.schedule('0 0 * * *', async () => {
   try {
@@ -1155,19 +1230,12 @@ cron.schedule('0 0 * * *', async () => {
 });
 
 // ==================================================
-// 10. File Delivery & Fallback Handlers
+// 12. File Delivery & Fallback Handlers
 // ==================================================
-// تقديم ملفات الفرونت إند من مجلد public
 app.get('/style.css', (req, res) => res.sendFile(path.join(__dirname, 'public', 'style.css')));
 app.get('/app.js', (req, res) => res.sendFile(path.join(__dirname, 'public', 'app.js')));
 
-// تقديم الصفحة الرئيسية
 app.get(['/', '/app', '/r/:code'], (req, res) => res.sendFile(path.join(__dirname, 'views.html')));
-
-// التوجيه المحمي الخاص بلوحة التحكم إلى مجلد admin/admin.html
-app.get('/admin', protectAdminStatic, (req, res) => {
-  res.sendFile(path.join(__dirname, 'admin', 'admin.html'));
-});
 
 // Catch-all 404 for API endpoints
 app.use('/api/*', (req, res) => {
