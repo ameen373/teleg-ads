@@ -9,29 +9,36 @@
 </head>
 <body>
 
-  <div class="container">
+  <!-- إخفاء الحاوية الرئيسية بالكامل افتراضياً لضمان عدم ظهور أي جزء من الواجهة قبل التحقق البرمجي -->
+  <div class="container" id="admin-main-container" style="display: none;">
     <div id="toast"></div>
 
     <!-- 1. حالة التحميل والتحقق المبدئية -->
-    <div id="admin-loading" style="text-align: center; padding: 40px 15px;">
+    <div id="admin-loading" style="text-align: center; padding: 50px 15px;">
       <div class="spinner" style="margin: 0 auto 15px auto;"></div>
-      <p style="color: var(--text-muted, #8a99ad); font-size: 15px; font-weight: 500;">جاري التحقق من صلاحيات الإدارة...</p>
+      <p style="color: var(--text-muted, #8a99ad); font-size: 15px; font-weight: 500;">جاري التحقق من صلاحيات الإدارة والنظام...</p>
     </div>
 
-    <!-- 2. حالة رفض الوصول للحسابات غير المصرح لها -->
-    <div id="admin-forbidden" style="display: none; text-align: center; padding: 50px 20px;">
-      <div style="font-size: 48px; margin-bottom: 10px;">🚫</div>
-      <h3 style="color: var(--danger, #ff4d4d); margin-bottom: 8px;">عذراً، ليس لديك صلاحية الوصول لهذه الصفحة</h3>
-      <p style="color: var(--text-muted, #8a99ad); font-size: 14px; margin-bottom: 20px;">هذا القسم مخصص لإدارة المنصة فقط.</p>
-      <a href="/" style="display: inline-block; padding: 10px 20px; background: var(--primary, #0088cc); color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold;">العودة للرئيسية</a>
+    <!-- 2. حالة رفض الوصول والحسابات غير المصرح لها (Error Alert) -->
+    <div id="admin-forbidden" style="display: none; text-align: center; padding: 40px 20px;">
+      <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 25px 20px; max-width: 450px; margin: 0 auto;">
+        <div style="font-size: 52px; margin-bottom: 12px;">🚫</div>
+        <h3 style="color: #ef4444; margin: 0 0 10px 0; font-size: 20px; font-weight: bold;">تنبيه: وصول غير مصرح به</h3>
+        <p id="admin-error-message" style="color: #94a3b8; font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
+          عفواً، آيدي حسابك الحالية غير مسجلة في قائمة المديرين (ADMIN_IDS). يرجى التأكد من ربط الحساب الصحيح أو التواصل مع مالك النظام.
+        </p>
+        <a href="/" style="display: inline-block; padding: 12px 24px; background: var(--primary, #0088cc); color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px; transition: opacity 0.2s;">
+          العودة للرئيسية
+        </a>
+      </div>
     </div>
 
-    <!-- 3. المحتوى الرئيسي للوحة التحكم (مخفي افتراضياً لحين التحقق) -->
+    <!-- 3. المحتوى الرئيسي للوحة التحكم (يتم تفعيله فقط بعد نجاح التحقق) -->
     <div id="admin-content" style="display: none;">
       
       <!-- زر الانتقال السريع لوحة التحكم -->
-      <div id="admin-banner-shortcut" style="margin-bottom: 12px;">
-        <button class="btn-warning" style="width: 100%; font-weight: bold;">
+      <div id="admin-banner-shortcut" style="margin-bottom: 15px;">
+        <button class="btn-warning" style="width: 100%; font-weight: bold; padding: 12px; border-radius: 8px;">
           ⚙️ لوحة التحكم للإدارة (Admin Panel)
         </button>
       </div>
@@ -43,31 +50,31 @@
           <div class="stat-box"><small>Total Pending</small><h3 id="admin-total-pending" style="color: var(--warning, #ffb703);">$0.00</h3></div>
         </div>
 
-        <div class="card">
+        <div class="card" style="margin-bottom: 15px;">
           <h4 style="margin-top:0;">Revenue Distribution</h4>
-          <input type="number" id="revenue-amount" placeholder="Total Revenue ($)" min="0" step="any">
-          <button id="btn-distribute-rev" onclick="distributeRevenue()">Distribute Revenue to Links</button>
+          <input type="number" id="revenue-amount" placeholder="Total Revenue ($)" min="0" step="any" style="width: 100%; margin-bottom: 10px; padding: 10px; box-sizing: border-box;">
+          <button id="btn-distribute-rev" onclick="distributeRevenue()" style="width: 100%;">Distribute Revenue to Links</button>
         </div>
 
-        <div class="card">
+        <div class="card" style="margin-bottom: 15px;">
           <h4 style="margin-top:0;">Pending Deposit Requests</h4>
           <div id="admin-deposits-list" style="font-size: 12px;">No pending deposits.</div>
         </div>
 
-        <div class="card">
+        <div class="card" style="margin-bottom: 15px;">
           <h4 style="margin-top:0;">Pending Withdrawal Requests</h4>
           <div id="admin-withdraws-list" style="font-size: 12px;">No pending withdrawals.</div>
         </div>
         
-        <div class="card">
+        <div class="card" style="margin-bottom: 15px;">
           <h4 style="margin-top:0;">User Management</h4>
           <div id="admin-users-list" style="font-size: 12px;">Loading...</div>
         </div>
       </div>
 
       <!-- Admin Navigation Button Snippet -->
-      <button class="nav-btn" id="tab-btn-admin" style="color: var(--warning, #ffb703);">
-        <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-5.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+      <button class="nav-btn" id="tab-btn-admin" style="color: var(--warning, #ffb703); margin-top: 15px;">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-5.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
         <span>Admin</span>
       </button>
     </div>
