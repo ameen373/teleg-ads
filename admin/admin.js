@@ -21,7 +21,7 @@ function getTargetUserId() {
 
   // ب) من معلمات الـ URL (للتجربة عبر المتصفح)
   const urlParams = new URLSearchParams(window.location.search);
-  const urlAdminId = urlParams.get('admin_id') || urlParams.get('userId') || urlParams.get('telegram_id');
+  const urlAdminId = urlParams.get('userId') || urlParams.get('admin_id') || urlParams.get('telegram_id');
   if (urlAdminId) return Number(urlAdminId);
 
   // ج) من LocalStorage كملاذ أخير
@@ -37,9 +37,10 @@ const currentTgUserId = getTargetUserId();
 // 2. الفحص المباشر للصلاحيات عند فتح الصفحة
 // ==================================================
 document.addEventListener("DOMContentLoaded", async () => {
-  // إظهار الكانتينر الرئيسي ليظهر واجهة التحميل
-  const mainContainer = document.getElementById('admin-main-container');
-  if (mainContainer) mainContainer.style.display = 'block';
+  if (tg) {
+    tg.ready();
+    tg.expand();
+  }
 
   showLoadingState();
 
@@ -48,7 +49,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   if (!userId) {
     console.error("❌ [Client Log] Could not find any userId!");
-    showForbiddenView("لم يتم التعرف على آيدي الحساب، يرجى فتح اللوحة من داخل تلغرام أو تزويد ?admin_id=");
+    showForbiddenView("لم يتم العثور على ID للمستخدم. يرجى فتح الصفحة من تليجرام أو إضافة ?userId=YOUR_ID للرابط.", null);
     return;
   }
 
@@ -63,6 +64,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       body: JSON.stringify({ userId: userId, telegramId: userId })
     });
 
+    let data;
     if (!res.ok && res.status !== 403 && res.status !== 401) {
       // تجربة البديل POST /api/admin/check في حال لم يعالج السيرفر endpoint الأول
       const fallbackRes = await fetch(`${API_BASE}/api/admin/check`, {
@@ -70,9 +72,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: userId })
       });
-      var data = await fallbackRes.json();
+      data = await fallbackRes.json();
     } else {
-      var data = await res.json();
+      data = await res.json();
     }
 
     console.log("📩 [Client Log] Server Response:", data);
@@ -85,12 +87,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       loadAdminData();
     } else {
       console.warn("⛔ Access Denied!");
-      const reasonMsg = data?.message || data?.error || "عذراً، هذا الحساب غير مصرح له بالدخول لوحة التحكم.";
-      showForbiddenView(reasonMsg);
+      const reasonMsg = data?.message || data?.error || "عذراً، هذا الحساب غير مصرح له بالدخول إلى لوحة التحكم.";
+      showForbiddenView(reasonMsg, userId);
     }
   } catch (err) {
     console.error("💥 [Client Log] Fetch Verification Error:", err);
-    showForbiddenView("حدث خطأ أثناء الاتصال بالسيرفر للتحقق من الصلاحيات.");
+    showForbiddenView("حدث خطأ في الاتصال بالسيرفر للتحقق من الصلاحيات.", userId);
   }
 });
 
@@ -158,7 +160,7 @@ async function safeFetch(endpoint, options = {}) {
     const response = await fetch(targetUrl, options);
     
     if (response.status === 403 || response.status === 401) {
-      showForbiddenView("جلسة غير مصرح بها.");
+      showForbiddenView("جلسة غير مصرح بها.", currentTgUserId);
       return null;
     }
 
@@ -174,9 +176,9 @@ async function safeFetch(endpoint, options = {}) {
 // 4. التحكم بحالات العرض (Views Handler)
 // ==================================================
 function showLoadingState() {
-  const loadingView = document.getElementById('admin-loading');
-  const adminContent = document.getElementById('admin-content');
-  const forbiddenView = document.getElementById('admin-forbidden');
+  const loadingView = document.getElementById('loading') || document.getElementById('admin-loading');
+  const adminContent = document.getElementById('admin-dashboard') || document.getElementById('admin-content');
+  const forbiddenView = document.getElementById('access-denied') || document.getElementById('admin-forbidden');
 
   if (loadingView) loadingView.style.display = 'block';
   if (adminContent) adminContent.style.display = 'none';
@@ -184,21 +186,22 @@ function showLoadingState() {
 }
 
 function showAdminView() {
-  const loadingView = document.getElementById('admin-loading');
-  const adminContent = document.getElementById('admin-content');
-  const forbiddenView = document.getElementById('admin-forbidden');
+  const loadingView = document.getElementById('loading') || document.getElementById('admin-loading');
+  const adminContent = document.getElementById('admin-dashboard') || document.getElementById('admin-content');
+  const forbiddenView = document.getElementById('access-denied') || document.getElementById('admin-forbidden');
 
   if (loadingView) loadingView.style.display = 'none';
   if (forbiddenView) forbiddenView.style.display = 'none';
   if (adminContent) adminContent.style.display = 'block';
 }
 
-function showForbiddenView(customMessage) {
+function showForbiddenView(customMessage, userId = null) {
   isUserAdmin = false;
-  const loadingView = document.getElementById('admin-loading');
-  const adminContent = document.getElementById('admin-content');
-  const forbiddenView = document.getElementById('admin-forbidden');
+  const loadingView = document.getElementById('loading') || document.getElementById('admin-loading');
+  const adminContent = document.getElementById('admin-dashboard') || document.getElementById('admin-content');
+  const forbiddenView = document.getElementById('access-denied') || document.getElementById('admin-forbidden');
   const errorMsgEl = document.getElementById('admin-error-message');
+  const debugUserIdEl = document.getElementById('debug-user-id');
 
   if (loadingView) loadingView.style.display = 'none';
   if (adminContent) adminContent.style.display = 'none';
@@ -206,6 +209,16 @@ function showForbiddenView(customMessage) {
 
   if (errorMsgEl && customMessage) {
     errorMsgEl.innerText = customMessage;
+  }
+
+  if (debugUserIdEl) {
+    if (userId) {
+      debugUserIdEl.innerText = `الآيدي الخاص بك هو (${userId}) وهو غير مدرج في قائمة المديرين.`;
+      debugUserIdEl.style.display = 'block';
+    } else {
+      debugUserIdEl.innerText = customMessage || "لم يتم العثور على آيدي المستخدم.";
+      debugUserIdEl.style.display = 'block';
+    }
   }
 }
 
@@ -389,10 +402,3 @@ async function distributeRevenue() {
     setButtonLoading('btn-distribute-rev', false, 'توزيع الأرباح على الرابط');
   }
 }
-
-window.addEventListener('DOMContentLoaded', async () => {
-  if (tg) {
-    tg.ready();
-    tg.expand();
-  }
-});
