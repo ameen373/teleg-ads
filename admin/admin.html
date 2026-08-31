@@ -1,87 +1,63 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>لوحة الإدارة | Admin Dashboard</title>
+  <title>Admin Dashboard</title>
   <link rel="stylesheet" href="/style.css">
-  <link rel="stylesheet" href="admin.css">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
 
-  <!-- 1. رسالة جاري التحقق من الصلاحيات -->
-  <div id="loading" style="text-align: center; padding: 50px 15px;">
-    <div class="spinner" style="margin: 0 auto 15px auto;"></div>
-    <p style="color: var(--text-muted, #8a99ad); font-size: 16px; font-weight: 500;">جاري التحقق من الصلاحيات...</p>
-  </div>
-
-  <!-- 2. رسالة الرفض والوصول غير المصرح به -->
-  <div id="access-denied" style="display: none; color: #ef4444; text-align: center; margin-top: 50px; padding: 20px;">
-    <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 30px 20px; max-width: 480px; margin: 0 auto;">
-      <h2 style="margin-top: 0; font-size: 22px;">⛔ غير مصرح لك بالدخول إلى هذه الصفحة</h2>
-      <p id="admin-error-message" style="color: #94a3b8; font-size: 14px; line-height: 1.6; margin-bottom: 15px;">
-        عفواً، آيدي حسابك الحالية غير مسجلة في قائمة المديرين (ADMIN_IDS). يرجى التأكد من ربط الحساب الصحيح أو التواصل مع مالك النظام.
-      </p>
-      <p id="debug-user-id" style="direction: ltr; font-family: monospace; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px; font-size: 13px; color: #f8fafc; margin-bottom: 20px;"></p>
-      <a href="/" style="display: inline-block; padding: 10px 20px; background: var(--primary, #0088cc); color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px;">
-        العودة للرئيسية
-      </a>
-    </div>
-  </div>
-
-  <!-- 3. محتوى الإدارة الرئيسي (يظهر فقط بعد نجاح التحقق) -->
-  <div id="admin-dashboard" class="container" style="display: none;">
+  <div class="container">
     <div id="toast"></div>
 
-    <div style="text-align: center; margin-bottom: 25px;">
-      <h1 style="font-size: 24px; margin-bottom: 8px;">مرحباً بك في لوحة الإدارة 🛠️</h1>
-      <p style="color: var(--text-muted, #8a99ad); font-size: 14px; margin: 0;">هنا تظهر بيانات وتفاصيل الأدمن فقط.</p>
-    </div>
+    <div id="admin-view">
+      <!-- زر الانتقال السريع لوحة التحكم -->
+      <div id="admin-banner-shortcut" class="admin-only" style="margin-bottom: 12px;">
+        <button class="btn-warning" style="width: 100%; font-weight: bold;">
+          ⚙️ لوحة التحكم للإدارة (Admin Panel)
+        </button>
+      </div>
 
-    <!-- زر الانتقال السريع لوحة التحكم -->
-    <div id="admin-banner-shortcut" style="margin-bottom: 15px;">
-      <button class="btn-warning" style="width: 100%; font-weight: bold; padding: 12px; border-radius: 8px;">
-        ⚙️ لوحة التحكم للإدارة (Admin Panel)
+      <!-- Admin Tab Content -->
+      <div id="tab-content-admin" class="admin-only">
+        <div class="stats-grid" style="margin-bottom: 15px;">
+          <div class="stat-box"><small>Total Users</small><h3 id="admin-total-users">0</h3></div>
+          <div class="stat-box"><small>Total Pending</small><h3 id="admin-total-pending" style="color: var(--warning);">$0.00</h3></div>
+        </div>
+
+        <div class="card">
+          <h4 style="margin-top:0;">Revenue Distribution</h4>
+          <input type="number" id="revenue-amount" placeholder="Total Revenue ($)" min="0" step="any">
+          <button id="btn-distribute-rev" onclick="distributeRevenue()">Distribute Revenue to Links</button>
+        </div>
+
+        <div class="card">
+          <h4 style="margin-top:0;">Pending Deposit Requests</h4>
+          <div id="admin-deposits-list" style="font-size: 12px;">No pending deposits.</div>
+        </div>
+
+        <div class="card">
+          <h4 style="margin-top:0;">Pending Withdrawal Requests</h4>
+          <div id="admin-withdraws-list" style="font-size: 12px;">No pending withdrawals.</div>
+        </div>
+        
+        <div class="card">
+          <h4 style="margin-top:0;">User Management</h4>
+          <div id="admin-users-list" style="font-size: 12px;">Loading...</div>
+        </div>
+      </div>
+
+      <!-- Admin Navigation Button Snippet -->
+      <button class="nav-btn admin-only" id="tab-btn-admin" style="color: var(--warning);">
+        <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-5.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+        <span>Admin</span>
       </button>
     </div>
 
-    <!-- Admin Tab Content -->
-    <div id="tab-content-admin">
-      <div class="stats-grid" style="margin-bottom: 15px;">
-        <div class="stat-box"><small>Total Users</small><h3 id="admin-total-users">0</h3></div>
-        <div class="stat-box"><small>Total Pending</small><h3 id="admin-total-pending" style="color: var(--warning, #ffb703);">$0.00</h3></div>
-      </div>
-
-      <div class="card" style="margin-bottom: 15px;">
-        <h4 style="margin-top:0;">Revenue Distribution</h4>
-        <input type="number" id="revenue-amount" placeholder="Total Revenue ($)" min="0" step="any" style="width: 100%; margin-bottom: 10px; padding: 10px; box-sizing: border-box;">
-        <button id="btn-distribute-rev" onclick="distributeRevenue()" style="width: 100%;">Distribute Revenue to Links</button>
-      </div>
-
-      <div class="card" style="margin-bottom: 15px;">
-        <h4 style="margin-top:0;">Pending Deposit Requests</h4>
-        <div id="admin-deposits-list" style="font-size: 12px;">No pending deposits.</div>
-      </div>
-
-      <div class="card" style="margin-bottom: 15px;">
-        <h4 style="margin-top:0;">Pending Withdrawal Requests</h4>
-        <div id="admin-withdraws-list" style="font-size: 12px;">No pending withdrawals.</div>
-      </div>
-      
-      <div class="card" style="margin-bottom: 15px;">
-        <h4 style="margin-top:0;">User Management</h4>
-        <div id="admin-users-list" style="font-size: 12px;">Loading...</div>
-      </div>
-    </div>
-
-    <!-- Admin Navigation Button Snippet -->
-    <button class="nav-btn" id="tab-btn-admin" style="color: var(--warning, #ffb703); margin-top: 15px;">
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-5.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
-      <span>Admin</span>
-    </button>
   </div>
 
-  <script src="admin.js" defer></script>
+  <script src="/admin/admin.js" defer></script>
 </body>
 </html>
