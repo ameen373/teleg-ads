@@ -15,6 +15,49 @@ const tg = window.Telegram?.WebApp;
 const currentTgUser = tg?.initDataUnsafe?.user || null;
 const currentTgUserId = currentTgUser?.id ? Number(currentTgUser.id) : null;
 
+// ==================================================
+// الفحص المباشر والمستهدف للصلاحيات عند فتح الصفحة (الخطوة 2)
+// ==================================================
+document.addEventListener("DOMContentLoaded", async () => {
+    // محاولة جلب الآيدي من عدة مصادر محتملة
+    const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+    const userId = tgUser?.id || localStorage.getItem("user_id") || localStorage.getItem("telegram_id");
+
+    console.log("🔍 [Client Log] Detected userId:", userId);
+
+    if (!userId) {
+        console.error("❌ [Client Log] Could not find any userId!");
+        showForbiddenView();
+        alert("لم يتم التعرف على آيدي حسابك، يرجى فتح التطبيق من داخل تلغرام.");
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/admin/check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: userId })
+        });
+
+        const data = await res.json();
+        console.log("📩 [Client Log] Server Response:", data);
+
+        if (data.isAdmin) {
+            console.log("✅ Access Granted!");
+            isUserAdmin = true;
+            showAdminView();
+            loadAdminData();
+        } else {
+            console.warn("⛔ Access Denied!");
+            showForbiddenView();
+            alert("عذراً، هذا الحساب غير مصرح له بالدخول لوحة التحكم.");
+        }
+    } catch (err) {
+        console.error("💥 [Client Log] Fetch Error:", err);
+        showForbiddenView();
+    }
+});
+
 function escapeHTML(str) {
   if (!str) return '';
   return String(str)
@@ -91,7 +134,7 @@ async function safeFetch(endpoint, options = {}) {
 }
 
 function showLoadingState() {
-  const loadingView = document.getElementById('admin-loading');
+  const loadingView = document.getElementById('admin-loading') || document.getElementById('loading-state');
   const adminContent = document.getElementById('admin-content');
   const forbiddenView = document.getElementById('admin-forbidden');
 
@@ -101,7 +144,7 @@ function showLoadingState() {
 }
 
 function showAdminView() {
-  const loadingView = document.getElementById('admin-loading');
+  const loadingView = document.getElementById('admin-loading') || document.getElementById('loading-state');
   const adminContent = document.getElementById('admin-content');
   const forbiddenView = document.getElementById('admin-forbidden');
 
@@ -112,79 +155,13 @@ function showAdminView() {
 
 function showForbiddenView() {
   isUserAdmin = false;
-  const loadingView = document.getElementById('admin-loading');
+  const loadingView = document.getElementById('admin-loading') || document.getElementById('loading-state');
   const adminContent = document.getElementById('admin-content');
   const forbiddenView = document.getElementById('admin-forbidden');
 
   if (loadingView) loadingView.style.display = 'none';
   if (adminContent) adminContent.style.display = 'none';
   if (forbiddenView) forbiddenView.style.display = 'block';
-}
-
-/**
- * التحقق من صلاحية الأدمن عبر المسارات المتاحة (Telegram WebApp / Bearer Token / Check API)
- */
-async function verifyAdminAccess() {
-  showLoadingState();
-
-  try {
-    // 1. إذا توفر initData يفضل التحقق عبر endpoint التثبت المباشر لـ Telegram WebApp
-    if (tg?.initData) {
-      const resWebapp = await safeFetch('/api/admin/verify-webapp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: tg.initData })
-      });
-
-      if (resWebapp && resWebapp.ok) {
-        const data = await resWebapp.json();
-        if (data && data.success) {
-          isUserAdmin = true;
-          showAdminView();
-          return true;
-        }
-      }
-    }
-
-    // 2. التحقق عبر /api/admin/check بإرسال الـ telegram_id
-    if (currentTgUserId && !isNaN(currentTgUserId)) {
-      const resCheck = await safeFetch('/api/admin/check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ telegram_id: currentTgUserId })
-      });
-
-      if (resCheck && resCheck.ok) {
-        const data = await resCheck.json();
-        if (data && data.success && data.isAdmin) {
-          isUserAdmin = true;
-          showAdminView();
-          return true;
-        }
-      }
-    }
-
-    // 3. المحاولة عبر التوكين المأخوذ من تسجيل الدخول (Bearer Token)
-    if (authToken) {
-      const resUser = await safeFetch('/api/user/data');
-      if (resUser && resUser.ok) {
-        const data = await resUser.json();
-        if (data && data.success && data.isAdmin) {
-          isUserAdmin = true;
-          showAdminView();
-          return true;
-        }
-      }
-    }
-
-    showForbiddenView();
-    return false;
-
-  } catch (err) {
-    console.error("Admin Verification Error:", err);
-    showForbiddenView();
-    return false;
-  }
 }
 
 async function loadAdminData() {
@@ -369,10 +346,5 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (tg) {
     tg.ready();
     tg.expand();
-  }
-  
-  const isAuthorized = await verifyAdminAccess();
-  if (isAuthorized) {
-    loadAdminData();
   }
 });
