@@ -381,31 +381,38 @@ app.use('/admin', protectAdminStatic, express.static(path.join(__dirname, 'admin
 // 8. Application Routes
 // ==================================================
 
-// نقطة نهاية للتحقق المباشر من صلاحيات الأدمن
+// نقطة نهاية للتحقق المباشر من صلاحيات الأدمن (محدّثة بموجب خطوة 1)
 app.post('/api/admin/check', (req, res) => {
-  const initData = req.headers['x-telegram-init-data'] || req.body?.initData;
-  let targetTgId = req.body?.telegram_id || req.query?.telegram_id || req.headers['x-telegram-id'];
+    // 1. قراءة المعرفات وتنظيفها
+    const rawAdmins = process.env.ADMIN_IDS || '';
+    const adminIds = rawAdmins.split(',').map(id => id.trim());
 
-  if (initData) {
-    const tgUser = verifyTelegramData(initData);
-    if (tgUser?.id) {
-      targetTgId = tgUser.id;
+    // 2. قراءة الآيدي المرسل من الـ Frontend
+    const { userId } = req.body;
+
+    // طباعة السجلات في الـ Terminal لتشخيص المشكلة
+    console.log("\n================ [ ADMIN CHECK ] ================");
+    console.log("1. RAW .env ADMIN_IDS:", JSON.stringify(rawAdmins));
+    console.log("2. Parsed Admin Array:", adminIds);
+    console.log("3. Incoming userId:", userId, `(Type: ${typeof userId})`);
+
+    if (!userId) {
+        console.log("❌ Result: No userId provided in request body.");
+        console.log("=================================================\n");
+        return res.status(400).json({ success: false, isAdmin: false, error: "No userId provided" });
     }
-  }
 
-  const numericId = Number(targetTgId);
+    // المقارنة بعد تحويل الطرفين لنصوص (String)
+    const isAdmin = adminIds.includes(String(userId).trim());
 
-  if (!numericId || isNaN(numericId)) {
-    return res.status(400).json({ success: false, isAdmin: false, error: 'Invalid or missing telegram_id' });
-  }
+    console.log("4. Is match found?:", isAdmin);
+    console.log("=================================================\n");
 
-  const isAdmin = ADMIN_IDS.includes(numericId);
-
-  if (!isAdmin) {
-    return res.status(403).json({ success: false, isAdmin: false, error: 'Unauthorized' });
-  }
-
-  return res.json({ success: true, isAdmin: true, telegramId: numericId });
+    if (isAdmin) {
+        return res.json({ success: true, isAdmin: true });
+    } else {
+        return res.status(403).json({ success: false, isAdmin: false, error: "Not authorized" });
+    }
 });
 
 app.post('/api/admin/verify-webapp', verifyTelegramAdminWebapp, (req, res) => {
