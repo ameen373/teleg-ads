@@ -1,5 +1,6 @@
 /**
- * Admin Panel Management Engine
+ * Enterprise Admin Panel Management Engine
+ * Telega.ads Platform Architecture
  */
 
 const API_BASE = window.location.protocol.startsWith('file') 
@@ -10,6 +11,7 @@ let authToken = localStorage.getItem('authToken') || localStorage.getItem('user_
 let isUserAdmin = false;
 const tg = window.Telegram?.WebApp;
 
+// استخراج بيانات التلغرام وتأكيد تحويل ID إلى الرقم بشكل صحيح
 const currentTgUser = tg?.initDataUnsafe?.user || null;
 const currentTgUserId = currentTgUser?.id ? Number(currentTgUser.id) : null;
 
@@ -56,13 +58,16 @@ function setButtonLoading(btnId, isLoading, originalText) {
 async function safeFetch(endpoint, options = {}) {
   options.headers = options.headers || {};
   
+  // إرفاق التوكين إن وجد
   if (authToken) {
     options.headers['Authorization'] = `Bearer ${authToken}`;
   }
+  
+  // إرفاق بيانات التلغرام للأمان
   if (tg?.initData) {
     options.headers['x-telegram-init-data'] = tg.initData;
   }
-  if (currentTgUserId) {
+  if (currentTgUserId && !isNaN(currentTgUserId)) {
     options.headers['x-telegram-id'] = String(currentTgUserId);
   }
 
@@ -116,31 +121,67 @@ function showForbiddenView() {
   if (forbiddenView) forbiddenView.style.display = 'block';
 }
 
+/**
+ * التحقق من صلاحية الأدمن عبر المسارات المتاحة (Telegram WebApp / Bearer Token / Check API)
+ */
 async function verifyAdminAccess() {
   showLoadingState();
 
   try {
-    const res = await safeFetch('/api/admin/check', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ telegram_id: currentTgUserId })
-    });
+    // 1. إذا توفر initData يفضل التحقق عبر endpoint التثبت المباشر لـ Telegram WebApp
+    if (tg?.initData) {
+      const resWebapp = await safeFetch('/api/admin/verify-webapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: tg.initData })
+      });
 
-    if (!res) {
-      showForbiddenView();
-      return false;
+      if (resWebapp && resWebapp.ok) {
+        const data = await resWebapp.json();
+        if (data && data.success) {
+          isUserAdmin = true;
+          showAdminView();
+          return true;
+        }
+      }
     }
 
-    const data = await res.json();
-    if (data && data.success && data.isAdmin) {
-      isUserAdmin = true;
-      showAdminView();
-      return true;
-    } else {
-      showForbiddenView();
-      return false;
+    // 2. التحقق عبر /api/admin/check بإرسال الـ telegram_id
+    if (currentTgUserId && !isNaN(currentTgUserId)) {
+      const resCheck = await safeFetch('/api/admin/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telegram_id: currentTgUserId })
+      });
+
+      if (resCheck && resCheck.ok) {
+        const data = await resCheck.json();
+        if (data && data.success && data.isAdmin) {
+          isUserAdmin = true;
+          showAdminView();
+          return true;
+        }
+      }
     }
+
+    // 3. المحاولة عبر التوكين المأخوذ من تسجيل الدخول (Bearer Token)
+    if (authToken) {
+      const resUser = await safeFetch('/api/user/data');
+      if (resUser && resUser.ok) {
+        const data = await resUser.json();
+        if (data && data.success && data.isAdmin) {
+          isUserAdmin = true;
+          showAdminView();
+          return true;
+        }
+      }
+    }
+
+    showForbiddenView();
+    return false;
+
   } catch (err) {
+    console.error("Admin Verification Error:", err);
     showForbiddenView();
     return false;
   }
@@ -154,71 +195,81 @@ async function loadAdminData() {
     const data = await res.json();
     if (data.error) return showToast(data.error);
 
-    if (document.getElementById('admin-total-users')) document.getElementById('admin-total-users').innerText = data.stats?.totalUsers || 0;
-    if (document.getElementById('admin-total-pending')) document.getElementById('admin-total-pending').innerText = `$${(data.stats?.totalPending || 0).toFixed(2)}`;
+    if (document.getElementById('admin-total-users')) {
+      document.getElementById('admin-total-users').innerText = data.stats?.totalUsers || 0;
+    }
+    if (document.getElementById('admin-total-pending')) {
+      document.getElementById('admin-total-pending').innerText = `$${(data.stats?.totalPending || 0).toFixed(2)}`;
+    }
 
+    // قائمة طلبات الإيداع
     const dList = document.getElementById('admin-deposits-list');
     if (dList) {
-      if (!data.deposits || data.deposits.length === 0) dList.innerHTML = 'No pending deposit requests.';
-      else {
+      if (!data.deposits || data.deposits.length === 0) {
+        dList.innerHTML = '<div style="color:var(--text-muted); padding:10px;">لا يوجد طلبات إيداع معلقة.</div>';
+      } else {
         dList.innerHTML = data.deposits.map(d => `
-          <div style="background:#0d1527; padding:8px; margin-bottom:6px; border-radius:6px; border: 1px solid var(--border-color);">
-            User: <b>${escapeHTML(d.advertiserId?.username || d.advertiserId?.telegramId || 'Unknown')}</b><br>
-            Amount: <b style="color:var(--success);">$${parseFloat(d.amount || 0).toFixed(2)}</b> | Network: <code>${escapeHTML(d.paymentMethod || d.network || 'N/A')}</code><br>
-            TxID: <code style="color: var(--warning); word-break: break-all;">${escapeHTML(d.txHash || d.txid || 'N/A')}</code><br>
-            <div style="margin-top: 6px; display: flex; gap: 4px;">
-              <button class="btn-small btn-success" onclick="handleAdminDeposit('${d._id}', 'approved')">Approve</button>
-              <button class="btn-small btn-danger" onclick="handleAdminDeposit('${d._id}', 'rejected')">Reject</button>
+          <div style="background:#0d1527; padding:10px; margin-bottom:8px; border-radius:6px; border: 1px solid var(--border-color, #1e293b);">
+            المستخدم: <b>${escapeHTML(d.advertiserId?.username || d.advertiserId?.telegramId || 'غير معروف')}</b><br>
+            المبلغ: <b style="color:var(--success, #10b981);">$${parseFloat(d.amount || 0).toFixed(2)}</b> | الشبكة: <code>${escapeHTML(d.network || d.paymentMethod || 'N/A')}</code><br>
+            معرف العملية (TxID): <code style="color: var(--warning, #f59e0b); word-break: break-all;">${escapeHTML(d.txid || d.txHash || 'N/A')}</code><br>
+            <div style="margin-top: 8px; display: flex; gap: 6px;">
+              <button class="btn-small btn-success" style="flex:1;" onclick="handleAdminDeposit('${d._id}', 'approved')">موافقة</button>
+              <button class="btn-small btn-danger" style="flex:1;" onclick="handleAdminDeposit('${d._id}', 'rejected')">رفض</button>
             </div>
           </div>
         `).join('');
       }
     }
 
+    // قائمة طلبات السحب
     const wList = document.getElementById('admin-withdraws-list');
     if (wList) {
-      if (!data.withdraws || data.withdraws.length === 0) wList.innerHTML = 'No pending withdrawal requests.';
-      else {
+      if (!data.withdraws || data.withdraws.length === 0) {
+        wList.innerHTML = '<div style="color:var(--text-muted); padding:10px;">لا يوجد طلبات سحب معلقة.</div>';
+      } else {
         wList.innerHTML = data.withdraws.map(w => `
-          <div style="background:#0d1527; padding:8px; margin-bottom:6px; border-radius:6px; border: 1px solid var(--border-color);">
-            User: <b>${escapeHTML(w.userId?.username || w.userId?.telegramId || 'Unknown')}</b><br>
-            Amount: <b style="color:var(--success);">$${parseFloat(w.amount || 0).toFixed(2)}</b><br>
-            Wallet: <code>${escapeHTML(w.walletAddress)}</code><br>
-            <div style="margin-top: 6px; display: flex; gap: 4px;">
-              <button class="btn-small btn-success" onclick="handleAdminWithdraw('${w._id}', 'approved')">Approve</button>
-              <button class="btn-small btn-danger" onclick="handleAdminWithdraw('${w._id}', 'rejected')">Reject</button>
+          <div style="background:#0d1527; padding:10px; margin-bottom:8px; border-radius:6px; border: 1px solid var(--border-color, #1e293b);">
+            المستخدم: <b>${escapeHTML(w.userId?.username || w.userId?.telegramId || 'غير معروف')}</b><br>
+            المبلغ الكلي: <b style="color:var(--success, #10b981);">$${parseFloat(w.amount || 0).toFixed(2)}</b> | الصافي: <b>$${parseFloat(w.netAmount || 0).toFixed(2)}</b><br>
+            المحفظة: <code style="word-break: break-all;">${escapeHTML(w.walletAddress)}</code><br>
+            <div style="margin-top: 8px; display: flex; gap: 6px;">
+              <button class="btn-small btn-success" style="flex:1;" onclick="handleAdminWithdraw('${w._id}', 'approved')">موافقة</button>
+              <button class="btn-small btn-danger" style="flex:1;" onclick="handleAdminWithdraw('${w._id}', 'rejected')">رفض</button>
             </div>
           </div>
         `).join('');
       }
     }
 
+    // قائمة المستخدمين
     const uList = document.getElementById('admin-users-list');
     if (uList) {
-      if (!data.users || data.users.length === 0) uList.innerHTML = 'No users found.';
-      else {
+      if (!data.users || data.users.length === 0) {
+        uList.innerHTML = '<div style="color:var(--text-muted); padding:10px;">لا يوجد مستخدمين.</div>';
+      } else {
         uList.innerHTML = data.users.map(u => `
-          <div style="background:#0d1527; padding:8px; margin-bottom:6px; border-radius:6px; display: flex; justify-content: space-between; align-items: center; border-left: 3px solid ${u.isBanned ? 'var(--danger)' : 'var(--success)'};">
+          <div style="background:#0d1527; padding:10px; margin-bottom:8px; border-radius:6px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid ${u.isBanned ? 'var(--danger, #ef4444)' : 'var(--success, #10b981)'};">
             <div>
-              <b>${escapeHTML(u.username || 'Unknown')}</b> (${escapeHTML(String(u.telegramId || ''))})<br>
-              <span style="color: var(--text-muted);">Available: $${(u.availableBalance || 0).toFixed(2)}</span>
+              <b>${escapeHTML(u.username || 'بدون اسم')}</b> (<code>${escapeHTML(String(u.telegramId || ''))}</code>)<br>
+              <span style="color: var(--text-muted, #94a3b8); font-size: 0.85rem;">المتاح: $${(u.availableBalance || 0).toFixed(2)} | المعلق: $${(u.pendingBalance || 0).toFixed(2)}</span>
             </div>
             <button class="btn-small ${u.isBanned ? 'btn-warning' : 'btn-danger'}" onclick="toggleUserBan('${u._id}')">
-              ${u.isBanned ? 'Unban' : 'Ban'}
+              ${u.isBanned ? 'إلغاء الحظر' : 'حظر'}
             </button>
           </div>
         `).join('');
       }
     }
   } catch (e) {
-    showToast("Failed to load admin data");
+    showToast("فشل تحميل بيانات لوحة التحكم");
   }
 }
 
 async function handleAdminDeposit(depositId, action) {
   let reason = '';
   if (action === 'rejected') {
-    reason = prompt("Rejection reason (shown to user):");
+    reason = prompt("سبب الرفض (سيظهر للمستخدم):");
     if (reason === null) return;
   }
 
@@ -233,18 +284,18 @@ async function handleAdminDeposit(depositId, action) {
     const data = await res.json();
     if (data.error) showToast(data.error);
     else {
-      showToast("Deposit request updated");
+      showToast("تم تحديث حالة طلب الإيداع");
       loadAdminData();
     }
   } catch (e) {
-    showToast("Deposit action failed");
+    showToast("فشلت عملية الإيداع");
   }
 }
 
 async function handleAdminWithdraw(withdrawId, action) {
   let reason = '';
   if (action === 'rejected') {
-    reason = prompt("Rejection reason (shown to user):");
+    reason = prompt("سبب الرفض (سيظهر للمستخدم):");
     if (reason === null) return;
   }
 
@@ -259,11 +310,11 @@ async function handleAdminWithdraw(withdrawId, action) {
     const data = await res.json();
     if (data.error) showToast(data.error);
     else {
-      showToast("Withdrawal request updated");
+      showToast("تم تحديث حالة طلب السحب");
       loadAdminData();
     }
   } catch (e) {
-    showToast("Action failed");
+    showToast("فشلت العملية");
   }
 }
 
@@ -279,17 +330,17 @@ async function toggleUserBan(userId) {
     const data = await res.json();
     if (data.error) showToast(data.error);
     else {
-      showToast(data.isBanned ? "User banned" : "User unbanned");
+      showToast(data.isBanned ? "تم حظر المستخدم" : "تم إلغاء حظر المستخدم");
       loadAdminData();
     }
   } catch (e) {
-    showToast("Error changing ban state");
+    showToast("خطأ أثناء تغيير حالة الحظر");
   }
 }
 
 async function distributeRevenue() {
   const totalRevenue = document.getElementById('revenue-amount')?.value;
-  if (!totalRevenue || totalRevenue <= 0) return showToast("Enter a valid amount");
+  if (!totalRevenue || totalRevenue <= 0) return showToast("أدخل مبلغاً صالحاً");
 
   triggerHaptic('medium');
   setButtonLoading('btn-distribute-rev', true);
@@ -304,13 +355,13 @@ async function distributeRevenue() {
     const data = await res.json();
     if (data.error) showToast(data.error);
     else {
-      showToast(data.message || "Revenue distributed successfully");
+      showToast(data.message || "تم توزيع الأرباح بنجاح");
       if (document.getElementById('revenue-amount')) document.getElementById('revenue-amount').value = '';
     }
   } catch (e) {
-    showToast("Error distributing revenue");
+    showToast("خطأ أثناء توزيع الأرباح");
   } finally {
-    setButtonLoading('btn-distribute-rev', false, 'Distribute Revenue to Links');
+    setButtonLoading('btn-distribute-rev', false, 'توزيع الأرباح على الرابط');
   }
 }
 
