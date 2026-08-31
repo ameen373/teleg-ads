@@ -306,10 +306,9 @@ const authenticateUser = async (req, res, next) => {
 };
 
 const requireAdmin = (req, res, next) => {
-  const isAdminRole = req.user && req.user.role === 'admin';
   const isOwnerTelegramId = req.user && ADMIN_IDS.includes(Number(req.user.telegramId));
 
-  if (isAdminRole || isOwnerTelegramId) {
+  if (isOwnerTelegramId) {
     return next();
   }
   return res.status(404).json({ error: 'Cannot GET ' + req.originalUrl });
@@ -334,7 +333,7 @@ const protectAdminStatic = async (req, res, next) => {
       const token = authHeader.split(' ')[1];
       const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
       const user = await User.findById(decoded.userId).lean();
-      if (user && (user.role === 'admin' || ADMIN_IDS.includes(Number(user.telegramId)))) {
+      if (user && ADMIN_IDS.includes(Number(user.telegramId))) {
         isAdmin = true;
       }
     } catch (e) {}
@@ -399,14 +398,20 @@ app.post('/api/auth/login', async (req, res, next) => {
       let updated = false;
       if (user.username !== currentUsername) { user.username = currentUsername; updated = true; }
       if (!user.language) { user.language = userLanguage; updated = true; }
-      if (isSystemAdmin && user.role !== 'admin') { user.role = 'admin'; updated = true; }
+      if (isSystemAdmin && user.role !== 'admin') { 
+        user.role = 'admin'; 
+        updated = true; 
+      } else if (!isSystemAdmin && user.role === 'admin') {
+        user.role = 'user';
+        updated = true;
+      }
       if (updated) await user.save();
     }
 
     if (user.isBanned) return res.status(403).json({ success: false, error: `Your account is suspended. Contact support: ${CONFIG.SUPPORT_USERNAME}` });
 
     const token = jwt.sign(
-      { userId: user._id, telegramId: user.telegramId, role: user.role },
+      { userId: user._id, telegramId: user.telegramId, role: isSystemAdmin ? 'admin' : 'user' },
       CONFIG.JWT_SECRET,
       { expiresIn: '7d', algorithm: 'HS256' }
     );
@@ -416,7 +421,7 @@ app.post('/api/auth/login', async (req, res, next) => {
       token, 
       user, 
       language: user.language || CONFIG.DEFAULT_LANGUAGE,
-      isAdmin: user.role === 'admin' || isSystemAdmin,
+      isAdmin: isSystemAdmin,
       botUsername: CONFIG.BOT_USERNAME,
       supportUsername: CONFIG.SUPPORT_USERNAME,
       botUrl: CONFIG.OFFICIAL_BOT_URL,
@@ -914,7 +919,7 @@ app.get('/api/user/data', authenticateUser, async (req, res, next) => {
       };
     });
 
-    const isAdmin = req.user.role === 'admin' || ADMIN_IDS.includes(Number(req.user.telegramId));
+    const isAdmin = ADMIN_IDS.includes(Number(req.user.telegramId));
     res.json({ 
       success: true,
       user: req.user, 
