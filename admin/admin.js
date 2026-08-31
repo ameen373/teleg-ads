@@ -11,53 +11,92 @@ let authToken = localStorage.getItem('authToken') || localStorage.getItem('user_
 let isUserAdmin = false;
 const tg = window.Telegram?.WebApp;
 
-// استخراج بيانات التلغرام وتأكيد تحويل ID إلى الرقم بشكل صحيح
-const currentTgUser = tg?.initDataUnsafe?.user || null;
-const currentTgUserId = currentTgUser?.id ? Number(currentTgUser.id) : null;
+// ==================================================
+// 1. استخراج آيدي المستخدم من Telegram أو URL أو LocalStorage
+// ==================================================
+function getTargetUserId() {
+  // أ) من Telegram Mini App
+  const tgUserId = tg?.initDataUnsafe?.user?.id;
+  if (tgUserId) return Number(tgUserId);
+
+  // ب) من معلمات الـ URL (للتجربة عبر المتصفح)
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlAdminId = urlParams.get('admin_id') || urlParams.get('userId') || urlParams.get('telegram_id');
+  if (urlAdminId) return Number(urlAdminId);
+
+  // ج) من LocalStorage كملاذ أخير
+  const localId = localStorage.getItem("user_id") || localStorage.getItem("telegram_id");
+  if (localId) return Number(localId);
+
+  return null;
+}
+
+const currentTgUserId = getTargetUserId();
 
 // ==================================================
-// الفحص المباشر والمستهدف للصلاحيات عند فتح الصفحة (الخطوة 2)
+// 2. الفحص المباشر للصلاحيات عند فتح الصفحة
 // ==================================================
 document.addEventListener("DOMContentLoaded", async () => {
-    // محاولة جلب الآيدي من عدة مصادر محتملة
-    const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-    const userId = tgUser?.id || localStorage.getItem("user_id") || localStorage.getItem("telegram_id");
+  // إظهار الكانتينر الرئيسي ليظهر واجهة التحميل
+  const mainContainer = document.getElementById('admin-main-container');
+  if (mainContainer) mainContainer.style.display = 'block';
 
-    console.log("🔍 [Client Log] Detected userId:", userId);
+  showLoadingState();
 
-    if (!userId) {
-        console.error("❌ [Client Log] Could not find any userId!");
-        showForbiddenView();
-        alert("لم يتم التعرف على آيدي حسابك، يرجى فتح التطبيق من داخل تلغرام.");
-        return;
+  const userId = getTargetUserId();
+  console.log("🔍 [Client Log] Detected userId:", userId);
+
+  if (!userId) {
+    console.error("❌ [Client Log] Could not find any userId!");
+    showForbiddenView("لم يتم التعرف على آيدي الحساب، يرجى فتح اللوحة من داخل تلغرام أو تزويد ?admin_id=");
+    return;
+  }
+
+  try {
+    // إرسال الطلب المباشر لـ /api/admin/verify
+    const res = await fetch(`${API_BASE}/api/admin/verify`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'x-telegram-id': String(userId)
+      },
+      body: JSON.stringify({ userId: userId, telegramId: userId })
+    });
+
+    if (!res.ok && res.status !== 403 && res.status !== 401) {
+      // تجربة البديل POST /api/admin/check في حال لم يعالج السيرفر endpoint الأول
+      const fallbackRes = await fetch(`${API_BASE}/api/admin/check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: userId })
+      });
+      var data = await fallbackRes.json();
+    } else {
+      var data = await res.json();
     }
 
-    try {
-        const res = await fetch('/api/admin/check', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: userId })
-        });
+    console.log("📩 [Client Log] Server Response:", data);
 
-        const data = await res.json();
-        console.log("📩 [Client Log] Server Response:", data);
-
-        if (data.isAdmin) {
-            console.log("✅ Access Granted!");
-            isUserAdmin = true;
-            showAdminView();
-            loadAdminData();
-        } else {
-            console.warn("⛔ Access Denied!");
-            showForbiddenView();
-            alert("عذراً، هذا الحساب غير مصرح له بالدخول لوحة التحكم.");
-        }
-    } catch (err) {
-        console.error("💥 [Client Log] Fetch Error:", err);
-        showForbiddenView();
+    // التحقق من الاستجابة (دعم authorized أو isAdmin)
+    if (data && (data.authorized === true || data.isAdmin === true)) {
+      console.log("✅ Access Granted!");
+      isUserAdmin = true;
+      showAdminView();
+      loadAdminData();
+    } else {
+      console.warn("⛔ Access Denied!");
+      const reasonMsg = data?.message || data?.error || "عذراً، هذا الحساب غير مصرح له بالدخول لوحة التحكم.";
+      showForbiddenView(reasonMsg);
     }
+  } catch (err) {
+    console.error("💥 [Client Log] Fetch Verification Error:", err);
+    showForbiddenView("حدث خطأ أثناء الاتصال بالسيرفر للتحقق من الصلاحيات.");
+  }
 });
 
+// ==================================================
+// 3. دالّة المساعدة والأمان
+// ==================================================
 function escapeHTML(str) {
   if (!str) return '';
   return String(str)
@@ -101,12 +140,10 @@ function setButtonLoading(btnId, isLoading, originalText) {
 async function safeFetch(endpoint, options = {}) {
   options.headers = options.headers || {};
   
-  // إرفاق التوكين إن وجد
   if (authToken) {
     options.headers['Authorization'] = `Bearer ${authToken}`;
   }
   
-  // إرفاق بيانات التلغرام للأمان
   if (tg?.initData) {
     options.headers['x-telegram-init-data'] = tg.initData;
   }
@@ -121,7 +158,7 @@ async function safeFetch(endpoint, options = {}) {
     const response = await fetch(targetUrl, options);
     
     if (response.status === 403 || response.status === 401) {
-      showForbiddenView();
+      showForbiddenView("جلسة غير مصرح بها.");
       return null;
     }
 
@@ -133,8 +170,11 @@ async function safeFetch(endpoint, options = {}) {
   }
 }
 
+// ==================================================
+// 4. التحكم بحالات العرض (Views Handler)
+// ==================================================
 function showLoadingState() {
-  const loadingView = document.getElementById('admin-loading') || document.getElementById('loading-state');
+  const loadingView = document.getElementById('admin-loading');
   const adminContent = document.getElementById('admin-content');
   const forbiddenView = document.getElementById('admin-forbidden');
 
@@ -144,26 +184,34 @@ function showLoadingState() {
 }
 
 function showAdminView() {
-  const loadingView = document.getElementById('admin-loading') || document.getElementById('loading-state');
+  const loadingView = document.getElementById('admin-loading');
   const adminContent = document.getElementById('admin-content');
   const forbiddenView = document.getElementById('admin-forbidden');
 
   if (loadingView) loadingView.style.display = 'none';
-  if (adminContent) adminContent.style.display = 'block';
   if (forbiddenView) forbiddenView.style.display = 'none';
+  if (adminContent) adminContent.style.display = 'block';
 }
 
-function showForbiddenView() {
+function showForbiddenView(customMessage) {
   isUserAdmin = false;
-  const loadingView = document.getElementById('admin-loading') || document.getElementById('loading-state');
+  const loadingView = document.getElementById('admin-loading');
   const adminContent = document.getElementById('admin-content');
   const forbiddenView = document.getElementById('admin-forbidden');
+  const errorMsgEl = document.getElementById('admin-error-message');
 
   if (loadingView) loadingView.style.display = 'none';
   if (adminContent) adminContent.style.display = 'none';
   if (forbiddenView) forbiddenView.style.display = 'block';
+
+  if (errorMsgEl && customMessage) {
+    errorMsgEl.innerText = customMessage;
+  }
 }
 
+// ==================================================
+// 5. جلب بيانات اللوحة والعمليات
+// ==================================================
 async function loadAdminData() {
   if (!isUserAdmin) return;
   try {
