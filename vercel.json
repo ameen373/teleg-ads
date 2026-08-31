@@ -4,6 +4,14 @@
     {
       "src": "server.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "public/**/*",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "admin/**/*",
+      "use": "@vercel/static"
     }
   ],
   "headers": [
@@ -53,6 +61,14 @@
       "dest": "/"
     },
     {
+      "src": "/api/(.*)",
+      "dest": "/server.js"
+    },
+    {
+      "src": "/admin",
+      "dest": "/admin/admin.html"
+    },
+    {
       "src": "/admin/(.*)",
       "dest": "/admin/$1"
     },
@@ -61,7 +77,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "server.js"
+      "dest": "/server.js"
     }
   ]
 }
