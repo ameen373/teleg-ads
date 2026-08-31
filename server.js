@@ -1,11 +1,20 @@
-/**
- * Enterprise Production Core Engine & Security Middleware
- * Telega.ads Platform Architecture - Refactored Admin Authentication System
- */
-
 require('dotenv').config();
-
 const express = require('express');
+const path = require('path');
+const app = express();
+
+app.use(express.json());
+
+// 1. مشاركة مجلد الإدارة كمجلد استاتيكي
+app.use('/admin', express.static(path.join(__dirname, 'admin')));
+app.use(express.static(path.join(__dirname, 'public')));
+
+// 2. معالجة وتجهيز الآيديهات المسموحة
+const getAdminIds = () => {
+    const rawIds = process.env.ADMIN_IDS || '';
+    return rawIds.split(',').map(id => id.trim().toString());
+};
+
 const mongoose = require('mongoose');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
@@ -14,7 +23,6 @@ const mongoSanitize = require('express-mongo-sanitize');
 const xss = require('xss-clean');
 const hpp = require('hpp');
 const cron = require('node-cron');
-const path = require('path');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const morgan = require('morgan');
@@ -35,20 +43,9 @@ const {
   Announcement 
 } = require('./models');
 
-const app = express();
-
 // ==================================================
 // 1. System Constants & Environment Configuration
 // ==================================================
-
-// [تعديل 1]: قراءة وتنظيف مصفوفة ADMIN_IDS بأسلوب صلب ومضمون
-const getAdminIds = () => {
-  const rawAdmins = process.env.ADMIN_IDS || '';
-  return rawAdmins
-    .split(',')
-    .map(id => String(id).trim())
-    .filter(id => id.length > 0);
-};
 
 const adminIds = getAdminIds();
 
@@ -96,18 +93,14 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data', 'x-admin-id']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data', 'x-admin-id', 'x-user-id']
 }));
 
-app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
 app.use(mongoSanitize());
 app.use(xss());
 app.use(hpp());
-
-// خدمة الملفات الثابتة العامة
-app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/api', (req, res, next) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -257,25 +250,19 @@ function verifyTelegramData(initData) {
   }
 }
 
-/**
- * [تعديل 2]: دالة موحدة واستخراج شمولية لآيدي الأدمن من مختلف المصادر
- */
 const extractAdminId = (req) => {
-  // 1. Query Params
   if (req.query && req.query.admin_id) return String(req.query.admin_id).trim();
+  if (req.query && req.query.userId) return String(req.query.userId).trim();
   if (req.query && req.query.user_id) return String(req.query.user_id).trim();
 
-  // 2. Custom Headers
   if (req.headers['x-admin-id']) return String(req.headers['x-admin-id']).trim();
   if (req.headers['x-user-id']) return String(req.headers['x-user-id']).trim();
 
-  // 3. Telegram initData Header / Body
   const initData = req.headers['x-telegram-init-data'] || (req.body && req.body.initData);
   if (initData) {
     const tgUser = verifyTelegramData(initData);
     if (tgUser && tgUser.id) return String(tgUser.id).trim();
     
-    // محاولة استخراج غير آمنة إن فشل الـ WebApp HMAC في بيئة التطوير
     try {
       const urlParams = new URLSearchParams(initData);
       const userRaw = urlParams.get('user');
@@ -286,7 +273,6 @@ const extractAdminId = (req) => {
     } catch (e) {}
   }
 
-  // 4. JWT Authorization Header
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     try {
@@ -299,61 +285,12 @@ const extractAdminId = (req) => {
   return null;
 };
 
-/**
- * [تعديل 3]: ميدلوير حماية مسارات الـ Static وحماية ملفات الأدمن
- */
-const protectAdminStatic = async (req, res, next) => {
-  const currentAdminIds = getAdminIds();
-  const incomingId = extractAdminId(req);
-
-  console.log(`\n--- [ADMIN SECURITY CHECK] ---`);
-  console.log(`[+] Target Path: ${req.originalUrl}`);
-  console.log(`[+] Incoming ID: ${incomingId || 'NOT DETECTED'}`);
-  console.log(`[+] Allowed ADMIN_IDS:`, currentAdminIds);
-
-  if (incomingId && currentAdminIds.includes(incomingId)) {
-    console.log(`[SUCCESS] Access Granted to Admin`);
-    return next();
-  }
-
-  console.log(`[REJECTED] Access Denied - Status 403`);
-  return res.status(403).send(`
-    <!DOCTYPE html>
-    <html lang="ar" dir="rtl">
-    <head>
-      <meta charset="utf-8">
-      <title>403 Access Denied</title>
-      <style>
-        body { background: #0f172a; color: #f8fafc; font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        .box { background: #1e293b; padding: 30px; border-radius: 12px; border: 1px solid #334155; text-align: center; max-width: 400px; }
-        h1 { color: #ef4444; margin-top: 0; }
-        p { color: #94a3b8; line-height: 1.5; }
-      </style>
-    </head>
-    <body>
-      <div class="box">
-        <h1>403 - غير مصرح بالدخول</h1>
-        <p>عفواً، لا تملك الصلاحيات الكافية للوصول إلى لوحة التحكم الخاصة بنظام Telega.ads.</p>
-      </div>
-    </body>
-    </html>
-  `);
-};
-
-/**
- * [تعديل 4]: ميدلوير حماية API الخاص بالأدمن
- */
 const requireAdmin = (req, res, next) => {
   const currentAdminIds = getAdminIds();
   const incomingId = extractAdminId(req);
 
   const isAdminRole = req.user && req.user.role === 'admin';
   const isOwnerTelegramId = incomingId && currentAdminIds.includes(incomingId);
-
-  console.log(`\n--- [ADMIN API CHECK] ---`);
-  console.log(`[+] Endpoint: ${req.originalUrl}`);
-  console.log(`[+] Extracted ID: ${incomingId || 'N/A'}`);
-  console.log(`[+] Status: ${isAdminRole || isOwnerTelegramId ? 'AUTHORIZED' : 'UNAUTHORIZED'}`);
 
   if (isAdminRole || isOwnerTelegramId) {
     return next();
@@ -404,42 +341,28 @@ const authenticateUser = async (req, res, next) => {
 // 8. Explicit Verification Endpoint & Admin Delivery
 // ==================================================
 
-/**
- * [تعديل 5]: Endpoint صريح للتحقق المباشر من صلاحيات الأدمن
- */
-app.all('/api/admin/verify', (req, res) => {
-  const currentAdminIds = getAdminIds();
-  const incomingId = extractAdminId(req);
-  const isAuthorized = incomingId && currentAdminIds.includes(incomingId);
+// 3. API التحقق مع طباعة التشخيص (Debugging)
+app.get('/api/admin/verify', (req, res) => {
+    const adminIds = getAdminIds();
+    // جلب الآيدي من URL أو من Headers
+    const incomingId = String(req.query.userId || req.headers['x-user-id'] || '');
 
-  console.log(`\n--- [/api/admin/verify CALL] ---`);
-  console.log(`[+] Incoming ID: ${incomingId}`);
-  console.log(`[+] Allowed List:`, currentAdminIds);
-  console.log(`[+] Result: ${isAuthorized ? 'ACCEPTED' : 'DENIED'}`);
+    console.log("--- فحص صلاحيات الأدمن ---");
+    console.log("الآيدي القادم من القائم بالطلب:", incomingId);
+    console.log("قائمة الآيديهات المقبولة في .env:", adminIds);
 
-  if (isAuthorized) {
-    return res.json({
-      success: true,
-      authorized: true,
-      adminId: incomingId,
-      message: 'Admin access verified successfully.'
-    });
-  }
+    if (incomingId && adminIds.includes(incomingId)) {
+        console.log("النتيجة: تم القبول ✅");
+        return res.json({ authorized: true });
+    }
 
-  return res.status(403).json({
-    success: false,
-    authorized: false,
-    incomingId: incomingId || null,
-    message: 'Access Denied: Provided ID is not in ADMIN_IDS list.'
-  });
+    console.log("النتيجة: تم الرفض ❌");
+    return res.status(403).json({ authorized: false, error: "Unauthorized" });
 });
 
-// تقديم ملفات مجلد admin/ الثابتة تحت الحماية
-app.use('/admin', protectAdminStatic, express.static(path.join(__dirname, 'admin')));
-
-// التوجيه الصريح لصفحة الأدمن الرئيسية
-app.get('/admin/admin.html', protectAdminStatic, (req, res) => {
-  res.sendFile(path.join(__dirname, 'admin', 'admin.html'));
+// 4. توجيه مسار /admin-panel لفتح صفحة admin.html
+app.get('/admin-panel', (req, res) => {
+    res.sendFile(path.join(__dirname, 'admin', 'admin.html'));
 });
 
 // ==================================================
@@ -1268,4 +1191,4 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Secure Enterprise Server Active on Port ${PORT}`));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
