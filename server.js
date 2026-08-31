@@ -88,7 +88,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data', 'x-telegram-id']
 }));
 
 app.use(express.json({ limit: '10kb' }));
@@ -253,17 +253,17 @@ const verifyTelegramAdminWebapp = (req, res, next) => {
   const initData = req.headers['x-telegram-init-data'] || req.body.initData;
 
   if (!initData) {
-    return res.status(404).json({ success: false, error: 'Cannot POST ' + req.originalUrl });
+    return res.status(403).json({ success: false, error: 'Unauthorized: Telegram initData missing' });
   }
 
   const telegramUser = verifyTelegramData(initData);
   if (!telegramUser || !telegramUser.id) {
-    return res.status(404).json({ success: false, error: 'Cannot POST ' + req.originalUrl });
+    return res.status(403).json({ success: false, error: 'Unauthorized: Invalid Telegram authentication' });
   }
 
   const userId = Number(telegramUser.id);
   if (!ADMIN_IDS.includes(userId)) {
-    return res.status(404).json({ success: false, error: 'Cannot POST ' + req.originalUrl });
+    return res.status(403).json({ success: false, error: 'Forbidden: User is not in ADMIN_IDS' });
   }
 
   req.telegramAdminUser = telegramUser;
@@ -305,14 +305,32 @@ const authenticateUser = async (req, res, next) => {
   }
 };
 
+// ميدلوير حماية مسارات API الخاصة بالتحكم والإدارة
 const requireAdmin = (req, res, next) => {
-  const isAdminRole = req.user && req.user.role === 'admin';
-  const isOwnerTelegramId = req.user && ADMIN_IDS.includes(Number(req.user.telegramId));
+  let reqTgId = null;
 
-  if (isAdminRole || isOwnerTelegramId) {
+  const initData = req.headers['x-telegram-init-data'] || req.body?.initData;
+  if (initData) {
+    const tgUser = verifyTelegramData(initData);
+    if (tgUser) reqTgId = Number(tgUser.id);
+  }
+
+  if (!reqTgId && req.headers['x-telegram-id']) {
+    reqTgId = Number(req.headers['x-telegram-id']);
+  }
+
+  if (!reqTgId && req.user) {
+    reqTgId = Number(req.user.telegramId);
+  }
+
+  const isOwnerTelegramId = reqTgId && ADMIN_IDS.includes(reqTgId);
+  const isAdminRole = req.user && req.user.role === 'admin';
+
+  if (isOwnerTelegramId || isAdminRole) {
     return next();
   }
-  return res.status(404).json({ error: 'Cannot GET ' + req.originalUrl });
+
+  return res.status(403).json({ success: false, error: 'Forbidden: Admin privileges required' });
 };
 
 // ميدلوير لحماية ملفات الاستاتيك الخاصة باللوحة /admin
@@ -344,14 +362,14 @@ const protectAdminStatic = async (req, res, next) => {
     return next();
   }
 
-  return res.status(404).send(`<!DOCTYPE html>
+  return res.status(403).send(`<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Error</title>
+<title>Forbidden</title>
 </head>
 <body>
-<pre>Cannot GET ${req.originalUrl}</pre>
+<pre>Access Denied: You do not have permission to access the admin portal.</pre>
 </body>
 </html>`);
 };
@@ -362,6 +380,33 @@ app.use('/admin', protectAdminStatic, express.static(path.join(__dirname, 'admin
 // ==================================================
 // 8. Application Routes
 // ==================================================
+
+// نقطة نهاية للتحقق المباشر من صلاحيات الأدمن
+app.post('/api/admin/check', (req, res) => {
+  const initData = req.headers['x-telegram-init-data'] || req.body?.initData;
+  let targetTgId = req.body?.telegram_id || req.query?.telegram_id || req.headers['x-telegram-id'];
+
+  if (initData) {
+    const tgUser = verifyTelegramData(initData);
+    if (tgUser?.id) {
+      targetTgId = tgUser.id;
+    }
+  }
+
+  const numericId = Number(targetTgId);
+
+  if (!numericId || isNaN(numericId)) {
+    return res.status(400).json({ success: false, isAdmin: false, error: 'Invalid or missing telegram_id' });
+  }
+
+  const isAdmin = ADMIN_IDS.includes(numericId);
+
+  if (!isAdmin) {
+    return res.status(403).json({ success: false, isAdmin: false, error: 'Unauthorized' });
+  }
+
+  return res.json({ success: true, isAdmin: true, telegramId: numericId });
+});
 
 app.post('/api/admin/verify-webapp', verifyTelegramAdminWebapp, (req, res) => {
   return res.json({
@@ -955,8 +1000,8 @@ app.post('/api/user/settings', authenticateUser, async (req, res, next) => {
   }
 });
 
-// --- Stealth Admin Panel Routes (Return 404 for Non-Admins) ---
-app.get('/api/admin/dashboard', authenticateUser, requireAdmin, async (req, res, next) => {
+// --- Admin Protected Routes ---
+app.get('/api/admin/dashboard', requireAdmin, async (req, res, next) => {
   try {
     const allUsers = await User.find().lean();
     res.json({ status: 'Welcome Admin', users: allUsers });
@@ -965,7 +1010,7 @@ app.get('/api/admin/dashboard', authenticateUser, requireAdmin, async (req, res,
   }
 });
 
-app.get('/api/admin/dashboard-data', authenticateUser, requireAdmin, async (req, res, next) => {
+app.get('/api/admin/dashboard-data', requireAdmin, async (req, res, next) => {
   try {
     const [withdraws, deposits, users, stats, totalAds] = await Promise.all([
       Withdraw.find().populate('userId').sort({ createdAt: -1 }).lean(),
@@ -983,7 +1028,7 @@ app.get('/api/admin/dashboard-data', authenticateUser, requireAdmin, async (req,
   }
 });
 
-app.post('/api/admin/deposit/action', authenticateUser, requireAdmin, async (req, res, next) => {
+app.post('/api/admin/deposit/action', requireAdmin, async (req, res, next) => {
   const { depositId, action, reason } = req.body;
   if (!mongoose.Types.ObjectId.isValid(depositId)) return res.status(400).json({ success: false, error: 'Invalid Deposit ID' });
 
@@ -1036,7 +1081,7 @@ app.post('/api/admin/deposit/action', authenticateUser, requireAdmin, async (req
   }
 });
 
-app.post('/api/admin/withdraw/action', authenticateUser, requireAdmin, async (req, res, next) => {
+app.post('/api/admin/withdraw/action', requireAdmin, async (req, res, next) => {
   const { withdrawId, action, reason } = req.body;
   if (!mongoose.Types.ObjectId.isValid(withdrawId)) return res.status(400).json({ success: false, error: 'Invalid Withdraw ID' });
 
@@ -1089,7 +1134,7 @@ app.post('/api/admin/withdraw/action', authenticateUser, requireAdmin, async (re
   }
 });
 
-app.post('/api/admin/user/toggle-ban', authenticateUser, requireAdmin, async (req, res, next) => {
+app.post('/api/admin/user/toggle-ban', requireAdmin, async (req, res, next) => {
   const { userId } = req.body;
   if (!mongoose.Types.ObjectId.isValid(userId)) return res.status(400).json({ success: false, error: 'Invalid User ID' });
 
