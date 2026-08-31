@@ -88,7 +88,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data', 'x-telegram-id']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data']
 }));
 
 app.use(express.json({ limit: '10kb' }));
@@ -253,17 +253,17 @@ const verifyTelegramAdminWebapp = (req, res, next) => {
   const initData = req.headers['x-telegram-init-data'] || req.body.initData;
 
   if (!initData) {
-    return res.status(403).json({ success: false, error: 'Unauthorized: Telegram initData missing' });
+    return res.status(404).json({ success: false, error: 'Cannot POST ' + req.originalUrl });
   }
 
   const telegramUser = verifyTelegramData(initData);
   if (!telegramUser || !telegramUser.id) {
-    return res.status(403).json({ success: false, error: 'Unauthorized: Invalid Telegram authentication' });
+    return res.status(404).json({ success: false, error: 'Cannot POST ' + req.originalUrl });
   }
 
   const userId = Number(telegramUser.id);
   if (!ADMIN_IDS.includes(userId)) {
-    return res.status(403).json({ success: false, error: 'Forbidden: User is not in ADMIN_IDS' });
+    return res.status(404).json({ success: false, error: 'Cannot POST ' + req.originalUrl });
   }
 
   req.telegramAdminUser = telegramUser;
@@ -305,32 +305,14 @@ const authenticateUser = async (req, res, next) => {
   }
 };
 
-// ميدلوير حماية مسارات API الخاصة بالتحكم والإدارة
 const requireAdmin = (req, res, next) => {
-  let reqTgId = null;
-
-  const initData = req.headers['x-telegram-init-data'] || req.body?.initData;
-  if (initData) {
-    const tgUser = verifyTelegramData(initData);
-    if (tgUser) reqTgId = Number(tgUser.id);
-  }
-
-  if (!reqTgId && req.headers['x-telegram-id']) {
-    reqTgId = Number(req.headers['x-telegram-id']);
-  }
-
-  if (!reqTgId && req.user) {
-    reqTgId = Number(req.user.telegramId);
-  }
-
-  const isOwnerTelegramId = reqTgId && ADMIN_IDS.includes(reqTgId);
   const isAdminRole = req.user && req.user.role === 'admin';
+  const isOwnerTelegramId = req.user && ADMIN_IDS.includes(Number(req.user.telegramId));
 
-  if (isOwnerTelegramId || isAdminRole) {
+  if (isAdminRole || isOwnerTelegramId) {
     return next();
   }
-
-  return res.status(403).json({ success: false, error: 'Forbidden: Admin privileges required' });
+  return res.status(404).json({ error: 'Cannot GET ' + req.originalUrl });
 };
 
 // ميدلوير لحماية ملفات الاستاتيك الخاصة باللوحة /admin
@@ -362,14 +344,14 @@ const protectAdminStatic = async (req, res, next) => {
     return next();
   }
 
-  return res.status(403).send(`<!DOCTYPE html>
+  return res.status(404).send(`<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Forbidden</title>
+<title>Error</title>
 </head>
 <body>
-<pre>Access Denied: You do not have permission to access the admin portal.</pre>
+<pre>Cannot GET ${req.originalUrl}</pre>
 </body>
 </html>`);
 };
@@ -381,38 +363,32 @@ app.use('/admin', protectAdminStatic, express.static(path.join(__dirname, 'admin
 // 8. Application Routes
 // ==================================================
 
-// نقطة نهاية للتحقق المباشر من صلاحيات الأدمن (محدّثة بموجب خطوة 1)
-app.post('/api/admin/check', (req, res) => {
-    // 1. قراءة المعرفات وتنظيفها
-    const rawAdmins = process.env.ADMIN_IDS || '';
-    const adminIds = rawAdmins.split(',').map(id => id.trim());
+// --- مسار الاختبار السريع لفحص متغيرات البيئة ---
+app.get('/api/check-env', (req, res) => {
+    res.json({
+        // --- روابط تيليجرام الرسمية ---
+        OFFICIAL_CHANNEL_URL: process.env.OFFICIAL_CHANNEL_URL ? "موجود" : "غير موجود",
+        OFFICIAL_BOT_URL: process.env.OFFICIAL_BOT_URL ? "موجود" : "غير موجود",
 
-    // 2. قراءة الآيدي المرسل من الـ Frontend
-    const { userId } = req.body;
+        // --- إعدادات الخادم الأساسية ---
+        PORT: process.env.PORT ? "موجود" : "غير موجود",
+        NODE_ENV: process.env.NODE_ENV || "غير محدد",
+        APP_DOMAIN: process.env.APP_DOMAIN ? "موجود" : "غير موجود",
 
-    // طباعة السجلات في الـ Terminal لتشخيص المشكلة
-    console.log("\n================ [ ADMIN CHECK ] ================");
-    console.log("1. RAW .env ADMIN_IDS:", JSON.stringify(rawAdmins));
-    console.log("2. Parsed Admin Array:", adminIds);
-    console.log("3. Incoming userId:", userId, `(Type: ${typeof userId})`);
+        // --- إعدادات قاعدة بيانات MongoDB ---
+        MONGO_URI: process.env.MONGO_URI ? "موجود" : "غير موجود",
 
-    if (!userId) {
-        console.log("❌ Result: No userId provided in request body.");
-        console.log("=================================================\n");
-        return res.status(400).json({ success: false, isAdmin: false, error: "No userId provided" });
-    }
+        // --- إعدادات التخزين المؤقت Redis ---
+        REDIS_URL: process.env.REDIS_URL ? "موجود" : "غير موجود",
 
-    // المقارنة بعد تحويل الطرفين لنصوص (String)
-    const isAdmin = adminIds.includes(String(userId).trim());
+        // --- مفاتيح تيليجرام والمصادقة ---
+        BOT_TOKEN: process.env.BOT_TOKEN ? "موجود" : "غير موجود",
+        JWT_SECRET: process.env.JWT_SECRET ? "موجود" : "غير موجود",
 
-    console.log("4. Is match found?:", isAdmin);
-    console.log("=================================================\n");
-
-    if (isAdmin) {
-        return res.json({ success: true, isAdmin: true });
-    } else {
-        return res.status(403).json({ success: false, isAdmin: false, error: "Not authorized" });
-    }
+        // --- إعدادات الإعلانات والأمان ---
+        ADSGRAM_BLOCK_ID: process.env.ADSGRAM_BLOCK_ID ? "موجود" : "غير موجود",
+        ADMIN_IDS: process.env.ADMIN_IDS ? "موجود" : "غير موجود"
+    });
 });
 
 app.post('/api/admin/verify-webapp', verifyTelegramAdminWebapp, (req, res) => {
@@ -1007,8 +983,8 @@ app.post('/api/user/settings', authenticateUser, async (req, res, next) => {
   }
 });
 
-// --- Admin Protected Routes ---
-app.get('/api/admin/dashboard', requireAdmin, async (req, res, next) => {
+// --- Stealth Admin Panel Routes (Return 404 for Non-Admins) ---
+app.get('/api/admin/dashboard', authenticateUser, requireAdmin, async (req, res, next) => {
   try {
     const allUsers = await User.find().lean();
     res.json({ status: 'Welcome Admin', users: allUsers });
@@ -1017,7 +993,7 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res, next) => {
   }
 });
 
-app.get('/api/admin/dashboard-data', requireAdmin, async (req, res, next) => {
+app.get('/api/admin/dashboard-data', authenticateUser, requireAdmin, async (req, res, next) => {
   try {
     const [withdraws, deposits, users, stats, totalAds] = await Promise.all([
       Withdraw.find().populate('userId').sort({ createdAt: -1 }).lean(),
@@ -1035,7 +1011,7 @@ app.get('/api/admin/dashboard-data', requireAdmin, async (req, res, next) => {
   }
 });
 
-app.post('/api/admin/deposit/action', requireAdmin, async (req, res, next) => {
+app.post('/api/admin/deposit/action', authenticateUser, requireAdmin, async (req, res, next) => {
   const { depositId, action, reason } = req.body;
   if (!mongoose.Types.ObjectId.isValid(depositId)) return res.status(400).json({ success: false, error: 'Invalid Deposit ID' });
 
@@ -1088,7 +1064,7 @@ app.post('/api/admin/deposit/action', requireAdmin, async (req, res, next) => {
   }
 });
 
-app.post('/api/admin/withdraw/action', requireAdmin, async (req, res, next) => {
+app.post('/api/admin/withdraw/action', authenticateUser, requireAdmin, async (req, res, next) => {
   const { withdrawId, action, reason } = req.body;
   if (!mongoose.Types.ObjectId.isValid(withdrawId)) return res.status(400).json({ success: false, error: 'Invalid Withdraw ID' });
 
@@ -1141,7 +1117,7 @@ app.post('/api/admin/withdraw/action', requireAdmin, async (req, res, next) => {
   }
 });
 
-app.post('/api/admin/user/toggle-ban', requireAdmin, async (req, res, next) => {
+app.post('/api/admin/user/toggle-ban', authenticateUser, requireAdmin, async (req, res, next) => {
   const { userId } = req.body;
   if (!mongoose.Types.ObjectId.isValid(userId)) return res.status(400).json({ success: false, error: 'Invalid User ID' });
 
