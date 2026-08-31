@@ -1,63 +1,31 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr">
+<html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Dashboard</title>
-  <link rel="stylesheet" href="/style.css">
+  <title>لوحة الإدارة</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="admin.css">
 </head>
 <body>
 
-  <div class="container">
-    <div id="toast"></div>
-
-    <div id="admin-view">
-      <!-- زر الانتقال السريع لوحة التحكم -->
-      <div id="admin-banner-shortcut" class="admin-only" style="margin-bottom: 12px;">
-        <button class="btn-warning" style="width: 100%; font-weight: bold;">
-          ⚙️ لوحة التحكم للإدارة (Admin Panel)
-        </button>
-      </div>
-
-      <!-- Admin Tab Content -->
-      <div id="tab-content-admin" class="admin-only">
-        <div class="stats-grid" style="margin-bottom: 15px;">
-          <div class="stat-box"><small>Total Users</small><h3 id="admin-total-users">0</h3></div>
-          <div class="stat-box"><small>Total Pending</small><h3 id="admin-total-pending" style="color: var(--warning);">$0.00</h3></div>
-        </div>
-
-        <div class="card">
-          <h4 style="margin-top:0;">Revenue Distribution</h4>
-          <input type="number" id="revenue-amount" placeholder="Total Revenue ($)" min="0" step="any">
-          <button id="btn-distribute-rev" onclick="distributeRevenue()">Distribute Revenue to Links</button>
-        </div>
-
-        <div class="card">
-          <h4 style="margin-top:0;">Pending Deposit Requests</h4>
-          <div id="admin-deposits-list" style="font-size: 12px;">No pending deposits.</div>
-        </div>
-
-        <div class="card">
-          <h4 style="margin-top:0;">Pending Withdrawal Requests</h4>
-          <div id="admin-withdraws-list" style="font-size: 12px;">No pending withdrawals.</div>
-        </div>
-        
-        <div class="card">
-          <h4 style="margin-top:0;">User Management</h4>
-          <div id="admin-users-list" style="font-size: 12px;">Loading...</div>
-        </div>
-      </div>
-
-      <!-- Admin Navigation Button Snippet -->
-      <button class="nav-btn admin-only" id="tab-btn-admin" style="color: var(--warning);">
-        <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-5.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
-        <span>Admin</span>
-      </button>
-    </div>
-
+  <!-- شاشة الحظر للمستخدمين العاديين -->
+  <div id="access-denied" style="display: none; text-align: center; padding: 40px 20px;">
+    <h2>🚫 وصول غير مصرح</h2>
+    <p id="access-denied-message">عذراً، لا تملك الصلاحية للدخول إلى هذه الصفحة.</p>
   </div>
 
-  <script src="/admin/admin.js" defer></script>
+  <!-- محتوى لوحة الإدارة (مخفي افتراضياً) -->
+  <div id="admin-content" style="display: none;">
+    <h1>لوحة تحكم الإدارة</h1>
+    <hr>
+    
+    <!-- محتوى وأقسام لوحة التحكم هنا -->
+    <div class="stats-container">
+      <p>مرحباً بك في لوحة التحكم.</p>
+    </div>
+  </div>
+
+  <script src="admin.js"></script>
 </body>
 </html>
