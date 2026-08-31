@@ -40,12 +40,14 @@ const app = express();
 // ==================================================
 // 1. System Constants & Environment Configuration
 // ==================================================
-const ADMIN_IDS = process.env.ADMIN_IDS 
-  ? process.env.ADMIN_IDS.split(',').map(id => Number(id.trim())).filter(id => !isNaN(id) && id > 0)
-  : [];
+// تحويل النص إلى مصفوفة نصوص ناصعة بدون مسافات
+const adminIds = (process.env.ADMIN_IDS || "")
+  .split(",")
+  .map(id => id.trim())
+  .filter(Boolean);
 
 const CONFIG = Object.freeze({
-  BOT_TOKEN: process.env.BOT_TOKEN,
+  BOT_TOKEN: (process.env.BOT_TOKEN || '').trim(),
   MONGO_URI: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/telega_ads',
   JWT_SECRET: process.env.JWT_SECRET || 'fallback_jwt_secret_key_32bytes_long!',
   ADSGRAM_BLOCK_ID: process.env.ADSGRAM_BLOCK_ID || '1234',
@@ -233,7 +235,7 @@ function verifyTelegramData(initData) {
       .sort();
 
     const dataCheckString = paramsArr.join('\n');
-    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(CONFIG.BOT_TOKEN || '').digest();
+    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(CONFIG.BOT_TOKEN).digest();
     const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
 
     const calculatedBuffer = Buffer.from(calculatedHash, 'hex');
@@ -253,17 +255,19 @@ const verifyTelegramAdminWebapp = (req, res, next) => {
   const initData = req.headers['x-telegram-init-data'] || req.body.initData;
 
   if (!initData) {
-    return res.status(404).json({ success: false, error: 'Cannot POST ' + req.originalUrl });
+    return res.status(401).json({ success: false, message: "غير مصرح لك بالدخول" });
   }
 
   const telegramUser = verifyTelegramData(initData);
   if (!telegramUser || !telegramUser.id) {
-    return res.status(404).json({ success: false, error: 'Cannot POST ' + req.originalUrl });
+    return res.status(401).json({ success: false, message: "غير مصرح لك بالدخول" });
   }
 
-  const userId = Number(telegramUser.id);
-  if (!ADMIN_IDS.includes(userId)) {
-    return res.status(404).json({ success: false, error: 'Cannot POST ' + req.originalUrl });
+  const userId = telegramUser.id;
+  const isUserAdmin = adminIds.includes(String(userId));
+
+  if (!isUserAdmin) {
+    return res.status(401).json({ success: false, message: "غير مصرح لك بالدخول" });
   }
 
   req.telegramAdminUser = telegramUser;
@@ -307,7 +311,7 @@ const authenticateUser = async (req, res, next) => {
 
 const requireAdmin = (req, res, next) => {
   const isAdminRole = req.user && req.user.role === 'admin';
-  const isOwnerTelegramId = req.user && ADMIN_IDS.includes(Number(req.user.telegramId));
+  const isOwnerTelegramId = req.user && adminIds.includes(String(req.user.telegramId));
 
   if (isAdminRole || isOwnerTelegramId) {
     return next();
@@ -324,7 +328,7 @@ const protectAdminStatic = async (req, res, next) => {
 
   if (initData) {
     const tgUser = verifyTelegramData(initData);
-    if (tgUser && ADMIN_IDS.includes(Number(tgUser.id))) {
+    if (tgUser && adminIds.includes(String(tgUser.id))) {
       isAdmin = true;
     }
   }
@@ -334,7 +338,7 @@ const protectAdminStatic = async (req, res, next) => {
       const token = authHeader.split(' ')[1];
       const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
       const user = await User.findById(decoded.userId).lean();
-      if (user && (user.role === 'admin' || ADMIN_IDS.includes(Number(user.telegramId)))) {
+      if (user && (user.role === 'admin' || adminIds.includes(String(user.telegramId)))) {
         isAdmin = true;
       }
     } catch (e) {}
@@ -363,34 +367,6 @@ app.use('/admin', protectAdminStatic, express.static(path.join(__dirname, 'admin
 // 8. Application Routes
 // ==================================================
 
-// --- مسار الاختبار السريع لفحص متغيرات البيئة ---
-app.get('/api/check-env', (req, res) => {
-    res.json({
-        // --- روابط تيليجرام الرسمية ---
-        OFFICIAL_CHANNEL_URL: process.env.OFFICIAL_CHANNEL_URL ? "موجود" : "غير موجود",
-        OFFICIAL_BOT_URL: process.env.OFFICIAL_BOT_URL ? "موجود" : "غير موجود",
-
-        // --- إعدادات الخادم الأساسية ---
-        PORT: process.env.PORT ? "موجود" : "غير موجود",
-        NODE_ENV: process.env.NODE_ENV || "غير محدد",
-        APP_DOMAIN: process.env.APP_DOMAIN ? "موجود" : "غير موجود",
-
-        // --- إعدادات قاعدة بيانات MongoDB ---
-        MONGO_URI: process.env.MONGO_URI ? "موجود" : "غير موجود",
-
-        // --- إعدادات التخزين المؤقت Redis ---
-        REDIS_URL: process.env.REDIS_URL ? "موجود" : "غير موجود",
-
-        // --- مفاتيح تيليجرام والمصادقة ---
-        BOT_TOKEN: process.env.BOT_TOKEN ? "موجود" : "غير موجود",
-        JWT_SECRET: process.env.JWT_SECRET ? "موجود" : "غير موجود",
-
-        // --- إعدادات الإعلانات والأمان ---
-        ADSGRAM_BLOCK_ID: process.env.ADSGRAM_BLOCK_ID ? "موجود" : "غير موجود",
-        ADMIN_IDS: process.env.ADMIN_IDS ? "موجود" : "غير موجود"
-    });
-});
-
 app.post('/api/admin/verify-webapp', verifyTelegramAdminWebapp, (req, res) => {
   return res.json({
     success: true,
@@ -412,7 +388,7 @@ app.post('/api/auth/login', async (req, res, next) => {
     const currentUsername = telegramUser?.username || `User_${tgId.slice(-4)}`;
     const userLanguage = telegramUser?.language_code || CONFIG.DEFAULT_LANGUAGE;
 
-    const isSystemAdmin = ADMIN_IDS.includes(Number(tgId));
+    const isSystemAdmin = adminIds.includes(String(tgId));
 
     let user = await User.findOne({ telegramId: tgId });
     if (!user) {
@@ -587,8 +563,8 @@ app.post('/api/deposit', authenticateUser, async (req, res, next) => {
       status: 'pending'
     });
 
-    if (ADMIN_IDS.length > 0) {
-      ADMIN_IDS.forEach(adminId => {
+    if (adminIds.length > 0) {
+      adminIds.forEach(adminId => {
         sendTelegramNotification(
           adminId,
           `💳 <b>New Deposit Request!</b>\nUser: <code>${req.user.username}</code>\nAmount: <code>$${numAmount}</code>\nNetwork: <code>${cleanNetwork}</code>\nTxID: <code>${cleanTxid}</code>`
@@ -942,7 +918,7 @@ app.get('/api/user/data', authenticateUser, async (req, res, next) => {
       };
     });
 
-    const isAdmin = req.user.role === 'admin' || ADMIN_IDS.includes(Number(req.user.telegramId));
+    const isAdmin = req.user.role === 'admin' || adminIds.includes(String(req.user.telegramId));
     res.json({ 
       success: true,
       user: req.user, 
