@@ -1,15 +1,6 @@
 const mongoose = require('mongoose');
 
-// نموذج القنوات (تم إضافته لتوحيد ربط القنوات للمستخدم)
-const channelSchema = new mongoose.Schema({
-    channelId: { type: Number, required: true },
-    title: { type: String, default: '' },
-    username: { type: String, default: '' },
-    subscribersCount: { type: Number, default: 0 },
-    isVerified: { type: Boolean, default: false }
-}, { _id: false });
-
-// نموذج المستخدم
+// نموذج المستخدم (User Schema)
 const userSchema = new mongoose.Schema({
     telegramId: { 
         type: Number, 
@@ -20,20 +11,19 @@ const userSchema = new mongoose.Schema({
     firstName: { type: String, default: '' },
     lastName: { type: String, default: '' },
     username: { type: String, default: '' },
-    languageCode: { type: String, default: 'ar' },
     isPremium: { type: Boolean, default: false },
     photoUrl: { type: String, default: '' },
+    languageCode: { type: String, default: 'ar' },
     referredBy: { type: Number, default: null, index: true },
     availableBalance: { type: Number, default: 0, min: 0 },
     pendingBalance: { type: Number, default: 0, min: 0 },
     adBalance: { type: Number, default: 0, min: 0 },
     defaultWallet: { type: String, default: '' },
-    channels: [channelSchema],
-    isBanned: { type: Boolean, default: false },
+    isBanned: { type: Boolean, default: false, index: true },
     createdAt: { type: Date, default: Date.now }
 });
 
-// نموذج الروابط المختصرة
+// نموذج الروابط المختصرة (Link Schema)
 const linkSchema = new mongoose.Schema({
     code: { 
         type: String, 
@@ -44,21 +34,21 @@ const linkSchema = new mongoose.Schema({
     originalUrl: { type: String, required: true },
     title: { type: String, default: '' },
     userId: { type: Number, required: true, index: true },
-    views: { type: Number, default: 0 },
-    earnings: { type: Number, default: 0 },
-    isActive: { type: Boolean, default: true },
+    views: { type: Number, default: 0, min: 0 },
+    earnings: { type: Number, default: 0, min: 0 },
+    isActive: { type: Boolean, default: true, index: true },
     createdAt: { type: Date, default: Date.now }
 });
 
-// نموذج الحملات الإعلانية
+// نموذج الحملات الإعلانية (Campaign Schema)
 const campaignSchema = new mongoose.Schema({
     userId: { type: Number, required: true, index: true },
     title: { type: String, required: true },
     targetUrl: { type: String, required: true },
     budget: { type: Number, required: true, min: 0 },
-    cpm: { type: Number, default: 1.50 },
-    totalViewsNeeded: { type: Number, required: true },
-    viewsDelivered: { type: Number, default: 0 },
+    cpm: { type: Number, default: 1.50, min: 0 },
+    totalViewsNeeded: { type: Number, required: true, min: 1 },
+    viewsDelivered: { type: Number, default: 0, min: 0 },
     status: { 
         type: String, 
         enum: ['active', 'paused', 'completed'], 
@@ -68,12 +58,12 @@ const campaignSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
 });
 
-// نموذج الإيداع
+// نموذج الإيداع (Deposit Schema)
 const depositSchema = new mongoose.Schema({
     userId: { type: Number, required: true, index: true },
     network: { type: String, enum: ['TRC20', 'BEP20'], required: true },
-    amount: { type: Number, required: true, min: 0 },
-    txId: { type: String, required: true, unique: true, trim: true },
+    amount: { type: Number, required: true, min: 0.01 },
+    txId: { type: String, required: true, unique: true, trim: true, index: true },
     status: { 
         type: String, 
         enum: ['pending', 'approved', 'rejected'], 
@@ -83,10 +73,10 @@ const depositSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
 });
 
-// نموذج السحب
+// نموذج السحب (Withdraw Schema)
 const withdrawSchema = new mongoose.Schema({
     userId: { type: Number, required: true, index: true },
-    amount: { type: Number, required: true, min: 0 },
+    amount: { type: Number, required: true, min: 0.01 },
     fee: { type: Number, required: true, min: 0 },
     netAmount: { type: Number, required: true, min: 0 },
     walletAddress: { type: String, required: true, trim: true },
@@ -100,7 +90,6 @@ const withdrawSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
 });
 
-// تصدير الموديلات مع تفادي التكرار في Serverless
 module.exports = {
     User: mongoose.models.User || mongoose.model('User', userSchema),
     Link: mongoose.models.Link || mongoose.model('Link', linkSchema),
