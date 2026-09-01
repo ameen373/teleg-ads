@@ -8,11 +8,11 @@ const { User, Link, Campaign, Deposit, Withdraw } = require('./models');
 const app = express();
 app.use(express.json());
 
-// تقديم الملفات الاستاتيكية لمجلدي public و admin
+// تقديم الملفات الاستاتيكية
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/admin', express.static(path.join(__dirname, 'admin')));
 
-// تحسين الاتصال بـ MongoDB ليعمل بكفاءة على Vercel Serverless
+// إدارة اتصال قاعدة البيانات لبيئة Serverless
 let cachedDb = null;
 async function connectToDatabase() {
     if (cachedDb && mongoose.connection.readyState === 1) {
@@ -21,30 +21,30 @@ async function connectToDatabase() {
     if (!process.env.MONGODB_URI) {
         throw new Error('MONGODB_URI is not defined in environment variables');
     }
-    cachedDb = await mongoose.connect(process.env.MONGODB_URI, {
-        bufferCommands: false,
-    });
+    cachedDb = await mongoose.connect(process.env.MONGODB_URI);
     console.log('MongoDB Connected Successfully');
     return cachedDb;
 }
 
-// Middleware للـ Database Connection
+// Middleware للاتصال بقاعدة البيانات
 app.use(async (req, res, next) => {
     try {
         await connectToDatabase();
         next();
     } catch (err) {
         console.error('Database connection failure:', err);
-        res.status(500).json({ error: 'Database Connection Error' });
+        return res.status(500).json({ error: 'Database Connection Error' });
     }
 });
 
-// Verification Middleware (تشفير تليجرام وحماية الطلبات)
+// التثبت التشفيري لبيانات Telegram WebApp
 function verifyTelegramWebAppData(telegramInitData) {
     if (!telegramInitData || !process.env.BOT_TOKEN) return null;
     try {
         const urlParams = new URLSearchParams(telegramInitData);
         const hash = urlParams.get('hash');
+        if (!hash) return null;
+
         urlParams.delete('hash');
 
         const paramsHelp = Array.from(urlParams.entries())
@@ -57,7 +57,7 @@ function verifyTelegramWebAppData(telegramInitData) {
 
         if (calculatedHash === hash) {
             const userJson = urlParams.get('user');
-            return JSON.parse(userJson);
+            return userJson ? JSON.parse(userJson) : null;
         }
     } catch (err) {
         console.error('Telegram verification error:', err);
@@ -65,7 +65,7 @@ function verifyTelegramWebAppData(telegramInitData) {
     return null;
 }
 
-// Middleware للتحقق من هوية المستخدم
+// Middleware مصادقة المستخدم
 const authMiddleware = async (req, res, next) => {
     try {
         const initData = req.headers['x-telegram-init-data'];
@@ -77,15 +77,16 @@ const authMiddleware = async (req, res, next) => {
         let dbUser = await User.findOne({ telegramId: user.id });
         if (!dbUser) {
             const startParam = req.headers['x-start-param'];
-            const referrerId = startParam && !isNaN(startParam) ? parseInt(startParam) : null;
+            const referrerId = startParam && !isNaN(startParam) ? parseInt(startParam, 10) : null;
             dbUser = await User.create({
                 telegramId: user.id,
-                firstName: user.first_name,
+                firstName: user.first_name || '',
                 lastName: user.last_name || '',
                 username: user.username || '',
+                languageCode: user.language_code || 'ar',
                 isPremium: !!user.is_premium,
                 photoUrl: user.photo_url || '',
-                referredBy: referrerId !== user.id ? referrerId : null
+                referredBy: (referrerId && referrerId !== user.id) ? referrerId : null
             });
         }
 
@@ -97,11 +98,12 @@ const authMiddleware = async (req, res, next) => {
         req.dbUser = dbUser;
         next();
     } catch (err) {
-        res.status(500).json({ error: 'Auth Middleware Server Error' });
+        console.error('Auth Middleware Error:', err);
+        return res.status(500).json({ error: 'Auth Middleware Server Error' });
     }
 };
 
-// Middleware حماية الأدمن المنيعة
+// Middleware حماية الأدمن
 const adminMiddleware = async (req, res, next) => {
     try {
         const initData = req.headers['x-telegram-init-data'];
@@ -114,17 +116,16 @@ const adminMiddleware = async (req, res, next) => {
         req.adminUser = user;
         next();
     } catch (err) {
-        res.status(403).json({ error: 'Access Denied' });
+        return res.status(403).json({ error: 'Access Denied' });
     }
 };
 
-// ------------------- مسارات الواجهة العامة والتحميل -------------------
+// ------------------- مسارات الواجهة العامة -------------------
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'views.html'));
 });
 
-// مسار فتح صفحة الإدارة
 app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'admin', 'admin.html'));
 });
@@ -133,7 +134,7 @@ app.get('/admin', (req, res) => {
 
 app.get('/api/user/me', authMiddleware, (req, res) => {
     const adminId = process.env.ADMIN_ID ? process.env.ADMIN_ID.toString().trim() : '';
-    res.json({
+    return res.json({
         user: req.dbUser,
         isAdmin: req.dbUser.telegramId.toString().trim() === adminId,
         trc20Wallet: process.env.TRC20_WALLET || '',
@@ -144,11 +145,13 @@ app.get('/api/user/me', authMiddleware, (req, res) => {
 app.post('/api/user/wallet', authMiddleware, async (req, res) => {
     try {
         const { defaultWallet } = req.body;
+        if (!defaultWallet) return res.status(400).json({ error: 'Wallet address is required' });
+        
         req.dbUser.defaultWallet = defaultWallet;
         await req.dbUser.save();
-        res.json({ success: true, message: 'Wallet updated' });
+        return res.json({ success: true, message: 'Wallet updated' });
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
     }
 });
 
@@ -167,9 +170,9 @@ app.post('/api/links/shorten', authMiddleware, async (req, res) => {
         });
 
         const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
-        res.json({ success: true, link: { ...link._doc, shortUrl: `${baseUrl}/s/${code}` } });
+        return res.json({ success: true, link: { ...link.toObject(), shortUrl: `${baseUrl}/s/${code}` } });
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
     }
 });
 
@@ -178,12 +181,12 @@ app.get('/api/links/my', authMiddleware, async (req, res) => {
         const links = await Link.find({ userId: req.dbUser.telegramId }).sort({ createdAt: -1 });
         const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
         const formatted = links.map(l => ({
-            ...l._doc,
+            ...l.toObject(),
             shortUrl: `${baseUrl}/s/${l.code}`
         }));
-        res.json(formatted);
+        return res.json(formatted);
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
     }
 });
 
@@ -192,11 +195,12 @@ app.post('/api/links/toggle', authMiddleware, async (req, res) => {
         const { linkId } = req.body;
         const link = await Link.findOne({ _id: linkId, userId: req.dbUser.telegramId });
         if (!link) return res.status(404).json({ error: 'Link not found' });
+        
         link.isActive = !link.isActive;
         await link.save();
-        res.json({ success: true, isActive: link.isActive });
+        return res.json({ success: true, isActive: link.isActive });
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
     }
 });
 
@@ -208,7 +212,7 @@ app.get('/s/:code', async (req, res) => {
 
         const campaign = await Campaign.findOne({ status: 'active' });
 
-        res.send(`
+        return res.send(`
             <!DOCTYPE html>
             <html lang="ar" dir="rtl">
             <head>
@@ -264,7 +268,7 @@ app.get('/s/:code', async (req, res) => {
             </html>
         `);
     } catch (e) {
-        res.status(500).send('Server Error');
+        return res.status(500).send('Server Error');
     }
 });
 
@@ -280,7 +284,7 @@ app.post('/api/bridge/verify', async (req, res) => {
 
         if (campaignId && mongoose.Types.ObjectId.isValid(campaignId)) {
             const campaign = await Campaign.findById(campaignId);
-            if (campaign) {
+            if (campaign && campaign.status === 'active') {
                 campaign.viewsDelivered += 1;
                 if (campaign.viewsDelivered >= campaign.totalViewsNeeded) {
                     campaign.status = 'completed';
@@ -288,16 +292,16 @@ app.post('/api/bridge/verify', async (req, res) => {
                 await campaign.save();
             }
         }
-        res.json({ success: true });
+        return res.json({ success: true });
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
     }
 });
 
 // السحب والإيداع والحملات
 app.post('/api/user/deposit', authMiddleware, async (req, res) => {
     const { network, amount, txId } = req.body;
-    if (!txId || amount <= 0) return res.status(400).json({ error: 'Invalid payload' });
+    if (!txId || !amount || amount <= 0) return res.status(400).json({ error: 'Invalid payload' });
 
     try {
         const deposit = await Deposit.create({
@@ -306,16 +310,17 @@ app.post('/api/user/deposit', authMiddleware, async (req, res) => {
             amount,
             txId
         });
-        res.json({ success: true, deposit });
+        return res.json({ success: true, deposit });
     } catch (e) {
-        res.status(400).json({ error: 'TxID already submitted or invalid' });
+        return res.status(400).json({ error: 'TxID already submitted or invalid' });
     }
 });
 
 app.post('/api/user/withdraw', authMiddleware, async (req, res) => {
     try {
         const { amount, walletAddress } = req.body;
-        if (amount < 30) return res.status(400).json({ error: 'Minimum withdrawal is $30' });
+        if (!amount || amount < 30) return res.status(400).json({ error: 'Minimum withdrawal is $30' });
+        if (!walletAddress) return res.status(400).json({ error: 'Wallet address is required' });
         if (req.dbUser.availableBalance < amount) return res.status(400).json({ error: 'Insufficient balance' });
 
         const fee = amount * 0.10;
@@ -332,9 +337,9 @@ app.post('/api/user/withdraw', authMiddleware, async (req, res) => {
             walletAddress
         });
 
-        res.json({ success: true, withdraw });
+        return res.json({ success: true, withdraw });
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
     }
 });
 
@@ -342,16 +347,17 @@ app.get('/api/user/history', authMiddleware, async (req, res) => {
     try {
         const deposits = await Deposit.find({ userId: req.dbUser.telegramId }).sort({ createdAt: -1 });
         const withdraws = await Withdraw.find({ userId: req.dbUser.telegramId }).sort({ createdAt: -1 });
-        res.json({ deposits, withdraws });
+        return res.json({ deposits, withdraws });
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
     }
 });
 
 app.post('/api/campaigns/create', authMiddleware, async (req, res) => {
     try {
         const { title, targetUrl, budget } = req.body;
-        if (budget < 5) return res.status(400).json({ error: 'Minimum budget is $5' });
+        if (!title || !targetUrl) return res.status(400).json({ error: 'Missing parameters' });
+        if (!budget || budget < 5) return res.status(400).json({ error: 'Minimum budget is $5' });
         if (req.dbUser.adBalance < budget) return res.status(400).json({ error: 'Insufficient Ad balance' });
 
         const totalViewsNeeded = Math.floor((budget / 1.50) * 1000);
@@ -367,18 +373,18 @@ app.post('/api/campaigns/create', authMiddleware, async (req, res) => {
             totalViewsNeeded
         });
 
-        res.json({ success: true, campaign });
+        return res.json({ success: true, campaign });
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
     }
 });
 
 app.get('/api/campaigns/my', authMiddleware, async (req, res) => {
     try {
         const campaigns = await Campaign.find({ userId: req.dbUser.telegramId }).sort({ createdAt: -1 });
-        res.json(campaigns);
+        return res.json(campaigns);
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
     }
 });
 
@@ -391,14 +397,14 @@ app.get('/api/admin/stats', adminMiddleware, async (req, res) => {
         const pendingWithdraws = await Withdraw.countDocuments({ status: 'pending' });
         const aggregate = await User.aggregate([{ $group: { _id: null, totalPending: { $sum: "$pendingBalance" } } }]);
         
-        res.json({
+        return res.json({
             totalUsers,
             pendingDeposits,
             pendingWithdraws,
             totalPendingBalance: aggregate[0] ? aggregate[0].totalPending : 0
         });
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
     }
 });
 
@@ -434,18 +440,18 @@ app.post('/api/admin/distribute-revenue', adminMiddleware, async (req, res) => {
             }
         }
 
-        res.json({ success: true, message: 'Revenue Distributed' });
+        return res.json({ success: true, message: 'Revenue Distributed' });
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
     }
 });
 
 app.get('/api/admin/deposits', adminMiddleware, async (req, res) => {
     try {
         const deposits = await Deposit.find({ status: 'pending' }).sort({ createdAt: -1 });
-        res.json(deposits);
+        return res.json(deposits);
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
     }
 });
 
@@ -466,18 +472,18 @@ app.post('/api/admin/deposits/action', adminMiddleware, async (req, res) => {
             deposit.status = 'rejected';
         }
         await deposit.save();
-        res.json({ success: true });
+        return res.json({ success: true });
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
     }
 });
 
 app.get('/api/admin/withdraws', adminMiddleware, async (req, res) => {
     try {
         const withdraws = await Withdraw.find({ status: 'pending' }).sort({ createdAt: -1 });
-        res.json(withdraws);
+        return res.json(withdraws);
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
     }
 });
 
@@ -499,18 +505,18 @@ app.post('/api/admin/withdraws/action', adminMiddleware, async (req, res) => {
             }
         }
         await withdraw.save();
-        res.json({ success: true });
+        return res.json({ success: true });
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
     }
 });
 
 app.get('/api/admin/users', adminMiddleware, async (req, res) => {
     try {
         const users = await User.find().sort({ createdAt: -1 }).limit(100);
-        res.json(users);
+        return res.json(users);
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
     }
 });
 
@@ -522,13 +528,13 @@ app.post('/api/admin/users/ban', adminMiddleware, async (req, res) => {
             user.isBanned = ban;
             await user.save();
         }
-        res.json({ success: true });
+        return res.json({ success: true });
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        return res.status(500).json({ error: e.message });
     }
 });
 
-// إظهار الاستماع المحلي المحلي عند عدم استخدامه في Vercel Serverless
+// إيقاف تشغيل الاستماع المحلي في Vercel Serverless
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
     const PORT = process.env.PORT || 3000;
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
