@@ -1,5 +1,14 @@
 const mongoose = require('mongoose');
 
+// نموذج القنوات (تم إضافته لتوحيد ربط القنوات للمستخدم)
+const channelSchema = new mongoose.Schema({
+    channelId: { type: Number, required: true },
+    title: { type: String, default: '' },
+    username: { type: String, default: '' },
+    subscribersCount: { type: Number, default: 0 },
+    isVerified: { type: Boolean, default: false }
+}, { _id: false });
+
 // نموذج المستخدم
 const userSchema = new mongoose.Schema({
     telegramId: { 
@@ -11,13 +20,15 @@ const userSchema = new mongoose.Schema({
     firstName: { type: String, default: '' },
     lastName: { type: String, default: '' },
     username: { type: String, default: '' },
+    languageCode: { type: String, default: 'ar' },
     isPremium: { type: Boolean, default: false },
     photoUrl: { type: String, default: '' },
     referredBy: { type: Number, default: null, index: true },
-    availableBalance: { type: Number, default: 0 },
-    pendingBalance: { type: Number, default: 0 },
-    adBalance: { type: Number, default: 0 },
+    availableBalance: { type: Number, default: 0, min: 0 },
+    pendingBalance: { type: Number, default: 0, min: 0 },
+    adBalance: { type: Number, default: 0, min: 0 },
     defaultWallet: { type: String, default: '' },
+    channels: [channelSchema],
     isBanned: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now }
 });
@@ -44,7 +55,7 @@ const campaignSchema = new mongoose.Schema({
     userId: { type: Number, required: true, index: true },
     title: { type: String, required: true },
     targetUrl: { type: String, required: true },
-    budget: { type: Number, required: true },
+    budget: { type: Number, required: true, min: 0 },
     cpm: { type: Number, default: 1.50 },
     totalViewsNeeded: { type: Number, required: true },
     viewsDelivered: { type: Number, default: 0 },
@@ -61,8 +72,8 @@ const campaignSchema = new mongoose.Schema({
 const depositSchema = new mongoose.Schema({
     userId: { type: Number, required: true, index: true },
     network: { type: String, enum: ['TRC20', 'BEP20'], required: true },
-    amount: { type: Number, required: true },
-    txId: { type: String, required: true, trim: true },
+    amount: { type: Number, required: true, min: 0 },
+    txId: { type: String, required: true, unique: true, trim: true },
     status: { 
         type: String, 
         enum: ['pending', 'approved', 'rejected'], 
@@ -75,9 +86,9 @@ const depositSchema = new mongoose.Schema({
 // نموذج السحب
 const withdrawSchema = new mongoose.Schema({
     userId: { type: Number, required: true, index: true },
-    amount: { type: Number, required: true },
-    fee: { type: Number, required: true },
-    netAmount: { type: Number, required: true },
+    amount: { type: Number, required: true, min: 0 },
+    fee: { type: Number, required: true, min: 0 },
+    netAmount: { type: Number, required: true, min: 0 },
     walletAddress: { type: String, required: true, trim: true },
     status: { 
         type: String, 
@@ -89,7 +100,7 @@ const withdrawSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
 });
 
-// منع تكرار تسجيل الموديلات في بيئات Serverless (مثل Vercel)
+// تصدير الموديلات مع تفادي التكرار في Serverless
 module.exports = {
     User: mongoose.models.User || mongoose.model('User', userSchema),
     Link: mongoose.models.Link || mongoose.model('Link', linkSchema),
