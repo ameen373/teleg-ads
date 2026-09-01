@@ -8,14 +8,36 @@ const { User, Link, Campaign, Deposit, Withdraw } = require('./models');
 const app = express();
 app.use(express.json());
 
-// تقديم الملفات الاستاتيكية لكل من مجلدي public و admin
+// تقديم الملفات الاستاتيكية لمجلدي public و admin
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/admin', express.static(path.join(__dirname, 'admin')));
 
-// الاتصال بـ MongoDB
-mongoose.connect(process.env.MONGODB_URI)
-    .then(() => console.log('MongoDB Connected'))
-    .catch(err => console.error('MongoDB Error:', err));
+// تحسين الاتصال بـ MongoDB ليعمل بكفاءة على Vercel Serverless
+let cachedDb = null;
+async function connectToDatabase() {
+    if (cachedDb && mongoose.connection.readyState === 1) {
+        return cachedDb;
+    }
+    if (!process.env.MONGODB_URI) {
+        throw new Error('MONGODB_URI is not defined in environment variables');
+    }
+    cachedDb = await mongoose.connect(process.env.MONGODB_URI, {
+        bufferCommands: false,
+    });
+    console.log('MongoDB Connected Successfully');
+    return cachedDb;
+}
+
+// Middleware للـ Database Connection
+app.use(async (req, res, next) => {
+    try {
+        await connectToDatabase();
+        next();
+    } catch (err) {
+        console.error('Database connection failure:', err);
+        res.status(500).json({ error: 'Database Connection Error' });
+    }
+});
 
 // Verification Middleware (تشفير تليجرام وحماية الطلبات)
 function verifyTelegramWebAppData(telegramInitData) {
@@ -85,14 +107,14 @@ const adminMiddleware = async (req, res, next) => {
         const initData = req.headers['x-telegram-init-data'];
         const user = verifyTelegramWebAppData(initData);
         
-        const adminId = process.env.ADMIN_ID ? process.env.ADMIN_ID.toString() : '';
-        if (!user || user.id.toString() !== adminId) {
-            return res.status(403).send('Access Denied: You are not authorized.');
+        const adminId = process.env.ADMIN_ID ? process.env.ADMIN_ID.toString().trim() : '';
+        if (!user || user.id.toString().trim() !== adminId) {
+            return res.status(403).json({ error: 'Access Denied: You are not authorized.' });
         }
         req.adminUser = user;
         next();
     } catch (err) {
-        res.status(403).send('Access Denied');
+        res.status(403).json({ error: 'Access Denied' });
     }
 };
 
@@ -110,10 +132,10 @@ app.get('/admin', (req, res) => {
 // ------------------- APIs المستخدمين -------------------
 
 app.get('/api/user/me', authMiddleware, (req, res) => {
-    const adminId = process.env.ADMIN_ID ? process.env.ADMIN_ID.toString() : '';
+    const adminId = process.env.ADMIN_ID ? process.env.ADMIN_ID.toString().trim() : '';
     res.json({
         user: req.dbUser,
-        isAdmin: req.dbUser.telegramId.toString() === adminId,
+        isAdmin: req.dbUser.telegramId.toString().trim() === adminId,
         trc20Wallet: process.env.TRC20_WALLET || '',
         bep20Wallet: process.env.BEP20_WALLET || ''
     });
@@ -144,7 +166,8 @@ app.post('/api/links/shorten', authMiddleware, async (req, res) => {
             userId: req.dbUser.telegramId
         });
 
-        res.json({ success: true, link: { ...link._doc, shortUrl: `${process.env.BASE_URL}/s/${code}` } });
+        const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+        res.json({ success: true, link: { ...link._doc, shortUrl: `${baseUrl}/s/${code}` } });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
@@ -153,9 +176,10 @@ app.post('/api/links/shorten', authMiddleware, async (req, res) => {
 app.get('/api/links/my', authMiddleware, async (req, res) => {
     try {
         const links = await Link.find({ userId: req.dbUser.telegramId }).sort({ createdAt: -1 });
+        const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
         const formatted = links.map(l => ({
             ...l._doc,
-            shortUrl: `${process.env.BASE_URL}/s/${l.code}`
+            shortUrl: `${baseUrl}/s/${l.code}`
         }));
         res.json(formatted);
     } catch (e) {
@@ -229,6 +253,8 @@ app.get('/s/:code', async (req, res) => {
                                     body: JSON.stringify({ code: '${link.code}', campaignId: '${campaign ? campaign._id : ''}' })
                                 }).then(() => {
                                     window.location.href = '${link.originalUrl}';
+                                }).catch(() => {
+                                    window.location.href = '${link.originalUrl}';
                                 });
                             };
                         }
@@ -252,7 +278,7 @@ app.post('/api/bridge/verify', async (req, res) => {
             await link.save();
         }
 
-        if (campaignId) {
+        if (campaignId && mongoose.Types.ObjectId.isValid(campaignId)) {
             const campaign = await Campaign.findById(campaignId);
             if (campaign) {
                 campaign.viewsDelivered += 1;
@@ -379,7 +405,7 @@ app.get('/api/admin/stats', adminMiddleware, async (req, res) => {
 app.post('/api/admin/distribute-revenue', adminMiddleware, async (req, res) => {
     try {
         const { totalRevenue } = req.body;
-        if (totalRevenue <= 0) return res.status(400).json({ error: 'Invalid Revenue' });
+        if (!totalRevenue || totalRevenue <= 0) return res.status(400).json({ error: 'Invalid Revenue' });
 
         const activeLinks = await Link.find({ isActive: true });
         const totalViews = activeLinks.reduce((acc, l) => acc + l.views, 0);
@@ -502,5 +528,10 @@ app.post('/api/admin/users/ban', adminMiddleware, async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// إظهار الاستماع المحلي المحلي عند عدم استخدامه في Vercel Serverless
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+}
+
+module.exports = app;
