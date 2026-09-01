@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const crypto = require('crypto');
 const path = require('path');
 const { User, Channel, Link, Campaign, Deposit, Withdraw, Blacklist } = require('./models');
+const { getUserFullProfile } = require('./services/userInfoService');
 
 const app = express();
 app.use(express.json());
@@ -89,7 +90,6 @@ const authMiddleware = async (req, res, next) => {
                 referredBy: (referrerId && referrerId !== user.id) ? referrerId : null
             });
         } else {
-            // تحديث بيانات المستخدم والجلسة الأخيرة
             dbUser.lastActive = new Date();
             if (user.username && dbUser.username !== user.username) dbUser.username = user.username;
             await dbUser.save();
@@ -240,7 +240,7 @@ app.post('/api/links/toggle', authMiddleware, async (req, res) => {
     }
 });
 
-// صفحة الجسر والتوجيه مع تنقية البيانات لحماية أمنية مضاعفة
+// صفحة الجسر والتوجيه
 app.get('/s/:code', async (req, res) => {
     try {
         const link = await Link.findOne({ code: req.params.code, isActive: true });
@@ -359,7 +359,6 @@ app.post('/api/user/withdraw', authMiddleware, async (req, res) => {
         const fee = amount * 0.10;
         const netAmount = amount - fee;
 
-        // الخصم بأمان لضمان عدم السحب السلبي (Atomic Operation)
         const updatedUser = await User.findOneAndUpdate(
             { telegramId: req.dbUser.telegramId, availableBalance: { $gte: amount } },
             { $inc: { availableBalance: -amount } },
@@ -400,7 +399,6 @@ app.post('/api/campaigns/create', authMiddleware, async (req, res) => {
         if (!budget || budget < 5) return res.status(400).json({ error: 'Minimum budget is $5' });
         if (!title || !targetUrl) return res.status(400).json({ error: 'Title and Target URL are required' });
 
-        // خصم رصيد الإعلانات بشكل أمن (Atomic Operation)
         const updatedUser = await User.findOneAndUpdate(
             { telegramId: req.dbUser.telegramId, adBalance: { $gte: budget } },
             { $inc: { adBalance: -budget } },
@@ -540,7 +538,6 @@ app.post('/api/admin/withdraws/action', adminMiddleware, async (req, res) => {
         } else {
             withdraw.status = 'rejected';
             withdraw.rejectionReason = rejectionReason || 'Rejected by Admin';
-            // إرجاع الرخص والأموال للمستخدم في حال الرفض
             await User.updateOne({ telegramId: withdraw.userId }, { $inc: { availableBalance: withdraw.amount } });
         }
         await withdraw.save();
@@ -552,8 +549,32 @@ app.post('/api/admin/withdraws/action', adminMiddleware, async (req, res) => {
 
 app.get('/api/admin/users', adminMiddleware, async (req, res) => {
     try {
-        const users = await User.find().sort({ createdAt: -1 }).limit(100);
+        const { query } = req.query;
+        let filter = {};
+        if (query) {
+            const num = Number(query);
+            if (!isNaN(num)) {
+                filter = { telegramId: num };
+            } else {
+                filter = { username: new RegExp(query.replace('@', ''), 'i') };
+            }
+        }
+        const users = await User.find(filter).sort({ createdAt: -1 }).limit(100);
         res.json(users);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// 🔥 Endpoint جديد لجلــب الملف المفصل بالكامل للمستخدم 🔥
+app.get('/api/admin/users/full-profile/:telegramId', adminMiddleware, async (req, res) => {
+    try {
+        const { telegramId } = req.params;
+        const fullData = await getUserFullProfile(telegramId);
+        if (!fullData) {
+            return res.status(404).json({ error: 'المستخدم غير موجود' });
+        }
+        res.json(fullData);
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
@@ -581,7 +602,6 @@ app.post('/api/admin/users/ban', adminMiddleware, async (req, res) => {
     }
 });
 
-// إظهار الاستماع المحلي عند عدم التشغيل بداخل بيئة Serverless
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
     const PORT = process.env.PORT || 3000;
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
