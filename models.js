@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-// نموذج المستخدم (User Schema)
+// 1. نموذج المستخدم (User Schema)
 const userSchema = new mongoose.Schema({
     telegramId: { 
         type: Number, 
@@ -20,10 +20,22 @@ const userSchema = new mongoose.Schema({
     adBalance: { type: Number, default: 0, min: 0 },
     defaultWallet: { type: String, default: '' },
     isBanned: { type: Boolean, default: false, index: true },
+    lastActive: { type: Date, default: Date.now },
     createdAt: { type: Date, default: Date.now }
 });
 
-// نموذج الروابط المختصرة (Link Schema)
+// 2. نموذج القنوات (Channel Schema)
+const channelSchema = new mongoose.Schema({
+    userId: { type: Number, required: true, index: true },
+    channelId: { type: String, required: true, unique: true },
+    title: { type: String, required: true },
+    username: { type: String, default: '' },
+    subscriberCount: { type: Number, default: 0 },
+    isVerified: { type: Boolean, default: false },
+    createdAt: { type: Date, default: Date.now }
+});
+
+// 3. نموذج الروابط المختصرة (Link Schema)
 const linkSchema = new mongoose.Schema({
     code: { 
         type: String, 
@@ -40,14 +52,14 @@ const linkSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
 });
 
-// نموذج الحملات الإعلانية (Campaign Schema)
+// 4. نموذج الحملات الإعلانية (Campaign Schema)
 const campaignSchema = new mongoose.Schema({
     userId: { type: Number, required: true, index: true },
     title: { type: String, required: true },
     targetUrl: { type: String, required: true },
     budget: { type: Number, required: true, min: 0 },
-    cpm: { type: Number, default: 1.50, min: 0 },
-    totalViewsNeeded: { type: Number, required: true, min: 1 },
+    cpm: { type: Number, default: 1.50 },
+    totalViewsNeeded: { type: Number, required: true },
     viewsDelivered: { type: Number, default: 0, min: 0 },
     status: { 
         type: String, 
@@ -58,12 +70,12 @@ const campaignSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
 });
 
-// نموذج الإيداع (Deposit Schema)
+// 5. نموذج الإيداع (Deposit Schema)
 const depositSchema = new mongoose.Schema({
     userId: { type: Number, required: true, index: true },
     network: { type: String, enum: ['TRC20', 'BEP20'], required: true },
-    amount: { type: Number, required: true, min: 0.01 },
-    txId: { type: String, required: true, unique: true, trim: true, index: true },
+    amount: { type: Number, required: true, min: 0 },
+    txId: { type: String, required: true, unique: true, trim: true },
     status: { 
         type: String, 
         enum: ['pending', 'approved', 'rejected'], 
@@ -73,10 +85,10 @@ const depositSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
 });
 
-// نموذج السحب (Withdraw Schema)
+// 6. نموذج السحب (Withdraw Schema)
 const withdrawSchema = new mongoose.Schema({
     userId: { type: Number, required: true, index: true },
-    amount: { type: Number, required: true, min: 0.01 },
+    amount: { type: Number, required: true, min: 0 },
     fee: { type: Number, required: true, min: 0 },
     netAmount: { type: Number, required: true, min: 0 },
     walletAddress: { type: String, required: true, trim: true },
@@ -90,10 +102,21 @@ const withdrawSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
 });
 
+// 7. نموذج اللائحة السوداء (Blacklist Schema)
+const blacklistSchema = new mongoose.Schema({
+    type: { type: String, enum: ['ip', 'user'], required: true },
+    value: { type: String, required: true, unique: true, index: true },
+    reason: { type: String, default: '' },
+    createdAt: { type: Date, default: Date.now }
+});
+
+// منع تكرار تسجيل الموديلات عند استخدام Vercel / Serverless Environments
 module.exports = {
     User: mongoose.models.User || mongoose.model('User', userSchema),
+    Channel: mongoose.models.Channel || mongoose.model('Channel', channelSchema),
     Link: mongoose.models.Link || mongoose.model('Link', linkSchema),
     Campaign: mongoose.models.Campaign || mongoose.model('Campaign', campaignSchema),
     Deposit: mongoose.models.Deposit || mongoose.model('Deposit', depositSchema),
-    Withdraw: mongoose.models.Withdraw || mongoose.model('Withdraw', withdrawSchema)
+    Withdraw: mongoose.models.Withdraw || mongoose.model('Withdraw', withdrawSchema),
+    Blacklist: mongoose.models.Blacklist || mongoose.model('Blacklist', blacklistSchema)
 };
