@@ -1,7 +1,6 @@
 const tg = window.Telegram?.WebApp || {};
 if (tg.ready) tg.ready();
 
-// دالة عامة لإرسال الطلبات الموثقة
 async function fetchAdminApi(endpoint, options = {}) {
     const initData = tg.initData || '';
     const headers = {
@@ -111,8 +110,17 @@ window.handleWithdraw = async function(withdrawId, action) {
     if (data && data.success) fetchAdminStats();
 };
 
-async function loadUsers() {
-    const users = await fetchAdminApi('/api/admin/users');
+let searchTimeout;
+function searchUsers() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        const query = document.getElementById('userSearchInput').value.trim();
+        loadUsers(query);
+    }, 300);
+}
+
+async function loadUsers(query = '') {
+    const users = await fetchAdminApi(`/api/admin/users?query=${encodeURIComponent(query)}`);
     const container = document.getElementById('usersList');
     if (!container) return;
     if (!users || !Array.isArray(users) || users.length === 0) {
@@ -120,14 +128,17 @@ async function loadUsers() {
         return;
     }
     container.innerHTML = users.map(u => `
-        <div style="border-bottom: 1px solid #334155; padding: 8px 0; display:flex; justify-between; align-items:center;">
+        <div style="border-bottom: 1px solid #334155; padding: 10px 0; display:flex; justify-content:space-between; align-items:center;">
             <div>
                 <span><strong>ID:</strong> ${u.telegramId} | ${u.firstName} (${u.username ? '@' + u.username : 'بلا معرف'})</span>
                 ${u.isBanned ? '<span style="color:#ef4444;margin-right:8px;">[محظور]</span>' : ''}
             </div>
-            <button class="btn" style="background: ${u.isBanned ? '#22c55e' : '#ef4444'}; margin-top:0;" onclick="handleBan(${u.telegramId}, ${!u.isBanned})">
-                ${u.isBanned ? 'إلغاء الحظر' : 'حظر'}
-            </button>
+            <div>
+                <button class="btn" style="background:#38bdf8; margin-left:5px;" onclick="viewFullUser(${u.telegramId})">عرض الملف الكامل 🔍</button>
+                <button class="btn" style="background: ${u.isBanned ? '#22c55e' : '#ef4444'}; margin-top:0;" onclick="handleBan(${u.telegramId}, ${!u.isBanned})">
+                    ${u.isBanned ? 'إلغاء الحظر' : 'حظر'}
+                </button>
+            </div>
         </div>
     `).join('');
 }
@@ -138,6 +149,64 @@ window.handleBan = async function(telegramId, ban) {
         body: JSON.stringify({ telegramId, ban })
     });
     if (data && data.success) loadUsers();
+};
+
+// 🔥 دالة فتح النافذة وعرض البيانات التفصيلية للمستخدم 🔥
+window.viewFullUser = async function(telegramId) {
+    const modal = document.getElementById('userModal');
+    const modalBody = document.getElementById('modalBody');
+    modal.style.display = 'block';
+    modalBody.innerHTML = '<p style="text-align:center; color:#38bdf8;">جاري جلب وتحليل سجل الحساب بالكامل...</p>';
+
+    const data = await fetchAdminApi(`/api/admin/users/full-profile/${telegramId}`);
+    if (!data) {
+        modalBody.innerHTML = '<p style="color:#ef4444;text-align:center;">تعذر جلب تفاصيل المستخدم.</p>';
+        return;
+    }
+
+    const { profile, financials, publisherStats, advertiserStats, referralStats, details } = data;
+
+    modalBody.innerHTML = `
+        <h2 style="color:#38bdf8;border-bottom:1px solid #334155;padding-bottom:10px;">
+            👤 الملف الشامل: ${profile.firstName} ${profile.lastName} (${profile.username ? '@' + profile.username : 'بلا يوزر'})
+        </h2>
+        
+        <div class="stats-grid" style="margin: 15px 0;">
+            <div class="card"><h4>ID التليجرام</h4><p>${profile.telegramId}</p></div>
+            <div class="card"><h4>تاريخ التسجيل</h4><p>${new Date(profile.createdAt).toLocaleDateString('ar-EG')}</p></div>
+            <div class="card"><h4>آخر حضور</h4><p>${new Date(profile.lastActive).toLocaleString('ar-EG')}</p></div>
+            <div class="card"><h4>المحفظة الافتراضية</h4><p><code style="font-size:11px;">${profile.defaultWallet || 'غير مسجلة'}</code></p></div>
+        </div>
+
+        <h3 style="color:#22c55e;">💰 الموقف المالي والمحافظ</h3>
+        <div class="stats-grid">
+            <div class="card"><h4>المتاح للسحب</h4><h3 style="color:#22c55e;">$${financials.availableBalance.toFixed(2)}</h3></div>
+            <div class="card"><h4>الرصيد المعلق</h4><h3 style="color:#eab308;">$${financials.pendingBalance.toFixed(2)}</h3></div>
+            <div class="card"><h4>رصيد الإعلانات</h4><h3 style="color:#38bdf8;">$${financials.adBalance.toFixed(2)}</h3></div>
+            <div class="card"><h4>إجمالي الإيداعات</h4><h3>$${financials.totalDeposited.toFixed(2)}</h3></div>
+            <div class="card"><h4>إجمالي المسحوبات</h4><h3>$${financials.totalWithdrawn.toFixed(2)}</h3></div>
+        </div>
+
+        <h3 style="color:#38bdf8;">📊 إحصائيات الناشر (الروابط والقنوات)</h3>
+        <p><strong>القنوات المسجلة:</strong> ${publisherStats.channelsCount} | <strong>الروابط النشطة:</strong> ${publisherStats.activeLinksCount} / ${publisherStats.linksCount}</p>
+        <p><strong>إجمالي المشاهدات المحققة:</strong> ${publisherStats.totalViews} | <strong>إجمالي أرباح الروابط:</strong> $${publisherStats.totalEarnings.toFixed(2)}</p>
+
+        <h3 style="color:#a855f7;">📢 إحصائيات المعلن (الحملات)</h3>
+        <p><strong>عدد الحملات:</strong> ${advertiserStats.campaignsCount} | <strong>إجمالي الميزانية المستثمرة:</strong> $${advertiserStats.totalSpent.toFixed(2)} | <strong>المشاهدات المستلمة:</strong> ${advertiserStats.totalViewsDelivered}</p>
+
+        <h3 style="color:#f97316;">🔗 شبكة الإحالات</h3>
+        <p><strong>تمت دعوته بواسطة:</strong> ${referralStats.invitedBy ? `${referralStats.invitedBy.firstName} (${referralStats.invitedBy.telegramId})` : 'تسجيل مباشر (بدون إحالة)'}</p>
+        <p><strong>عدد الأشخاص الذين دعاهم:</strong> ${referralStats.totalReferred} مستخدم</p>
+    `;
+};
+
+window.closeUserModal = function() {
+    document.getElementById('userModal').style.display = 'none';
+};
+
+window.onclick = function(event) {
+    const modal = document.getElementById('userModal');
+    if (event.target === modal) modal.style.display = 'none';
 };
 
 document.addEventListener('DOMContentLoaded', fetchAdminStats);
