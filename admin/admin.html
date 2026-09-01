@@ -37,8 +37,19 @@
     </div>
 
     <div class="card">
-        <h3>إدارة المستخدمين والحظر</h3>
+        <h3>إدارة المستخدمين وسجل المعلومات الشامل</h3>
+        <input type="text" id="userSearchInput" placeholder="ابحث بـ ID التليجرام أو اليوزر نيم..." onkeyup="searchUsers()">
         <div id="usersList"></div>
+    </div>
+
+    <!-- نافذة العرض الشامل للمستخدم (User Full Profile Modal) -->
+    <div id="userModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeUserModal()">&times;</span>
+            <div id="modalBody">
+                <p style="text-align:center;">جاري تحميل معلومات المستخدم...</p>
+            </div>
+        </div>
     </div>
 
     <script src="/admin/admin.js"></script>
