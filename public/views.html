@@ -1,309 +1,136 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr">
+<html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  
-  <!-- Content Security Policy (CSP) لحماية التطبيق وزيادة الأمان -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https:; script-src 'self' 'unsafe-inline' https://telegram.org https://sad.adsgram.ai; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; iframe-src 'self' https://adsterra.com https://*.adsterra.com; connect-src 'self' https:;">
-
-  <title>Shortener & Ads Platform</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
-  <link rel="stylesheet" href="/style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Telega.ads</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 
-  <div class="container">
-    <div id="toast"></div>
+    <div id="toast" class="toast hidden"></div>
 
-    <!-- Modal: instructions -->
-    <div id="instructions-modal" class="modal-overlay hidden">
-      <div class="modal-content">
-        <h3 style="margin-top: 0; color: var(--accent); font-size: 16px;">Deposit & TxID Guide</h3>
-        <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 10px 0;">
-        <ol style="font-size: 12px; color: var(--text); padding-left: 18px; line-height: 1.6;">
-          <li><b>Select Network:</b> Choose (USDT TRC20 or BEP20) to view your deposit address, then click <i>Copy</i>.</li>
-          <li><b>Transfer Funds:</b> Open your wallet (Binance, Trust Wallet, OKX, etc.) and send USDT to the copied address.</li>
-          <li><b>Copy Transaction Hash (TxID):</b> After the transfer succeeds, copy the <b>TxHash / TxID</b>.
-            <div style="background: #050811; padding: 8px; border-radius: 8px; margin: 6px 0; border: 1px solid var(--border-color); text-align: center;">
-              <small style="color: var(--text-muted);">Example TxID format:</small><br>
-              <code style="color: var(--success); font-size: 10px;">4a8f92b...e83120c91</code>
+    <!-- Header / User Profile -->
+    <header class="user-profile">
+        <div class="user-info">
+            <img id="userAvatar" src="https://via.placeholder.com/45" alt="Avatar">
+            <div>
+                <h4 id="userName">Loading... <span id="premiumBadge" class="hidden">★</span></h4>
+                <p id="userHandle">@username</p>
             </div>
-          </li>
-          <li><b>Submit Request:</b> Return here, enter the deposit amount and TxID, then click <b>Submit Deposit Request</b>.</li>
-        </ol>
-        <button class="btn-danger" style="margin-top: 12px;" onclick="toggleInstructionsModal(false)">Close</button>
-      </div>
+        </div>
+        <button id="langToggleBtn" class="lang-btn">EN</button>
+    </header>
+
+    <!-- App Views Container -->
+    <main id="app">
+        <!-- Section: Links -->
+        <section id="linksSection" class="view-section active">
+            <div class="card">
+                <h3 data-i18n="shortenBtn">اختصار الرابط</h3>
+                <input type="url" id="originalUrlInput" placeholder="أدخل الرابط الأصلي...">
+                <input type="text" id="titleInput" placeholder="عنوان اختياري...">
+                <button id="shortenBtn" class="btn-primary">اختصار الأن</button>
+            </div>
+            <h3>روابطي المختصرة</h3>
+            <div id="linksList"></div>
+        </section>
+
+        <!-- Section: Ads -->
+        <section id="adsSection" class="view-section">
+            <div class="card">
+                <h3>إطلاق حملة إعلانية (CPM $1.50)</h3>
+                <input type="text" id="adTitle" placeholder="عنوان الإعلان">
+                <input type="url" id="adUrl" placeholder="رابط التوجيه">
+                <input type="number" id="adBudget" min="5" placeholder="الميزانية (الحد الأدنى $5)">
+                <button id="createAdBtn" class="btn-primary">إنشاء الحملة</button>
+            </div>
+            <h3>حملاتي النشطة</h3>
+            <div id="campaignsList"></div>
+        </section>
+
+        <!-- Section: Wallet -->
+        <section id="walletSection" class="view-section">
+            <div class="balances-grid">
+                <div class="bal-card"><span>الرصيد المتاح</span><h2 id="availBal">$0.00</h2></div>
+                <div class="bal-card"><span>الرصيد المعلق</span><h2 id="pendBal">$0.00</h2></div>
+                <div class="bal-card"><span>رصيد الإعلانات</span><h2 id="adBal">$0.00</h2></div>
+            </div>
+
+            <div class="card">
+                <h3>إيداع رصيد إعلانات (USDT)</h3>
+                <button id="openGuideBtn" class="btn-secondary">دليل الإيداع التفاعلي</button>
+                <select id="depositNetwork">
+                    <option value="TRC20">USDT (TRC20)</option>
+                    <option value="BEP20">USDT (BEP20)</option>
+                </select>
+                <div class="wallet-box">
+                    <span id="depositWalletAddr">اختر الشبكة لعرض العنوان</span>
+                    <button id="copyWalletBtn">نسخ</button>
+                </div>
+                <input type="number" id="depAmount" placeholder="المبلغ المودع">
+                <input type="text" id="depTxId" placeholder="رمز المعاملة TxID / TxHash">
+                <button id="submitDepositBtn" class="btn-primary">إرسال إثبات الإيداع</button>
+            </div>
+
+            <div class="card">
+                <h3>سحب الأرباح (TRC20)</h3>
+                <input type="number" id="withdrawAmount" placeholder="المبلغ (أقل حد 30$)">
+                <input type="text" id="withdrawWallet" placeholder="عنوان محفظة TRC20">
+                <p id="netWithdrawCalc">الصافي بعد الخصم (10%): $0.00</p>
+                <button id="submitWithdrawBtn" class="btn-primary">تأكيد طلب السحب</button>
+            </div>
+        </section>
+
+        <!-- Section: Referral -->
+        <section id="referralSection" class="view-section">
+            <div class="card text-center">
+                <h3>برنامج الإحالة (10%)</h3>
+                <p>احصل على 10% عمولة من إجمالي أرباح أصدقائك الجدد مدى الحياة.</p>
+                <input type="text" id="refLinkInput" readonly>
+                <button id="shareRefBtn" class="btn-primary">مشاركة الرابط عبر تليجرام</button>
+            </div>
+        </section>
+
+        <!-- Section: Settings -->
+        <section id="settingsSection" class="view-section">
+            <div class="card">
+                <h3>الأسئلة الشائعة (FAQ)</h3>
+                <details><summary>كيف يتم احتساب الأرباح؟</summary><p>يتم تجميع الأرباح اليومية وتوزيعها نسبياً بناءً على عدد الزيارات الحقيقية المعاطاة لروابطك.</p></details>
+                <details><summary>ما هي فترة الأمان للرصيد المعلق؟</summary><p>تستغرق فترة التأمين 24 ساعة للتحقق من سلامة الزيارات.</p></details>
+            </div>
+            <div class="card">
+                <h3>الدعم الفني</h3>
+                <a href="https://t.me/your_bot" target="_blank" class="btn-secondary">البوت الرسمي</a>
+                <a href="https://t.me/your_channel" target="_blank" class="btn-secondary">القناة الرسمية</a>
+            </div>
+        </section>
+    </main>
+
+    <!-- Bottom Dock Navigation Bar -->
+    <nav class="bottom-dock">
+        <button class="nav-btn active" data-target="linksSection">الروابط</button>
+        <button class="nav-btn" data-target="adsSection">الإعلانات</button>
+        <button class="nav-btn" data-target="walletSection">المحفظة</button>
+        <button class="nav-btn" data-target="referralSection">الإحالة</button>
+        <button class="nav-btn" data-target="settingsSection">الإعدادات</button>
+        <button id="adminDockBtn" class="nav-btn hidden-admin" onclick="location.href='/admin'">الأدمن</button>
+    </nav>
+
+    <!-- Modal Guide -->
+    <div id="guideModal" class="modal hidden">
+        <div class="modal-content">
+            <h3>كيف تقوم بالإيداع؟</h3>
+            <ol>
+                <li>انسخ عنوان المحفظة الخاص بالشبكة المطلوبة.</li>
+                <li>قم بإرسال المبلغ من محفظتك (Binance, TrustWallet, etc).</li>
+                <li>انسخ رمز الترانزكشن (TxID) وضعه في الحقل المخصص لإثبات العملية.</li>
+            </ol>
+            <button id="closeGuideBtn" class="btn-secondary">إغلاق</button>
+        </div>
     </div>
 
-    <!-- Bridge View -->
-    <div id="bridge-view" class="card hidden">
-      <h2 style="text-align: center; margin-bottom: 6px;" data-i18n="bridge_title">Preparing your link...</h2>
-      <p style="text-align: center; color: var(--text-muted); font-size: 12px; margin: 0;" data-i18n="bridge_desc">Please wait while we redirect you to your destination</p>
-      
-      <div id="ad-container" style="min-height: 220px; background: #000; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 16px 0; border: 1px dashed var(--border-color); overflow: hidden; padding: 12px; text-align: center;">
-        <span style="color: var(--text-muted); font-size: 12px;" data-i18n="ad_loading">Loading advertisement...</span>
-      </div>
-
-      <p style="text-align: center; font-size: 14px;"><span data-i18n="timer_text">Button unlocks in:</span> <b id="timer" style="color: var(--accent); font-size: 18px;">5</b> <span data-i18n="seconds">seconds</span></p>
-      <button id="go-btn" disabled onclick="completeImpression()">
-        <span id="go-btn-text" data-i18n="go_button">Continue to Destination</span>
-      </button>
-
-      <div style="margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border-color); text-align: center; font-size: 11px; color: var(--text-muted);">
-        <p style="margin: 0 0 6px 0;">
-          All rights reserved for <a href="https://t.me/Ads_telegabot" target="_blank" rel="noopener noreferrer" style="color: var(--accent); text-decoration: none; font-weight: bold;">Telega.ads</a> | Powered by <a href="https://t.me/Ads_telegabot" target="_blank" rel="noopener noreferrer" style="color: var(--accent); text-decoration: none; font-weight: bold;">Telega.ads</a>
-        </p>
-        <div style="margin-top: 8px;">
-          <a href="https://t.me/ttelega_ads" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: rgba(59, 130, 246, 0.15); border: 1px solid var(--accent); border-radius: 20px; color: var(--accent); text-decoration: none; font-weight: bold;">
-            📢 Official Channel
-          </a>
-        </div>
-      </div>
-    </div>
-
-    <!-- Main Telegram Mini App View -->
-    <div id="app-view" class="hidden">
-
-      <!-- User Profile Header -->
-      <div class="user-profile-header">
-        <div id="user-avatar-container"></div>
-        <div style="flex: 1;">
-          <div style="display: flex; align-items: center; gap: 6px;">
-            <span id="user-display-name" style="font-weight: bold; font-size: 15px;">...</span>
-            <span id="user-premium-badge" class="user-badge hidden">★ Premium</span>
-          </div>
-          <div id="user-display-handle" style="font-size: 12px; color: var(--text-muted);">@user</div>
-          <div id="user-tg-id" style="font-size: 10px; color: var(--text-muted); margin-top: 1px;">ID: -</div>
-        </div>
-      </div>
-
-      <!-- 1. Dashboard Tab -->
-      <div id="tab-content-dashboard">
-        <div class="card" style="border-color: var(--accent); background: rgba(30, 41, 59, 0.9);">
-          <h4 style="margin: 0 0 6px 0; color: var(--accent); font-size: 14px;" data-i18n="about_title">ℹ️ About & Terms of Use</h4>
-          <p style="margin: 0; font-size: 12px; color: var(--text-muted); line-height: 1.5;" data-i18n="about_desc">
-            This bot is securely dedicated to shortening links and managing promotional campaigns safely. By using this platform, you agree to comply with our traffic quality guidelines and terms of service.
-          </p>
-        </div>
-
-        <div id="announcement-box" class="card hidden" style="border-color: var(--accent);">
-          <h4 id="anc-title" style="margin: 0 0 6px 0; color: var(--accent);"></h4>
-          <p id="anc-content" style="margin: 0; font-size: 12px; color: var(--text-muted);"></p>
-        </div>
-
-        <div class="card">
-          <h3 style="font-size: 15px; margin-top:0;" data-i18n="create_link_title">Shorten New Link</h3>
-          <input type="text" id="link-title" data-i18n-ph="ph_link_title" placeholder="Title (Optional)" maxlength="100">
-          <input type="url" id="link-url" data-i18n-ph="ph_link_url" placeholder="Original URL (https://...)">
-          <button id="btn-create-link" onclick="handleShortenClick()">
-            <span data-i18n="btn_shorten">Shorten Link Now</span>
-          </button>
-        </div>
-
-        <div class="card">
-          <h3 style="font-size: 15px; margin-top:0;" data-i18n="my_links_title">Your Links</h3>
-          <div id="links-list" style="color: var(--text-muted); font-size: 12px;" data-i18n="loading">Loading...</div>
-        </div>
-      </div>
-
-      <!-- 2. Wallet Tab -->
-      <div id="tab-content-wallet" class="hidden">
-        <div class="stats-grid">
-          <div class="stat-box">
-            <small data-i18n="pending_bal">Pending Balance</small>
-            <h3 id="pending-bal" style="color:#f59e0b;">$0.00</h3>
-          </div>
-          <div class="stat-box">
-            <small data-i18n="avail_bal">Available Balance</small>
-            <h3 id="avail-bal" style="color:var(--success);">$0.00</h3>
-          </div>
-        </div>
-
-        <!-- Action Nav -->
-        <div class="wallet-actions-nav">
-          <button id="wallet-nav-deposit" class="wallet-action-btn active" onclick="switchWalletView('deposit')">📥 Deposit</button>
-          <button id="wallet-nav-withdraw" class="wallet-action-btn" onclick="switchWalletView('withdraw')">📤 Withdraw</button>
-        </div>
-
-        <!-- Deposit View -->
-        <div id="wallet-view-deposit" class="card">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <h3 style="font-size: 15px; margin:0;">Deposit Funds (USDT)</h3>
-            <button class="btn-small btn-warning" style="width: auto;" onclick="toggleInstructionsModal(true)">❓ Deposit Guide</button>
-          </div>
-          
-          <h4 style="font-size: 13px; margin: 8px 0 4px 0;">Select Deposit Network:</h4>
-          <select id="deposit-network" onchange="handleNetworkChange(this.value)">
-            <option value="">-- Choose Network to View Address --</option>
-            <option value="USDT_TRC20">USDT (TRC20 Network)</option>
-            <option value="USDT_BEP20">USDT (BEP20 Network)</option>
-          </select>
-
-          <div id="card-addr-trc20" class="address-card hidden">
-            <small style="color: var(--text-muted);">USDT - TRC20 (Tron) Deposit Address:</small>
-            <div class="address-row">
-              <span class="address-text" id="addr-trc20">TYqN8xM9KzL3pQ2vA5wR7jH4uE1sD8fX9k</span>
-              <button class="btn-small" onclick="copyToClipboard(document.getElementById('addr-trc20').innerText)">Copy</button>
-            </div>
-          </div>
-
-          <div id="card-addr-bep20" class="address-card hidden">
-            <small style="color: var(--text-muted);">USDT - BEP20 (BNB Smart Chain) Deposit Address:</small>
-            <div class="address-row">
-              <span class="address-text" id="addr-bep20">0x71C7656EC7ab88b098defB751B7401B5f6d8976F</span>
-              <button class="btn-small" onclick="copyToClipboard(document.getElementById('addr-bep20').innerText)">Copy</button>
-            </div>
-          </div>
-
-          <h4 style="font-size: 13px; margin: 14px 0 6px 0;">Submit Deposit Proof:</h4>
-          <input type="number" id="deposit-amount" placeholder="Deposited Amount ($)" min="1" step="any">
-          <input type="text" id="deposit-txhash" placeholder="Transaction TxID / TxHash" maxlength="128">
-          
-          <button id="btn-request-deposit" class="btn-success" style="margin-top: 10px;" onclick="requestDeposit()">
-            <span>Submit Deposit Request</span>
-          </button>
-        </div>
-
-        <!-- Withdraw View -->
-        <div id="wallet-view-withdraw" class="card hidden">
-          <h3 style="font-size: 15px; margin-top:0;" data-i18n="withdraw_request_title">Withdraw Earnings</h3>
-          
-          <div style="margin-bottom: 12px;">
-            <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;" data-i18n="wallet_addr_label">Withdrawal Wallet (USDT TRC20)</label>
-            <div style="display: flex; gap: 6px;">
-              <input type="text" id="default-wallet" placeholder="Enter wallet address" readonly style="margin-top: 0;" maxlength="128">
-              <button class="btn-small btn-warning" id="edit-wallet-btn" onclick="toggleWalletEdit()" style="margin-top: 0; width: auto;" data-i18n="btn_edit">Edit</button>
-            </div>
-            <button id="save-wallet-btn" class="hidden btn-small" onclick="saveSettings()" style="margin-top: 6px; width: 100%;" data-i18n="btn_save_wallet">Save New Address</button>
-          </div>
-
-          <input type="number" id="withdraw-amount" placeholder="Amount (Min. $30)" min="30" step="any" oninput="updateWithdrawCalculations()">
-          
-          <div class="fee-breakdown hidden" id="withdraw-fee-box">
-            <span>Amount: <b id="calc-req">$0</b></span>
-            <span>Fee (10%): <b id="calc-fee" style="color: var(--danger);">$0</b></span>
-            <span>Net: <b id="calc-net" style="color: var(--success);">$0</b></span>
-          </div>
-
-          <button id="btn-request-withdraw" style="margin-top: 12px;" onclick="requestWithdrawal()">
-            <span data-i18n="btn_submit_withdraw">Request Withdrawal</span>
-          </button>
-
-          <h4 style="font-size: 13px; margin: 16px 0 8px 0; border-top: 1px solid var(--border-color); padding-top: 12px;" data-i18n="withdraw_history">Withdrawal History</h4>
-          <div id="withdraws-list" style="font-size: 12px; color: var(--text-muted);" data-i18n="loading">Loading...</div>
-        </div>
-
-      </div>
-
-      <!-- 3. Self-Serve Ads Tab -->
-      <div id="tab-content-ads" class="hidden">
-        <div class="card">
-          <h3 style="font-size: 15px; margin-top:0;" data-i18n="create_ad_title">Create New Ad Campaign</h3>
-          <p style="font-size: 11px; color: var(--text-muted); margin-top:-4px;" data-i18n="ad_rate_desc">Ad Rate: $1.50 per 1,000 real impressions (CPM)</p>
-          
-          <input type="text" id="ad-title" data-i18n-ph="ph_ad_title" placeholder="Ad Title" maxlength="100">
-          <input type="url" id="ad-target-url" data-i18n-ph="ph_ad_target_url" placeholder="Target URL (https://...)">
-          <input type="number" id="ad-budget" data-i18n-ph="ph_ad_budget" placeholder="Total Budget (Min. $5)" min="5" step="any">
-          
-          <button id="btn-create-ad" onclick="createAdCampaign()">
-            <span data-i18n="btn_launch_ad">Launch Ad Campaign</span>
-          </button>
-        </div>
-
-        <div class="card">
-          <h3 style="font-size: 15px; margin-top:0;" data-i18n="my_ads_title">Your Ad Campaigns</h3>
-          <div id="ads-list" style="color: var(--text-muted); font-size: 12px;" data-i18n="loading">Loading...</div>
-        </div>
-      </div>
-
-      <!-- 4. Referral Tab -->
-      <div id="tab-content-referral" class="hidden">
-        <div class="card">
-          <h3 style="margin-top:0;" data-i18n="ref_title">Referral System (10%)</h3>
-          <p style="font-size: 12px; color: var(--text-muted); line-height: 1.5;" data-i18n="ref_desc">Invite your friends and instantly earn 10% of their total revenues.</p>
-          <input type="text" id="ref-link" readonly onclick="copyToClipboard(this.value)">
-          <button class="btn-success" style="margin-top: 10px;" onclick="shareReferralLink()">
-            <span data-i18n="btn_share_ref">Share Link via Telegram</span>
-          </button>
-          <div class="stat-box" style="margin-top:14px;">
-            <small data-i18n="total_ref_earnings">Total Referral Earnings</small>
-            <h3 id="ref-earnings" style="color:var(--success);">$0.00</h3>
-          </div>
-        </div>
-      </div>
-
-      <!-- 5. Settings Tab -->
-      <div id="tab-content-settings" class="hidden">
-        <div class="card">
-          <h3 style="margin-top:0; font-size: 15px;" data-i18n="lang_settings_title">Language / تغيير اللغة</h3>
-          <select id="language-select" onchange="changeAppLanguage(this.value)">
-            <option value="en">English (إنجليزية)</option>
-            <option value="ar">العربية (Arabic)</option>
-          </select>
-        </div>
-
-        <div class="card">
-          <h3 style="margin-top:0; font-size: 15px;" data-i18n="faq_title">FAQ & Support</h3>
-          <details>
-            <summary data-i18n="faq_q1">How are earnings calculated?</summary>
-            <p style="color: var(--text-muted); font-size: 12px; margin-top: 6px;" data-i18n="faq_a1">Earnings depend on ad revenue and are distributed proportionally based on verified visits.</p>
-          </details>
-          <details>
-            <summary data-i18n="faq_q2">What is the 1-day pending period?</summary>
-            <p style="color: var(--text-muted); font-size: 12px; margin-top: 6px;" data-i18n="faq_a2">It is a hold period to review traffic sources and prevent fraud before transferring earnings to available balance within 1 day.</p>
-          </details>
-          
-          <div style="margin-top: 16px; padding: 12px; background: #0d1527; border-radius: 10px; border: 1px solid var(--border-color); font-size: 12px; text-align: center;">
-            <span data-i18n="support_text">Contact technical support on Telegram:</span>
-            <div class="tg-links-group" style="flex-wrap: wrap;">
-              <a href="https://t.me/Ads_telegabot" target="_blank" rel="noopener noreferrer">
-                <button class="btn-small" style="width: 100%; background: var(--accent);">🤖 Official Bot</button>
-              </a>
-              <a href="https://t.me/ttelega_ads" target="_blank" rel="noopener noreferrer">
-                <button class="btn-small btn-success" style="width: 100%;">📢 Official Channel</button>
-              </a>
-              <a href="https://t.me/Te_AdsNs_bot" target="_blank" rel="noopener noreferrer">
-                <button class="btn-small btn-warning" style="width: 100%;">🎧 Support</button>
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Floating Bottom Nav Bar -->
-      <nav class="tg-nav-dock">
-        <button onclick="switchTab('dashboard')" class="nav-btn active" id="tab-btn-dashboard">
-          <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
-          <span data-i18n="nav_home">Home</span>
-        </button>
-
-        <button onclick="switchTab('wallet')" class="nav-btn" id="tab-btn-wallet">
-          <svg viewBox="0 0 24 24"><path d="M21 18v1c0 1.1-.9 2-2 2H5c-1.11 0-2-.9-2-2V5c0-1.1.89-2 2-2h14c1.1 0 2 .9 2 2v1h-9c-1.11 0-2 .9-2 2v8c0 1.1.89 2 2 2h9zm-9-2h10V8H12v8zm4-2.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
-          <span data-i18n="nav_wallet">Wallet</span>
-        </button>
-
-        <button onclick="switchTab('ads')" class="nav-btn" id="tab-btn-ads">
-          <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 10h2v7H7zm4-3h2v10h-2zm4 6h2v4h-2z"/></svg>
-          <span data-i18n="nav_ads">Ads</span>
-        </button>
-
-        <button onclick="switchTab('referral')" class="nav-btn" id="tab-btn-referral">
-          <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3-1.34 3-3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5s-3 1.34-3 3 1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-          <span data-i18n="nav_referral">Referrals</span>
-        </button>
-
-        <button onclick="switchTab('settings')" class="nav-btn" id="tab-btn-settings">
-          <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2z"/></svg>
-          <span data-i18n="nav_settings">Settings</span>
-        </button>
-      </nav>
-
-    </div>
-  </div>
-
-  <script src="/app.js" defer></script>
+    <script src="/app.js"></script>
 </body>
 </html>
