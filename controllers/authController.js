@@ -2,15 +2,12 @@
 const User = require('../models/User');
 
 /**
- * جلب بيانات البروفايل الخاص بالمستخدم الحالي
+ * جلب بيانات البروفايل الخاص بالمستخدم الحالي والأرصدة
  */
 const getProfile = async (req, res) => {
   try {
-    // req.user معبأة مسبقاً من خلال authMiddleware
     const user = req.user;
-
-    // بناء رابط الإحالة الخاص بالمستخدم
-    const botUsername = process.env.BOT_USERNAME || 'YourBot';
+    const botUsername = process.env.BOT_USERNAME || 'TelegaAdsBot';
     const referralLink = `https://t.me/${botUsername}?start=${user.telegramId}`;
 
     return res.status(200).json({
@@ -23,17 +20,17 @@ const getProfile = async (req, res) => {
         username: user.username,
         photoUrl: user.photoUrl,
         languageCode: user.languageCode,
-        role: user.role,
+        role: user.role || 'user',
         isPremium: user.isPremium,
         balances: {
-          available: user.availableBalance,
-          pending: user.pendingBalance,
-          totalEarned: user.totalEarned,
-          referralEarnings: user.referralEarnings
+          available: user.availableBalance || 0,
+          pending: user.pendingBalance || 0,
+          totalEarned: user.totalEarned || 0,
+          referralEarnings: user.referralEarnings || 0
         },
         defaultWalletAddress: user.defaultWalletAddress || '',
         referralLink: referralLink,
-        referredBy: user.referredBy,
+        referredBy: user.referredBy || null,
         createdAt: user.createdAt
       }
     });
@@ -41,19 +38,18 @@ const getProfile = async (req, res) => {
     console.error('[authController: getProfile Error]:', error);
     return res.status(500).json({
       success: false,
-      message: 'حدث خطأ في الخادم أثناء جلب بيانات البروفايل',
+      message: 'حدث خطأ أثناء جلب بيانات البروفايل',
       error: error.message
     });
   }
 };
 
 /**
- * تحديث إعدادات المستخدم (عنوان المحفظة واللغة المفضلة)
+ * تحديث إعدادات الحساب (العنوان الافتراضي واللغة)
  */
 const updateSettings = async (req, res) => {
   try {
     const { defaultWalletAddress, languageCode } = req.body;
-
     const user = await User.findById(req.user._id);
 
     if (!user) {
@@ -63,14 +59,12 @@ const updateSettings = async (req, res) => {
       });
     }
 
-    // تحديث عنوان المحفظة الافتراضي إن وجد في جسم الطلب
     if (defaultWalletAddress !== undefined) {
-      user.defaultWalletAddress = defaultWalletAddress.trim();
+      user.defaultWalletAddress = String(defaultWalletAddress).trim();
     }
 
-    // تحديث لغة الواجهة إن وجدت في جسم الطلب
     if (languageCode !== undefined) {
-      user.languageCode = languageCode.trim();
+      user.languageCode = String(languageCode).trim();
     }
 
     await user.save();
@@ -97,4 +91,3 @@ module.exports = {
   getProfile,
   updateSettings
 };
-
