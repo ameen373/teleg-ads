@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Telega.ads | شبكة اختصار الروابط والإعلانات</title>
 
-  <!-- Telegram WebApp SDK & Adsgram SDK -->
+  <!-- Telegram WebApp SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
   <!-- CSS Stylesheet -->
@@ -61,7 +61,7 @@
   <!-- ==========================================
        2. SECTION: SHORT LINKS (الروابط المختصرة)
        ========================================== -->
-  <section id="links-section" class="view-section">
+  <section id="links-section" class="view-section" style="display: none;">
     <div class="card">
       <div class="card-title">إنشاء رابط مختصر جديد</div>
       <form id="create-link-form">
@@ -102,7 +102,7 @@
   <!-- ==========================================
        3. SECTION: WALLET (المحفظة والسحوبات)
        ========================================== -->
-  <section id="wallet-section" class="view-section">
+  <section id="wallet-section" class="view-section" style="display: none;">
     <!-- Deposit Form -->
     <div class="card">
       <div class="card-title">إيداع رصيد بالمحفظة (USDT)</div>
@@ -197,7 +197,7 @@
   <!-- ==========================================
        4. SECTION: CAMPAIGN PLATFORM (الإعلانات)
        ========================================== -->
-  <section id="campaigns-section" class="view-section">
+  <section id="campaigns-section" class="view-section" style="display: none;">
     <div class="card">
       <div class="card-title">إنشاء حملة إعلانية جديدة</div>
       <form id="create-campaign-form">
@@ -214,7 +214,7 @@
           <input type="url" id="campaign-banner-url" class="form-control" placeholder="https://example.com/banner.jpg">
         </div>
         <div class="form-group">
-          <label class="form-label">الميزانية الكلية الكلية ($)</label>
+          <label class="form-label">الميزانية الكلية ($)</label>
           <input type="number" id="campaign-budget" class="form-control" min="1" step="0.5" placeholder="10.00" required>
         </div>
         <button type="submit" class="btn btn-primary">إطلاق الحملة</button>
@@ -232,7 +232,7 @@
   <!-- ==========================================
        5. SECTION: REFERRAL SYSTEM (الإحالة)
        ========================================== -->
-  <section id="referrals-section" class="view-section">
+  <section id="referrals-section" class="view-section" style="display: none;">
     <div class="card">
       <div class="card-title">نظام الدعوات والإحالات</div>
       <p style="margin-bottom: 12px;">احصل على نسبة 10% أرباح إضافية دائمة من كل مستخدم يسجل عن طريق رابط الإحالة الخاص بك.</p>
@@ -250,7 +250,7 @@
   <!-- ==========================================
        6. SECTION: SETTINGS & FAQ (الإعدادات)
        ========================================== -->
-  <section id="settings-section" class="view-section">
+  <section id="settings-section" class="view-section" style="display: none;">
     <div class="card">
       <div class="card-title">إعدادات الحساب واللغة</div>
       <div class="form-group">
@@ -282,7 +282,7 @@
   <!-- ==========================================
        7. SECTION: ADMIN DASHBOARD (لوحة الإدارة)
        ========================================== -->
-  <section id="admin-section" class="view-section">
+  <section id="admin-section" class="view-section" style="display: none;">
     <div class="card">
       <div class="card-title">إحصائيات النظام العامة</div>
       <div class="balances-grid">
@@ -308,49 +308,6 @@
         </div>
       </div>
     </div>
-
-    <div class="card">
-      <div class="card-title">طلبات الإيداع المعلقة</div>
-      <div class="table-responsive">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>المستخدم</th>
-              <th>المبلغ</th>
-              <th>الشبكة</th>
-              <th>TxHash</th>
-              <th>التاريخ</th>
-              <th>الإجراء</th>
-            </tr>
-          </thead>
-          <tbody id="pending-deposits-body">
-            <tr><td colspan="6" class="text-center">لا توجد طلبات معلقة</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">طلبات السحب المعلقة</div>
-      <div class="table-responsive">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>المستخدم</th>
-              <th>المبلغ</th>
-              <th>الخصم</th>
-              <th>الصافي</th>
-              <th>المحفظة</th>
-              <th>التاريخ</th>
-              <th>الإجراء</th>
-            </tr>
-          </thead>
-          <tbody id="pending-withdrawals-body">
-            <tr><td colspan="7" class="text-center">لا توجد طلبات معلقة</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
   </section>
 
   <!-- ==========================================
@@ -364,7 +321,7 @@
       </div>
       <div class="modal-body">
         <p>1. قم بتحويل المبلغ المحدد إلى عنوان محفظة المنصة الرسمي.</p>
-        <p>2. بعد استكمال التحويل من تطبيق المحفظة الخاص بك (Trust Wallet, Binance... الخ)، قم بنسخ <strong>Transaction Hash / TxID</strong>.</p>
+        <p>2. بعد استكمال التحويل من تطبيق المحفظة الخاص بك، قم بنسخ <strong>Transaction Hash / TxID</strong>.</p>
         <p>3. ألصق الرمز في نموذج الإيداع واضغط إرسال ليتم التحقق منه تلقائياً وتفعيل رصيدك.</p>
       </div>
     </div>
@@ -395,18 +352,17 @@
       <span>الإحالة</span>
     </button>
 
-    <!-- Admin Nav Tab (Hidden by default) -->
     <button class="nav-tab" id="admin-nav-tab" data-tab="admin" style="display: none; color: #f59e0b;">
       <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8s0 0 0 0z"/></svg>
       <span>الإدارة</span>
     </button>
   </nav>
 
-  <!-- JavaScript App Logic Scripts -->
+  <!-- JavaScript App Logic Scripts in Correct Dependency Order -->
+  <script src="/js/telegram.js"></script>
   <script src="/js/app.js"></script>
   <script src="/js/admin.js"></script>
 
-  <!-- Modal Logic Script Integration -->
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       const faqModal = document.getElementById('faq-modal');
@@ -414,23 +370,14 @@
       const closeModalBtn = document.getElementById('close-faq-modal-btn');
 
       if (openModalBtn && faqModal) {
-        openModalBtn.addEventListener('click', () => {
-          faqModal.classList.add('active');
-        });
+        openModalBtn.addEventListener('click', () => faqModal.classList.add('active'));
       }
-
       if (closeModalBtn && faqModal) {
-        closeModalBtn.addEventListener('click', () => {
-          faqModal.classList.remove('active');
-        });
+        closeModalBtn.addEventListener('click', () => faqModal.classList.remove('active'));
       }
-
-      // إغلاق النافذة عند النقر خارج المحتوى
       if (faqModal) {
         faqModal.addEventListener('click', (e) => {
-          if (e.target === faqModal) {
-            faqModal.classList.remove('active');
-          }
+          if (e.target === faqModal) faqModal.classList.remove('active');
         });
       }
     });
