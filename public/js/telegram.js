@@ -1,7 +1,6 @@
 // public/js/telegram.js
 
 (function () {
-  // التأكد من تحميل مكتبة Telegram WebApp
   const tg = window.Telegram?.WebApp;
 
   /**
@@ -11,35 +10,68 @@
     if (tg) {
       tg.ready();
       tg.expand();
-      
-      // تعيين لون شريط العنوان ليتناسب مع المظهر
       if (tg.setHeaderColor) {
         tg.setHeaderColor('secondary');
       }
     } else {
-      console.warn('Telegram WebApp library is not available.');
+      console.warn('Telegram WebApp SDK is not available.');
     }
   }
 
   /**
-   * 2. استخراج بيانات الاعتماد (initData) لإرسالها في الترويسات للـ API
-   * @returns {string} سلسلة initData الخام
+   * 2. استخراج initData بشكل مباشر وآمن
+   * @returns {string}
    */
   function getInitData() {
-    if (tg && tg.initData) {
-      return tg.initData;
-    }
-    return '';
+    return tg?.initData || '';
   }
 
   /**
-   * 3. تشغيل ردود الفعل اللمسية (Haptic Feedback)
-   * @param {string} type - نوع الاهتزاز ('impact', 'notification', 'selection')
-   * @param {string} style - النمط الخاص بالنص أو الإشعار (مثال: 'light', 'medium', 'heavy' لـ impact أو 'error', 'success', 'warning' لـ notification)
+   * 3. دالة الطلبات الموحدة (Fetch Wrapper)
+   * ترفق x-telegram-init-data و Authorization تلقائياً مع كل طلب
+   */
+  async function apiFetch(url, options = {}) {
+    const initData = getInitData();
+    const headers = {
+      'Content-Type': 'application/json',
+      'x-telegram-init-data': initData,
+      'Authorization': `tma ${initData}`,
+      ...(options.headers || {})
+    };
+
+    const config = {
+      ...options,
+      headers
+    };
+
+    try {
+      const response = await fetch(url, config);
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        return {
+          success: false,
+          status: response.status,
+          message: data.message || `خطأ في الطلب (${response.status})`
+        };
+      }
+
+      return data;
+    } catch (error) {
+      console.error(`[API Fetch Error - ${url}]:`, error);
+      return {
+        success: false,
+        status: 0,
+        message: 'تعذر الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.'
+      };
+    }
+  }
+
+  /**
+   * 4. تشغيل ردود الفعل اللمسية (Haptic Feedback)
    */
   function triggerHaptic(type = 'impact', style = 'medium') {
     if (!tg || !tg.HapticFeedback) return;
-
     try {
       switch (type) {
         case 'impact':
@@ -49,26 +81,22 @@
           tg.HapticFeedback.notificationOccurred(style);
           break;
         case 'selection':
-        case 'selectionChanged':
           tg.HapticFeedback.selectionChanged();
           break;
         default:
           tg.HapticFeedback.impactOccurred('medium');
       }
     } catch (error) {
-      console.error('[HapticFeedback Error]:', error);
+      console.error('[Haptic Error]:', error);
     }
   }
 
   /**
-   * 4. فتح الروابط الخارجية أو روابط تيليجرام
-   * @param {string} url - الرابط المراد فتحه
+   * 5. فتح الروابط الخارجيّة
    */
   function openTelegramLink(url) {
     if (!url) return;
-
     if (tg) {
-      // إذا كان الرابط رابط تيليجرام داخلي (t.me أو tg://)
       if (url.startsWith('https://t.me/') || url.startsWith('http://t.me/') || url.startsWith('tg://')) {
         if (typeof tg.openTelegramLink === 'function') {
           tg.openTelegramLink(url);
@@ -76,7 +104,6 @@
           window.open(url, '_blank');
         }
       } else {
-        // إذا كان رابط ويب عادي
         if (typeof tg.openLink === 'function') {
           tg.openLink(url);
         } else {
@@ -88,13 +115,14 @@
     }
   }
 
-  // تشغيل التهيئة تلقائياً عند تحميل الملف
+  // تشغيل التهيئة تلقائياً
   initTelegramApp();
 
-  // إتاحة الوظائف الكائنية والبيانات على نطاق window العام لاستخدامها في أجزاء التطبيق المختلفة
+  // تصدير الكائن على نطاق window
   window.TelegramApp = {
     tg,
     getInitData,
+    apiFetch,
     triggerHaptic,
     openTelegramLink,
     getUser: function () {
@@ -102,4 +130,3 @@
     }
   };
 })();
-
