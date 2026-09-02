@@ -2,7 +2,7 @@
 
 document.addEventListener('DOMContentLoaded', () => {
   // ==========================================
-  // Global State | حالة التطبيق العامة
+  // Global State
   // ==========================================
   const state = {
     user: null,
@@ -13,29 +13,27 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // ==========================================
-  // DOM Elements Selection | تحديد عناصر الواجهة
+  // DOM Elements
   // ==========================================
   const navTabs = document.querySelectorAll('.nav-tab');
   const viewSections = document.querySelectorAll('.view-section');
 
-  // Dashboard Stats Elements
   const availableBalanceEl = document.getElementById('user-available-balance');
   const pendingBalanceEl = document.getElementById('user-pending-balance');
   const totalEarnedEl = document.getElementById('user-total-earned');
   const userDisplayNameEl = document.getElementById('user-display-name');
+  const userTelegramIdEl = document.getElementById('user-telegram-id');
+  const userAvatarInitialEl = document.getElementById('user-avatar-initial');
 
-  // Forms
   const createLinkForm = document.getElementById('create-link-form');
   const createCampaignForm = document.getElementById('create-campaign-form');
   const depositForm = document.getElementById('deposit-form');
   const withdrawForm = document.getElementById('withdraw-form');
 
-  // Calculation Inputs
   const withdrawAmountInput = document.getElementById('withdraw-amount');
   const withdrawNetCalcEl = document.getElementById('withdraw-net-calc');
   const withdrawFeeCalcEl = document.getElementById('withdraw-fee-calc');
 
-  // Dynamic Lists & Tables
   const userLinksTableBody = document.getElementById('user-links-body');
   const userCampaignsList = document.getElementById('user-campaigns-list');
   const depositHistoryBody = document.getElementById('deposit-history-body');
@@ -44,40 +42,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const copyRefBtn = document.getElementById('copy-ref-btn');
 
   // ==========================================
-  // Helper Functions | الدوال المساعدة
+  // Helper Functions
   // ==========================================
 
-  /**
-   * جلب ترويسات الطلبات الموحدة
-   */
-  function getHeaders() {
-    const initData = window.TelegramApp ? window.TelegramApp.getInitData() : '';
-    return {
-      'Content-Type': 'application/json',
-      'x-telegram-init-data': initData
-    };
-  }
-
-  /**
-   * إظهار / إخفاء مؤشر التحميل الرئيسي
-   */
   function toggleLoader(show) {
     let loader = document.getElementById('global-app-loader');
-    if (!loader && show) {
-      loader = document.createElement('div');
-      loader.id = 'global-app-loader';
-      loader.className = 'global-loader-overlay';
-      loader.innerHTML = '<div class="spinner"></div>';
-      document.body.appendChild(loader);
-    }
     if (loader) {
       loader.style.display = show ? 'flex' : 'none';
     }
   }
 
-  /**
-   * إشعار Toast تفاعلي
-   */
   function showToast(message, type = 'info') {
     let container = document.getElementById('toast-container');
     if (!container) {
@@ -118,9 +92,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 3200);
   }
 
-  /**
-   * تشغيل الاهتزاز عند التفاعل
-   */
   function haptic(type = 'impact', style = 'medium') {
     if (window.TelegramApp && window.TelegramApp.triggerHaptic) {
       window.TelegramApp.triggerHaptic(type, style);
@@ -128,7 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ==========================================
-  // 1. Navigation Controller | إدارة التنقل
+  // 1. Navigation Controller
   // ==========================================
   function switchTab(targetTabId) {
     if (state.currentTab === targetTabId) return;
@@ -136,7 +107,6 @@ document.addEventListener('DOMContentLoaded', () => {
     state.currentTab = targetTabId;
     haptic('selection');
 
-    // تحديث أزرار التنقل
     navTabs.forEach(tab => {
       if (tab.dataset.tab === targetTabId) {
         tab.classList.add('active');
@@ -145,7 +115,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // التبديل بين الشاشات
     viewSections.forEach(section => {
       if (section.id === `${targetTabId}-section`) {
         section.classList.add('active-view');
@@ -156,7 +125,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // إعادة تحميل البيانات الخاصة بالشاشة المستهدفة
     switch (targetTabId) {
       case 'links':
         loadUserLinks();
@@ -176,46 +144,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
   navTabs.forEach(tab => {
     tab.addEventListener('click', () => {
-      const tabId = tab.dataset.tab;
-      switchTab(tabId);
+      switchTab(tab.dataset.tab);
     });
   });
 
   // ==========================================
-  // 2. Data Handlers & API Calls | جلب البيانات
+  // 2. Data Handlers & API Calls
   // ==========================================
 
   /**
-   * جلب بيانات بروفايل المستخدم ورصيده
+   * جلب بيانات بروفايل المستخدم فور الفتح وتحديث الهيدر والأرصدة
    */
   async function loadUserProfile() {
-    try {
-      const response = await fetch('/api/auth/me', { headers: getHeaders() });
-      const result = await response.json();
+    if (!window.TelegramApp || !window.TelegramApp.apiFetch) return;
 
-      if (result.success) {
-        state.user = result.data;
-        updateUserUI();
-      } else {
-        showToast(result.message || 'فشل جلب بيانات البروفايل', 'error');
-      }
-    } catch (error) {
-      console.error('[Load Profile Error]:', error);
+    const result = await window.TelegramApp.apiFetch('/api/auth/me');
+
+    if (result && result.success) {
+      state.user = result.data;
+      updateUserUI();
+    } else {
+      console.warn('[Load Profile Warning]:', result.message);
     }
   }
 
   /**
-   * تحديث واجهة البروفايل والأرصدة
+   * تحديث شاشة العرض ومعلومات المستخدم بالكامل
    */
   function updateUserUI() {
     if (!state.user) return;
 
-    const { available, pending, totalEarned } = state.user.balances;
+    const { available = 0, pending = 0, totalEarned = 0 } = state.user.balances || {};
 
     if (availableBalanceEl) availableBalanceEl.innerText = `$${available.toFixed(2)}`;
     if (pendingBalanceEl) pendingBalanceEl.innerText = `$${pending.toFixed(2)}`;
     if (totalEarnedEl) totalEarnedEl.innerText = `$${totalEarned.toFixed(2)}`;
-    if (userDisplayNameEl) userDisplayNameEl.innerText = state.user.firstName || 'مستخدم';
+
+    const name = state.user.firstName || 'مستخدم';
+    if (userDisplayNameEl) userDisplayNameEl.innerText = name;
+    if (userTelegramIdEl) userTelegramIdEl.innerText = `ID: ${state.user.telegramId || '-------'}`;
+    if (userAvatarInitialEl) userAvatarInitialEl.innerText = name.charAt(0).toUpperCase();
 
     if (referralLinkInput && state.user.referralLink) {
       referralLinkInput.value = state.user.referralLink;
@@ -225,31 +193,27 @@ document.addEventListener('DOMContentLoaded', () => {
     if (defaultWalletInput && state.user.defaultWalletAddress) {
       defaultWalletInput.value = state.user.defaultWalletAddress;
     }
-  }
 
-  /**
-   * جلب روابط المستخدم
-   */
-  async function loadUserLinks() {
-    toggleLoader(true);
-    try {
-      const response = await fetch('/api/links', { headers: getHeaders() });
-      const result = await response.json();
-
-      if (result.success) {
-        state.links = result.data;
-        renderLinksTable();
-      }
-    } catch (error) {
-      console.error('[Load Links Error]:', error);
-    } finally {
-      toggleLoader(false);
+    if (state.user.role === 'admin') {
+      const adminTab = document.getElementById('admin-nav-tab');
+      if (adminTab) adminTab.style.display = 'flex';
     }
   }
 
   /**
-   * عرض جدول الروابط
+   * جلب الروابط المختصرة
    */
+  async function loadUserLinks() {
+    toggleLoader(true);
+    const result = await window.TelegramApp.apiFetch('/api/links');
+    toggleLoader(false);
+
+    if (result.success) {
+      state.links = result.data || [];
+      renderLinksTable();
+    }
+  }
+
   function renderLinksTable() {
     if (!userLinksTableBody) return;
     userLinksTableBody.innerHTML = '';
@@ -266,9 +230,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td><strong>${link.code}</strong></td>
-        <td>${link.totalClicks}</td>
-        <td>${link.validImpressions}</td>
-        <td>$${link.earningsGenerated.toFixed(4)}</td>
+        <td>${link.totalClicks || 0}</td>
+        <td>${link.validImpressions || 0}</td>
+        <td>$${(link.earningsGenerated || 0).toFixed(4)}</td>
         <td>
           <span class="status-badge ${link.isActive ? 'active' : 'disabled'}">
             ${link.isActive ? 'نشط' : 'معطل'}
@@ -282,7 +246,6 @@ document.addEventListener('DOMContentLoaded', () => {
       userLinksTableBody.appendChild(tr);
     });
 
-    // أحداث زر النسخ والتبديل
     document.querySelectorAll('.copy-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         navigator.clipboard.writeText(btn.dataset.url);
@@ -296,59 +259,39 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  /**
-   * تفعيل/تعطيل رابط
-   */
   async function toggleLinkStatus(id) {
-    try {
-      const response = await fetch(`/api/links/${id}/toggle`, {
-        method: 'PATCH',
-        headers: getHeaders()
-      });
-      const result = await response.json();
-
-      if (result.success) {
-        showToast(result.message, 'success');
-        haptic('impact', 'light');
-        loadUserLinks();
-      } else {
-        showToast(result.message, 'error');
-      }
-    } catch (error) {
-      console.error('[Toggle Link Error]:', error);
+    const result = await window.TelegramApp.apiFetch(`/api/links/${id}/toggle`, { method: 'PATCH' });
+    if (result.success) {
+      showToast(result.message || 'تم تحديث حالة الرابط', 'success');
+      haptic('impact', 'light');
+      loadUserLinks();
+    } else {
+      showToast(result.message || 'فشل تغيير الحالة', 'error');
     }
   }
 
   /**
-   * جلب المعاملات المالية (إيداعات وسحوبات)
+   * جلب سجل المحفظة
    */
   async function loadWalletHistory() {
     toggleLoader(true);
-    try {
-      const response = await fetch('/api/wallet/history', { headers: getHeaders() });
-      const result = await response.json();
+    const result = await window.TelegramApp.apiFetch('/api/wallet/history');
+    toggleLoader(false);
 
-      if (result.success) {
-        state.walletHistory = result.data;
-        renderWalletHistory();
-      }
-    } catch (error) {
-      console.error('[Load Wallet History Error]:', error);
-    } finally {
-      toggleLoader(false);
+    if (result.success) {
+      state.walletHistory = result.data || { deposits: [], withdrawals: [] };
+      renderWalletHistory();
     }
   }
 
-  /**
-   * عرض سجل المحفظة
-   */
   function renderWalletHistory() {
     if (depositHistoryBody) {
       depositHistoryBody.innerHTML = '';
-      if (state.walletHistory.deposits.length === 0) {
+      const deposits = state.walletHistory.deposits || [];
+      if (deposits.length === 0) {
         depositHistoryBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">لا توجد عمليات إيداع</td></tr>';
       } else {
-        state.walletHistory.deposits.forEach(dep => {
+        deposits.forEach(dep => {
           const tr = document.createElement('tr');
           tr.innerHTML = `
             <td>$${dep.amount.toFixed(2)}</td>
@@ -363,14 +306,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (withdrawHistoryBody) {
       withdrawHistoryBody.innerHTML = '';
-      if (state.walletHistory.withdrawals.length === 0) {
+      const withdrawals = state.walletHistory.withdrawals || [];
+      if (withdrawals.length === 0) {
         withdrawHistoryBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">لا توجد عمليات سحب</td></tr>';
       } else {
-        state.walletHistory.withdrawals.forEach(wth => {
+        withdrawals.forEach(wth => {
           const tr = document.createElement('tr');
           tr.innerHTML = `
             <td>$${wth.amount.toFixed(2)}</td>
-            <td>$${wth.netAmount.toFixed(2)}</td>
+            <td>$${(wth.netAmount || wth.amount).toFixed(2)}</td>
             <td><span class="status-${wth.status}">${wth.status}</span></td>
             <td>${new Date(wth.createdAt).toLocaleDateString('ar-EG')}</td>
           `;
@@ -381,28 +325,19 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /**
-   * جلب حملات المستخدم
+   * جلب الحملات الإعلانية
    */
   async function loadUserCampaigns() {
     toggleLoader(true);
-    try {
-      const response = await fetch('/api/campaigns', { headers: getHeaders() });
-      const result = await response.json();
+    const result = await window.TelegramApp.apiFetch('/api/campaigns');
+    toggleLoader(false);
 
-      if (result.success) {
-        state.campaigns = result.data;
-        renderCampaignsList();
-      }
-    } catch (error) {
-      console.error('[Load Campaigns Error]:', error);
-    } finally {
-      toggleLoader(false);
+    if (result.success) {
+      state.campaigns = result.data || [];
+      renderCampaignsList();
     }
   }
 
-  /**
-   * عرض قائمة الحملات
-   */
   function renderCampaignsList() {
     if (!userCampaignsList) return;
     userCampaignsList.innerHTML = '';
@@ -421,53 +356,23 @@ document.addEventListener('DOMContentLoaded', () => {
           <span class="status-badge ${camp.status}">${camp.status}</span>
         </div>
         <div class="campaign-body">
-          <p>الميزانية الإجمالية: $${camp.totalBudget.toFixed(2)}</p>
-          <p>الميزانية المتبقية: $${camp.remainingBudget.toFixed(2)}</p>
-          <p>الظهور المحقق: ${camp.impressionsDelivered}</p>
-        </div>
-        <div class="campaign-actions">
-          ${camp.status !== 'completed' ? `<button class="btn-sm toggle-camp-btn" data-id="${camp._id}">${camp.status === 'active' ? 'إيقاف مؤقت' : 'تنشيط'}</button>` : ''}
+          <p>الميزانية الإجمالية: $${(camp.totalBudget || 0).toFixed(2)}</p>
+          <p>الميزانية المتبقية: $${(camp.remainingBudget || 0).toFixed(2)}</p>
+          <p>الظهور المحقق: ${camp.impressionsDelivered || 0}</p>
         </div>
       `;
       userCampaignsList.appendChild(card);
     });
-
-    document.querySelectorAll('.toggle-camp-btn').forEach(btn => {
-      btn.addEventListener('click', () => toggleCampaignStatus(btn.dataset.id));
-    });
-  }
-
-  /**
-   * إيقاف/تنشيط حملة إعلانية
-   */
-  async function toggleCampaignStatus(id) {
-    try {
-      const response = await fetch(`/api/campaigns/${id}/toggle`, {
-        method: 'PATCH',
-        headers: getHeaders()
-      });
-      const result = await response.json();
-
-      if (result.success) {
-        showToast(result.message, 'success');
-        haptic('impact', 'light');
-        loadUserCampaigns();
-      } else {
-        showToast(result.message, 'error');
-      }
-    } catch (error) {
-      console.error('[Toggle Campaign Error]:', error);
-    }
   }
 
   // ==========================================
-  // 5. Realtime Calculation | حاسبة العمولات
+  // 3. Calculator & Forms Events
   // ==========================================
+
   if (withdrawAmountInput) {
     withdrawAmountInput.addEventListener('input', () => {
       const amount = parseFloat(withdrawAmountInput.value) || 0;
-      const feePercent = 0.03; // 3%
-      const fee = amount * feePercent;
+      const fee = amount * 0.03;
       const net = Math.max(0, amount - fee);
 
       if (withdrawFeeCalcEl) withdrawFeeCalcEl.innerText = `$${fee.toFixed(2)}`;
@@ -475,11 +380,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // ==========================================
-  // 6. Forms Handling | ربط النماذج بالخلفية
-  // ==========================================
-
-  // نموذج إنشاء رابط مختصر
   if (createLinkForm) {
     createLinkForm.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -487,32 +387,24 @@ document.addEventListener('DOMContentLoaded', () => {
       const title = document.getElementById('link-title-input').value;
 
       toggleLoader(true);
-      try {
-        const response = await fetch('/api/links', {
-          method: 'POST',
-          headers: getHeaders(),
-          body: JSON.stringify({ originalUrl, title })
-        });
-        const result = await response.json();
+      const result = await window.TelegramApp.apiFetch('/api/links', {
+        method: 'POST',
+        body: JSON.stringify({ originalUrl, title })
+      });
+      toggleLoader(false);
 
-        if (result.success) {
-          showToast('تم إنشاء الرابط المختصر بنجاح', 'success');
-          haptic('notification', 'success');
-          createLinkForm.reset();
-          loadUserLinks();
-        } else {
-          showToast(result.message || 'فشل إنشاء الرابط', 'error');
-          haptic('notification', 'error');
-        }
-      } catch (error) {
-        console.error('[Create Link Form Error]:', error);
-      } finally {
-        toggleLoader(false);
+      if (result.success) {
+        showToast('تم إنشاء الرابط المختصر بنجاح', 'success');
+        haptic('notification', 'success');
+        createLinkForm.reset();
+        loadUserLinks();
+      } else {
+        showToast(result.message || 'فشل إنشاء الرابط', 'error');
+        haptic('notification', 'error');
       }
     });
   }
 
-  // نموذج تقديم طلب إيداع
   if (depositForm) {
     depositForm.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -521,32 +413,24 @@ document.addEventListener('DOMContentLoaded', () => {
       const txHash = document.getElementById('deposit-txhash').value;
 
       toggleLoader(true);
-      try {
-        const response = await fetch('/api/wallet/deposit', {
-          method: 'POST',
-          headers: getHeaders(),
-          body: JSON.stringify({ amount, network, txHash })
-        });
-        const result = await response.json();
+      const result = await window.TelegramApp.apiFetch('/api/wallet/deposit', {
+        method: 'POST',
+        body: JSON.stringify({ amount, network, txHash })
+      });
+      toggleLoader(false);
 
-        if (result.success) {
-          showToast('تم تقديم طلب الإيداع بنجاح وهو قيد المراجعة', 'success');
-          haptic('notification', 'success');
-          depositForm.reset();
-          loadWalletHistory();
-        } else {
-          showToast(result.message || 'فشل تقديم طلب الإيداع', 'error');
-          haptic('notification', 'error');
-        }
-      } catch (error) {
-        console.error('[Deposit Form Error]:', error);
-      } finally {
-        toggleLoader(false);
+      if (result.success) {
+        showToast('تم تقديم طلب الإيداع بنجاح', 'success');
+        haptic('notification', 'success');
+        depositForm.reset();
+        loadWalletHistory();
+      } else {
+        showToast(result.message || 'فشل طلب الإيداع', 'error');
+        haptic('notification', 'error');
       }
     });
   }
 
-  // نموذج تقديم طلب سحب
   if (withdrawForm) {
     withdrawForm.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -554,35 +438,27 @@ document.addEventListener('DOMContentLoaded', () => {
       const walletAddress = document.getElementById('withdraw-wallet-address').value;
 
       toggleLoader(true);
-      try {
-        const response = await fetch('/api/wallet/withdraw', {
-          method: 'POST',
-          headers: getHeaders(),
-          body: JSON.stringify({ amount, walletAddress })
-        });
-        const result = await response.json();
+      const result = await window.TelegramApp.apiFetch('/api/wallet/withdraw', {
+        method: 'POST',
+        body: JSON.stringify({ amount, walletAddress })
+      });
+      toggleLoader(false);
 
-        if (result.success) {
-          showToast('تم تقديم طلب السحب بنجاح وخصم المبلغ من رصيدك', 'success');
-          haptic('notification', 'success');
-          withdrawForm.reset();
-          if (withdrawFeeCalcEl) withdrawFeeCalcEl.innerText = '$0.00';
-          if (withdrawNetCalcEl) withdrawNetCalcEl.innerText = '$0.00';
-          loadUserProfile();
-          loadWalletHistory();
-        } else {
-          showToast(result.message || 'فشل تقديم طلب السحب', 'error');
-          haptic('notification', 'error');
-        }
-      } catch (error) {
-        console.error('[Withdraw Form Error]:', error);
-      } finally {
-        toggleLoader(false);
+      if (result.success) {
+        showToast('تم تقديم طلب السحب بنجاح', 'success');
+        haptic('notification', 'success');
+        withdrawForm.reset();
+        if (withdrawFeeCalcEl) withdrawFeeCalcEl.innerText = '$0.00';
+        if (withdrawNetCalcEl) withdrawNetCalcEl.innerText = '$0.00';
+        loadUserProfile();
+        loadWalletHistory();
+      } else {
+        showToast(result.message || 'فشل تقديم طلب السحب', 'error');
+        haptic('notification', 'error');
       }
     });
   }
 
-  // نموذج إنشاء حملة إعلانية
   if (createCampaignForm) {
     createCampaignForm.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -592,33 +468,25 @@ document.addEventListener('DOMContentLoaded', () => {
       const totalBudget = document.getElementById('campaign-budget').value;
 
       toggleLoader(true);
-      try {
-        const response = await fetch('/api/campaigns', {
-          method: 'POST',
-          headers: getHeaders(),
-          body: JSON.stringify({ title, targetUrl, bannerUrl, totalBudget })
-        });
-        const result = await response.json();
+      const result = await window.TelegramApp.apiFetch('/api/campaigns', {
+        method: 'POST',
+        body: JSON.stringify({ title, targetUrl, bannerUrl, totalBudget })
+      });
+      toggleLoader(false);
 
-        if (result.success) {
-          showToast('تم إنشاء وإطلاق الحملة الإعلانية بنجاح', 'success');
-          haptic('notification', 'success');
-          createCampaignForm.reset();
-          loadUserProfile();
-          loadUserCampaigns();
-        } else {
-          showToast(result.message || 'فشل إنشاء الحملة', 'error');
-          haptic('notification', 'error');
-        }
-      } catch (error) {
-        console.error('[Create Campaign Form Error]:', error);
-      } finally {
-        toggleLoader(false);
+      if (result.success) {
+        showToast('تم إطلاق الحملة الإعلانية بنجاح', 'success');
+        haptic('notification', 'success');
+        createCampaignForm.reset();
+        loadUserProfile();
+        loadUserCampaigns();
+      } else {
+        showToast(result.message || 'فشل إنشاء الحملة', 'error');
+        haptic('notification', 'error');
       }
     });
   }
 
-  // نسخ رابط الإحالة
   if (copyRefBtn && referralLinkInput) {
     copyRefBtn.addEventListener('click', () => {
       if (referralLinkInput.value) {
@@ -630,7 +498,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ==========================================
-  // Global App Initialization | بدء تشغيل التطبيق
+  // Initialization
   // ==========================================
   loadUserProfile();
 });
