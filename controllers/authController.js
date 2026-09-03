@@ -7,8 +7,8 @@ const User = require('../models/User');
 const getProfile = async (req, res) => {
   try {
     const user = req.user;
-    const botUsername = process.env.BOT_USERNAME || 'TelegaAdsBot';
-    const referralLink = `https://t.me/${botUsername}?start=${user.telegramId}`;
+    const botUsername = process.env.BOT_USERNAME || process.env.TELEGRAM_BOT_USERNAME || 'TelegaAdsBot';
+    const referralLink = `https://t.me/${botUsername}/app?startapp=ref_${user.telegramId}`;
 
     return res.status(200).json({
       success: true,
@@ -23,10 +23,10 @@ const getProfile = async (req, res) => {
         role: user.role || 'user',
         isPremium: user.isPremium,
         balances: {
-          available: user.availableBalance || 0,
-          pending: user.pendingBalance || 0,
-          totalEarned: user.totalEarned || 0,
-          referralEarnings: user.referralEarnings || 0
+          available: user.balances?.available ?? user.availableBalance ?? 0,
+          pending: user.balances?.pending ?? user.pendingBalance ?? 0,
+          totalEarned: user.balances?.totalEarned ?? user.totalEarned ?? 0,
+          referralEarnings: user.balances?.referralEarned ?? user.referralEarnings ?? 0
         },
         defaultWalletAddress: user.defaultWalletAddress || '',
         referralLink: referralLink,
