@@ -3,11 +3,11 @@ const crypto = require('crypto');
 const User = require('../models/User');
 
 /**
- * ميدل وير المصادقة للتحقق من التوقيع والتأكد من هويّة المستخدم عبر Telegram InitData
+ * ميدل وير المصادقة والتحقق من صحة توقيع Telegram InitData
  */
 const authMiddleware = async (req, res, next) => {
   try {
-    // 1. قراءة الترويسة بمرونة مرئية
+    // 1. استخراج الترويسة بمرونة (Header Inspection)
     let initDataRaw = req.headers['x-telegram-init-data'] || req.headers['x-init-data'];
 
     if (!initDataRaw && req.headers.authorization) {
@@ -35,7 +35,7 @@ const authMiddleware = async (req, res, next) => {
       });
     }
 
-    // 2. تفكيك السلسلة
+    // 2. تحليل سلسلة URL parameters
     const urlParams = new URLSearchParams(initDataRaw);
     const hash = urlParams.get('hash');
 
@@ -48,7 +48,7 @@ const authMiddleware = async (req, res, next) => {
 
     urlParams.delete('hash');
 
-    // ترتيب العناصر أبجدياً وتجهيز السلسلة للمطابقة
+    // ترتيب المعلمات أبجدياً بناءً على الممارسات القياسية لتيليجرام
     const dataCheckArr = [];
     for (const [key, value] of urlParams.entries()) {
       dataCheckArr.push(`${key}=${value}`);
@@ -56,7 +56,7 @@ const authMiddleware = async (req, res, next) => {
     dataCheckArr.sort();
     const dataCheckString = dataCheckArr.join('\n');
 
-    // 3. مطابقة التوقيع باستخدام HMAC-SHA256
+    // 3. التحقق من التوقيع عبر HMAC-SHA256
     const secretKey = crypto
       .createHmac('sha256', 'WebAppData')
       .update(botToken)
@@ -67,6 +67,7 @@ const authMiddleware = async (req, res, next) => {
       .update(dataCheckString)
       .digest('hex');
 
+    // المقارنة الآمنة زمنياً لتفادي هجمات Timing Attacks
     const isHashValid = crypto.timingSafeEqual(
       Buffer.from(calculatedHash, 'utf-8'),
       Buffer.from(hash, 'utf-8')
@@ -91,7 +92,7 @@ const authMiddleware = async (req, res, next) => {
     const tgUser = JSON.parse(userJson);
     const startParam = urlParams.get('start_param');
 
-    // 5. جلب المستخدم أو تسجيله تلقائياً
+    // 5. جلب المستخدم أو إنشاؤه عند تسجيل الدخول الأول
     let user = await User.findOne({ telegramId: tgUser.id });
 
     if (!user) {
@@ -118,6 +119,7 @@ const authMiddleware = async (req, res, next) => {
         referredBy: referrerTelegramId
       });
     } else {
+      // تحديث بيانات الملف الشخصي بصفة مستمرة عند التغير
       user.firstName = tgUser.first_name || user.firstName;
       user.lastName = tgUser.last_name || user.lastName;
       user.username = tgUser.username || user.username;
