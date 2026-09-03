@@ -1,25 +1,32 @@
 // public/js/telegram.js
 
 (function () {
+  'use strict';
+
   const tg = window.Telegram?.WebApp;
 
   /**
    * 1. تهيئة تطبيق Telegram Mini App
    */
   function initTelegramApp() {
-    if (tg) {
+    if (!tg) {
+      console.warn('[Telegram WebApp] SDK غير متاح. يرجى الفتح من داخل تطبيق تيليجرام.');
+      return;
+    }
+
+    try {
       tg.ready();
       tg.expand();
-      if (tg.setHeaderColor) {
+      if (typeof tg.setHeaderColor === 'function') {
         tg.setHeaderColor('secondary');
       }
-    } else {
-      console.warn('Telegram WebApp SDK is not available.');
+    } catch (err) {
+      console.error('[Telegram Init Error]:', err);
     }
   }
 
   /**
-   * 2. استخراج initData بشكل مباشر وآمن
+   * 2. استخراج initData بأمان من الكائن المتاح
    * @returns {string}
    */
   function getInitData() {
@@ -28,10 +35,14 @@
 
   /**
    * 3. دالة الطلبات الموحدة (Fetch Wrapper)
-   * ترفق x-telegram-init-data و Authorization تلقائياً مع كل طلب
+   * ترفق x-telegram-init-data و Authorization تلقائياً
+   * @param {string} url 
+   * @param {object} options 
+   * @returns {Promise<object>}
    */
   async function apiFetch(url, options = {}) {
     const initData = getInitData();
+
     const headers = {
       'Content-Type': 'application/json',
       'x-telegram-init-data': initData,
@@ -68,10 +79,12 @@
   }
 
   /**
-   * 4. تشغيل ردود الفعل اللمسية (Haptic Feedback)
+   * 4. ردود الفعل اللمسية (Haptic Feedback)
+   * @param {string} type 
+   * @param {string} style 
    */
   function triggerHaptic(type = 'impact', style = 'medium') {
-    if (!tg || !tg.HapticFeedback) return;
+    if (!tg?.HapticFeedback) return;
     try {
       switch (type) {
         case 'impact':
@@ -92,23 +105,20 @@
   }
 
   /**
-   * 5. فتح الروابط الخارجيّة
+   * 5. فتح الروابط الخارجية داخل أو خارج تيليجرام
+   * @param {string} url 
    */
   function openTelegramLink(url) {
     if (!url) return;
+
     if (tg) {
-      if (url.startsWith('https://t.me/') || url.startsWith('http://t.me/') || url.startsWith('tg://')) {
-        if (typeof tg.openTelegramLink === 'function') {
-          tg.openTelegramLink(url);
-        } else {
-          window.open(url, '_blank');
-        }
+      const isTgScheme = url.startsWith('https://t.me/') || url.startsWith('http://t.me/') || url.startsWith('tg://');
+      if (isTgScheme && typeof tg.openTelegramLink === 'function') {
+        tg.openTelegramLink(url);
+      } else if (typeof tg.openLink === 'function') {
+        tg.openLink(url);
       } else {
-        if (typeof tg.openLink === 'function') {
-          tg.openLink(url);
-        } else {
-          window.open(url, '_blank');
-        }
+        window.open(url, '_blank');
       }
     } else {
       window.open(url, '_blank');
@@ -118,7 +128,7 @@
   // تشغيل التهيئة تلقائياً
   initTelegramApp();
 
-  // تصدير الكائن على نطاق window
+  // تصدير الكائن العام
   window.TelegramApp = {
     tg,
     getInitData,
