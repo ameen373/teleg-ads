@@ -1,6 +1,10 @@
 // config/constants.js
 
 const SYSTEM_CONSTANTS = {
+  // بيانات البوت
+  BOT_USERNAME: 'Ads_telegabot',
+  BOT_URL: 'https://t.me/Ads_telegabot',
+
   // نسبة خصم رسوم السحب (3%)
   WITHDRAWAL_FEE_PERCENT: 0.03,
 
@@ -24,4 +28,3 @@ const SYSTEM_CONSTANTS = {
 };
 
 module.exports = SYSTEM_CONSTANTS;
-
