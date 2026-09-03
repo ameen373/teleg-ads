@@ -1,7 +1,72 @@
 // public/js/app.js
 
+// تهيئة كائن التفاعل مع تليجرام ودالة apiFetch الموحدة
+window.TelegramApp = window.TelegramApp || {
+  getInitData: function () {
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
+      return window.Telegram.WebApp.initData;
+    }
+    return '';
+  },
+  getUser: function () {
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
+      return window.Telegram.WebApp.initDataUnsafe.user || null;
+    }
+    return null;
+  },
+  triggerHaptic: function (type = 'impact', style = 'medium') {
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+      if (type === 'impact') {
+        window.Telegram.WebApp.HapticFeedback.impactOccurred(style);
+      } else if (type === 'notification') {
+        window.Telegram.WebApp.HapticFeedback.notificationOccurred(style);
+      } else if (type === 'selection') {
+        window.Telegram.WebApp.HapticFeedback.selectionChanged();
+      }
+    }
+  },
+  apiFetch: async function (url, options = {}) {
+    const initData = this.getInitData();
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${initData}`,
+      'x-telegram-init-data': initData,
+      ...(options.headers || {})
+    };
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        return {
+          success: false,
+          message: data.message || 'فشلت عملية المصادقة',
+          status: response.status
+        };
+      }
+      return data;
+    } catch (err) {
+      console.error('[apiFetch Error]:', err);
+      return {
+        success: false,
+        message: 'فشل الاتصال بالخادم، يرجى التحقق من الشبكة'
+      };
+    }
+  }
+};
+
 document.addEventListener('DOMContentLoaded', () => {
   'use strict';
+
+  // إعلام تليجرام بجاهزية التطبيق المصغر وتكبير الشاشة
+  if (window.Telegram && window.Telegram.WebApp) {
+    window.Telegram.WebApp.ready();
+    window.Telegram.WebApp.expand();
+  }
 
   // ==========================================
   // Global State
@@ -11,6 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
     currentTab: 'home',
     links: [],
     campaigns: [],
+    referrals: { stats: null, history: [] },
     walletHistory: { deposits: [], withdrawals: [] }
   };
 
@@ -40,8 +106,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const userCampaignsList = document.getElementById('user-campaigns-list');
   const depositHistoryBody = document.getElementById('deposit-history-body');
   const withdrawHistoryBody = document.getElementById('withdraw-history-body');
+  
   const referralLinkInput = document.getElementById('referral-link-input');
   const copyRefBtn = document.getElementById('copy-ref-btn');
+  const claimRefBtn = document.getElementById('claim-ref-btn');
+  const totalRefEarnedEl = document.getElementById('total-ref-earned');
+  const totalRefUsersEl = document.getElementById('total-ref-users');
+  const refHistoryBody = document.getElementById('ref-history-body');
 
   // ==========================================
   // UI & Feedback Helpers
@@ -98,9 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function haptic(type = 'impact', style = 'medium') {
-    if (window.TelegramApp?.triggerHaptic) {
-      window.TelegramApp.triggerHaptic(type, style);
-    }
+    window.TelegramApp.triggerHaptic(type, style);
   }
 
   // ==========================================
@@ -132,6 +201,9 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'campaigns':
         loadUserCampaigns();
         break;
+      case 'referral':
+        loadReferralData();
+        break;
       case 'home':
       default:
         loadUserProfile();
@@ -151,9 +223,6 @@ document.addEventListener('DOMContentLoaded', () => {
    * جلب بيانات بروفايل المستخدم وتحديث الواجهة مباشرة عند التحميل
    */
   async function loadUserProfile() {
-    if (!window.TelegramApp?.apiFetch) return;
-
-    // محاولة جلب بيانات العميل المباشرة أولاً لإظهارها استباقياً
     const localUser = window.TelegramApp.getUser();
     if (localUser) {
       if (userDisplayNameEl) {
@@ -209,6 +278,50 @@ document.addEventListener('DOMContentLoaded', () => {
       const adminTab = document.getElementById('admin-nav-tab');
       if (adminTab) adminTab.style.display = 'flex';
     }
+  }
+
+  /**
+   * جلب بيانات الإحالة ورابط الدعوة
+   */
+  async function loadReferralData() {
+    toggleLoader(true);
+    const result = await window.TelegramApp.apiFetch('/api/referrals/stats');
+    toggleLoader(false);
+
+    if (result && result.success) {
+      state.referrals.stats = result.data;
+      if (referralLinkInput && result.data.referralLink) {
+        referralLinkInput.value = result.data.referralLink;
+      }
+      if (totalRefEarnedEl) {
+        totalRefEarnedEl.innerText = `$${Number(result.data.referralEarnings || 0).toFixed(2)}`;
+      }
+      if (totalRefUsersEl) {
+        totalRefUsersEl.innerText = result.data.totalReferredUsers || 0;
+      }
+      renderReferralHistory(result.data.recentReferredUsers || []);
+    } else {
+      showToast(result?.message || 'فشلت عملية المصادقة', 'error');
+    }
+  }
+
+  function renderReferralHistory(users) {
+    if (!refHistoryBody) return;
+    refHistoryBody.innerHTML = '';
+
+    if (users.length === 0) {
+      refHistoryBody.innerHTML = '<tr><td colspan="2" style="text-align:center;">لا توجد إحالات حالية</td></tr>';
+      return;
+    }
+
+    users.forEach(user => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${user.maskedName}</td>
+        <td>${new Date(user.joinedAt).toLocaleDateString('ar-EG')}</td>
+      `;
+      refHistoryBody.appendChild(tr);
+    });
   }
 
   /**
@@ -504,6 +617,26 @@ document.addEventListener('DOMContentLoaded', () => {
         navigator.clipboard.writeText(referralLinkInput.value);
         showToast('تم نسخ رابط الإحالة الخاص بك', 'success');
         haptic('notification', 'success');
+      }
+    });
+  }
+
+  if (claimRefBtn) {
+    claimRefBtn.addEventListener('click', async () => {
+      toggleLoader(true);
+      const result = await window.TelegramApp.apiFetch('/api/referrals/claim', {
+        method: 'POST'
+      });
+      toggleLoader(false);
+
+      if (result && result.success) {
+        showToast(result.message || 'تم تحويل أرباح الإحالة إلى رصيدك المتاح بنجاح', 'success');
+        haptic('notification', 'success');
+        loadUserProfile();
+        loadReferralData();
+      } else {
+        showToast(result?.message || 'فشلت عملية التحويل', 'error');
+        haptic('notification', 'error');
       }
     });
   }
