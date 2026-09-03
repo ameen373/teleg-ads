@@ -1,5 +1,4 @@
 // routes/referralRoutes.js
-
 const express = require('express');
 const router = express.Router();
 
@@ -31,4 +30,3 @@ router.post('/claim', claimReferralEarnings);
 
 // تصدير الـ Router
 module.exports = router;
-
