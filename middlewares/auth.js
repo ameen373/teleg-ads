@@ -3,44 +3,46 @@ const crypto = require('crypto');
 const User = require('../models/User');
 
 /**
- * ميدل وير المصادقة والتحقق من صحة توقيع Telegram InitData
+ * ميدل وير المصادقة والتحقق من صحة توقيع Telegram WebApp initData
  */
 const authMiddleware = async (req, res, next) => {
   try {
-    // 1. استخراج الترويسة بمرونة (Header Inspection)
-    let initDataRaw = req.headers['x-telegram-init-data'] || req.headers['x-init-data'];
+    // 1. استخراج الترويسة بمرونة عالية (Header Inspection)
+    let rawInitData = req.headers['x-telegram-init-data'] || req.headers['x-init-data'];
 
-    if (!initDataRaw && req.headers.authorization) {
+    if (!rawInitData && req.headers.authorization) {
       const authHeader = req.headers.authorization;
       if (authHeader.startsWith('tma ')) {
-        initDataRaw = authHeader.substring(4).trim();
+        rawInitData = authHeader.substring(4).trim();
       } else if (authHeader.startsWith('Bearer ')) {
-        initDataRaw = authHeader.substring(7).trim();
+        rawInitData = authHeader.substring(7).trim();
       } else {
-        initDataRaw = authHeader.trim();
+        rawInitData = authHeader.trim();
       }
     }
 
-    if (!initDataRaw) {
-      return res.status(401).json({ message: 'فشلت عملية المصادقة' });
+    if (!rawInitData || rawInitData === 'null' || rawInitData === 'undefined') {
+      return res.status(401).json({ success: false, message: 'لم يتم توفير بيانات المصادقة' });
     }
 
-    // جلب التوكين من .env
+    // جلب التوكين من متغيرات البيئة
     const botToken = process.env.BOT_TOKEN;
     if (!botToken) {
       console.error('[Auth Error] BOT_TOKEN غير معرف في متغيرات البيئة');
-      return res.status(401).json({ message: 'فشلت عملية المصادقة' });
+      return res.status(500).json({ success: false, message: 'خطأ إعدادات السيرفر الداخلي' });
     }
 
-    // 2. تحليل سلسلة URL parameters
-    const searchParams = new URLSearchParams(initDataRaw);
+    // 2. معالجة وتفكيك سلسلة URL Parameters
+    // فك الترميز لضمان قراءة المبادلات بشكل صحيح
+    const decodedInitData = decodeURIComponent(rawInitData);
+    const searchParams = new URLSearchParams(decodedInitData);
     const hash = searchParams.get('hash');
 
     if (!hash) {
-      return res.status(401).json({ message: 'فشلت عملية المصادقة' });
+      return res.status(401).json({ success: false, message: 'رمز التوقيع (hash) مفقود من البيانات' });
     }
 
-    // إزالة hash وإعداد البيانات المتبقية للترتيب
+    // حذف hash وإعداد البيانات المتبقية للترتيب والتحقق
     searchParams.delete('hash');
     const dataCheckArr = [];
     const paramsDict = {};
@@ -50,7 +52,7 @@ const authMiddleware = async (req, res, next) => {
       paramsDict[key] = value;
     }
 
-    // ترتيب المعلمات أبجدياً
+    // ترتيب المعلمات أبجدياً حسب معايير تليجرام الرسمية
     dataCheckArr.sort();
     const dataCheckString = dataCheckArr.join('\n');
 
@@ -65,32 +67,32 @@ const authMiddleware = async (req, res, next) => {
       .update(dataCheckString)
       .digest('hex');
 
-    // المقارنة الآمنة زمنياً
-    const calculatedBuffer = Buffer.from(calculatedHash, 'utf-8');
-    const receivedBuffer = Buffer.from(hash, 'utf-8');
+    // مقارنة آمنة زمنياً لمنع هجمات Timing Attacks
+    const calculatedBuffer = Buffer.from(calculatedHash, 'hex');
+    const receivedBuffer = Buffer.from(hash, 'hex');
 
     if (
       calculatedBuffer.length !== receivedBuffer.length ||
       !crypto.timingSafeEqual(calculatedBuffer, receivedBuffer)
     ) {
-      return res.status(401).json({ message: 'فشلت عملية المصادقة' });
+      console.warn('[Auth Warning] فشل مطابقة توقيع HMAC');
+      return res.status(401).json({ success: false, message: 'فشلت عملية المصادقة: توقيع غير صالح' });
     }
 
     // 4. استخراج كائن المستخدم
     const userJson = paramsDict['user'];
     if (!userJson) {
-      return res.status(401).json({ message: 'فشلت عملية المصادقة' });
+      return res.status(401).json({ success: false, message: 'بيانات المستخدم مفقودة من جلسة تليجرام' });
     }
 
     const tgUser = JSON.parse(userJson);
     let startParam = paramsDict['start_param'] || paramsDict['tgWebAppStartParam'];
 
-    // التعامل مع قوالب الإحالة ref_123456
     if (startParam && startParam.startsWith('ref_')) {
       startParam = startParam.replace('ref_', '');
     }
 
-    // 5. جلب المستخدم أو إنشاؤه عند تسجيل الدخول الأول
+    // 5. جلب المستخدم أو إنشاؤه في قاعدة البيانات
     let user = await User.findOne({ telegramId: tgUser.id });
 
     if (!user) {
@@ -117,24 +119,28 @@ const authMiddleware = async (req, res, next) => {
         referredBy: referrerTelegramId
       });
     } else {
-      // تحديث بيانات الملف الشخصي باستمرار عند التغيير
-      user.firstName = tgUser.first_name || user.firstName;
-      user.lastName = tgUser.last_name || user.lastName;
-      user.username = tgUser.username || user.username;
-      user.isPremium = Boolean(tgUser.is_premium);
-      user.photoUrl = tgUser.photo_url || user.photoUrl;
-      await user.save();
+      // تحديث بيانات المستخدم المزامنة
+      let isUpdated = false;
+      if (tgUser.first_name && user.firstName !== tgUser.first_name) { user.firstName = tgUser.first_name; isUpdated = true; }
+      if (tgUser.last_name && user.lastName !== tgUser.last_name) { user.lastName = tgUser.last_name; isUpdated = true; }
+      if (tgUser.username && user.username !== tgUser.username) { user.username = tgUser.username; isUpdated = true; }
+      if (user.isPremium !== Boolean(tgUser.is_premium)) { user.isPremium = Boolean(tgUser.is_premium); isUpdated = true; }
+      if (tgUser.photo_url && user.photoUrl !== tgUser.photo_url) { user.photoUrl = tgUser.photo_url; isUpdated = true; }
+
+      if (isUpdated) {
+        await user.save();
+      }
     }
 
     if (user.isBanned) {
-      return res.status(403).json({ message: 'الحساب محظور من استخدام النظام.' });
+      return res.status(403).json({ success: false, message: 'الحساب محظور من استخدام النظام.' });
     }
 
     req.user = user;
     next();
   } catch (error) {
     console.error('[Auth Middleware Error]:', error);
-    return res.status(401).json({ message: 'فشلت عملية المصادقة' });
+    return res.status(401).json({ success: false, message: 'فشلت عملية المصادقة' });
   }
 };
 
