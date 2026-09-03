@@ -59,7 +59,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!container) {
       container = document.createElement('div');
       container.id = 'toast-container';
-      container.style.cssText = 'position: fixed; bottom: 75px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 8px; width: 90%; max-width: 400px; pointer-events: none;';
+      container.style.cssText =
+        'position: fixed; bottom: 75px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 8px; width: 90%; max-width: 400px; pointer-events: none;';
       document.body.appendChild(container);
     }
 
@@ -76,7 +77,9 @@ document.addEventListener('DOMContentLoaded', () => {
       opacity: 0;
       transform: translateY(10px);
       pointer-events: auto;
-      background-color: ${type === 'success' ? '#2e7d32' : type === 'error' ? '#c62828' : '#0288d1'};
+      background-color: ${
+        type === 'success' ? '#2e7d32' : type === 'error' ? '#c62828' : '#0288d1'
+      };
     `;
     toast.innerText = message;
 
@@ -149,6 +152,20 @@ document.addEventListener('DOMContentLoaded', () => {
    */
   async function loadUserProfile() {
     if (!window.TelegramApp?.apiFetch) return;
+
+    // محاولة جلب بيانات العميل المباشرة أولاً لإظهارها استباقياً
+    const localUser = window.TelegramApp.getUser();
+    if (localUser) {
+      if (userDisplayNameEl) {
+        userDisplayNameEl.innerText = [localUser.first_name, localUser.last_name].filter(Boolean).join(' ') || 'مستخدم';
+      }
+      if (userTelegramIdEl) {
+        userTelegramIdEl.innerText = `ID: ${localUser.id}`;
+      }
+      if (userAvatarInitialEl && localUser.first_name) {
+        userAvatarInitialEl.innerText = localUser.first_name.charAt(0).toUpperCase();
+      }
+    }
 
     toggleLoader(true);
     const result = await window.TelegramApp.apiFetch('/api/auth/me');
