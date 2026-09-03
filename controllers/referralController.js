@@ -1,10 +1,8 @@
 // controllers/referralController.js
-
-const User = require('../models/User'); // يفترض وجود نموذج المستخدم Mongoose
+const User = require('../models/User');
 
 /**
  * دالة مساعدة لتشفير/إخفاء جزء من الاسم أو اسم المستخدم لحماية الخصوصية
- * مثال: "Ahmed" -> "A***d" أو "john_doe" -> "j***e"
  */
 function maskName(name) {
   if (!name || name.length <= 2) return '***';
@@ -20,7 +18,6 @@ exports.getReferralStats = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // جلب بيانات المستخدم لضمان الحصول على أحدث القيم
     const currentUser = await User.findById(userId);
 
     if (!currentUser) {
@@ -30,39 +27,37 @@ exports.getReferralStats = async (req, res) => {
       });
     }
 
-    // اسم البوت المأخوذ من متغيرات البيئة أو القيمة الافتراضية
-    const botUsername = process.env.TELEGRAM_BOT_USERNAME || 'TelegaAdsBot';
+    const botUsername = process.env.TELEGRAM_BOT_USERNAME || process.env.BOT_USERNAME || 'TelegaAdsBot';
     const telegramId = currentUser.telegramId;
 
-    // 1. توليد رابط الإحالة الفريد الخاص بالتطبيق المصغر (Telegram Mini App)
+    // توليد رابط الإحالة الفريد لـ Telegram Mini App
     const referralLink = `https://t.me/${botUsername}/app?startapp=ref_${telegramId}`;
 
-    // 2. حساب عدد المستخدمين الذين انضموا عبر هذا المستخدم
+    // حساب عدد المستخدمين الذين انضموا عبر هذا المستخدم
     const totalReferredUsers = await User.countDocuments({
       referredBy: telegramId
     });
 
-    // 3. جلب قائمة بآخر 10 مستخدمين تم دعوتهم مع تطبيق قناع الخصوصية
+    // جلب قائمة بآخر 10 مستخدمين تم دعوتهم
     const recentReferredUsers = await User.find({ referredBy: telegramId })
       .sort({ createdAt: -1 })
       .limit(10)
       .select('firstName username createdAt');
 
     const formattedRecentUsers = recentReferredUsers.map((u) => {
-      const displayName = u.username ? `@${u.username}` : u.firstName;
+      const displayName = u.username ? `@${u.username}` : (u.firstName || 'User');
       return {
         maskedName: maskName(displayName),
         joinedAt: u.createdAt
       };
     });
 
-    // 4. إرجاع النتيجة الكاملة
     return res.status(200).json({
       success: true,
       data: {
         referralLink: referralLink,
         totalReferredUsers: totalReferredUsers,
-        referralEarnings: currentUser.balances?.referralEarned || currentUser.referralEarnings || 0,
+        referralEarnings: currentUser.balances?.referralEarned ?? currentUser.referralEarnings ?? 0,
         recentReferredUsers: formattedRecentUsers
       }
     });
@@ -90,9 +85,8 @@ exports.claimReferralEarnings = async (req, res) => {
       });
     }
 
-    // قراءة أرباح الإحالة بناءً على هيكلية نموذج البيانات
-    const currentReferralEarned = currentUser.balances?.referralEarned || currentUser.referralEarnings || 0;
-    const MIN_CLAIM_AMOUNT = parseFloat(process.env.MIN_REFERRAL_CLAIM_AMOUNT) || 1.0; // حد أدنى $1 تحويل
+    const currentReferralEarned = currentUser.balances?.referralEarned ?? currentUser.referralEarnings ?? 0;
+    const MIN_CLAIM_AMOUNT = parseFloat(process.env.MIN_REFERRAL_CLAIM_AMOUNT) || 1.0;
 
     if (currentReferralEarned < MIN_CLAIM_AMOUNT) {
       return res.status(400).json({
@@ -103,9 +97,8 @@ exports.claimReferralEarnings = async (req, res) => {
 
     const claimAmount = currentReferralEarned;
 
-    // تحديث أرصدة المستخدم (تصفير رصيد الإحالة وإضافته للرصيد المتاح)
     if (currentUser.balances) {
-      currentUser.balances.available += claimAmount;
+      currentUser.balances.available = (currentUser.balances.available || 0) + claimAmount;
       currentUser.balances.referralEarned = 0;
     } else {
       currentUser.availableBalance = (currentUser.availableBalance || 0) + claimAmount;
