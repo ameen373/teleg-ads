@@ -1,5 +1,6 @@
 // controllers/referralController.js
 const User = require('../models/User');
+const SYSTEM_CONSTANTS = require('../config/constants');
 
 /**
  * دالة مساعدة لتشفير/إخفاء جزء من الاسم أو اسم المستخدم لحماية الخصوصية
@@ -27,10 +28,10 @@ exports.getReferralStats = async (req, res) => {
       });
     }
 
-    const botUsername = process.env.TELEGRAM_BOT_USERNAME || process.env.BOT_USERNAME || 'TelegaAdsBot';
+    const botUsername = process.env.TELEGRAM_BOT_USERNAME || process.env.BOT_USERNAME || SYSTEM_CONSTANTS.BOT_USERNAME;
     const telegramId = currentUser.telegramId;
 
-    // توليد رابط الإحالة الفريد لـ Telegram Mini App
+    // توليد رابط الإحالة الخاص بالبوت Ads_telegabot
     const referralLink = `https://t.me/${botUsername}/app?startapp=ref_${telegramId}`;
 
     // حساب عدد المستخدمين الذين انضموا عبر هذا المستخدم
