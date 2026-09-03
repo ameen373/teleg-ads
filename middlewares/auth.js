@@ -13,9 +13,11 @@ const authMiddleware = async (req, res, next) => {
     if (!initDataRaw && req.headers.authorization) {
       const authHeader = req.headers.authorization;
       if (authHeader.startsWith('tma ')) {
-        initDataRaw = authHeader.substring(4);
+        initDataRaw = authHeader.substring(4).trim();
+      } else if (authHeader.startsWith('Bearer ')) {
+        initDataRaw = authHeader.substring(7).trim();
       } else {
-        initDataRaw = authHeader;
+        initDataRaw = authHeader.trim();
       }
     }
 
@@ -35,9 +37,27 @@ const authMiddleware = async (req, res, next) => {
       });
     }
 
-    // 2. تحليل سلسلة URL parameters
-    const urlParams = new URLSearchParams(initDataRaw);
-    const hash = urlParams.get('hash');
+    // 2. تحليل سلسلة URL parameters دون فك الترميز التلقائي لضمان مطابقة التوقيع
+    const pairs = initDataRaw.split('&');
+    let hash = '';
+    const dataCheckArr = [];
+    const paramsDict = {};
+
+    for (const pair of pairs) {
+      if (!pair) continue;
+      const eqIndex = pair.indexOf('=');
+      if (eqIndex === -1) continue;
+
+      const key = pair.substring(0, eqIndex);
+      const value = pair.substring(eqIndex + 1);
+
+      if (key === 'hash') {
+        hash = value;
+      } else {
+        dataCheckArr.push(`${key}=${decodeURIComponent(value)}`);
+        paramsDict[key] = decodeURIComponent(value);
+      }
+    }
 
     if (!hash) {
       return res.status(401).json({
@@ -46,13 +66,7 @@ const authMiddleware = async (req, res, next) => {
       });
     }
 
-    urlParams.delete('hash');
-
-    // ترتيب المعلمات أبجدياً بناءً على الممارسات القياسية لتيليجرام
-    const dataCheckArr = [];
-    for (const [key, value] of urlParams.entries()) {
-      dataCheckArr.push(`${key}=${value}`);
-    }
+    // ترتيب المعلمات أبجدياً
     dataCheckArr.sort();
     const dataCheckString = dataCheckArr.join('\n');
 
@@ -68,12 +82,10 @@ const authMiddleware = async (req, res, next) => {
       .digest('hex');
 
     // المقارنة الآمنة زمنياً لتفادي هجمات Timing Attacks
-    const isHashValid = crypto.timingSafeEqual(
-      Buffer.from(calculatedHash, 'utf-8'),
-      Buffer.from(hash, 'utf-8')
-    );
+    const calculatedBuffer = Buffer.from(calculatedHash, 'utf-8');
+    const receivedBuffer = Buffer.from(hash, 'utf-8');
 
-    if (!isHashValid) {
+    if (calculatedBuffer.length !== receivedBuffer.length || !crypto.timingSafeEqual(calculatedBuffer, receivedBuffer)) {
       return res.status(401).json({
         success: false,
         message: 'غير مصرح: توقيع البيانات غير صالح'
@@ -81,7 +93,7 @@ const authMiddleware = async (req, res, next) => {
     }
 
     // 4. استخراج كائن المستخدم
-    const userJson = urlParams.get('user');
+    const userJson = paramsDict['user'];
     if (!userJson) {
       return res.status(400).json({
         success: false,
@@ -90,7 +102,7 @@ const authMiddleware = async (req, res, next) => {
     }
 
     const tgUser = JSON.parse(userJson);
-    const startParam = urlParams.get('start_param');
+    const startParam = paramsDict['start_param'];
 
     // 5. جلب المستخدم أو إنشاؤه عند تسجيل الدخول الأول
     let user = await User.findOne({ telegramId: tgUser.id });
