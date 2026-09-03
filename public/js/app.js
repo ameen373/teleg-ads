@@ -1,75 +1,10 @@
 // public/js/app.js
 
-// تهيئة كائن التفاعل مع تليجرام ودالة apiFetch الموحدة
-window.TelegramApp = window.TelegramApp || {
-  getInitData: function () {
-    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
-      return window.Telegram.WebApp.initData;
-    }
-    return '';
-  },
-  getUser: function () {
-    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) {
-      return window.Telegram.WebApp.initDataUnsafe.user || null;
-    }
-    return null;
-  },
-  triggerHaptic: function (type = 'impact', style = 'medium') {
-    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
-      if (type === 'impact') {
-        window.Telegram.WebApp.HapticFeedback.impactOccurred(style);
-      } else if (type === 'notification') {
-        window.Telegram.WebApp.HapticFeedback.notificationOccurred(style);
-      } else if (type === 'selection') {
-        window.Telegram.WebApp.HapticFeedback.selectionChanged();
-      }
-    }
-  },
-  apiFetch: async function (url, options = {}) {
-    const initData = this.getInitData();
-    const headers = {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${initData}`,
-      'x-telegram-init-data': initData,
-      ...(options.headers || {})
-    };
-
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        return {
-          success: false,
-          message: data.message || 'فشلت عملية المصادقة',
-          status: response.status
-        };
-      }
-      return data;
-    } catch (err) {
-      console.error('[apiFetch Error]:', err);
-      return {
-        success: false,
-        message: 'فشل الاتصال بالخادم، يرجى التحقق من الشبكة'
-      };
-    }
-  }
-};
-
 document.addEventListener('DOMContentLoaded', () => {
   'use strict';
 
-  // إعلام تليجرام بجاهزية التطبيق المصغر وتكبير الشاشة
-  if (window.Telegram && window.Telegram.WebApp) {
-    window.Telegram.WebApp.ready();
-    window.Telegram.WebApp.expand();
-  }
-
   // ==========================================
-  // Global State
+  // Global State & Control Variables
   // ==========================================
   const state = {
     user: null,
@@ -77,8 +12,11 @@ document.addEventListener('DOMContentLoaded', () => {
     links: [],
     campaigns: [],
     referrals: { stats: null, history: [] },
-    walletHistory: { deposits: [], withdrawals: [] }
+    walletHistory: { deposits: [], withdrawals: [] },
+    authFailed: false
   };
+
+  let activeToastMessage = '';
 
   // ==========================================
   // DOM Elements
@@ -126,6 +64,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function showToast(message, type = 'info') {
+    // منع تكرار رسالة الخطأ نفسها متتالياً
+    if (activeToastMessage === message) return;
+    activeToastMessage = message;
+
     let container = document.getElementById('toast-container');
     if (!container) {
       container = document.createElement('div');
@@ -164,7 +106,10 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
       toast.style.opacity = '0';
       toast.style.transform = 'translateY(10px)';
-      setTimeout(() => toast.remove(), 300);
+      setTimeout(() => {
+        toast.remove();
+        if (activeToastMessage === message) activeToastMessage = '';
+      }, 300);
     }, 3200);
   }
 
@@ -176,7 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 1. Navigation Controller
   // ==========================================
   function switchTab(targetTabId) {
-    if (state.currentTab === targetTabId) return;
+    if (state.currentTab === targetTabId || state.authFailed) return;
 
     state.currentTab = targetTabId;
     haptic('selection');
@@ -220,9 +165,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==========================================
 
   /**
-   * جلب بيانات بروفايل المستخدم وتحديث الواجهة مباشرة عند التحميل
+   * جلب بيانات بروفايل المستخدم وتحديث الواجهة عند التحميل
    */
   async function loadUserProfile() {
+    if (state.authFailed) return;
+
     const localUser = window.TelegramApp.getUser();
     if (localUser) {
       if (userDisplayNameEl) {
@@ -244,12 +191,15 @@ document.addEventListener('DOMContentLoaded', () => {
       state.user = result.data;
       updateUserUI();
     } else {
+      if (result.status === 401 || result.status === 403) {
+        state.authFailed = true;
+      }
       showToast(result?.message || 'فشلت عملية المصادقة', 'error');
     }
   }
 
   /**
-   * تعيين قيم واجهة المستخدم (الاسم، الأرصدة، والمعرفات)
+   * تعيين قيم واجهة المستخدم
    */
   function updateUserUI() {
     if (!state.user) return;
@@ -281,9 +231,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /**
-   * جلب بيانات الإحالة ورابط الدعوة
+   * جلب بيانات الإحالة
    */
   async function loadReferralData() {
+    if (state.authFailed) return;
+
     toggleLoader(true);
     const result = await window.TelegramApp.apiFetch('/api/referrals/stats');
     toggleLoader(false);
@@ -328,6 +280,8 @@ document.addEventListener('DOMContentLoaded', () => {
    * جلب وعرض الروابط المختصرة
    */
   async function loadUserLinks() {
+    if (state.authFailed) return;
+
     toggleLoader(true);
     const result = await window.TelegramApp.apiFetch('/api/links');
     toggleLoader(false);
@@ -335,6 +289,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (result && result.success) {
       state.links = result.data || [];
       renderLinksTable();
+    } else {
+      showToast(result?.message || 'فشلت عملية جلب الروابط', 'error');
     }
   }
 
@@ -398,6 +354,8 @@ document.addEventListener('DOMContentLoaded', () => {
    * جلب وعرض سجل المحفظة
    */
   async function loadWalletHistory() {
+    if (state.authFailed) return;
+
     toggleLoader(true);
     const result = await window.TelegramApp.apiFetch('/api/wallet/history');
     toggleLoader(false);
@@ -405,6 +363,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (result && result.success) {
       state.walletHistory = result.data || { deposits: [], withdrawals: [] };
       renderWalletHistory();
+    } else {
+      showToast(result?.message || 'فشلت عملية جلب سجل المحفظة', 'error');
     }
   }
 
@@ -452,6 +412,8 @@ document.addEventListener('DOMContentLoaded', () => {
    * جلب وعرض الحملات الإعلانية
    */
   async function loadUserCampaigns() {
+    if (state.authFailed) return;
+
     toggleLoader(true);
     const result = await window.TelegramApp.apiFetch('/api/campaigns');
     toggleLoader(false);
@@ -459,6 +421,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (result && result.success) {
       state.campaigns = result.data || [];
       renderCampaignsList();
+    } else {
+      showToast(result?.message || 'فشلت عملية جلب الحملات', 'error');
     }
   }
 
@@ -642,7 +606,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ==========================================
-  // Initialization
+  // App Entry Point
   // ==========================================
   loadUserProfile();
 });
