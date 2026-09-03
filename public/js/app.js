@@ -158,7 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
       state.user = result.data;
       updateUserUI();
     } else {
-      showToast(result?.message || 'فشل جلب بيانات المستخدم', 'error');
+      showToast(result?.message || 'فشلت عملية المصادقة', 'error');
     }
   }
 
