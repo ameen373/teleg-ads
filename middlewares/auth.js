@@ -24,7 +24,7 @@ const authMiddleware = async (req, res, next) => {
     if (!initDataRaw) {
       return res.status(401).json({
         success: false,
-        message: 'غير مصرح: ترويسة Telegram InitData مفقودة'
+        message: 'فشلت عملية المصادقة: ترويسة Telegram InitData مفقودة'
       });
     }
 
@@ -37,33 +37,25 @@ const authMiddleware = async (req, res, next) => {
       });
     }
 
-    // 2. تحليل سلسلة URL parameters دون فك الترميز التلقائي لضمان مطابقة التوقيع
-    const pairs = initDataRaw.split('&');
-    let hash = '';
-    const dataCheckArr = [];
-    const paramsDict = {};
-
-    for (const pair of pairs) {
-      if (!pair) continue;
-      const eqIndex = pair.indexOf('=');
-      if (eqIndex === -1) continue;
-
-      const key = pair.substring(0, eqIndex);
-      const value = pair.substring(eqIndex + 1);
-
-      if (key === 'hash') {
-        hash = value;
-      } else {
-        dataCheckArr.push(`${key}=${decodeURIComponent(value)}`);
-        paramsDict[key] = decodeURIComponent(value);
-      }
-    }
+    // 2. تحليل سلسلة URL parameters
+    const searchParams = new URLSearchParams(initDataRaw);
+    const hash = searchParams.get('hash');
 
     if (!hash) {
       return res.status(401).json({
         success: false,
-        message: 'غير مصرح: رمز التوقيع (hash) مفقود'
+        message: 'فشلت عملية المصادقة: رمز التوقيع (hash) مفقود'
       });
+    }
+
+    // إزالة hash وإعداد البيانات المتبقية للترتيب
+    searchParams.delete('hash');
+    const dataCheckArr = [];
+    const paramsDict = {};
+
+    for (const [key, value] of searchParams.entries()) {
+      dataCheckArr.push(`${key}=${value}`);
+      paramsDict[key] = value;
     }
 
     // ترتيب المعلمات أبجدياً
@@ -81,14 +73,17 @@ const authMiddleware = async (req, res, next) => {
       .update(dataCheckString)
       .digest('hex');
 
-    // المقارنة الآمنة زمنياً لتفادي هجمات Timing Attacks
+    // المقارنة الآمنة زمنياً
     const calculatedBuffer = Buffer.from(calculatedHash, 'utf-8');
     const receivedBuffer = Buffer.from(hash, 'utf-8');
 
-    if (calculatedBuffer.length !== receivedBuffer.length || !crypto.timingSafeEqual(calculatedBuffer, receivedBuffer)) {
+    if (
+      calculatedBuffer.length !== receivedBuffer.length ||
+      !crypto.timingSafeEqual(calculatedBuffer, receivedBuffer)
+    ) {
       return res.status(401).json({
         success: false,
-        message: 'غير مصرح: توقيع البيانات غير صالح'
+        message: 'فشلت عملية المصادقة: توقيع البيانات غير صالح'
       });
     }
 
@@ -131,7 +126,7 @@ const authMiddleware = async (req, res, next) => {
         referredBy: referrerTelegramId
       });
     } else {
-      // تحديث بيانات الملف الشخصي بصفة مستمرة عند التغير
+      // تحديث بيانات الملف الشخصي باستمرار عند التغيير
       user.firstName = tgUser.first_name || user.firstName;
       user.lastName = tgUser.last_name || user.lastName;
       user.username = tgUser.username || user.username;
