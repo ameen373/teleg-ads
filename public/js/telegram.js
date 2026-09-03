@@ -46,7 +46,7 @@
     const headers = {
       'Content-Type': 'application/json',
       'x-telegram-init-data': initData,
-      'Authorization': `tma ${initData}`,
+      'Authorization': `Bearer ${initData}`,
       ...(options.headers || {})
     };
 
