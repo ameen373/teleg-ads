@@ -34,7 +34,18 @@
   }
 
   /**
-   * 3. دالة الطلبات الموحدة (Fetch Wrapper)
+   * 3. استخراج بيانات المستخدم المتاحة محلياً من العميل
+   * @returns {object|null}
+   */
+  function getUser() {
+    if (tg?.initDataUnsafe?.user) {
+      return tg.initDataUnsafe.user;
+    }
+    return null;
+  }
+
+  /**
+   * 4. دالة الطلبات الموحدة (Fetch Wrapper)
    * ترفق x-telegram-init-data و Authorization تلقائياً
    * @param {string} url 
    * @param {object} options 
@@ -79,7 +90,7 @@
   }
 
   /**
-   * 4. ردود الفعل اللمسية (Haptic Feedback)
+   * 5. ردود الفعل اللمسية (Haptic Feedback)
    * @param {string} type 
    * @param {string} style 
    */
@@ -105,7 +116,7 @@
   }
 
   /**
-   * 5. فتح الروابط الخارجية داخل أو خارج تيليجرام
+   * 6. فتح الروابط الخارجية داخل أو خارج تيليجرام
    * @param {string} url 
    */
   function openTelegramLink(url) {
@@ -132,11 +143,9 @@
   window.TelegramApp = {
     tg,
     getInitData,
+    getUser,
     apiFetch,
     triggerHaptic,
-    openTelegramLink,
-    getUser: function () {
-      return tg?.initDataUnsafe?.user || null;
-    }
+    openTelegramLink
   };
 })();
