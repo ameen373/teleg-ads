@@ -1,6 +1,8 @@
 // public/js/app.js
 
 document.addEventListener('DOMContentLoaded', () => {
+  'use strict';
+
   // ==========================================
   // Global State
   // ==========================================
@@ -42,11 +44,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const copyRefBtn = document.getElementById('copy-ref-btn');
 
   // ==========================================
-  // Helper Functions
+  // UI & Feedback Helpers
   // ==========================================
 
   function toggleLoader(show) {
-    let loader = document.getElementById('global-app-loader');
+    const loader = document.getElementById('global-app-loader');
     if (loader) {
       loader.style.display = show ? 'flex' : 'none';
     }
@@ -93,7 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function haptic(type = 'impact', style = 'medium') {
-    if (window.TelegramApp && window.TelegramApp.triggerHaptic) {
+    if (window.TelegramApp?.triggerHaptic) {
       window.TelegramApp.triggerHaptic(type, style);
     }
   }
@@ -108,21 +110,13 @@ document.addEventListener('DOMContentLoaded', () => {
     haptic('selection');
 
     navTabs.forEach(tab => {
-      if (tab.dataset.tab === targetTabId) {
-        tab.classList.add('active');
-      } else {
-        tab.classList.remove('active');
-      }
+      tab.classList.toggle('active', tab.dataset.tab === targetTabId);
     });
 
     viewSections.forEach(section => {
-      if (section.id === `${targetTabId}-section`) {
-        section.classList.add('active-view');
-        section.style.display = 'block';
-      } else {
-        section.classList.remove('active-view');
-        section.style.display = 'none';
-      }
+      const isTarget = section.id === `${targetTabId}-section`;
+      section.classList.toggle('active-view', isTarget);
+      section.style.display = isTarget ? 'block' : 'none';
     });
 
     switch (targetTabId) {
@@ -143,9 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   navTabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-      switchTab(tab.dataset.tab);
-    });
+    tab.addEventListener('click', () => switchTab(tab.dataset.tab));
   });
 
   // ==========================================
@@ -153,37 +145,39 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==========================================
 
   /**
-   * جلب بيانات بروفايل المستخدم فور الفتح وتحديث الهيدر والأرصدة
+   * جلب بيانات بروفايل المستخدم وتحديث الواجهة مباشرة عند التحميل
    */
   async function loadUserProfile() {
-    if (!window.TelegramApp || !window.TelegramApp.apiFetch) return;
+    if (!window.TelegramApp?.apiFetch) return;
 
+    toggleLoader(true);
     const result = await window.TelegramApp.apiFetch('/api/auth/me');
+    toggleLoader(false);
 
     if (result && result.success) {
       state.user = result.data;
       updateUserUI();
     } else {
-      console.warn('[Load Profile Warning]:', result.message);
+      showToast(result?.message || 'فشل جلب بيانات المستخدم', 'error');
     }
   }
 
   /**
-   * تحديث شاشة العرض ومعلومات المستخدم بالكامل
+   * تعيين قيم واجهة المستخدم (الاسم، الأرصدة، والمعرفات)
    */
   function updateUserUI() {
     if (!state.user) return;
 
     const { available = 0, pending = 0, totalEarned = 0 } = state.user.balances || {};
 
-    if (availableBalanceEl) availableBalanceEl.innerText = `$${available.toFixed(2)}`;
-    if (pendingBalanceEl) pendingBalanceEl.innerText = `$${pending.toFixed(2)}`;
-    if (totalEarnedEl) totalEarnedEl.innerText = `$${totalEarned.toFixed(2)}`;
+    if (availableBalanceEl) availableBalanceEl.innerText = `$${Number(available).toFixed(2)}`;
+    if (pendingBalanceEl) pendingBalanceEl.innerText = `$${Number(pending).toFixed(2)}`;
+    if (totalEarnedEl) totalEarnedEl.innerText = `$${Number(totalEarned).toFixed(2)}`;
 
-    const name = state.user.firstName || 'مستخدم';
-    if (userDisplayNameEl) userDisplayNameEl.innerText = name;
+    const fullName = [state.user.firstName, state.user.lastName].filter(Boolean).join(' ') || 'مستخدم';
+    if (userDisplayNameEl) userDisplayNameEl.innerText = fullName;
     if (userTelegramIdEl) userTelegramIdEl.innerText = `ID: ${state.user.telegramId || '-------'}`;
-    if (userAvatarInitialEl) userAvatarInitialEl.innerText = name.charAt(0).toUpperCase();
+    if (userAvatarInitialEl) userAvatarInitialEl.innerText = fullName.charAt(0).toUpperCase();
 
     if (referralLinkInput && state.user.referralLink) {
       referralLinkInput.value = state.user.referralLink;
@@ -201,14 +195,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /**
-   * جلب الروابط المختصرة
+   * جلب وعرض الروابط المختصرة
    */
   async function loadUserLinks() {
     toggleLoader(true);
     const result = await window.TelegramApp.apiFetch('/api/links');
     toggleLoader(false);
 
-    if (result.success) {
+    if (result && result.success) {
       state.links = result.data || [];
       renderLinksTable();
     }
@@ -261,24 +255,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function toggleLinkStatus(id) {
     const result = await window.TelegramApp.apiFetch(`/api/links/${id}/toggle`, { method: 'PATCH' });
-    if (result.success) {
+    if (result && result.success) {
       showToast(result.message || 'تم تحديث حالة الرابط', 'success');
       haptic('impact', 'light');
       loadUserLinks();
     } else {
-      showToast(result.message || 'فشل تغيير الحالة', 'error');
+      showToast(result?.message || 'فشل تغيير الحالة', 'error');
     }
   }
 
   /**
-   * جلب سجل المحفظة
+   * جلب وعرض سجل المحفظة
    */
   async function loadWalletHistory() {
     toggleLoader(true);
     const result = await window.TelegramApp.apiFetch('/api/wallet/history');
     toggleLoader(false);
 
-    if (result.success) {
+    if (result && result.success) {
       state.walletHistory = result.data || { deposits: [], withdrawals: [] };
       renderWalletHistory();
     }
@@ -294,7 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
         deposits.forEach(dep => {
           const tr = document.createElement('tr');
           tr.innerHTML = `
-            <td>$${dep.amount.toFixed(2)}</td>
+            <td>$${Number(dep.amount).toFixed(2)}</td>
             <td>${dep.network}</td>
             <td><span class="status-${dep.status}">${dep.status}</span></td>
             <td>${new Date(dep.createdAt).toLocaleDateString('ar-EG')}</td>
@@ -313,8 +307,8 @@ document.addEventListener('DOMContentLoaded', () => {
         withdrawals.forEach(wth => {
           const tr = document.createElement('tr');
           tr.innerHTML = `
-            <td>$${wth.amount.toFixed(2)}</td>
-            <td>$${(wth.netAmount || wth.amount).toFixed(2)}</td>
+            <td>$${Number(wth.amount).toFixed(2)}</td>
+            <td>$${Number(wth.netAmount || wth.amount).toFixed(2)}</td>
             <td><span class="status-${wth.status}">${wth.status}</span></td>
             <td>${new Date(wth.createdAt).toLocaleDateString('ar-EG')}</td>
           `;
@@ -325,14 +319,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /**
-   * جلب الحملات الإعلانية
+   * جلب وعرض الحملات الإعلانية
    */
   async function loadUserCampaigns() {
     toggleLoader(true);
     const result = await window.TelegramApp.apiFetch('/api/campaigns');
     toggleLoader(false);
 
-    if (result.success) {
+    if (result && result.success) {
       state.campaigns = result.data || [];
       renderCampaignsList();
     }
@@ -393,13 +387,13 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       toggleLoader(false);
 
-      if (result.success) {
+      if (result && result.success) {
         showToast('تم إنشاء الرابط المختصر بنجاح', 'success');
         haptic('notification', 'success');
         createLinkForm.reset();
         loadUserLinks();
       } else {
-        showToast(result.message || 'فشل إنشاء الرابط', 'error');
+        showToast(result?.message || 'فشل إنشاء الرابط', 'error');
         haptic('notification', 'error');
       }
     });
@@ -419,13 +413,13 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       toggleLoader(false);
 
-      if (result.success) {
+      if (result && result.success) {
         showToast('تم تقديم طلب الإيداع بنجاح', 'success');
         haptic('notification', 'success');
         depositForm.reset();
         loadWalletHistory();
       } else {
-        showToast(result.message || 'فشل طلب الإيداع', 'error');
+        showToast(result?.message || 'فشل طلب الإيداع', 'error');
         haptic('notification', 'error');
       }
     });
@@ -444,7 +438,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       toggleLoader(false);
 
-      if (result.success) {
+      if (result && result.success) {
         showToast('تم تقديم طلب السحب بنجاح', 'success');
         haptic('notification', 'success');
         withdrawForm.reset();
@@ -453,7 +447,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loadUserProfile();
         loadWalletHistory();
       } else {
-        showToast(result.message || 'فشل تقديم طلب السحب', 'error');
+        showToast(result?.message || 'فشل تقديم طلب السحب', 'error');
         haptic('notification', 'error');
       }
     });
@@ -474,14 +468,14 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       toggleLoader(false);
 
-      if (result.success) {
+      if (result && result.success) {
         showToast('تم إطلاق الحملة الإعلانية بنجاح', 'success');
         haptic('notification', 'success');
         createCampaignForm.reset();
         loadUserProfile();
         loadUserCampaigns();
       } else {
-        showToast(result.message || 'فشل إنشاء الحملة', 'error');
+        showToast(result?.message || 'فشل إنشاء الحملة', 'error');
         haptic('notification', 'error');
       }
     });
