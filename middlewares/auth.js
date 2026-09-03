@@ -22,19 +22,13 @@ const authMiddleware = async (req, res, next) => {
     }
 
     if (!initDataRaw) {
-      return res.status(401).json({
-        success: false,
-        message: 'فشلت عملية المصادقة: ترويسة Telegram InitData مفقودة'
-      });
+      return res.status(401).json({ message: 'فشلت عملية المصادقة' });
     }
 
     const botToken = process.env.BOT_TOKEN;
     if (!botToken) {
       console.error('[Auth Error] BOT_TOKEN غير معرف في متغيرات البيئة');
-      return res.status(500).json({
-        success: false,
-        message: 'خطأ داخلي في إعدادات الخادم'
-      });
+      return res.status(401).json({ message: 'فشلت عملية المصادقة' });
     }
 
     // 2. تحليل سلسلة URL parameters
@@ -42,10 +36,7 @@ const authMiddleware = async (req, res, next) => {
     const hash = searchParams.get('hash');
 
     if (!hash) {
-      return res.status(401).json({
-        success: false,
-        message: 'فشلت عملية المصادقة: رمز التوقيع (hash) مفقود'
-      });
+      return res.status(401).json({ message: 'فشلت عملية المصادقة' });
     }
 
     // إزالة hash وإعداد البيانات المتبقية للترتيب
@@ -81,23 +72,22 @@ const authMiddleware = async (req, res, next) => {
       calculatedBuffer.length !== receivedBuffer.length ||
       !crypto.timingSafeEqual(calculatedBuffer, receivedBuffer)
     ) {
-      return res.status(401).json({
-        success: false,
-        message: 'فشلت عملية المصادقة: توقيع البيانات غير صالح'
-      });
+      return res.status(401).json({ message: 'فشلت عملية المصادقة' });
     }
 
     // 4. استخراج كائن المستخدم
     const userJson = paramsDict['user'];
     if (!userJson) {
-      return res.status(400).json({
-        success: false,
-        message: 'بيانات المستخدم مفقودة داخل الترويسة'
-      });
+      return res.status(401).json({ message: 'فشلت عملية المصادقة' });
     }
 
     const tgUser = JSON.parse(userJson);
-    const startParam = paramsDict['start_param'];
+    let startParam = paramsDict['start_param'] || paramsDict['tgWebAppStartParam'];
+
+    // التعامل مع قوالب الإحالة ref_123456
+    if (startParam && startParam.startsWith('ref_')) {
+      startParam = startParam.replace('ref_', '');
+    }
 
     // 5. جلب المستخدم أو إنشاؤه عند تسجيل الدخول الأول
     let user = await User.findOne({ telegramId: tgUser.id });
@@ -136,21 +126,14 @@ const authMiddleware = async (req, res, next) => {
     }
 
     if (user.isBanned) {
-      return res.status(403).json({
-        success: false,
-        message: 'الحساب محظور من استخدام النظام.'
-      });
+      return res.status(403).json({ message: 'الحساب محظور من استخدام النظام.' });
     }
 
     req.user = user;
     next();
   } catch (error) {
     console.error('[Auth Middleware Error]:', error);
-    return res.status(401).json({
-      success: false,
-      message: 'فشلت عملية المصادقة',
-      error: error.message
-    });
+    return res.status(401).json({ message: 'فشلت عملية المصادقة' });
   }
 };
 
