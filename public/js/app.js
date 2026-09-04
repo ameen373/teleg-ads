@@ -51,6 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const totalRefEarnedEl = document.getElementById('total-ref-earned');
   const totalRefUsersEl = document.getElementById('total-ref-users');
   const refHistoryBody = document.getElementById('ref-history-body');
+  const appLanguageSelect = document.getElementById('app-language-select');
 
   // ==========================================
   // UI & Feedback Helpers
@@ -64,7 +65,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function showToast(message, type = 'info') {
-    // منع تكرار رسالة الخطأ نفسها متتالياً
     if (activeToastMessage === message) return;
     activeToastMessage = message;
 
@@ -72,40 +72,21 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!container) {
       container = document.createElement('div');
       container.id = 'toast-container';
-      container.style.cssText =
-        'position: fixed; bottom: 75px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 8px; width: 90%; max-width: 400px; pointer-events: none;';
       document.body.appendChild(container);
     }
 
     const toast = document.createElement('div');
     toast.className = `toast-message toast-${type}`;
-    toast.style.cssText = `
-      padding: 12px 16px;
-      border-radius: 8px;
-      color: #fff;
-      font-size: 14px;
-      text-align: center;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-      transition: all 0.3s ease;
-      opacity: 0;
-      transform: translateY(10px);
-      pointer-events: auto;
-      background-color: ${
-        type === 'success' ? '#2e7d32' : type === 'error' ? '#c62828' : '#0288d1'
-      };
-    `;
     toast.innerText = message;
 
     container.appendChild(toast);
 
     setTimeout(() => {
-      toast.style.opacity = '1';
-      toast.style.transform = 'translateY(0)';
+      toast.classList.add('show');
     }, 10);
 
     setTimeout(() => {
-      toast.style.opacity = '0';
-      toast.style.transform = 'translateY(10px)';
+      toast.classList.remove('show');
       setTimeout(() => {
         toast.remove();
         if (activeToastMessage === message) activeToastMessage = '';
@@ -146,8 +127,13 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'campaigns':
         loadUserCampaigns();
         break;
-      case 'referral':
+      case 'referrals':
         loadReferralData();
+        break;
+      case 'admin':
+        if (window.AdminPanel && typeof window.AdminPanel.init === 'function') {
+          window.AdminPanel.init();
+        }
         break;
       case 'home':
       default:
@@ -164,9 +150,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // 2. Data Handlers & API Calls
   // ==========================================
 
-  /**
-   * جلب بيانات بروفايل المستخدم وتحديث الواجهة عند التحميل
-   */
   async function loadUserProfile() {
     if (state.authFailed) return;
 
@@ -198,9 +181,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  /**
-   * تعيين قيم واجهة المستخدم
-   */
   function updateUserUI() {
     if (!state.user) return;
 
@@ -230,9 +210,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  /**
-   * جلب بيانات الإحالة
-   */
   async function loadReferralData() {
     if (state.authFailed) return;
 
@@ -253,7 +230,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       renderReferralHistory(result.data.recentReferredUsers || []);
     } else {
-      showToast(result?.message || 'فشلت عملية المصادقة', 'error');
+      showToast(result?.message || 'فشلت عملية جلب الإحالات', 'error');
     }
   }
 
@@ -269,16 +246,13 @@ document.addEventListener('DOMContentLoaded', () => {
     users.forEach(user => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${user.maskedName}</td>
-        <td>${new Date(user.joinedAt).toLocaleDateString('ar-EG')}</td>
+        <td>${user.maskedName || user.firstName || 'مستخدم'}</td>
+        <td>${new Date(user.joinedAt || Date.now()).toLocaleDateString('ar-EG')}</td>
       `;
       refHistoryBody.appendChild(tr);
     });
   }
 
-  /**
-   * جلب وعرض الروابط المختصرة
-   */
   async function loadUserLinks() {
     if (state.authFailed) return;
 
@@ -329,7 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.copy-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         navigator.clipboard.writeText(btn.dataset.url);
-        showToast('تم نسخ الرابط إلى الحافظة', 'success');
+        showToast(window.i18n ? window.i18n.t('msg_copied') : 'تم النسخ بنجاح', 'success');
         haptic('notification', 'success');
       });
     });
@@ -350,9 +324,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  /**
-   * جلب وعرض سجل المحفظة
-   */
   async function loadWalletHistory() {
     if (state.authFailed) return;
 
@@ -408,9 +379,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  /**
-   * جلب وعرض الحملات الإعلانية
-   */
   async function loadUserCampaigns() {
     if (state.authFailed) return;
 
@@ -454,7 +422,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ==========================================
-  // 3. Calculator & Forms Events
+  // 3. Calculator & Form Handlers
   // ==========================================
 
   if (withdrawAmountInput) {
@@ -605,8 +573,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // ==========================================
-  // App Entry Point
-  // ==========================================
+  if (appLanguageSelect && window.i18n) {
+    appLanguageSelect.value = window.i18n.getLanguage();
+    appLanguageSelect.addEventListener('change', (e) => {
+      window.i18n.setLanguage(e.target.value);
+      showToast(e.target.value === 'ar' ? 'تم تغيير اللغة إلى العربية' : 'Language changed to English', 'success');
+    });
+  }
+
+  // Entry Point
   loadUserProfile();
 });
