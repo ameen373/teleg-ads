@@ -3,25 +3,30 @@ const crypto = require('crypto');
 const Link = require('../models/Link');
 
 /**
- * دالة مساعدة لتوليد كود عشوائي فريد مكون من 6-8 رموز
+ * دالة مساعدة لتوليد كود عشوائي فريد
  */
 const generateUniqueCode = async (length = 7) => {
   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let code = '';
   let isUnique = false;
+  let attempts = 0;
 
-  while (!isUnique) {
+  while (!isUnique && attempts < 10) {
     code = '';
     const randomBytes = crypto.randomBytes(length);
     for (let i = 0; i < length; i++) {
       code += characters[randomBytes[i] % characters.length];
     }
 
-    // التأكد من عدم تكرار الكود في قاعدة البيانات
     const existingLink = await Link.findOne({ code });
     if (!existingLink) {
       isUnique = true;
     }
+    attempts++;
+  }
+
+  if (!isUnique) {
+    code = `${Date.now().toString(36)}${Math.random().toString(36).substring(2, 5)}`;
   }
 
   return code;
@@ -41,7 +46,6 @@ const createLink = async (req, res) => {
       });
     }
 
-    // التحقق من صحة صياغة الرابط
     try {
       new URL(originalUrl);
     } catch (err) {
@@ -51,15 +55,13 @@ const createLink = async (req, res) => {
       });
     }
 
-    // توليد كود عشوائي فريد (بين 6 إلى 8 رموز)
-    const randomLength = Math.floor(Math.random() * 3) + 6; // 6 أو 7 أو 8
+    const randomLength = Math.floor(Math.random() * 3) + 6;
     const code = await generateUniqueCode(randomLength);
 
-    // إنشاء وحفظ الرابط الجديد في قاعدة البيانات
     const newLink = await Link.create({
       code,
       userId: req.user._id,
-      originalUrl,
+      originalUrl: originalUrl.trim(),
       title: title ? title.trim() : ''
     });
 
@@ -79,12 +81,11 @@ const createLink = async (req, res) => {
 };
 
 /**
- * جلب جميع الروابط الخاصة بالمستخدم الحالي مع إحصائياتها
+ * جلب جميع الروابط الخاصة بالمستخدم الحالي
  */
 const getUserLinks = async (req, res) => {
   try {
-    const links = await Link.find({ userId: req.user._id })
-      .sort({ createdAt: -1 });
+    const links = await Link.find({ userId: req.user._id }).sort({ createdAt: -1 });
 
     return res.status(200).json({
       success: true,
@@ -108,7 +109,6 @@ const toggleLinkStatus = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // البحث عن الرابط وتأكيد ملكيته للمستخدم الحالي
     const link = await Link.findOne({ _id: id, userId: req.user._id });
 
     if (!link) {
@@ -118,7 +118,6 @@ const toggleLinkStatus = async (req, res) => {
       });
     }
 
-    // تبديل الحالة
     link.isActive = !link.isActive;
     await link.save();
 
@@ -146,4 +145,3 @@ module.exports = {
   getUserLinks,
   toggleLinkStatus
 };
-
