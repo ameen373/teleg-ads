@@ -22,7 +22,7 @@
         <div style="font-size: 0.75rem; color: var(--text-secondary);" id="user-telegram-id">ID: -------</div>
       </div>
     </div>
-    <button class="btn-sm btn-primary" id="open-faq-modal-btn">التعليمات ❓</button>
+    <button class="btn-sm btn-primary" id="open-faq-modal-btn">❓</button>
   </header>
 
   <!-- Global App Loader -->
@@ -39,21 +39,21 @@
   <section id="home-section" class="view-section active-view">
     <div class="balances-grid">
       <div class="balance-card available">
-        <div class="balance-label">الرصيد المتاح للسحب</div>
+        <div class="balance-label" data-i18n="available_balance">الرصيد المتاح للسحب</div>
         <div class="balance-value" id="user-available-balance">$0.00</div>
       </div>
       <div class="balance-card pending">
-        <div class="balance-label">الأرصدة المعلقة</div>
+        <div class="balance-label" data-i18n="pending_balance">الأرصدة المعلقة</div>
         <div class="balance-value" id="user-pending-balance">$0.00</div>
       </div>
       <div class="balance-card total full-width">
-        <div class="balance-label">إجمالي الأرباح المحققة</div>
+        <div class="balance-label" data-i18n="total_earned">إجمالي الأرباح المحققة</div>
         <div class="balance-value" id="user-total-earned">$0.00</div>
       </div>
     </div>
 
     <div class="card">
-      <div class="card-title">نظرة عامة على النشاط</div>
+      <div class="card-title" data-i18n="home_title">نظرة عامة على النشاط</div>
       <p>أهلاً بك في منصة اختصار الروابط والإعلانات. يمكنك اختصار روابطك ونشرها لتحقيق الأرباح أو إنشاء حملاتك الإعلانية للوصول لآلاف المستهدفين.</p>
     </div>
   </section>
@@ -63,32 +63,32 @@
        ========================================== -->
   <section id="links-section" class="view-section" style="display: none;">
     <div class="card">
-      <div class="card-title">إنشاء رابط مختصر جديد</div>
+      <div class="card-title" data-i18n="btn_shorten">إنشاء رابط مختصر جديد</div>
       <form id="create-link-form">
         <div class="form-group">
-          <label class="form-label">الرابط الأصلي Target URL</label>
-          <input type="url" id="link-original-url" class="form-control" placeholder="https://example.com/file.zip" required>
+          <label class="form-label" data-i18n="label_original_url">الرابط الأصلي Target URL</label>
+          <input type="url" id="link-original-url" class="form-control" data-i18n-placeholder="placeholder_original_url" placeholder="https://example.com/file.zip" required>
         </div>
         <div class="form-group">
-          <label class="form-label">عنوان الرابط (اختياري)</label>
-          <input type="text" id="link-title-input" class="form-control" placeholder="مثال: ملف التحميل">
+          <label class="form-label" data-i18n="label_link_title">عنوان الرابط (اختياري)</label>
+          <input type="text" id="link-title-input" class="form-control" data-i18n-placeholder="placeholder_link_title" placeholder="مثال: ملف التحميل">
         </div>
-        <button type="submit" class="btn btn-primary">اختصار الرابط الآن</button>
+        <button type="submit" class="btn btn-primary" data-i18n="btn_create_link">اختصار الرابط الآن</button>
       </form>
     </div>
 
     <div class="card">
-      <div class="card-title">قائمة روابطك المختصرة</div>
+      <div class="card-title" data-i18n="links_title">قائمة روابطك المختصرة</div>
       <div class="table-responsive">
         <table class="data-table">
           <thead>
             <tr>
-              <th>الكود</th>
-              <th>النقرات</th>
-              <th>الظهور</th>
-              <th>الأرباح</th>
-              <th>الحالة</th>
-              <th>الإجراءات</th>
+              <th data-i18n="col_code">الكود</th>
+              <th data-i18n="col_clicks">النقرات</th>
+              <th data-i18n="col_impressions">الظهور</th>
+              <th data-i18n="col_earnings">الأرباح</th>
+              <th data-i18n="col_status">الحالة</th>
+              <th data-i18n="col_actions">الإجراءات</th>
             </tr>
           </thead>
           <tbody id="user-links-body">
@@ -105,37 +105,37 @@
   <section id="wallet-section" class="view-section" style="display: none;">
     <!-- Deposit Form -->
     <div class="card">
-      <div class="card-title">إيداع رصيد بالمحفظة (USDT)</div>
+      <div class="card-title" data-i18n="deposit_section">إيداع رصيد بالمحفظة (USDT)</div>
       <form id="deposit-form">
         <div class="form-group">
-          <label class="form-label">شبكة التحويل</label>
+          <label class="form-label" data-i18n="label_network">شبكة التحويل</label>
           <select id="deposit-network" class="form-control">
             <option value="TRC20">USDT - TRC20 (TRON)</option>
             <option value="BEP20">USDT - BEP20 (BNB Smart Chain)</option>
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label">المبلغ المحدد ($)</label>
+          <label class="form-label" data-i18n="label_amount">المبلغ المحدد ($)</label>
           <input type="number" id="deposit-amount" class="form-control" min="1" step="0.1" placeholder="10.00" required>
         </div>
         <div class="form-group">
-          <label class="form-label">معرف المعاملة TxHash / TxID</label>
+          <label class="form-label" data-i18n="label_txhash">معرف المعاملة TxHash / TxID</label>
           <input type="text" id="deposit-txhash" class="form-control" placeholder="أدخل معرف الهاش الخاص بالتحويل" required>
         </div>
-        <button type="submit" class="btn btn-success">إرسال إثبات الإيداع</button>
+        <button type="submit" class="btn btn-success" data-i18n="btn_submit_deposit">إرسال إثبات الإيداع</button>
       </form>
     </div>
 
     <!-- Withdrawal Form -->
     <div class="card">
-      <div class="card-title">طلب سحب الأرباح</div>
+      <div class="card-title" data-i18n="withdraw_section">طلب سحب الأرباح</div>
       <form id="withdraw-form">
         <div class="form-group">
-          <label class="form-label">مبلغ السحب ($)</label>
+          <label class="form-label" data-i18n="label_amount">مبلغ السحب ($)</label>
           <input type="number" id="withdraw-amount" class="form-control" min="5" step="0.1" placeholder="الحد الأدنى $5" required>
         </div>
         <div class="form-group">
-          <label class="form-label">عنوان محفظة USDT (TRC20)</label>
+          <label class="form-label" data-i18n="label_wallet_address">عنوان محفظة USDT (TRC20)</label>
           <input type="text" id="withdraw-wallet-address" class="form-control" placeholder="T..." required>
         </div>
 
@@ -150,20 +150,20 @@
           </div>
         </div>
 
-        <button type="submit" class="btn btn-primary" style="margin-top: 12px;">تأكيد طلب السحب</button>
+        <button type="submit" class="btn btn-primary" style="margin-top: 12px;" data-i18n="btn_submit_withdraw">تأكيد طلب السحب</button>
       </form>
     </div>
 
     <!-- History Tables -->
     <div class="card">
-      <div class="card-title">سجل الإيداعات</div>
+      <div class="card-title" data-i18n="history_title">سجل الإيداعات</div>
       <div class="table-responsive">
         <table class="data-table">
           <thead>
             <tr>
-              <th>المبلغ</th>
-              <th>الشبكة</th>
-              <th>الحالة</th>
+              <th data-i18n="label_amount">المبلغ</th>
+              <th data-i18n="label_network">الشبكة</th>
+              <th data-i18n="col_status">الحالة</th>
               <th>التاريخ</th>
             </tr>
           </thead>
@@ -175,14 +175,14 @@
     </div>
 
     <div class="card">
-      <div class="card-title">سجل السحوبات</div>
+      <div class="card-title" data-i18n="history_title">سجل السحوبات</div>
       <div class="table-responsive">
         <table class="data-table">
           <thead>
             <tr>
-              <th>المبلغ</th>
+              <th data-i18n="label_amount">المبلغ</th>
               <th>الصافي</th>
-              <th>الحالة</th>
+              <th data-i18n="col_status">الحالة</th>
               <th>التاريخ</th>
             </tr>
           </thead>
@@ -199,22 +199,22 @@
        ========================================== -->
   <section id="campaigns-section" class="view-section" style="display: none;">
     <div class="card">
-      <div class="card-title">إنشاء حملة إعلانية جديدة</div>
+      <div class="card-title" data-i18n="btn_new_campaign">إنشاء حملة إعلانية جديدة</div>
       <form id="create-campaign-form">
         <div class="form-group">
-          <label class="form-label">عنوان الإعلان</label>
+          <label class="form-label" data-i18n="label_campaign_title">عنوان الإعلان</label>
           <input type="text" id="campaign-title" class="form-control" placeholder="مثال: قناة تيليجرام مميزة" required>
         </div>
         <div class="form-group">
-          <label class="form-label">رابط التوجيه Target URL</label>
+          <label class="form-label" data-i18n="label_target_url">رابط التوجيه Target URL</label>
           <input type="url" id="campaign-target-url" class="form-control" placeholder="https://t.me/yourchannel" required>
         </div>
         <div class="form-group">
-          <label class="form-label">رابط صورة البانر (اختياري)</label>
+          <label class="form-label" data-i18n="label_banner_url">رابط صورة البانر (اختياري)</label>
           <input type="url" id="campaign-banner-url" class="form-control" placeholder="https://example.com/banner.jpg">
         </div>
         <div class="form-group">
-          <label class="form-label">الميزانية الكلية ($)</label>
+          <label class="form-label" data-i18n="label_budget">الميزانية الكلية ($)</label>
           <input type="number" id="campaign-budget" class="form-control" min="1" step="0.5" placeholder="10.00" required>
         </div>
         <button type="submit" class="btn btn-primary">إطلاق الحملة</button>
@@ -222,7 +222,7 @@
     </div>
 
     <div class="card">
-      <div class="card-title">حملاتي الإعلانية</div>
+      <div class="card-title" data-i18n="campaigns_title">حملاتي الإعلانية</div>
       <div id="user-campaigns-list">
         <p class="text-center">جاري تحميل الحملات...</p>
       </div>
@@ -234,15 +234,45 @@
        ========================================== -->
   <section id="referrals-section" class="view-section" style="display: none;">
     <div class="card">
-      <div class="card-title">نظام الدعوات والإحالات</div>
-      <p style="margin-bottom: 12px;">احصل على نسبة 10% أرباح إضافية دائمة من كل مستخدم يسجل عن طريق رابط الإحالة الخاص بك.</p>
+      <div class="card-title" data-i18n="referral_title">نظام الدعوات والإحالات</div>
+      <p style="margin-bottom: 12px;" data-i18n="referral_desc">احصل على نسبة 10% أرباح إضافية دائمة من كل مستخدم يسجل عن طريق رابط الإحالة الخاص بك.</p>
       
       <div class="form-group">
-        <label class="form-label">رابط الإحالة الخاص بك</label>
+        <label class="form-label" data-i18n="label_ref_link">رابط الإحالة الخاص بك</label>
         <div class="copy-input-group">
           <input type="text" id="referral-link-input" class="form-control" readonly placeholder="جاري التحميل...">
-          <button type="button" class="btn btn-primary btn-sm" id="copy-ref-btn">نسخ</button>
+          <button type="button" class="btn btn-primary btn-sm" id="copy-ref-btn" data-i18n="btn_copy">نسخ</button>
         </div>
+      </div>
+
+      <div class="balances-grid" style="margin-top: 15px;">
+        <div class="balance-card available">
+          <div class="balance-label" data-i18n="ref_earnings">أرباح الإحالات</div>
+          <div class="balance-value" id="total-ref-earned">$0.00</div>
+        </div>
+        <div class="balance-card pending">
+          <div class="balance-label">عدد المسجلين</div>
+          <div class="balance-value" id="total-ref-users">0</div>
+        </div>
+      </div>
+
+      <button type="button" class="btn btn-success" id="claim-ref-btn" style="margin-top: 10px;">تحويل الأرباح للمحفظة</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">قائمة المسجلين عبر رابطك</div>
+      <div class="table-responsive">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>المستخدم</th>
+              <th>تاريخ الانضمام</th>
+            </tr>
+          </thead>
+          <tbody id="ref-history-body">
+            <tr><td colspan="2" class="text-center">لا توجد إحالات حالياً</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </section>
@@ -252,16 +282,16 @@
        ========================================== -->
   <section id="settings-section" class="view-section" style="display: none;">
     <div class="card">
-      <div class="card-title">إعدادات الحساب واللغة</div>
+      <div class="card-title" data-i18n="settings_title">إعدادات الحساب واللغة</div>
       <div class="form-group">
-        <label class="form-label">تغيير لغة التطبيق</label>
+        <label class="form-label" data-i18n="label_language">تغيير لغة التطبيق</label>
         <select id="app-language-select" class="form-control">
-          <option value="ar" selected>العربية (Arabic)</option>
+          <option value="ar">العربية (Arabic)</option>
           <option value="en">الإنجليزية (English)</option>
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label">عنوان المحفظة الافتراضي للسحب</label>
+        <label class="form-label" data-i18n="label_wallet_address">عنوان المحفظة الافتراضي للسحب</label>
         <input type="text" id="default-wallet-address" class="form-control" placeholder="T...">
       </div>
     </div>
@@ -284,28 +314,88 @@
        ========================================== -->
   <section id="admin-section" class="view-section" style="display: none;">
     <div class="card">
-      <div class="card-title">إحصائيات النظام العامة</div>
+      <div class="card-title" data-i18n="admin_title">إحصائيات النظام العامة</div>
       <div class="balances-grid">
         <div class="balance-card">
-          <div class="balance-label">المستخدمين</div>
+          <div class="balance-label" data-i18n="stat_total_users">المستخدمين</div>
           <div class="balance-value" id="stat-total-users">0</div>
         </div>
         <div class="balance-card">
-          <div class="balance-label">الروابط</div>
+          <div class="balance-label" data-i18n="stat_total_links">الروابط</div>
           <div class="balance-value" id="stat-total-links">0</div>
         </div>
         <div class="balance-card">
-          <div class="balance-label">إيداعات معلقة</div>
+          <div class="balance-label" data-i18n="stat_pending_deposits">إيداعات معلقة</div>
           <div class="balance-value" id="stat-pending-deposits">0</div>
         </div>
         <div class="balance-card">
-          <div class="balance-label">سحوبات معلقة</div>
+          <div class="balance-label" data-i18n="stat_pending_withdrawals">سحوبات معلقة</div>
           <div class="balance-value" id="stat-pending-withdrawals">0</div>
         </div>
         <div class="balance-card total full-width">
           <div class="balance-label">إجمالي أرباح المنصة</div>
           <div class="balance-value" id="stat-system-earned">$0.00</div>
         </div>
+      </div>
+    </div>
+
+    <!-- Admin Deposits Review Card -->
+    <div class="card">
+      <div class="card-title">طلب الإيداعات المعلقة</div>
+      <div class="table-responsive">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>المستخدم</th>
+              <th>المبلغ</th>
+              <th>TxHash</th>
+              <th>الإجراء</th>
+            </tr>
+          </thead>
+          <tbody id="admin-deposits-body">
+            <tr><td colspan="4" class="text-center">لا توجد طلبات معلقة</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Admin Withdrawals Review Card -->
+    <div class="card">
+      <div class="card-title">طلبات السحب المعلقة</div>
+      <div class="table-responsive">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>المستخدم</th>
+              <th>المبلغ الصافي</th>
+              <th>المحفظة</th>
+              <th>الإجراء</th>
+            </tr>
+          </thead>
+          <tbody id="admin-withdrawals-body">
+            <tr><td colspan="4" class="text-center">لا توجد طلبات معلقة</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Admin Users List Card -->
+    <div class="card">
+      <div class="card-title">إدارة المستخدمين</div>
+      <div class="table-responsive">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Telegram ID</th>
+              <th>الاسم</th>
+              <th>الحالة</th>
+              <th>الإجراء</th>
+            </tr>
+          </thead>
+          <tbody id="admin-users-body">
+            <tr><td colspan="4" class="text-center">جاري جلب قائمة المستخدمين...</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </section>
@@ -333,33 +423,38 @@
   <nav class="bottom-dock">
     <button class="nav-tab active" data-tab="home">
       <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
-      <span>الرئيسية</span>
+      <span data-i18n="nav_home">الرئيسية</span>
     </button>
     <button class="nav-tab" data-tab="links">
       <svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>
-      <span>الروابط</span>
+      <span data-i18n="nav_links">الروابط</span>
     </button>
     <button class="nav-tab" data-tab="wallet">
       <svg viewBox="0 0 24 24"><path d="M21 18v1c0 1.1-.9 2-2 2H5c-1.11 0-2-.9-2-2V5c0-1.1.89-2 2-2h14c1.1 0 2 .9 2 2v1h-9c-1.11 0-2 .9-2 2v8c0 1.1.89 2 2 2h9zm-9-2h10V8H12v8zm4-2.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
-      <span>المحفظة</span>
+      <span data-i18n="nav_wallet">المحفظة</span>
     </button>
     <button class="nav-tab" data-tab="campaigns">
       <svg viewBox="0 0 24 24"><path d="M18 11v2h4v-2h-4zm-2 6.61c.96.71 2.21 1.65 3.2 2.39 1-1.33 2-2.67 3-4-.99-.74-2.24-1.68-3.2-2.39-1 1.33-2 2.67-3 4zM12 1c-4.97 0-9 4.03-9 9 0 2.12.74 4.07 1.97 5.61L3 23l7.39-1.97C11.1 21.61 11.54 21.7 12 21.7c4.97 0 9-4.03 9-9s-4.03-9-9-9z"/></svg>
-      <span>الحملات</span>
+      <span data-i18n="nav_campaigns">الحملات</span>
     </button>
     <button class="nav-tab" data-tab="referrals">
-      <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-      <span>الإحالة</span>
+      <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+      <span data-i18n="nav_referral">الإحالة</span>
+    </button>
+    <button class="nav-tab" data-tab="settings">
+      <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+      <span data-i18n="settings_title">الإعدادات</span>
     </button>
 
     <button class="nav-tab" id="admin-nav-tab" data-tab="admin" style="display: none; color: #f59e0b;">
       <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8s0 0 0 0z"/></svg>
-      <span>الإدارة</span>
+      <span data-i18n="nav_admin">الإدارة</span>
     </button>
   </nav>
 
   <!-- JavaScript App Logic Scripts in Correct Dependency Order -->
   <script src="/js/telegram.js"></script>
+  <script src="/js/i18n.js"></script>
   <script src="/js/app.js"></script>
   <script src="/js/admin.js"></script>
 
