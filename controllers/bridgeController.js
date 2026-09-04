@@ -1,18 +1,22 @@
 // controllers/bridgeController.js
+const mongoose = require('mongoose');
 const Link = require('../models/Link');
 const User = require('../models/User');
 const Campaign = require('../models/Campaign');
 const SYSTEM_CONSTANTS = require('../config/constants');
 
 /**
- * جلب تفاصيل الرابط المختصر وجلب الإعلان المناسب لصفحة الجسر
+ * جلب تفاصيل الرابط المختصر والإعلان المناسب لصفحة الجسر
  */
 const getLinkDetails = async (req, res) => {
   try {
     const { code } = req.params;
 
-    // 1. البحث عن الرابط المختصر والتأكد من أنه نشط
-    const link = await Link.findOne({ code, isActive: true });
+    const link = await Link.findOneAndUpdate(
+      { code, isActive: true },
+      { $inc: { totalClicks: 1 } },
+      { new: true }
+    );
 
     if (!link) {
       return res.status(404).json({
@@ -21,15 +25,13 @@ const getLinkDetails = async (req, res) => {
       });
     }
 
-    // زيادة إجمالي عدد النقرات الكلية (غبر المفلترة)
-    link.totalClicks += 1;
-    await link.save();
+    const cpmRate = SYSTEM_CONSTANTS.CPM_RATE || 1.50;
+    const minCostPerImpression = cpmRate / 1000;
 
-    // 2. البحث عن حملة إعلانية داخلية نشطة وتملك ميزانية متبقية
     const activeCampaign = await Campaign.findOne({
       status: 'active',
-      remainingBudget: { $gte: SYSTEM_CONSTANTS.CPM_RATE / 1000 }
-    }).sort({ createdAt: 1 }); // جلب الأقدم أولاً
+      remainingBudget: { $gte: minCostPerImpression }
+    }).sort({ createdAt: 1 });
 
     let adData = null;
 
@@ -42,7 +44,6 @@ const getLinkDetails = async (req, res) => {
         targetUrl: activeCampaign.targetUrl
       };
     } else {
-      // إرجاع إعلانات شبكات خارجية كخيار احتياطي (Adsgram / Adsterra)
       adData = {
         type: 'external',
         adsgramBlockId: process.env.ADSGRAM_BLOCK_ID || null,
@@ -53,10 +54,11 @@ const getLinkDetails = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: {
+        linkId: link._id,
         code: link.code,
         title: link.title,
         originalUrl: link.originalUrl,
-        waitTimeSeconds: SYSTEM_CONSTANTS.BRIDGE_WAIT_SECONDS,
+        waitTimeSeconds: SYSTEM_CONSTANTS.BRIDGE_WAIT_SECONDS || 5,
         ad: adData
       }
     });
@@ -71,81 +73,99 @@ const getLinkDetails = async (req, res) => {
 };
 
 /**
- * تأكيد مشاهدة الإعلان واحتساب الأرباح بعد انتهاء العداد التنازلي
+ * تأكيد مشاهدة الإعلان واحتساب الأرباح برمجياً عبر Transaction
  */
 const confirmImpression = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    const { code, campaignId, startTime } = req.body;
+    const { code, linkId, campaignId, startTime } = req.body;
 
-    if (!code || !startTime) {
+    if ((!code && !linkId) || !startTime) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({
         success: false,
-        message: 'جميع البيانات المطلوبة (code, startTime) يجب توفيرها'
+        message: 'بيانات غير كاملة للتحقق من المشاهدة'
       });
     }
 
-    // 1. التأكد من سلامة وقت الجلسة (مرور 5 ثوانٍ على الأقل من بدء الصفحة)
-    const currentTime = Date.now();
-    const elapsedTimeSeconds = (currentTime - Number(startTime)) / 1000;
+    const waitSeconds = SYSTEM_CONSTANTS.BRIDGE_WAIT_SECONDS || 5;
+    const elapsedTime = (Date.now() - Number(startTime)) / 1000;
 
-    if (elapsedTimeSeconds < SYSTEM_CONSTANTS.BRIDGE_WAIT_SECONDS) {
+    if (elapsedTime < waitSeconds - 0.5) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({
         success: false,
-        message: `لم تكتمل مدة الانتظار المطلوبة (${SYSTEM_CONSTANTS.BRIDGE_WAIT_SECONDS} ثوانٍ)`
+        message: `لم تكتمل مدة الانتظار المطلوبة (${waitSeconds} ثوانٍ)`
       });
     }
 
-    // 2. البحث عن الرابط المختصر
-    const link = await Link.findOne({ code, isActive: true });
+    const query = linkId ? { _id: linkId, isActive: true } : { code, isActive: true };
+    const link = await Link.findOne(query).session(session);
+
     if (!link) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({
         success: false,
         message: 'الرابط غير موجود أو معطل'
       });
     }
 
-    // 3. حساب تكلفة المشاهدة الواحدة بناءً على الـ CPM
-    // CPM_RATE = سعر 1000 مشاهدة (مثال: 1.50$) -> المشاهدة الواحدة = 1.50 / 1000 = 0.0015$
-    const impressionEarning = SYSTEM_CONSTANTS.CPM_RATE / 1000;
+    const cpmRate = SYSTEM_CONSTANTS.CPM_RATE || 1.50;
+    const impressionEarning = cpmRate / 1000;
 
-    // تحديث بيانات الرابط
     link.validImpressions += 1;
     link.earningsGenerated += impressionEarning;
-    await link.save();
+    await link.save({ session });
 
-    // 4. إضافة الأرباح إلى الرصيد المعلق (pendingBalance) لصاحب الرابط
-    const linkOwner = await User.findById(link.userId);
+    const linkOwner = await User.findById(link.userId).session(session);
     if (linkOwner) {
-      linkOwner.pendingBalance += impressionEarning;
-      await linkOwner.save();
+      if (linkOwner.balances) {
+        linkOwner.balances.pending = (linkOwner.balances.pending || 0) + impressionEarning;
+      } else {
+        linkOwner.pendingBalance = (linkOwner.pendingBalance || 0) + impressionEarning;
+      }
+      await linkOwner.save({ session });
 
-      // 5. احتساب عمولة الإحالة (10%) للمُحيل إن وجد
       if (linkOwner.referredBy) {
-        const referrer = await User.findOne({ telegramId: linkOwner.referredBy });
+        const referrer = await User.findOne({ telegramId: linkOwner.referredBy }).session(session);
         if (referrer) {
-          const referralCommission = impressionEarning * SYSTEM_CONSTANTS.REFERRAL_COMMISSION_PERCENT;
-          referrer.availableBalance += referralCommission;
-          referrer.referralEarnings += referralCommission;
-          referrer.totalEarned += referralCommission;
-          await referrer.save();
+          const commissionPercent = SYSTEM_CONSTANTS.REFERRAL_COMMISSION_PERCENT || 0.10;
+          const referralCommission = impressionEarning * commissionPercent;
+
+          if (referrer.balances) {
+            referrer.balances.available = (referrer.balances.available || 0) + referralCommission;
+            referrer.balances.referralEarned = (referrer.balances.referralEarned || 0) + referralCommission;
+            referrer.balances.totalEarned = (referrer.balances.totalEarned || 0) + referralCommission;
+          } else {
+            referrer.availableBalance = (referrer.availableBalance || 0) + referralCommission;
+            referrer.referralEarnings = (referrer.referralEarnings || 0) + referralCommission;
+            referrer.totalEarned = (referrer.totalEarned || 0) + referralCommission;
+          }
+          await referrer.save({ session });
         }
       }
     }
 
-    // 6. خصم التكلفة من ميزانية الحملة الداخلية إن كانت المشاهدة تابعة لحملة
     if (campaignId) {
-      const campaign = await Campaign.findById(campaignId);
+      const campaign = await Campaign.findById(campaignId).session(session);
       if (campaign && campaign.status === 'active') {
         campaign.impressionsDelivered += 1;
         campaign.remainingBudget = Math.max(0, campaign.remainingBudget - impressionEarning);
 
-        // إنهاء الحملة تلقائياً عند استنفاد الميزانية
         if (campaign.remainingBudget <= 0) {
           campaign.status = 'completed';
         }
-        await campaign.save();
+        await campaign.save({ session });
       }
     }
+
+    await session.commitTransaction();
+    session.endSession();
 
     return res.status(200).json({
       success: true,
@@ -156,6 +176,8 @@ const confirmImpression = async (req, res) => {
       }
     });
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
     console.error('[bridgeController: confirmImpression Error]:', error);
     return res.status(500).json({
       success: false,
