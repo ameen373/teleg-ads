@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const User = require('../models/User');
 
 /**
- * ميدل وير المصادقة والتحقق من صحة توقيع Telegram WebApp initData
+ * ميدل وير المصادقة والتحقق المتقدم من صحة توقيع Telegram WebApp initData
  */
 const authMiddleware = async (req, res, next) => {
   try {
@@ -40,9 +40,13 @@ const authMiddleware = async (req, res, next) => {
 
     // 2. معالجة وتفكيك سلسلة URL Parameters
     let searchParams;
-    if (rawInitData.includes('%3D') || rawInitData.includes('%26')) {
-      searchParams = new URLSearchParams(decodeURIComponent(rawInitData));
-    } else {
+    try {
+      searchParams = new URLSearchParams(
+        rawInitData.includes('%3D') || rawInitData.includes('%26')
+          ? decodeURIComponent(rawInitData)
+          : rawInitData
+      );
+    } catch (e) {
       searchParams = new URLSearchParams(rawInitData);
     }
 
@@ -143,11 +147,11 @@ const authMiddleware = async (req, res, next) => {
         }
       });
     } else {
-      // تحديث بيانات المستخدم المزامنة
+      // تحديث بيانات المستخدم المزامنة بشكل لحظي
       let isUpdated = false;
       if (tgUser.first_name && user.firstName !== tgUser.first_name) { user.firstName = tgUser.first_name; isUpdated = true; }
-      if (tgUser.last_name && user.lastName !== tgUser.last_name) { user.lastName = tgUser.last_name; isUpdated = true; }
-      if (tgUser.username && user.username !== tgUser.username) { user.username = tgUser.username; isUpdated = true; }
+      if (tgUser.last_name !== undefined && user.lastName !== tgUser.last_name) { user.lastName = tgUser.last_name || ''; isUpdated = true; }
+      if (tgUser.username !== undefined && user.username !== tgUser.username) { user.username = tgUser.username || ''; isUpdated = true; }
       if (user.isPremium !== Boolean(tgUser.is_premium)) { user.isPremium = Boolean(tgUser.is_premium); isUpdated = true; }
       if (tgUser.photo_url && user.photoUrl !== tgUser.photo_url) { user.photoUrl = tgUser.photo_url; isUpdated = true; }
 
