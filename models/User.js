@@ -14,19 +14,22 @@ const userSchema = new mongoose.Schema(
     // الاسم الأول للمستخدم
     firstName: {
       type: String,
-      trim: true
+      trim: true,
+      default: ''
     },
 
     // اسم العائلة
     lastName: {
       type: String,
-      trim: true
+      trim: true,
+      default: ''
     },
 
     // اسم المستخدم على تيليجرام (بدون @)
     username: {
       type: String,
-      trim: true
+      trim: true,
+      default: ''
     },
 
     // هل المستخدم مشترك في Telegram Premium
@@ -38,7 +41,8 @@ const userSchema = new mongoose.Schema(
     // رابط صورة البروفايل
     photoUrl: {
       type: String,
-      trim: true
+      trim: true,
+      default: ''
     },
 
     // رمز لغة المستخدم
@@ -52,25 +56,54 @@ const userSchema = new mongoose.Schema(
     role: {
       type: String,
       enum: ['user', 'admin'],
-      default: 'user'
+      default: 'user',
+      index: true
     },
 
-    // الرصيد المتاح للسحب (بالدولار USDT)
+    // كائن الأرصدة الموحد لضمان التوافق التام مع جميع المتحكمات
+    balances: {
+      available: {
+        type: Number,
+        default: 0,
+        min: [0, 'لا يمكن أن يكون الرصيد المتاح بالسالب']
+      },
+      pending: {
+        type: Number,
+        default: 0,
+        min: [0, 'لا يمكن أن يكون الرصيد المعلق بالسالب']
+      },
+      totalEarned: {
+        type: Number,
+        default: 0,
+        min: [0, 'لا يمكن أن يكون إجمالي الأرباح بالسالب']
+      },
+      referralEarned: {
+        type: Number,
+        default: 0,
+        min: [0, 'لا يمكن أن تكون أرباح الإحالة بالسالب']
+      }
+    },
+
+    // حقول الأرصدة التقليدية لضمان التوافقية مع الأكواد السابقة
     availableBalance: {
       type: Number,
       default: 0,
       min: 0
     },
 
-    // الرصيد المعلق (تحت التحقق)
     pendingBalance: {
       type: Number,
       default: 0,
       min: 0
     },
 
-    // إجمالي الأرباح المحققة منذ البداية
     totalEarned: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+
+    referralEarnings: {
       type: Number,
       default: 0,
       min: 0
@@ -79,7 +112,8 @@ const userSchema = new mongoose.Schema(
     // عنوان محفظة USDT TRC20 الافتراضي للسحب
     defaultWalletAddress: {
       type: String,
-      trim: true
+      trim: true,
+      default: ''
     },
 
     // telegramId للمستخدم الذي قام بدعوته (المُحيل)
@@ -89,26 +123,46 @@ const userSchema = new mongoose.Schema(
       index: true
     },
 
-    // إجمالي الأرباح المكتسبة من نظام الإحالات
-    referralEarnings: {
-      type: Number,
-      default: 0,
-      min: 0
-    },
-
     // حالة حظر المستخدم من النظام
     isBanned: {
       type: Boolean,
-      default: false
+      default: false,
+      index: true
     }
   },
   {
-    // إضافة حقول createdAt و updatedAt تلقائياً
-    timestamps: true
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
   }
 );
+
+// مزامنة الأرصدة تلقائياً قبل الحفظ لتفادي التعارض بين بنية الأرصدة القديمة والجديدة
+userSchema.pre('save', function (next) {
+  if (this.isModified('balances')) {
+    if (this.balances) {
+      this.availableBalance = this.balances.available;
+      this.pendingBalance = this.balances.pending;
+      this.totalEarned = this.balances.totalEarned;
+      this.referralEarnings = this.balances.referralEarned;
+    }
+  } else if (
+    this.isModified('availableBalance') ||
+    this.isModified('pendingBalance') ||
+    this.isModified('totalEarned') ||
+    this.isModified('referralEarnings')
+  ) {
+    if (!this.balances) {
+      this.balances = {};
+    }
+    this.balances.available = this.availableBalance;
+    this.balances.pending = this.pendingBalance;
+    this.balances.totalEarned = this.totalEarned;
+    this.balances.referralEarned = this.referralEarnings;
+  }
+  next();
+});
 
 const User = mongoose.model('User', userSchema);
 
 module.exports = User;
-
