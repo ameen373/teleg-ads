@@ -15,14 +15,15 @@ const withdrawalSchema = new mongoose.Schema(
     amount: {
       type: Number,
       required: [true, 'المبلغ المطلوب سحبه مطلوب'],
-      min: [0, 'لا يمكن أن يكون المبلغ أقل من 0']
+      min: [0.01, 'لا يمكن أن يكون مبلغ السحب أقل من $0.01']
     },
 
-    // قيمة العمولة المخصومة (3%)
+    // قيمة العمولة المخصومة
     feeDeducted: {
       type: Number,
       required: [true, 'قيمة العمولة المخصومة مطلوبة'],
-      min: [0, 'لا يمكن أن تكون قيمة العمولة بالسالب']
+      min: [0, 'لا يمكن أن تكون قيمة العمولة بالسالب'],
+      default: 0
     },
 
     // المبلغ الصافي المرسل للمستخدم بعد خصم العمولة
@@ -55,12 +56,13 @@ const withdrawalSchema = new mongoose.Schema(
     }
   },
   {
-    // إضافة حقول createdAt و updatedAt تلقائياً
     timestamps: true
   }
 );
 
+// فهرس مركب للوصول السريع لطلبات السحب المعلقة مرتبة أحدث فأقدم
+withdrawalSchema.index({ status: 1, createdAt: -1 });
+
 const Withdrawal = mongoose.model('Withdrawal', withdrawalSchema);
 
 module.exports = Withdrawal;
-
