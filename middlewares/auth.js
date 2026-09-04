@@ -22,24 +22,36 @@ const authMiddleware = async (req, res, next) => {
     }
 
     if (!rawInitData || rawInitData === 'null' || rawInitData === 'undefined') {
-      return res.status(401).json({ success: false, message: 'لم يتم توفير بيانات المصادقة' });
+      return res.status(401).json({
+        success: false,
+        message: 'لم يتم توفير بيانات المصادقة'
+      });
     }
 
     // جلب التوكين من متغيرات البيئة
     const botToken = process.env.BOT_TOKEN;
     if (!botToken) {
       console.error('[Auth Error] BOT_TOKEN غير معرف في متغيرات البيئة');
-      return res.status(500).json({ success: false, message: 'خطأ إعدادات السيرفر الداخلي' });
+      return res.status(500).json({
+        success: false,
+        message: 'خطأ إعدادات السيرفر الداخلي'
+      });
     }
 
     // 2. معالجة وتفكيك سلسلة URL Parameters
-    // فك الترميز لضمان قراءة المبادلات بشكل صحيح
-    const decodedInitData = decodeURIComponent(rawInitData);
-    const searchParams = new URLSearchParams(decodedInitData);
-    const hash = searchParams.get('hash');
+    let searchParams;
+    if (rawInitData.includes('%3D') || rawInitData.includes('%26')) {
+      searchParams = new URLSearchParams(decodeURIComponent(rawInitData));
+    } else {
+      searchParams = new URLSearchParams(rawInitData);
+    }
 
+    const hash = searchParams.get('hash');
     if (!hash) {
-      return res.status(401).json({ success: false, message: 'رمز التوقيع (hash) مفقود من البيانات' });
+      return res.status(401).json({
+        success: false,
+        message: 'رمز التوقيع (hash) مفقود من البيانات'
+      });
     }
 
     // حذف hash وإعداد البيانات المتبقية للترتيب والتحقق
@@ -76,13 +88,19 @@ const authMiddleware = async (req, res, next) => {
       !crypto.timingSafeEqual(calculatedBuffer, receivedBuffer)
     ) {
       console.warn('[Auth Warning] فشل مطابقة توقيع HMAC');
-      return res.status(401).json({ success: false, message: 'فشلت عملية المصادقة: توقيع غير صالح' });
+      return res.status(401).json({
+        success: false,
+        message: 'فشلت عملية المصادقة: توقيع غير صالح'
+      });
     }
 
     // 4. استخراج كائن المستخدم
     const userJson = paramsDict['user'];
     if (!userJson) {
-      return res.status(401).json({ success: false, message: 'بيانات المستخدم مفقودة من جلسة تليجرام' });
+      return res.status(401).json({
+        success: false,
+        message: 'بيانات المستخدم مفقودة من جلسة تليجرام'
+      });
     }
 
     const tgUser = JSON.parse(userJson);
@@ -116,7 +134,13 @@ const authMiddleware = async (req, res, next) => {
         isPremium: Boolean(tgUser.is_premium),
         languageCode: tgUser.language_code || 'ar',
         photoUrl: tgUser.photo_url || '',
-        referredBy: referrerTelegramId
+        referredBy: referrerTelegramId,
+        balances: {
+          available: 0,
+          pending: 0,
+          totalEarned: 0,
+          referralEarned: 0
+        }
       });
     } else {
       // تحديث بيانات المستخدم المزامنة
@@ -133,14 +157,20 @@ const authMiddleware = async (req, res, next) => {
     }
 
     if (user.isBanned) {
-      return res.status(403).json({ success: false, message: 'الحساب محظور من استخدام النظام.' });
+      return res.status(403).json({
+        success: false,
+        message: 'الحساب محظور من استخدام النظام.'
+      });
     }
 
     req.user = user;
     next();
   } catch (error) {
     console.error('[Auth Middleware Error]:', error);
-    return res.status(401).json({ success: false, message: 'فشلت عملية المصادقة' });
+    return res.status(401).json({
+      success: false,
+      message: 'فشلت عملية المصادقة'
+    });
   }
 };
 
