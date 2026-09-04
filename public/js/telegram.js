@@ -56,7 +56,7 @@
           }
         }
       } catch (e) {
-        // Haptic feedback fallback
+        // Haptic fallback
       }
     },
 
