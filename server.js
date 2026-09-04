@@ -1,5 +1,4 @@
 // server.js
-
 const path = require('path');
 const express = require('express');
 const cors = require('cors');
@@ -15,6 +14,7 @@ const bridgeRoutes = require('./routes/bridgeRoutes');
 const walletRoutes = require('./routes/walletRoutes');
 const campaignRoutes = require('./routes/campaignRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const referralRoutes = require('./routes/referralRoutes');
 
 // التهيئة الأولى للتطبيق
 const app = express();
@@ -22,23 +22,31 @@ const app = express();
 // التوصيل بقاعدة البيانات
 connectDB();
 
-// Middlewares الأساسية
-app.use(cors());
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+// إعدادات CORS والمرونة في استقبال الطلبات
+app.use(
+  cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data', 'x-init-data']
+  })
+);
 
-// 3. تقديم الملفات الإستاتيكية من مجلد public
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// تقديم الملفات الإستاتيكية من مجلد public
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 4. ربط جميع مسارات ה-API
+// ربط جميع مسارات الـ API
 app.use('/api/auth', authRoutes);
 app.use('/api/links', linkRoutes);
 app.use('/api/bridge', bridgeRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/referrals', referralRoutes);
 
-// 5. معالجة إعادة التوجيه لصفحة الجسر عبر المسار /b/:code
+// معالجة إعادة التوجيه لصفحة الجسر عبر المسار /b/:code
 app.get('/b/:code', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'bridge.html'));
 });
@@ -48,17 +56,22 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// 6. معالجة المسارات غير الموجودة (404 Handler)
-app.use((req, res, next) => {
+// معالجة الـ API 404 لكافة مسارات الـ API غير المعرفة
+app.use('/api/*', (req, res) => {
   res.status(404).json({
     success: false,
     message: 'المسار المطلوب غير موجود على السيرفر (404 Not Found).'
   });
 });
 
+// Fallback لصفحات الواجهة والمستندات (Single Page Application Fallback)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // معالج الأخطاء العام (Global Error Handler)
 app.use((err, req, res, next) => {
-  console.error('[Global Error]:', err.stack || err);
+  console.error('[Global Error Handler]:', err.stack || err);
 
   const statusCode = err.statusCode || 500;
   const message = err.message || 'حدث خطأ داخلي في السيرفر.';
@@ -70,12 +83,16 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 7. تشغيل السيرفر على المنفذ المحدد
-const PORT = process.env.PORT || 3000;
+// تشغيل السيرفر في البيئات التقليدية والتحقق من Vercel / Serverless
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`=================================`);
+    console.log(`🚀 Server is running on port: ${PORT}`);
+    console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`=================================`);
+  });
+}
 
-app.listen(PORT, () => {
-  console.log(`=================================`);
-  console.log(`🚀 Server is running on port: ${PORT}`);
-  console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`=================================`);
-});
+// تصدير الكائن لاستخدامه مع بيئة Vercel Serverless
+module.exports = app;
