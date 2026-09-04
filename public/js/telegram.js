@@ -1,22 +1,16 @@
 // public/js/telegram.js
 
-/**
- * وحدة تهيئة التفاعل مع تليجرام والتواصل الموحد مع الـ Backend
- */
 (function () {
   'use strict';
 
   const TelegramApp = {
     initData: '',
     
-    // تهيئة الجلسة وجلب البيانات من البيئة المحيطة
     init: function () {
       if (window.Telegram && window.Telegram.WebApp) {
         const tg = window.Telegram.WebApp;
         tg.ready();
         tg.expand();
-        
-        // محاولة جلب initData المباشرة أو من URL search params
         this.initData = tg.initData || this.extractInitDataFromUrl() || '';
       } else {
         this.initData = this.extractInitDataFromUrl() || '';
@@ -28,7 +22,6 @@
       const hash = urlParams.get('tgWebAppData');
       if (hash) return decodeURIComponent(hash);
       
-      // دعم قراءة المعلمات المباشرة إذا تم إرسالها ضمن رابط الصفحة
       if (window.location.hash && window.location.hash.includes('tgWebAppData=')) {
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
         return decodeURIComponent(hashParams.get('tgWebAppData') || '');
@@ -63,7 +56,7 @@
           }
         }
       } catch (e) {
-        // Haptic failure fallback
+        // Haptic feedback fallback
       }
     },
 
@@ -89,7 +82,7 @@
           return {
             success: false,
             status: response.status,
-            message: data.message || 'فشلت عملية المصادقة'
+            message: data.message || 'فشلت العملية'
           };
         }
         
@@ -99,13 +92,12 @@
         return {
           success: false,
           status: 0,
-          message: 'فشل الاتصال بالخادم، يرجى التحقق من الاتصال بالشبكة'
+          message: 'فشل الاتصال بالخادم، يرجى التحقق من الشبكة'
         };
       }
     }
   };
 
-  // تهيئة فورية
   TelegramApp.init();
   window.TelegramApp = TelegramApp;
 })();
