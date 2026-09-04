@@ -12,7 +12,7 @@ const linkSchema = new mongoose.Schema(
       trim: true
     },
 
-    // المعرف الخاص بالمرسل/المالك للرابط (مرتبط بمجموعات User)
+    // المعرف الخاص بالمرسل/المالك للرابط (مرتبط بجداول User)
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -37,7 +37,8 @@ const linkSchema = new mongoose.Schema(
     // حالة الرابط (نشط / معطل)
     isActive: {
       type: Boolean,
-      default: true
+      default: true,
+      index: true
     },
 
     // إجمالي عدد النقرات/الزيارات للرابط
@@ -62,12 +63,13 @@ const linkSchema = new mongoose.Schema(
     }
   },
   {
-    // إضافة حقول createdAt و updatedAt تلقائياً
     timestamps: true
   }
 );
 
+// فهرس مركب لتحسين البحث المزدوج بحسب المستخدم والتاريخ
+linkSchema.index({ userId: 1, createdAt: -1 });
+
 const Link = mongoose.model('Link', linkSchema);
 
 module.exports = Link;
-
