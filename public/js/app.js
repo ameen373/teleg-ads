@@ -127,10 +127,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ==========================================
-  // 1. Navigation Controller (إصلاح تجميد التنقل)
+  // 1. Navigation Controller
   // ==========================================
   function switchTab(targetTabId) {
-    // تم إزالة شرط state.authFailed لضمان استجابة جميع الأزرار دائماً
     if (state.currentTab === targetTabId) return;
 
     state.currentTab = targetTabId;
@@ -268,7 +267,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!refHistoryBody) return;
     refHistoryBody.innerHTML = '';
 
-    if (users.length === 0) {
+    if (!Array.isArray(users) || users.length === 0) {
       refHistoryBody.innerHTML = '<tr><td colspan="2" style="text-align:center;">لا توجد إحالات حالية</td></tr>';
       return;
     }
@@ -302,7 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!userLinksTableBody) return;
     userLinksTableBody.innerHTML = '';
 
-    if (state.links.length === 0) {
+    if (!Array.isArray(state.links) || state.links.length === 0) {
       userLinksTableBody.innerHTML = '<tr><td colspan="6" style="text-align:center;">لا توجد روابط مختصرة حالياً</td></tr>';
       return;
     }
@@ -331,7 +330,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Event Delegation للجدول بدلاً من تكرار الأحداث
   if (userLinksTableBody) {
     userLinksTableBody.addEventListener('click', async (e) => {
       const copyBtn = e.target.closest('.copy-btn');
@@ -391,10 +389,10 @@ document.addEventListener('DOMContentLoaded', () => {
         deposits.forEach(dep => {
           const tr = document.createElement('tr');
           tr.innerHTML = `
-            <td>$${Number(dep.amount).toFixed(2)}</td>
-            <td>${dep.network}</td>
+            <td>$${Number(dep.amount || 0).toFixed(2)}</td>
+            <td>${dep.network || 'TRC20'}</td>
             <td><span class="status-${dep.status}">${dep.status}</span></td>
-            <td>${new Date(dep.createdAt).toLocaleDateString('ar-EG')}</td>
+            <td>${new Date(dep.createdAt || Date.now()).toLocaleDateString('ar-EG')}</td>
           `;
           depositHistoryBody.appendChild(tr);
         });
@@ -410,10 +408,10 @@ document.addEventListener('DOMContentLoaded', () => {
         withdrawals.forEach(wth => {
           const tr = document.createElement('tr');
           tr.innerHTML = `
-            <td>$${Number(wth.amount).toFixed(2)}</td>
-            <td>$${Number(wth.netAmount || wth.amount).toFixed(2)}</td>
+            <td>$${Number(wth.amount || 0).toFixed(2)}</td>
+            <td>$${Number(wth.netAmount || wth.amount || 0).toFixed(2)}</td>
             <td><span class="status-${wth.status}">${wth.status}</span></td>
-            <td>${new Date(wth.createdAt).toLocaleDateString('ar-EG')}</td>
+            <td>${new Date(wth.createdAt || Date.now()).toLocaleDateString('ar-EG')}</td>
           `;
           withdrawHistoryBody.appendChild(tr);
         });
@@ -440,7 +438,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!userCampaignsList) return;
     userCampaignsList.innerHTML = '';
 
-    if (state.campaigns.length === 0) {
+    if (!Array.isArray(state.campaigns) || state.campaigns.length === 0) {
       userCampaignsList.innerHTML = '<p style="text-align:center; padding: 20px;">لا توجد حملات إعلانية نشطة</p>';
       return;
     }
@@ -450,7 +448,7 @@ document.addEventListener('DOMContentLoaded', () => {
       card.className = 'campaign-card';
       card.innerHTML = `
         <div class="campaign-header">
-          <h4>${camp.title}</h4>
+          <h4>${camp.title || 'حملة إعلانية'}</h4>
           <span class="status-badge ${camp.status}">${camp.status}</span>
         </div>
         <div class="campaign-body">
@@ -481,8 +479,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (createLinkForm) {
     createLinkForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const originalUrl = document.getElementById('link-original-url').value;
-      const title = document.getElementById('link-title-input').value;
+      const originalUrl = document.getElementById('link-original-url')?.value;
+      const title = document.getElementById('link-title-input')?.value;
 
       toggleLoader(true);
       const result = await window.TelegramApp.apiFetch('/api/links', {
@@ -506,9 +504,9 @@ document.addEventListener('DOMContentLoaded', () => {
   if (depositForm) {
     depositForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const amount = document.getElementById('deposit-amount').value;
-      const network = document.getElementById('deposit-network').value;
-      const txHash = document.getElementById('deposit-txhash').value;
+      const amount = document.getElementById('deposit-amount')?.value;
+      const network = document.getElementById('deposit-network')?.value;
+      const txHash = document.getElementById('deposit-txhash')?.value;
 
       toggleLoader(true);
       const result = await window.TelegramApp.apiFetch('/api/wallet/deposit', {
@@ -532,8 +530,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (withdrawForm) {
     withdrawForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const amount = document.getElementById('withdraw-amount').value;
-      const walletAddress = document.getElementById('withdraw-wallet-address').value;
+      const amount = document.getElementById('withdraw-amount')?.value;
+      const walletAddress = document.getElementById('withdraw-wallet-address')?.value;
 
       toggleLoader(true);
       const result = await window.TelegramApp.apiFetch('/api/wallet/withdraw', {
@@ -560,10 +558,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (createCampaignForm) {
     createCampaignForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const title = document.getElementById('campaign-title').value;
-      const targetUrl = document.getElementById('campaign-target-url').value;
-      const bannerUrl = document.getElementById('campaign-banner-url').value;
-      const totalBudget = document.getElementById('campaign-budget').value;
+      const title = document.getElementById('campaign-title')?.value;
+      const targetUrl = document.getElementById('campaign-target-url')?.value;
+      const bannerUrl = document.getElementById('campaign-banner-url')?.value;
+      const totalBudget = document.getElementById('campaign-budget')?.value;
 
       toggleLoader(true);
       const result = await window.TelegramApp.apiFetch('/api/campaigns', {
