@@ -1,4 +1,5 @@
 // controllers/campaignController.js
+const mongoose = require('mongoose');
 const Campaign = require('../models/Campaign');
 const User = require('../models/User');
 const SYSTEM_CONSTANTS = require('../config/constants');
@@ -7,67 +8,89 @@ const SYSTEM_CONSTANTS = require('../config/constants');
  * إنشاء حملة إعلانية جديدة
  */
 const createCampaign = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    const { title, targetUrl, bannerUrl, totalBudget } = req.body;
+    const { title, targetUrl, bannerUrl, totalBudget, budget: inputBudget, cpm } = req.body;
+    const finalBudget = Number(totalBudget || inputBudget);
 
-    if (!title || !targetUrl || !totalBudget) {
+    if (!title || !targetUrl || !finalBudget) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({
         success: false,
-        message: 'جميع الحقول الأساسية (title, targetUrl, totalBudget) مطلوبة'
+        message: 'الحقول الأساسية (العنوان، الرابط، الميزانية) مطلوبة'
       });
     }
 
-    const budget = Number(totalBudget);
-
-    // 1. التحقق من الحد الأدنى لميزانية الحملة ($5)
-    if (budget < SYSTEM_CONSTANTS.MIN_CAMPAIGN_BUDGET) {
+    const minBudget = SYSTEM_CONSTANTS.MIN_CAMPAIGN_BUDGET || 5;
+    if (finalBudget < minBudget) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({
         success: false,
-        message: `الحد الأدنى لميزانية الحملة هو $${SYSTEM_CONSTANTS.MIN_CAMPAIGN_BUDGET}`
+        message: `الحد الأدنى لميزانية الحملة هو $${minBudget}`
       });
     }
 
-    // التحقق من صحة الرابط Target URL
     try {
       new URL(targetUrl);
     } catch (err) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({
         success: false,
         message: 'صيغة رابط الهدف (targetUrl) غير صالحة'
       });
     }
 
-    // 2. إعادة جلب المستخدم للتأكد من الرصيد
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).session(session);
+    const available = user.balances?.available ?? user.availableBalance ?? 0;
 
-    if (user.availableBalance < budget) {
+    if (available < finalBudget) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({
         success: false,
-        message: 'رصيدك المتاح غير كافٍ لإنشاء هذه الحملة. يرجى شحن حسابك أولاً.'
+        message: 'رصيدك المتاح غير كافٍ لإنشاء هذه الحملة'
       });
     }
 
-    // 3. خصم قيمة الحملة من الرصيد المتاح لحجزها
-    user.availableBalance -= budget;
-    await user.save();
+    if (user.balances) {
+      user.balances.available -= finalBudget;
+    } else {
+      user.availableBalance -= finalBudget;
+    }
+    await user.save({ session });
 
-    // 4. إنشاء سجل الحملة الإعلانية
-    const campaign = await Campaign.create({
-      userId: user._id,
-      title: title.trim(),
-      targetUrl: targetUrl.trim(),
-      bannerUrl: bannerUrl ? bannerUrl.trim() : '',
-      totalBudget: budget,
-      remainingBudget: budget,
-      status: 'active'
-    });
+    const campaign = await Campaign.create(
+      [
+        {
+          userId: user._id,
+          title: title.trim(),
+          targetUrl: targetUrl.trim(),
+          bannerUrl: bannerUrl ? bannerUrl.trim() : '',
+          cpm: cpm ? Number(cpm) : (SYSTEM_CONSTANTS.CPM_RATE || 1.50),
+          totalBudget: finalBudget,
+          remainingBudget: finalBudget,
+          status: 'active'
+        }
+      ],
+      { session }
+    );
+
+    await session.commitTransaction();
+    session.endSession();
 
     return res.status(201).json({
       success: true,
       message: 'تم إنشاء الحملة الإعلانية وإطلاقها بنجاح',
-      data: campaign
+      data: campaign[0]
     });
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
     console.error('[campaignController: createCampaign Error]:', error);
     return res.status(500).json({
       success: false,
@@ -78,12 +101,11 @@ const createCampaign = async (req, res) => {
 };
 
 /**
- * جلب جميع الحملات الخاصة بالمستخدم الحالي
+ * جلب جميع حملات المستخدم
  */
 const getUserCampaigns = async (req, res) => {
   try {
-    const campaigns = await Campaign.find({ userId: req.user._id })
-      .sort({ createdAt: -1 });
+    const campaigns = await Campaign.find({ userId: req.user._id }).sort({ createdAt: -1 });
 
     return res.status(200).json({
       success: true,
@@ -101,7 +123,7 @@ const getUserCampaigns = async (req, res) => {
 };
 
 /**
- * تبديل حالة الحملة (إيقاف مؤقت active/paused)
+ * تبديل حالة الحملة (نشطة / موقوفة)
  */
 const toggleCampaignStatus = async (req, res) => {
   try {
@@ -123,7 +145,6 @@ const toggleCampaignStatus = async (req, res) => {
       });
     }
 
-    // تبديل الحالة بين active و paused
     campaign.status = campaign.status === 'active' ? 'paused' : 'active';
     await campaign.save();
 
