@@ -2,16 +2,12 @@
 const express = require('express');
 const router = express.Router();
 
-// استدعاء الميدلوير الخاص بالتحقق من الهوية
 const authMiddleware = require('../middlewares/auth');
-
-// استدعاء الدوال من referralController
 const {
   getReferralStats,
   claimReferralEarnings
 } = require('../controllers/referralController');
 
-// حماية كافة المسارات المعرفة في هذا الـ Router
 router.use(authMiddleware);
 
 /**
@@ -28,5 +24,4 @@ router.get('/stats', getReferralStats);
  */
 router.post('/claim', claimReferralEarnings);
 
-// تصدير الـ Router
 module.exports = router;
