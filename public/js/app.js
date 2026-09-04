@@ -95,14 +95,43 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function haptic(type = 'impact', style = 'medium') {
-    window.TelegramApp.triggerHaptic(type, style);
+    if (window.TelegramApp && typeof window.TelegramApp.triggerHaptic === 'function') {
+      window.TelegramApp.triggerHaptic(type, style);
+    }
+  }
+
+  async function copyToClipboard(text) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (e) {
+      console.warn('Clipboard API failed, using fallback:', e);
+    }
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      return successful;
+    } catch (err) {
+      console.error('Copy fallback failed:', err);
+      return false;
+    }
   }
 
   // ==========================================
-  // 1. Navigation Controller
+  // 1. Navigation Controller (إصلاح تجميد التنقل)
   // ==========================================
   function switchTab(targetTabId) {
-    if (state.currentTab === targetTabId || state.authFailed) return;
+    // تم إزالة شرط state.authFailed لضمان استجابة جميع الأزرار دائماً
+    if (state.currentTab === targetTabId) return;
 
     state.currentTab = targetTabId;
     haptic('selection');
@@ -151,7 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==========================================
 
   async function loadUserProfile() {
-    if (state.authFailed) return;
+    if (!window.TelegramApp) return;
 
     const localUser = window.TelegramApp.getUser();
     if (localUser) {
@@ -172,12 +201,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (result && result.success) {
       state.user = result.data;
+      state.authFailed = false;
       updateUserUI();
     } else {
       if (result.status === 401 || result.status === 403) {
         state.authFailed = true;
       }
-      showToast(result?.message || 'فشلت عملية المصادقة', 'error');
+      showToast(result?.message || 'تنبيه: تعذر التحقق من تسجيل الدخول', 'warning');
     }
   }
 
@@ -211,7 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function loadReferralData() {
-    if (state.authFailed) return;
+    if (!window.TelegramApp) return;
 
     toggleLoader(true);
     const result = await window.TelegramApp.apiFetch('/api/referrals/stats');
@@ -254,7 +284,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function loadUserLinks() {
-    if (state.authFailed) return;
+    if (!window.TelegramApp) return;
 
     toggleLoader(true);
     const result = await window.TelegramApp.apiFetch('/api/links');
@@ -299,21 +329,33 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
       userLinksTableBody.appendChild(tr);
     });
+  }
 
-    document.querySelectorAll('.copy-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        navigator.clipboard.writeText(btn.dataset.url);
-        showToast(window.i18n ? window.i18n.t('msg_copied') : 'تم النسخ بنجاح', 'success');
-        haptic('notification', 'success');
-      });
-    });
+  // Event Delegation للجدول بدلاً من تكرار الأحداث
+  if (userLinksTableBody) {
+    userLinksTableBody.addEventListener('click', async (e) => {
+      const copyBtn = e.target.closest('.copy-btn');
+      if (copyBtn) {
+        const url = copyBtn.dataset.url;
+        const copied = await copyToClipboard(url);
+        if (copied) {
+          showToast(window.i18n ? window.i18n.t('msg_copied') : 'تم النسخ بنجاح', 'success');
+          haptic('notification', 'success');
+        } else {
+          showToast('فشل النسخ، يرجى النسخ يدوياً', 'error');
+        }
+        return;
+      }
 
-    document.querySelectorAll('.toggle-link-btn').forEach(btn => {
-      btn.addEventListener('click', () => toggleLinkStatus(btn.dataset.id));
+      const toggleBtn = e.target.closest('.toggle-link-btn');
+      if (toggleBtn) {
+        toggleLinkStatus(toggleBtn.dataset.id);
+      }
     });
   }
 
   async function toggleLinkStatus(id) {
+    if (!window.TelegramApp) return;
     const result = await window.TelegramApp.apiFetch(`/api/links/${id}/toggle`, { method: 'PATCH' });
     if (result && result.success) {
       showToast(result.message || 'تم تحديث حالة الرابط', 'success');
@@ -325,7 +367,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function loadWalletHistory() {
-    if (state.authFailed) return;
+    if (!window.TelegramApp) return;
 
     toggleLoader(true);
     const result = await window.TelegramApp.apiFetch('/api/wallet/history');
@@ -380,7 +422,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function loadUserCampaigns() {
-    if (state.authFailed) return;
+    if (!window.TelegramApp) return;
 
     toggleLoader(true);
     const result = await window.TelegramApp.apiFetch('/api/campaigns');
@@ -544,11 +586,15 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (copyRefBtn && referralLinkInput) {
-    copyRefBtn.addEventListener('click', () => {
+    copyRefBtn.addEventListener('click', async () => {
       if (referralLinkInput.value) {
-        navigator.clipboard.writeText(referralLinkInput.value);
-        showToast('تم نسخ رابط الإحالة الخاص بك', 'success');
-        haptic('notification', 'success');
+        const copied = await copyToClipboard(referralLinkInput.value);
+        if (copied) {
+          showToast('تم نسخ رابط الإحالة الخاص بك', 'success');
+          haptic('notification', 'success');
+        } else {
+          showToast('فشل النسخ، يرجى النسخ يدوياً', 'error');
+        }
       }
     });
   }
