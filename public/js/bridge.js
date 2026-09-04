@@ -1,7 +1,8 @@
 // public/js/bridge.js
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // عناصر الواجهة DOM
+  'use strict';
+
   const titleEl = document.getElementById('link-title');
   const timerEl = document.getElementById('timer-count');
   const actionBtn = document.getElementById('continue-btn');
@@ -15,12 +16,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   let countdownSeconds = 5;
   let timerInterval = null;
 
-  /**
-   * 1. استخراج كود الرابط المختصر من رابط الصفحة الحالية (URL)
-   */
   function getCodeFromURL() {
     const pathSegments = window.location.pathname.split('/').filter(Boolean);
-    // يفترض أن يكون الرابط بأسلوب domain.com/b/:code أو domain.com/bridge/:code
     return pathSegments[pathSegments.length - 1] || '';
   }
 
@@ -31,9 +28,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
-  /**
-   * 2. جلب تفاصيل الرابط والإعلان المتاح عبر API
-   */
   async function fetchLinkDetails() {
     try {
       const response = await fetch(`/api/bridge/link/${linkCode}`);
@@ -52,10 +46,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         titleEl.innerText = data.title || 'جاري تجهيز الرابط...';
       }
 
-      // 4. عرض الإعلان المتاح (داخلي أو خارجي)
       renderAd(data.ad);
-
-      // 3. بدء العداد التنازلي
       startCountdown();
 
     } catch (error) {
@@ -64,42 +55,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  /**
-   * عرض الإعلان المتاح بناءً على النوع المسند من السيرفر
-   */
   function renderAd(ad) {
     if (!adContainer || !ad) return;
 
     if (ad.type === 'internal') {
-      // إعلان حملة داخلية
       campaignId = ad.campaignId;
       adContainer.innerHTML = `
-        <div class="internal-ad-card" style="border: 1px solid #ddd; padding: 15px; border-radius: 8px; text-align: center; background: #fff;">
+        <div class="internal-ad-card" style="border: 1px solid var(--border-color, #ddd); padding: 15px; border-radius: 8px; text-align: center; background: var(--bg-card, #fff);">
           <span style="font-size: 12px; color: #888; display: block; margin-bottom: 8px;">إعلان مروج</span>
           <h4 style="margin: 0 0 10px 0;">${ad.title}</h4>
           ${ad.bannerUrl ? `<img src="${ad.bannerUrl}" alt="${ad.title}" style="max-width: 100%; height: auto; border-radius: 6px; margin-bottom: 10px;">` : ''}
           <div>
-            <a href="${ad.targetUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 8px 16px; background-color: #0088cc; color: #fff; text-decoration: none; border-radius: 5px;">
+            <a href="${ad.targetUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm" style="display: inline-block; text-decoration: none;">
               زيارة الموقع
             </a>
           </div>
         </div>
       `;
     } else if (ad.type === 'external' && ad.provider === 'adsgram') {
-      // إعلان Adsgram
       adContainer.innerHTML = `
         <div id="adsgram-block" style="min-height: 100px; text-align: center;">
           <p style="font-size: 12px; color: #888;">إعلان Adsgram</p>
         </div>
       `;
 
-      // استدعاء Adsgram SDK إذا كانت المكتبة محملة
       if (window.Adsgram && ad.adsgramBlockId) {
         try {
           const AdController = window.Adsgram.init({ blockId: ad.adsgramBlockId });
-          AdController.show().catch((err) => {
-            console.warn('[Adsgram Show Error]:', err);
-          });
+          AdController.show().catch((err) => console.warn('[Adsgram Show Error]:', err));
         } catch (err) {
           console.error('[Adsgram Init Error]:', err);
         }
@@ -107,31 +90,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  /**
-   * 3. تشغيل العداد التنازلي مع تعطيل الزر
-   */
   function startCountdown() {
     if (actionBtn) {
       actionBtn.disabled = true;
       actionBtn.innerText = `يرجى الانتظار (${countdownSeconds})`;
     }
 
-    if (timerEl) {
-      timerEl.innerText = countdownSeconds;
-    }
+    if (timerEl) timerEl.innerText = countdownSeconds;
 
-    startTime = Date.now(); // تعيين وقت بداية الجلسة
+    startTime = Date.now();
 
     timerInterval = setInterval(() => {
       countdownSeconds--;
 
-      if (timerEl) {
-        timerEl.innerText = countdownSeconds;
-      }
-
-      if (actionBtn) {
-        actionBtn.innerText = `يرجى الانتظار (${countdownSeconds})`;
-      }
+      if (timerEl) timerEl.innerText = countdownSeconds;
+      if (actionBtn) actionBtn.innerText = `يرجى الانتظار (${countdownSeconds})`;
 
       if (countdownSeconds <= 0) {
         clearInterval(timerInterval);
@@ -140,9 +113,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }, 1000);
   }
 
-  /**
-   * تفعيل زر الانتقال بعد انتهاء العداد
-   */
   function enableContinueButton() {
     if (!actionBtn) return;
 
@@ -150,18 +120,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     actionBtn.innerText = 'الانتقال للرابط الآن';
     actionBtn.classList.add('active');
 
-    // تشغيل الاهتزاز عند التفعيل إن وجد
     if (window.TelegramApp && window.TelegramApp.triggerHaptic) {
       window.TelegramApp.triggerHaptic('notification', 'success');
     }
 
-    // 5. عند النقر على الزر يتم إرسال تأكيد المشاهدة والتوجيه
     actionBtn.addEventListener('click', handleContinueClick);
   }
 
-  /**
-   * 5. معالجة إرسال إثبات المشاهدة وتوجيه الزائر
-   */
   async function handleContinueClick() {
     actionBtn.disabled = true;
     actionBtn.innerText = 'جاري التوجيه...';
@@ -169,7 +134,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const initData = window.TelegramApp ? window.TelegramApp.getInitData() : '';
 
     try {
-      // إرسال طلب التأكيد للـ Backend
       await fetch('/api/bridge/confirm', {
         method: 'POST',
         headers: {
@@ -185,7 +149,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (error) {
       console.error('[Confirm Impression Error]:', error);
     } finally {
-      // إعادة توجيه الزائر للرابط الأصلي في جميع الأحوال
       if (originalUrl) {
         window.location.href = originalUrl;
       } else {
@@ -194,6 +157,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // بدء العملية
   fetchLinkDetails();
 });
