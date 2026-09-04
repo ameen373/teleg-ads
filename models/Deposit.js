@@ -18,14 +18,15 @@ const depositSchema = new mongoose.Schema(
       enum: {
         values: ['TRC20', 'BEP20'],
         message: 'الشبكة المسموح بها هي TRC20 أو BEP20 فقط'
-      }
+      },
+      default: 'TRC20'
     },
 
     // المبلغ المودع (بالدولار USDT)
     amount: {
       type: Number,
       required: [true, 'مبلغ الإيداع مطلوب'],
-      min: [0, 'لا يمكن أن يكون المبلغ أقل من 0']
+      min: [0.01, 'لا يمكن أن يكون المبلغ أقل من $0.01']
     },
 
     // رمز التمرير / المعاملة (TxHash / TxID) الفريد لعملية التحويل على البلوكشين
@@ -45,7 +46,7 @@ const depositSchema = new mongoose.Schema(
       index: true
     },
 
-    // سبب الرفض في حال تم رفض الطلب من قبل الآدمين
+    // سبب الرفض في حال تم رفض الطلب من قبل الإدارة
     rejectionReason: {
       type: String,
       trim: true,
@@ -53,12 +54,13 @@ const depositSchema = new mongoose.Schema(
     }
   },
   {
-    // إضافة حقول createdAt و updatedAt تلقائياً
     timestamps: true
   }
 );
 
+// فهرس مركب للوصول السريع لطلبات الإيداع المعلقة مرتبة أحدث فأقدم
+depositSchema.index({ status: 1, createdAt: -1 });
+
 const Deposit = mongoose.model('Deposit', depositSchema);
 
 module.exports = Deposit;
-
