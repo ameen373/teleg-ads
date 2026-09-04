@@ -1,27 +1,58 @@
 // routes/campaignRoutes.js
 const express = require('express');
+const { body, param } = require('express-validator');
 const router = express.Router();
 
-// استدعاء ميدل وير المصادقة
 const authMiddleware = require('../middlewares/auth');
-
-// استدعاء الدوال من الكنترولر
+const validateRequest = require('../middlewares/validateRequest');
 const {
   createCampaign,
   getUserCampaigns,
   toggleCampaignStatus
 } = require('../controllers/campaignController');
 
-// حماية كافة مسارات الحملات بواسطة authMiddleware
 router.use(authMiddleware);
 
-// POST /api/campaigns - إنشاء حملة جديدة
-router.post('/', createCampaign);
+/**
+ * @route   POST /api/campaigns
+ * @desc    إنشاء حملة إعلانية جديدة
+ * @access  Private
+ */
+router.post(
+  '/',
+  [
+    body('title').trim().notEmpty().withMessage('عنوان الحملة مطلوب'),
+    body('targetUrl').trim().isURL().withMessage('الرابط المستهدف غير صالح'),
+    body('budget')
+      .isFloat({ gt: 0 })
+      .withMessage('الميزانية يجب أن تكون أكبر من 0'),
+    body('cpm')
+      .isFloat({ gt: 0 })
+      .withMessage('تكلفة الألف ظهور (CPM) يجب أن تكون أكبر من 0'),
+    validateRequest
+  ],
+  createCampaign
+);
 
-// GET /api/campaigns - جلب حملات المستخدم
+/**
+ * @route   GET /api/campaigns
+ * @desc    جلب حملات المستخدم
+ * @access  Private
+ */
 router.get('/', getUserCampaigns);
 
-// PATCH /api/campaigns/:id/toggle - إيقاف أو تشغيل الحملة
-router.patch('/:id/toggle', toggleCampaignStatus);
+/**
+ * @route   PATCH /api/campaigns/:id/toggle
+ * @desc    إيقاف أو تشغيل الحملة
+ * @access  Private
+ */
+router.patch(
+  '/:id/toggle',
+  [
+    param('id').isMongoId().withMessage('معرف الحملة غير صالح'),
+    validateRequest
+  ],
+  toggleCampaignStatus
+);
 
 module.exports = router;
