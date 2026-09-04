@@ -19,9 +19,10 @@ const getProfile = async (req, res) => {
         lastName: user.lastName,
         username: user.username,
         photoUrl: user.photoUrl,
-        languageCode: user.languageCode,
+        languageCode: user.languageCode || 'ar',
         role: user.role || 'user',
-        isPremium: user.isPremium,
+        isPremium: Boolean(user.isPremium),
+        isBanned: Boolean(user.isBanned),
         balances: {
           available: user.balances?.available ?? user.availableBalance ?? 0,
           pending: user.balances?.pending ?? user.pendingBalance ?? 0,
@@ -49,7 +50,7 @@ const getProfile = async (req, res) => {
  */
 const updateSettings = async (req, res) => {
   try {
-    const { defaultWalletAddress, languageCode } = req.body;
+    const { defaultWalletAddress, languageCode, walletAddress } = req.body;
     const user = await User.findById(req.user._id);
 
     if (!user) {
@@ -59,12 +60,14 @@ const updateSettings = async (req, res) => {
       });
     }
 
-    if (defaultWalletAddress !== undefined) {
-      user.defaultWalletAddress = String(defaultWalletAddress).trim();
+    const targetWallet = walletAddress || defaultWalletAddress;
+    if (targetWallet !== undefined) {
+      user.defaultWalletAddress = String(targetWallet).trim();
     }
 
-    if (languageCode !== undefined) {
-      user.languageCode = String(languageCode).trim();
+    const targetLang = languageCode || req.body.language;
+    if (targetLang !== undefined) {
+      user.languageCode = String(targetLang).trim();
     }
 
     await user.save();
