@@ -325,6 +325,8 @@ p {
   font-size: 0.8rem;
   width: auto;
   border-radius: 6px;
+  cursor: pointer;
+  border: none;
 }
 
 .btn:disabled {
@@ -442,7 +444,7 @@ p {
   justify-content: space-around;
   align-items: center;
   z-index: 1000;
-  padding: 0 8px;
+  padding: 0 4px;
 }
 
 .nav-tab {
@@ -453,18 +455,18 @@ p {
   background: none;
   border: none;
   color: var(--text-secondary);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   cursor: pointer;
-  width: 20%;
+  flex: 1;
   height: 100%;
-  gap: 4px;
+  gap: 3px;
   transition: color var(--transition-fast);
 }
 
 .nav-tab svg, .nav-tab i {
   font-size: 1.2rem;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   fill: currentColor;
 }
 
