@@ -1,40 +1,36 @@
 // controllers/walletController.js
+const mongoose = require('mongoose');
 const Deposit = require('../models/Deposit');
 const Withdrawal = require('../models/Withdrawal');
 const User = require('../models/User');
 const SYSTEM_CONSTANTS = require('../config/constants');
 
 /**
- * تقديم طلب إيداع جديد لشحن رصيد الإعلانات
+ * تقديم طلب إيداع جديد
  */
 const submitDeposit = async (req, res) => {
   try {
     const { amount, network, txHash } = req.body;
 
-    if (!amount || !network || !txHash) {
+    if (!amount || !txHash) {
       return res.status(400).json({
         success: false,
-        message: 'جميع الحقول مطلوبة: amount, network, txHash'
+        message: 'المبلغ ورمز المعاملة (txHash) مطلوبان'
       });
     }
 
-    if (amount <= 0) {
+    const depositAmount = Number(amount);
+    if (isNaN(depositAmount) || depositAmount <= 0) {
       return res.status(400).json({
         success: false,
-        message: 'يجب أن يكون مبلغ الإيداع أكبر من 0'
+        message: 'يجب أن يكون مبلغ الإيداع رقماً موجباً'
       });
     }
 
-    const formattedNetwork = network.trim().toUpperCase();
-    if (!['TRC20', 'BEP20'].includes(formattedNetwork)) {
-      return res.status(400).json({
-        success: false,
-        message: 'الشبكة المحددة غير مدعومة. الشبكات المتاحة: TRC20, BEP20'
-      });
-    }
+    const formattedNetwork = network ? network.trim().toUpperCase() : 'TRC20';
+    const cleanTxHash = txHash.trim();
 
-    // التحقق من عدم تكرار رمز المعاملة TxHash
-    const existingDeposit = await Deposit.findOne({ txHash: txHash.trim() });
+    const existingDeposit = await Deposit.findOne({ txHash: cleanTxHash });
     if (existingDeposit) {
       return res.status(400).json({
         success: false,
@@ -42,12 +38,11 @@ const submitDeposit = async (req, res) => {
       });
     }
 
-    // إنشاء طلب الإيداع بحالة معلقة pending
     const deposit = await Deposit.create({
       userId: req.user._id,
-      amount: Number(amount),
+      amount: depositAmount,
       network: formattedNetwork,
-      txHash: txHash.trim(),
+      txHash: cleanTxHash,
       status: 'pending'
     });
 
@@ -67,13 +62,18 @@ const submitDeposit = async (req, res) => {
 };
 
 /**
- * تقديم طلب سحب الأرباح
+ * تقديم طلب سحب الأرباح باستخدام Transaction لمنع السحب المزدوج
  */
 const requestWithdrawal = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const { amount, walletAddress } = req.body;
 
     if (!amount || !walletAddress) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({
         success: false,
         message: 'يرجى تحديد المبلغ وعنوان المحفظة'
@@ -81,50 +81,65 @@ const requestWithdrawal = async (req, res) => {
     }
 
     const requestedAmount = Number(amount);
+    const minWithdrawal = SYSTEM_CONSTANTS.MIN_WITHDRAWAL_AMOUNT || 30;
 
-    // 1. الفحص: أن المبلغ لا يقل عن الحد الأدنى للسحب ($30)
-    if (requestedAmount < SYSTEM_CONSTANTS.MIN_WITHDRAWAL_AMOUNT) {
+    if (requestedAmount < minWithdrawal) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({
         success: false,
-        message: `الحد الأدنى للسحب هو $${SYSTEM_CONSTANTS.MIN_WITHDRAWAL_AMOUNT}`
+        message: `الحد الأدنى للسحب هو $${minWithdrawal}`
       });
     }
 
-    // إعادة جلب بيانات المستخدم لضمان مطابقة الرصيد
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).session(session);
+    const available = user.balances?.available ?? user.availableBalance ?? 0;
 
-    // 2. الفحص: أن الرصيد المتاح يغطي المبلغ المطلوب
-    if (user.availableBalance < requestedAmount) {
+    if (available < requestedAmount) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({
         success: false,
         message: 'رصيدك المتاح غير كافٍ لإتمام عملية السحب'
       });
     }
 
-    // 3. احتساب العمولة والصافي (نسبة خصم السحب 3%)
-    const feeDeducted = requestedAmount * SYSTEM_CONSTANTS.WITHDRAWAL_FEE_PERCENT;
+    const feePercent = SYSTEM_CONSTANTS.WITHDRAWAL_FEE_PERCENT || 0.03;
+    const feeDeducted = requestedAmount * feePercent;
     const netAmount = requestedAmount - feeDeducted;
 
-    // 4. خصم المبلغ فوراً من الرصيد المتاح للمستخدم
-    user.availableBalance -= requestedAmount;
-    await user.save();
+    if (user.balances) {
+      user.balances.available -= requestedAmount;
+    } else {
+      user.availableBalance -= requestedAmount;
+    }
+    await user.save({ session });
 
-    // 5. إنشاء سجل في جدول السحوبات بحالة pending
-    const withdrawal = await Withdrawal.create({
-      userId: user._id,
-      amount: requestedAmount,
-      feeDeducted: feeDeducted,
-      netAmount: netAmount,
-      walletAddress: walletAddress.trim(),
-      status: 'pending'
-    });
+    const withdrawal = await Withdrawal.create(
+      [
+        {
+          userId: user._id,
+          amount: requestedAmount,
+          feeDeducted,
+          netAmount,
+          walletAddress: walletAddress.trim(),
+          status: 'pending'
+        }
+      ],
+      { session }
+    );
+
+    await session.commitTransaction();
+    session.endSession();
 
     return res.status(201).json({
       success: true,
       message: 'تم تقديم طلب السحب بنجاح وخصم المبلغ من رصيدك المتاح وهو قيد المعالجة',
-      data: withdrawal
+      data: withdrawal[0]
     });
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
     console.error('[walletController: requestWithdrawal Error]:', error);
     return res.status(500).json({
       success: false,
@@ -135,13 +150,12 @@ const requestWithdrawal = async (req, res) => {
 };
 
 /**
- * جلب سجل جميع عمليات الإيداع والسحب الخاصة بالمستخدم
+ * جلب سجل عمليات الإيداع والسحب
  */
 const getTransactionHistory = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // جلب عمليات الإيداع والسحب بالتوازي
     const [deposits, withdrawals] = await Promise.all([
       Deposit.find({ userId }).sort({ createdAt: -1 }),
       Withdrawal.find({ userId }).sort({ createdAt: -1 })
@@ -169,4 +183,3 @@ module.exports = {
   requestWithdrawal,
   getTransactionHistory
 };
-
