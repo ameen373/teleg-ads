@@ -1,28 +1,59 @@
 // routes/linkRoutes.js
 const express = require('express');
+const { body, param } = require('express-validator');
 const router = express.Router();
 
-// استدعاء ميدل وير المصادقة
 const authMiddleware = require('../middlewares/auth');
-
-// استدعاء الدوال من الكنترولر
+const validateRequest = require('../middlewares/validateRequest');
 const {
   createLink,
   getUserLinks,
   toggleLinkStatus
 } = require('../controllers/linkController');
 
-// حماية جميع مسارات الروابط باستخدام authMiddleware
 router.use(authMiddleware);
 
-// POST /api/links - إنشاء رابط مختصر جديد
-router.post('/', createLink);
+/**
+ * @route   POST /api/links
+ * @desc    إنشاء رابط مختصر جديد
+ * @access  Private
+ */
+router.post(
+  '/',
+  [
+    body('originalUrl')
+      .trim()
+      .isURL()
+      .withMessage('يرجى تقديم رابط صالح (URL)'),
+    body('title')
+      .optional()
+      .trim()
+      .isLength({ max: 100 })
+      .withMessage('العنوان يجب ألا يتجاوز 100 حرف'),
+    validateRequest
+  ],
+  createLink
+);
 
-// GET /api/links - جلب روابط المستخدم الحالي
+/**
+ * @route   GET /api/links
+ * @desc    جلب روابط المستخدم الحالي
+ * @access  Private
+ */
 router.get('/', getUserLinks);
 
-// PATCH /api/links/:id/toggle - تفعيل أو تعطيل رابط معين
-router.patch('/:id/toggle', toggleLinkStatus);
+/**
+ * @route   PATCH /api/links/:id/toggle
+ * @desc    تفعيل أو تعطيل رابط معين
+ * @access  Private
+ */
+router.patch(
+  '/:id/toggle',
+  [
+    param('id').isMongoId().withMessage('معرف الرابط غير صالح'),
+    validateRequest
+  ],
+  toggleLinkStatus
+);
 
 module.exports = router;
-
