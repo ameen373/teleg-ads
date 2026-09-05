@@ -268,12 +268,12 @@
       <div class="modal-content">
         <h3 style="margin-top: 0; color: var(--accent); font-size: 17px;" data-i18n="guide_modal_title">Deposit & TxID Guide</h3>
         <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 12px 0;">
-        <ol style="font-size: 12px; color: var(--text); padding-left: 18px; line-height: 1.7;">
+        <ol style="font-size: 12px; color: var(--text); padding-left: 18px; padding-right: 18px; line-height: 1.7;">
           <li><b data-i18n="guide_step1_b">Select Network:</b> <span data-i18n="guide_step1_t">Choose USDT (TRC20 or BEP20) to reveal your dedicated deposit address and copy it.</span></li>
           <li><b data-i18n="guide_step2_b">Transfer Funds:</b> <span data-i18n="guide_step2_t">Open your exchange or wallet app (Binance, Trust Wallet, OKX) and transfer USDT.</span></li>
           <li><b data-i18n="guide_step3_b">Copy Transaction Hash (TxID):</b> <span data-i18n="guide_step3_t">After confirmation, copy the transaction Hash/TxID.</span>
             <div style="background: #050811; padding: 8px; border-radius: 8px; margin: 6px 0; border: 1px solid var(--border-color); text-align: center;">
-              <small style="color: var(--text-muted);">Example TxID format:</small><br>
+              <small style="color: var(--text-muted);" data-i18n="example_txid">Example TxID format:</small><br>
               <code style="color: var(--success); font-size: 11px; word-break: break-all;">4a8f92b8d01...e83120c91</code>
             </div>
           </li>
@@ -302,7 +302,7 @@
           All rights reserved for <a href="https://t.me/Ads_telegabot" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: none; font-weight: bold;">Telega.ads</a>
         </p>
         <div style="margin-top: 8px;">
-          <a href="https://t.me/ttelega_ads" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; background: rgba(59, 130, 246, 0.15); border: 1px solid var(--accent); border-radius: 20px; color: var(--accent); text-decoration: none; font-weight: bold;">
+          <a href="https://t.me/ttelega_ads" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; background: rgba(59, 130, 246, 0.15); border: 1px solid var(--accent); border-radius: 20px; color: var(--accent); text-decoration: none; font-weight: bold;" data-i18n="official_channel">
             📢 Official Channel
           </a>
         </div>
@@ -369,46 +369,46 @@
 
         <!-- Wallet Action Controls -->
         <div class="wallet-actions-nav">
-          <button id="wallet-nav-deposit" class="wallet-action-btn active" onclick="switchWalletView('deposit')">📥 Deposit</button>
-          <button id="wallet-nav-withdraw" class="wallet-action-btn" onclick="switchWalletView('withdraw')">📤 Withdraw</button>
+          <button id="wallet-nav-deposit" class="wallet-action-btn active" onclick="switchWalletView('deposit')" data-i18n="tab_deposit">📥 Deposit</button>
+          <button id="wallet-nav-withdraw" class="wallet-action-btn" onclick="switchWalletView('withdraw')" data-i18n="tab_withdraw">📤 Withdraw</button>
         </div>
 
         <!-- Wallet View: Deposit -->
         <div id="wallet-view-deposit" class="card">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <h3 style="font-size: 15px; margin:0;">Deposit Funds (USDT)</h3>
-            <button class="btn-small btn-warning" style="width: auto;" onclick="toggleInstructionsModal(true)">❓ Deposit Guide</button>
+            <h3 style="font-size: 15px; margin:0;" data-i18n="deposit_funds_title">Deposit Funds (USDT)</h3>
+            <button class="btn-small btn-warning" style="width: auto;" onclick="toggleInstructionsModal(true)" data-i18n="btn_deposit_guide">❓ Deposit Guide</button>
           </div>
           
-          <h4 style="font-size: 13px; margin: 10px 0 4px 0;">Select Network:</h4>
+          <h4 style="font-size: 13px; margin: 10px 0 4px 0;" data-i18n="select_network_label">Select Network:</h4>
           <select id="deposit-network" onchange="handleNetworkChange(this.value)">
-            <option value="">-- Select Payment Network --</option>
+            <option value="" data-i18n="opt_select_network">-- Select Payment Network --</option>
             <option value="USDT_TRC20">USDT (TRC20 Network)</option>
             <option value="USDT_BEP20">USDT (BEP20 Network)</option>
           </select>
 
           <div id="card-addr-trc20" class="address-card hidden">
-            <small style="color: var(--text-muted);">USDT - TRC20 Address:</small>
+            <small style="color: var(--text-muted);" data-i18n="lbl_trc20_addr">USDT - TRC20 Address:</small>
             <div class="address-row">
               <span class="address-text" id="addr-trc20">TYqN8xM9KzL3pQ2vA5wR7jH4uE1sD8fX9k</span>
-              <button class="btn-small" onclick="copyToClipboard(document.getElementById('addr-trc20').innerText)">Copy</button>
+              <button class="btn-small" onclick="copyToClipboard(document.getElementById('addr-trc20').innerText)" data-i18n="btn_copy">Copy</button>
             </div>
           </div>
 
           <div id="card-addr-bep20" class="address-card hidden">
-            <small style="color: var(--text-muted);">USDT - BEP20 (BSC) Address:</small>
+            <small style="color: var(--text-muted);" data-i18n="lbl_bep20_addr">USDT - BEP20 (BSC) Address:</small>
             <div class="address-row">
               <span class="address-text" id="addr-bep20">0x71C7656EC7ab88b098defB751B7401B5f6d8976F</span>
-              <button class="btn-small" onclick="copyToClipboard(document.getElementById('addr-bep20').innerText)">Copy</button>
+              <button class="btn-small" onclick="copyToClipboard(document.getElementById('addr-bep20').innerText)" data-i18n="btn_copy">Copy</button>
             </div>
           </div>
 
-          <h4 style="font-size: 13px; margin: 14px 0 6px 0;">Submit Deposit Proof:</h4>
-          <input type="number" id="deposit-amount" placeholder="Amount ($)" min="1" step="any">
-          <input type="text" id="deposit-txhash" placeholder="Transaction TxID / Hash">
+          <h4 style="font-size: 13px; margin: 14px 0 6px 0;" data-i18n="submit_proof_label">Submit Deposit Proof:</h4>
+          <input type="number" id="deposit-amount" data-i18n-ph="ph_deposit_amount" placeholder="Amount ($)" min="1" step="any">
+          <input type="text" id="deposit-txhash" data-i18n-ph="ph_deposit_txid" placeholder="Transaction TxID / Hash">
           
           <button id="btn-request-deposit" class="btn-success" style="margin-top: 12px;" onclick="requestDeposit()">
-            <span>Submit Deposit Request</span>
+            <span data-i18n="btn_submit_deposit">Submit Deposit Request</span>
           </button>
         </div>
 
@@ -419,18 +419,18 @@
           <div style="margin-bottom: 12px;">
             <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;" data-i18n="wallet_addr_label">Withdrawal Wallet (USDT TRC20)</label>
             <div style="display: flex; gap: 6px;">
-              <input type="text" id="default-wallet" placeholder="Enter wallet address" readonly style="margin-top: 0;">
+              <input type="text" id="default-wallet" data-i18n-ph="ph_wallet_addr" placeholder="Enter wallet address" readonly style="margin-top: 0;">
               <button class="btn-small btn-warning" id="edit-wallet-btn" onclick="toggleWalletEdit()" style="margin-top: 0; width: auto;" data-i18n="btn_edit">Edit</button>
             </div>
             <button id="save-wallet-btn" class="hidden btn-small" onclick="saveSettings()" style="margin-top: 8px; width: 100%;" data-i18n="btn_save_wallet">Save New Address</button>
           </div>
 
-          <input type="number" id="withdraw-amount" placeholder="Amount (Min. $30)" min="30" step="any" oninput="updateWithdrawCalculations()">
+          <input type="number" id="withdraw-amount" data-i18n-ph="ph_withdraw_amount" placeholder="Amount (Min. $30)" min="30" step="any" oninput="updateWithdrawCalculations()">
           
           <div class="fee-breakdown hidden" id="withdraw-fee-box">
-            <span>Amount: <b id="calc-req">$0.00</b></span>
-            <span>Fee (10%): <b id="calc-fee" style="color: var(--danger);">$0.00</b></span>
-            <span>Net: <b id="calc-net" style="color: var(--success);">$0.00</b></span>
+            <span><span data-i18n="lbl_amount">Amount</span>: <b id="calc-req">$0.00</b></span>
+            <span><span data-i18n="lbl_fee">Fee (10%)</span>: <b id="calc-fee" style="color: var(--danger);">$0.00</b></span>
+            <span><span data-i18n="lbl_net">Net</span>: <b id="calc-net" style="color: var(--success);">$0.00</b></span>
           </div>
 
           <button id="btn-request-withdraw" style="margin-top: 14px;" onclick="requestWithdrawal()">
@@ -595,7 +595,7 @@
     let currentLang = localStorage.getItem('appLang') || 'en';
     const tg = window.Telegram?.WebApp;
 
-    // Translation Dictionary
+    // Comprehensive Translation Dictionary
     const i18n = {
       en: {
         nav_home: "Home",
@@ -612,6 +612,8 @@
         my_links_title: "Your Links",
         withdraw_request_title: "Withdraw Earnings",
         wallet_addr_label: "Withdrawal Wallet (USDT TRC20)",
+        ph_wallet_addr: "Enter wallet address",
+        ph_withdraw_amount: "Amount (Min. $30)",
         btn_edit: "Edit",
         btn_save_wallet: "Save New Address",
         btn_submit_withdraw: "Request Withdrawal",
@@ -656,7 +658,25 @@
         guide_step3_b: "Copy Transaction Hash (TxID):",
         guide_step3_t: "After confirmation, copy the transaction Hash/TxID.",
         guide_step4_b: "Submit Request:",
-        guide_step4_t: "Return here, enter the exact deposited amount and TxID, then submit."
+        guide_step4_t: "Return here, enter the exact deposited amount and TxID, then submit.",
+        tab_deposit: "📥 Deposit",
+        tab_withdraw: "📤 Withdraw",
+        deposit_funds_title: "Deposit Funds (USDT)",
+        btn_deposit_guide: "❓ Deposit Guide",
+        select_network_label: "Select Network:",
+        opt_select_network: "-- Select Payment Network --",
+        lbl_trc20_addr: "USDT - TRC20 Address:",
+        lbl_bep20_addr: "USDT - BEP20 (BSC) Address:",
+        btn_copy: "Copy",
+        submit_proof_label: "Submit Deposit Proof:",
+        ph_deposit_amount: "Amount ($)",
+        ph_deposit_txid: "Transaction TxID / Hash",
+        btn_submit_deposit: "Submit Deposit Request",
+        lbl_amount: "Amount",
+        lbl_fee: "Fee (10%)",
+        lbl_net: "Net",
+        example_txid: "Example TxID format:",
+        official_channel: "📢 Official Channel"
       },
       ar: {
         nav_home: "الرئيسية",
@@ -673,6 +693,8 @@
         my_links_title: "الروابط الخاصة بك",
         withdraw_request_title: "طلب سحب الأرباح",
         wallet_addr_label: "عنوان محفظة السحب (USDT TRC20)",
+        ph_wallet_addr: "أدخل عنوان المحفظة",
+        ph_withdraw_amount: "المبلغ (الحد الأدنى 30$)",
         btn_edit: "تعديل",
         btn_save_wallet: "حفظ العنوان الجديد",
         btn_submit_withdraw: "تقديم طلب السحب",
@@ -717,11 +739,29 @@
         guide_step3_b: "نسخ رمز العملية (TxID):",
         guide_step3_t: "بعد نجاح التحويل، انسخ معرف المعاملة TxHash/TxID.",
         guide_step4_b: "إرسال الطلب:",
-        guide_step4_t: "عد هنا وأدخل قيمة المبلغ المودع ورمز المعاملة ثم انقر تقديم الطلب."
+        guide_step4_t: "عد هنا وأدخل قيمة المبلغ المودع ورمز المعاملة ثم انقر تقديم الطلب.",
+        tab_deposit: "📥 الشحن والإيداع",
+        tab_withdraw: "📤 سحب الأرباح",
+        deposit_funds_title: "شحن الرصيد (USDT)",
+        btn_deposit_guide: "❓ دليل الشحن",
+        select_network_label: "اختر الشبكة:",
+        opt_select_network: "-- اختر شبكة الدفع --",
+        lbl_trc20_addr: "عنوان USDT - TRC20:",
+        lbl_bep20_addr: "عنوان USDT - BEP20 (BSC):",
+        btn_copy: "نسخ",
+        submit_proof_label: "إرسال إثبات الشحن:",
+        ph_deposit_amount: "المبلغ ($)",
+        ph_deposit_txid: "رمز المعاملة TxID / Hash",
+        btn_submit_deposit: "تأكيد وإرسال طلب الشحن",
+        lbl_amount: "المبلغ",
+        lbl_fee: "الرسوم (10%)",
+        lbl_net: "الصافي",
+        example_txid: "صيغة رمز المعاملة TxID:",
+        official_channel: "📢 القناة الرسمية"
       }
     };
 
-    // Helper Functions
+    // Core Helpers
     function escapeHTML(str) {
       if (!str) return '';
       return String(str)
@@ -1198,7 +1238,7 @@
       } catch (e) {
         showToast(currentLang === 'ar' ? "خطأ أثناء تقديم طلب الشحن" : "Error submitting deposit request");
       } finally {
-        setButtonLoading('btn-request-deposit', false, `<span>${currentLang === 'ar' ? 'تأكيد وإرسال طلب الشحن' : 'Submit Deposit Request'}</span>`);
+        setButtonLoading('btn-request-deposit', false, `<span data-i18n="btn_submit_deposit">${i18n[currentLang].btn_submit_deposit}</span>`);
       }
     }
 
