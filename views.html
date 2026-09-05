@@ -376,7 +376,6 @@
 
       <!-- 1. Dashboard Tab -->
       <div id="tab-content-dashboard">
-        <!-- نبذة وشروط الاستخدام لتلبية متطلبات المراجعة -->
         <div class="card" style="border-color: var(--accent); background: rgba(30, 41, 59, 0.9);">
           <h4 style="margin: 0 0 6px 0; color: var(--accent); font-size: 14px;" data-i18n="about_title">ℹ️ About & Terms of Use</h4>
           <p style="margin: 0; font-size: 12px; color: var(--text-muted); line-height: 1.5;" data-i18n="about_desc">
@@ -638,12 +637,15 @@
       ? 'http://localhost:3000' 
       : window.location.origin;
 
-    let authToken = localStorage.getItem('authToken');
+    const tg = window.Telegram?.WebApp;
+    const currentTgUserId = tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe.user.id) : 'guest';
+    const AUTH_STORAGE_KEY = `authToken_${currentTgUserId}`;
+
+    let authToken = localStorage.getItem(AUTH_STORAGE_KEY);
     let currentSessionId = null;
     let bridgeStartTime = Date.now();
     let isUserAdmin = false;
     let currentLang = localStorage.getItem('appLang') || 'en';
-    const tg = window.Telegram?.WebApp;
 
     const i18n = {
       en: {
@@ -817,6 +819,11 @@
 
     async function safeFetch(endpoint, options = {}) {
       options.headers = options.headers || {};
+      
+      if (tg?.initData) {
+        options.headers['x-telegram-init-data'] = tg.initData;
+      }
+      
       if (authToken) {
         options.headers['Authorization'] = `Bearer ${authToken}`;
       }
@@ -826,10 +833,11 @@
       
       try {
         let response = await fetch(targetUrl, options);
-        if (response.status === 401) {
+        if (response && response.status === 401) {
           const reAuth = await authLogin();
           if (reAuth) {
             options.headers['Authorization'] = `Bearer ${authToken}`;
+            if (tg?.initData) options.headers['x-telegram-init-data'] = tg.initData;
             response = await fetch(targetUrl, options);
           }
         }
@@ -985,20 +993,30 @@
 
     async function authLogin() {
       const startParam = tg?.initDataUnsafe?.start_param || null;
+      let demoUserId = localStorage.getItem('demo_unique_device_id');
+      if (!demoUserId) {
+        demoUserId = 'DEMO_DEV_' + Math.random().toString(36).substring(2, 10);
+        localStorage.setItem('demo_unique_device_id', demoUserId);
+      }
+
+      const headers = { 'Content-Type': 'application/json' };
+      if (tg?.initData) {
+        headers['x-telegram-init-data'] = tg.initData;
+      } else {
+        headers['x-demo-user-id'] = demoUserId;
+      }
+
       try {
         const res = await safeFetch('/api/auth/login', {
           method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            ...(tg?.initData ? {'x-telegram-init-data': tg.initData} : {'x-demo-user-id': 'DEMO_USER_DEV'}) 
-          },
+          headers,
           body: JSON.stringify({ referrerId: startParam, telegramUserInfo: tg?.initDataUnsafe?.user || {} })
         });
         if (!res) return false;
         const data = await res.json();
         if (data && data.token) {
           authToken = data.token;
-          localStorage.setItem('authToken', authToken);
+          localStorage.setItem(AUTH_STORAGE_KEY, authToken);
           isUserAdmin = !!data.isAdmin;
           return true;
         }
@@ -1248,7 +1266,6 @@
             if (data.adSource === 'internal' && data.adData) {
               renderInternalAd(data.adData);
             } else if (window.Adsgram && data.blockId) {
-              // إعلانات Adsgram تظهر هنا حصرياً بناءً على تفاعل مستخدم مع رابط اختصار (صفحة الجسر)
               window.Adsgram.init({ blockId: data.blockId }).show().catch(() => renderFallbackAd());
             } else {
               renderFallbackAd();
@@ -1313,7 +1330,6 @@
       }
     }
 
-    // دالة اختصار الرابط عند الضغط على زر مفيد مع عرض رسائل تنبيهية واضحة
     async function handleShortenClick() {
       const title = document.getElementById('link-title').value;
       const targetUrl = document.getElementById('link-url').value;
