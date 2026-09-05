@@ -1,519 +1,244 @@
 /**
- * Ultra-Enterprise High-Performance Models Architecture (v2.0 Extreme)
- * Engine for High-Scale Telegram Mini Apps, Shorteners & Ad Networks
+ * ============================================================================
+ * Ultra-Enterprise High-Performance Models Architecture
+ * File: models.js
+ * Designed for High-Scale Telegram Mini Apps & Shortener Engines
+ * ============================================================================
  */
+
+import mongoose from 'mongoose';
 
 if (typeof window !== 'undefined') {
   throw new Error("Critical Security Alert: Mongoose models must run exclusively on the server side.");
 }
 
-const mongoose = require('mongoose');
+const { Schema, model } = mongoose;
 
-// ==========================================
-// 0. Utilities & Precise Financial Helpers
-// ==========================================
-const safeFinance = (val) => {
-  if (typeof val !== 'number' || isNaN(val) || !isFinite(val)) return 0;
-  return Math.round((val + Number.EPSILON) * 100000) / 100000;
-};
+// ============================================================================
+// 1. USER SCHEMA & MODEL
+// ============================================================================
+const userSchema = new Schema(
+  {
+    telegramId: {
+      type: Number,
+      required: true,
+      unique: true,
+      index: true,
+    },
+    firstName: { type: String, required: true },
+    lastName: { type: String, default: '' },
+    username: { type: String, default: null, index: true },
+    languageCode: { type: String, default: 'ar' },
+    role: {
+      type: String,
+      enum: ['USER', 'PUBLISHER', 'ADVERTISER', 'ADMIN'],
+      default: 'USER',
+      index: true,
+    },
+    isBanned: { type: Boolean, default: false, index: true },
+    banReason: { type: String, default: null },
+    referredBy: { type: Number, default: null, index: true },
+    referralCount: { type: Number, default: 0 },
+    settings: {
+      notificationsEnabled: { type: Boolean, default: true },
+      twoFactorEnabled: { type: Boolean, default: false },
+    },
+    lastActiveAt: { type: Date, default: Date.now },
+  },
+  { timestamps: true }
+);
 
-// ==========================================
-// 1. User Schema
-// ==========================================
-const userSchema = new mongoose.Schema({
-  telegramId: { 
-    type: String, 
-    required: [true, 'Telegram ID is required'], 
-    unique: true, 
-    index: true,
-    trim: true 
-  },
-  username: { 
-    type: String, 
-    default: '', 
-    trim: true,
-    lowercase: true,
-    index: true
-  },
-  firstName: { 
-    type: String, 
-    default: '', 
-    trim: true 
-  },
-  language: {
-    type: String,
-    default: 'ar',
-    trim: true,
-    lowercase: true
-  },
-  isPremium: { 
-    type: Boolean, 
-    default: false,
-    index: true 
-  },
-  availableBalance: { 
-    type: Number, 
-    default: 0, 
-    min: [0, 'Available balance cannot be negative'],
-    set: safeFinance 
-  },
-  pendingBalance: { 
-    type: Number, 
-    default: 0, 
-    min: [0, 'Pending balance cannot be negative'],
-    set: safeFinance 
-  },
-  referralEarnings: { 
-    type: Number, 
-    default: 0, 
-    min: [0, 'Referral earnings cannot be negative'],
-    set: safeFinance 
-  },
-  defaultWallet: { 
-    type: String, 
-    default: '', 
-    trim: true,
-    validate: {
-      validator: function(v) {
-        if (!v || v === '') return true;
-        const isTron = /^T[A-Za-z1-9]{33}$/.test(v);
-        const isEvm = /^0x[a-fA-F0-9]{40}$/.test(v);
-        const isTon = /^[a-zA-Z0-9_-]{48}$/.test(v) || /^0:[a-fA-F0-9]{64}$/.test(v);
-        return isTron || isEvm || isTon;
-      },
-      message: 'Invalid wallet address format (Supported: TRC20, BEP20/ERC20, TON)'
-    }
-  },
-  referredBy: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User', 
-    default: null, 
-    index: true 
-  },
-  role: { 
-    type: String, 
-    enum: {
-      values: ['user', 'admin', 'moderator'],
-      message: '{VALUE} is not a valid role'
-    }, 
-    default: 'user',
-    index: true 
-  },
-  isBanned: { 
-    type: Boolean, 
-    default: false, 
-    index: true 
-  }
-}, { 
-  timestamps: true,
-  versionKey: false
-});
+userSchema.index({ createdAt: -1 });
 
-userSchema.index({ telegramId: 1, isBanned: 1 });
-userSchema.index({ role: 1, createdAt: -1 });
+// ============================================================================
+// 2. WALLET SCHEMA & FINANCIAL TRANSACTIONS
+// ============================================================================
+const walletSchema = new Schema(
+  {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      unique: true,
+      index: true,
+    },
+    telegramId: { type: Number, required: true, unique: true, index: true },
+    balanceUSDT: { type: Number, default: 0.0, min: 0 },
+    frozenBalanceUSDT: { type: Number, default: 0.0, min: 0 },
+    totalEarnedUSDT: { type: Number, default: 0.0 },
+    totalSpentUSDT: { type: Number, default: 0.0 },
+    trc20Address: { type: String, default: null },
+  },
+  { timestamps: true }
+);
 
-userSchema.methods.canPerformAction = function() {
-  return !this.isBanned;
-};
+const transactionSchema = new Schema(
+  {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true,
+    },
+    type: {
+      type: String,
+      enum: ['DEPOSIT', 'WITHDRAWAL', 'AD_PAYMENT', 'SHORTENER_EARNING', 'REFERRAL_REWARD'],
+      required: true,
+      index: true,
+    },
+    amount: { type: Number, required: true },
+    status: {
+      type: String,
+      enum: ['PENDING', 'COMPLETED', 'FAILED', 'CANCELLED'],
+      default: 'PENDING',
+      index: true,
+    },
+    txHash: { type: String, default: null, unique: true, sparse: true },
+    metadata: { type: Schema.Types.Mixed, default: {} },
+  },
+  { timestamps: true }
+);
 
-// ==========================================
-// 2. Link Schema
-// ==========================================
-const linkSchema = new mongoose.Schema({
-  userId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: [true, 'Owner User ID is required'], 
-    index: true 
-  },
-  title: { 
-    type: String, 
-    default: 'Untitled Link', 
-    trim: true,
-    maxlength: [150, 'Title length cannot exceed 150 characters']
-  },
-  originalUrl: { 
-    type: String, 
-    required: [true, 'Original target URL is required'], 
-    trim: true,
-    validate: {
-      validator: function(v) {
-        return /^(https?:\/\/)?([\w.-]+)+[\w\-_~:/?#[\]@!$&'()*+,;=.]+$/i.test(v);
-      },
-      message: 'Invalid target URL format'
-    }
-  },
-  shortCode: { 
-    type: String, 
-    required: [true, 'Short code is required'], 
-    unique: true, 
-    index: true,
-    trim: true 
-  },
-  views: { 
-    type: Number, 
-    default: 0, 
-    min: 0 
-  },
-  validImpressions: { 
-    type: Number, 
-    default: 0, 
-    min: 0 
-  },
-  invalidImpressions: { 
-    type: Number, 
-    default: 0, 
-    min: 0 
-  },
-  isActive: { 
-    type: Boolean, 
-    default: true, 
-    index: true 
-  }
-}, { 
-  timestamps: true,
-  versionKey: false
-});
+transactionSchema.index({ userId: 1, createdAt: -1 });
 
-linkSchema.index({ userId: 1, isActive: 1, createdAt: -1 });
-linkSchema.index({ shortCode: 1, isActive: 1 });
-linkSchema.index({ validImpressions: -1 });
+// ============================================================================
+// 3. CHANNEL / MINI APP PUBLISHER SCHEMA
+// ============================================================================
+const channelSchema = new Schema(
+  {
+    ownerId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true,
+    },
+    channelTelegramId: { type: Number, required: true, unique: true, index: true },
+    title: { type: String, required: true },
+    username: { type: String, default: null },
+    type: {
+      type: String,
+      enum: ['CHANNEL', 'GROUP', 'MINI_APP', 'BOT'],
+      default: 'CHANNEL',
+    },
+    category: {
+      type: String,
+      enum: ['MOVIES_SERIES', 'TRADING', 'TECH', 'GAMES', 'GENERAL'],
+      required: true,
+      index: true,
+    },
+    memberCount: { type: Number, default: 0 },
+    isVerified: { type: Boolean, default: false, index: true },
+    isActive: { type: Boolean, default: true, index: true },
+    eCPM: { type: Number, default: 1.0 },
+  },
+  { timestamps: true }
+);
 
-// ==========================================
-// 3. Ad Schema
-// ==========================================
-const adSchema = new mongoose.Schema({
-  advertiserId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: [true, 'Advertiser User ID is required'], 
-    index: true 
+// ============================================================================
+// 4. AD CAMPAIGN ENGINE SCHEMA
+// ============================================================================
+const adCampaignSchema = new Schema(
+  {
+    advertiserId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true,
+    },
+    title: { type: String, required: true },
+    content: {
+      text: { type: String, required: true },
+      mediaUrl: { type: String, default: null },
+      buttonText: { type: String, default: null },
+      targetUrl: { type: String, default: null },
+    },
+    budget: {
+      totalUSDT: { type: Number, required: true },
+      remainingUSDT: { type: Number, required: true },
+      cpmUSDT: { type: Number, required: true },
+    },
+    targeting: {
+      categories: [{ type: String }],
+      languages: [{ type: String }],
+    },
+    stats: {
+      views: { type: Number, default: 0 },
+      clicks: { type: Number, default: 0 },
+    },
+    status: {
+      type: String,
+      enum: ['DRAFT', 'PENDING_APPROVAL', 'ACTIVE', 'PAUSED', 'COMPLETED', 'REJECTED'],
+      default: 'PENDING_APPROVAL',
+      index: true,
+    },
   },
-  title: { 
-    type: String, 
-    required: [true, 'Ad campaign title is required'], 
-    trim: true,
-    maxlength: [120, 'Title cannot exceed 120 characters']
-  },
-  targetUrl: { 
-    type: String, 
-    required: [true, 'Ad target URL is required'], 
-    trim: true,
-    validate: {
-      validator: function(v) {
-        return /^(https?:\/\/)?([\w.-]+)+[\w\-_~:/?#[\]@!$&'()*+,;=.]+$/i.test(v);
-      },
-      message: 'Invalid target URL format'
-    }
-  },
-  totalBudget: { 
-    type: Number, 
-    required: [true, 'Total budget is required'], 
-    min: [1, 'Minimum total budget is $1'],
-    set: safeFinance 
-  },
-  remainingBudget: { 
-    type: Number, 
-    required: [true, 'Remaining budget is required'], 
-    min: [0, 'Remaining budget cannot be negative'],
-    set: safeFinance 
-  },
-  cpmRate: { 
-    type: Number, 
-    default: 1.50,
-    min: 0,
-    set: safeFinance
-  },
-  costPerImpression: { 
-    type: Number, 
-    default: 0.0015,
-    min: 0,
-    set: safeFinance
-  },
-  publisherEarningsPerImpression: {
-    type: Number,
-    default: 0.00135,
-    min: 0,
-    set: safeFinance
-  },
-  platformFeePerImpression: {
-    type: Number,
-    default: 0.00015,
-    min: 0,
-    set: safeFinance
-  },
-  impressionsCount: { 
-    type: Number, 
-    default: 0, 
-    min: 0 
-  },
-  status: { 
-    type: String, 
-    enum: {
-      values: ['active', 'paused', 'completed', 'rejected'],
-      message: '{VALUE} is not a valid ad status'
-    }, 
-    default: 'active',
-    index: true 
-  }
-}, { 
-  timestamps: true,
-  versionKey: false
-});
+  { timestamps: true }
+);
 
-adSchema.pre('save', function(next) {
-  if (this.remainingBudget <= 0 && this.status === 'active') {
-    this.status = 'completed';
-  }
-  next();
-});
+adCampaignSchema.index({ status: 1, 'budget.remainingUSDT': 1 });
 
-adSchema.index({ status: 1, remainingBudget: 1, createdAt: -1 });
-adSchema.index({ advertiserId: 1, status: 1 });
+// ============================================================================
+// 5. URL SHORTENER & ANALYTICS SCHEMA
+// ============================================================================
+const shortUrlSchema = new Schema(
+  {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true,
+    },
+    shortCode: {
+      type: String,
+      required: true,
+      unique: true,
+      index: true,
+    },
+    originalUrl: { type: String, required: true },
+    title: { type: String, default: null },
+    clicks: { type: Number, default: 0 },
+    earningsUSDT: { type: Number, default: 0.0 },
+    isActive: { type: Boolean, default: true, index: true },
+  },
+  { timestamps: true }
+);
 
-// ==========================================
-// 4. Transaction Schema
-// ==========================================
-const transactionSchema = new mongoose.Schema({
-  userId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: [true, 'User ID is required'], 
-    index: true 
+const clickAnalyticsSchema = new Schema(
+  {
+    urlId: {
+      type: Schema.Types.ObjectId,
+      ref: 'ShortUrl',
+      required: true,
+      index: true,
+    },
+    ipAddress: { type: String, required: true },
+    country: { type: String, default: 'UNKNOWN', index: true },
+    deviceType: { type: String, default: 'DESKTOP' },
+    isUnique: { type: Boolean, default: true },
+    publisherEarning: { type: Number, default: 0.0 },
   },
-  type: { 
-    type: String, 
-    enum: {
-      values: ['deposit', 'withdraw', 'earning', 'referral', 'refund', 'ad_spend'],
-      message: '{VALUE} is not a valid transaction type'
-    }, 
-    required: true,
-    index: true 
-  },
-  amount: { 
-    type: Number, 
-    required: [true, 'Transaction amount is required'], 
-    set: safeFinance 
-  },
-  fee: {
-    type: Number,
-    default: 0,
-    set: safeFinance
-  },
-  netAmount: {
-    type: Number,
-    default: 0,
-    set: safeFinance
-  },
-  status: { 
-    type: String, 
-    enum: {
-      values: ['pending', 'completed', 'rejected', 'cancelled'],
-      message: '{VALUE} is not a valid status'
-    }, 
-    default: 'pending',
-    index: true 
-  },
-  paymentMethod: { 
-    type: String, 
-    trim: true,
-    default: 'USDT' 
-  },
-  network: {
-    type: String,
-    enum: ['BEP20', 'TRC20', 'TON', 'INTERNAL', 'NONE'],
-    default: 'NONE',
-    trim: true,
-    uppercase: true
-  },
-  txHash: { 
-    type: String, 
-    trim: true,
-    sparse: true,
-    index: true 
-  },
-  walletAddress: { 
-    type: String, 
-    trim: true 
-  },
-  rejectReason: { 
-    type: String, 
-    default: '', 
-    trim: true 
-  }
-}, { 
-  timestamps: true,
-  versionKey: false
-});
+  { timestamps: true }
+);
 
-transactionSchema.pre('save', function(next) {
-  if (this.amount && this.fee) {
-    this.netAmount = safeFinance(Math.max(0, this.amount - this.fee));
-  } else if (this.amount) {
-    this.netAmount = safeFinance(this.amount);
-  }
-  next();
-});
+clickAnalyticsSchema.index({ urlId: 1, createdAt: -1 });
 
-transactionSchema.index({ userId: 1, type: 1, status: 1, createdAt: -1 });
-transactionSchema.index({ status: 1, createdAt: -1 });
+// ============================================================================
+// MODEL EXPORTS
+// ============================================================================
+export const User = mongoose.models.User || model('User', userSchema);
+export const Wallet = mongoose.models.Wallet || model('Wallet', walletSchema);
+export const Transaction = mongoose.models.Transaction || model('Transaction', transactionSchema);
+export const Channel = mongoose.models.Channel || model('Channel', channelSchema);
+export const AdCampaign = mongoose.models.AdCampaign || model('AdCampaign', adCampaignSchema);
+export const ShortUrl = mongoose.models.ShortUrl || model('ShortUrl', shortUrlSchema);
+export const ClickAnalytics = mongoose.models.ClickAnalytics || model('ClickAnalytics', clickAnalyticsSchema);
 
-// ==========================================
-// 5. Impression Schema
-// ==========================================
-const impressionSchema = new mongoose.Schema({
-  linkId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'Link', 
-    required: true, 
-    index: true 
-  },
-  adSource: { 
-    type: String, 
-    enum: ['internal', 'adsgram'], 
-    default: 'adsgram',
-    index: true
-  },
-  adId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'Ad', 
-    default: null,
-    index: true
-  },
-  publisherEarnings: {
-    type: Number,
-    default: 0.00135,
-    set: safeFinance
-  },
-  ip: { 
-    type: String, 
-    required: true, 
-    trim: true 
-  },
-  userAgent: { 
-    type: String, 
-    default: '', 
-    trim: true 
-  },
-  isUnique: { 
-    type: Boolean, 
-    default: true 
-  },
-  createdAt: { 
-    type: Date, 
-    default: Date.now, 
-    expires: '60d'
-  }
-}, { versionKey: false });
-
-impressionSchema.index({ linkId: 1, createdAt: -1 });
-impressionSchema.index({ ip: 1, createdAt: -1 });
-
-// ==========================================
-// 6. ClickSession Schema
-// ==========================================
-const clickSessionSchema = new mongoose.Schema({
-  linkId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'Link', 
-    required: true 
-  },
-  adSource: { 
-    type: String, 
-    enum: ['internal', 'adsgram'], 
-    default: 'adsgram'
-  },
-  adId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'Ad', 
-    default: null 
-  },
-  ip: { 
-    type: String, 
-    required: true, 
-    trim: true 
-  },
-  bridgeToken: { 
-    type: String, 
-    required: true,
-    trim: true 
-  },
-  createdAt: { 
-    type: Date, 
-    default: Date.now, 
-    expires: 300 
-  }
-}, { versionKey: false });
-
-clickSessionSchema.index({ linkId: 1, ip: 1 });
-clickSessionSchema.index({ bridgeToken: 1 }, { unique: true });
-
-// ==========================================
-// 7. EarningsHold Schema
-// ==========================================
-const earningsHoldSchema = new mongoose.Schema({
-  userId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: true, 
-    index: true 
-  },
-  amount: { 
-    type: Number, 
-    required: true, 
-    min: 0,
-    set: safeFinance 
-  },
-  releaseAt: { 
-    type: Date, 
-    required: true, 
-    default: () => new Date(Date.now() + 24 * 60 * 60 * 1000), 
-    index: true 
-  },
-  isReleased: { 
-    type: Boolean, 
-    default: false, 
-    index: true 
-  }
-}, { 
-  timestamps: true,
-  versionKey: false 
-});
-
-earningsHoldSchema.index({ isReleased: 1, releaseAt: 1 });
-earningsHoldSchema.index({ userId: 1, isReleased: 1 });
-
-// ==========================================
-// 8. Announcement Schema
-// ==========================================
-const announcementSchema = new mongoose.Schema({
-  title: { type: String, required: true, trim: true },
-  content: { type: String, required: true, trim: true },
-  isActive: { type: Boolean, default: true, index: true }
-}, { 
-  timestamps: true,
-  versionKey: false 
-});
-
-announcementSchema.index({ isActive: 1, createdAt: -1 });
-
-// Model Export Engine
-const User = mongoose.models.User || mongoose.model('User', userSchema);
-const Link = mongoose.models.Link || mongoose.model('Link', linkSchema);
-const Ad = mongoose.models.Ad || mongoose.model('Ad', adSchema);
-const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
-const Impression = mongoose.models.Impression || mongoose.model('Impression', impressionSchema);
-const ClickSession = mongoose.models.ClickSession || mongoose.model('ClickSession', clickSessionSchema);
-const EarningsHold = mongoose.models.EarningsHold || mongoose.model('EarningsHold', earningsHoldSchema);
-const Announcement = mongoose.models.Announcement || mongoose.model('Announcement', announcementSchema);
-
-module.exports = {
+export default {
   User,
-  Link,
-  Ad,
+  Wallet,
   Transaction,
-  Impression,
-  ClickSession,
-  EarningsHold,
-  Announcement
+  Channel,
+  AdCampaign,
+  ShortUrl,
+  ClickAnalytics,
 };
