@@ -89,7 +89,6 @@ const userSchema = new mongoose.Schema({
       message: 'Invalid wallet address format (Must be USDT TRC20, BEP20/ERC20, or TON)'
     }
   },
-  // Isolated Fast Analytics Snapshot (Owner-Only)
   statsSummary: {
     totalLinksCreated: { type: Number, default: 0, min: 0 },
     totalViewsReceived: { type: Number, default: 0, min: 0 },
@@ -103,7 +102,6 @@ const userSchema = new mongoose.Schema({
 
 userSchema.index({ telegramId: 1, isBanned: 1 });
 
-// Helper to strictly sanitize output and prevent leaking sensitive internal flags
 userSchema.methods.toPrivateJSON = function() {
   const obj = this.toObject();
   delete obj.__v;
@@ -188,12 +186,11 @@ const adSchema = new mongoose.Schema({
   timestamps: true 
 });
 
-// Strict Indexes for User Data Isolation
 adSchema.index({ advertiserId: 1, status: 1, createdAt: -1 });
 adSchema.index({ status: 1, remainingBudget: 1, createdAt: -1 });
 
 // --------------------------------------------------
-// 3. Shortened Link Model (Publisher Specific Data)
+// 3. Shortened Link Model (Strictly Isolated Publisher Data)
 // --------------------------------------------------
 const linkSchema = new mongoose.Schema({
   shortCode: { 
@@ -206,7 +203,7 @@ const linkSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    required: [true, 'Owner User ID is required'], 
+    required: [true, 'Owner User ID is required for strict isolation'], 
     index: true 
   },
   title: { 
@@ -244,12 +241,13 @@ const linkSchema = new mongoose.Schema({
   timestamps: true 
 });
 
-// Strict Isolating Indexes
+// Compound Indexes for Zero Leakage Performance
+linkSchema.index({ userId: 1, createdAt: -1 });
 linkSchema.index({ userId: 1, isActive: 1, createdAt: -1 });
 linkSchema.index({ userId: 1, shortCode: 1 });
 
 // --------------------------------------------------
-// 4. Traffic & Impressions Model (Isolated Analytics)
+// 4. Traffic & Impressions Model
 // --------------------------------------------------
 const impressionSchema = new mongoose.Schema({
   linkId: { 
@@ -426,7 +424,7 @@ withdrawSchema.pre('validate', function(next) {
 withdrawSchema.index({ userId: 1, status: 1, createdAt: -1 });
 
 // --------------------------------------------------
-// 7. Temporary Earnings Settlement Hold Model
+// 7. Earnings Hold Model
 // --------------------------------------------------
 const earningsHoldSchema = new mongoose.Schema({
   userId: { 
@@ -477,7 +475,7 @@ const depositSchema = new mongoose.Schema({
   network: {
     type: String,
     enum: ['BEP20', 'TRC20', 'TON'],
-    required: [true, 'Please select network (BEP20, TRC20, or TON)'],
+    required: [true, 'Please select network (BEP20, TRC20, TON)'],
     trim: true,
     uppercase: true
   },
@@ -504,7 +502,7 @@ const depositSchema = new mongoose.Schema({
 depositSchema.index({ advertiserId: 1, status: 1, createdAt: -1 });
 
 // --------------------------------------------------
-// 9. Announcement Model (Global / User Targeted)
+// 9. Announcement Model
 // --------------------------------------------------
 const announcementSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
@@ -515,7 +513,7 @@ const announcementSchema = new mongoose.Schema({
 
 announcementSchema.index({ isActive: 1, targetUser: 1, createdAt: -1 });
 
-// Model Export Optimization (Safe for Hot-Reload Environments like Vercel)
+// Exporting Optimized Safe Models
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Ad = mongoose.models.Ad || mongoose.model('Ad', adSchema);
 const Link = mongoose.models.Link || mongoose.model('Link', linkSchema);
