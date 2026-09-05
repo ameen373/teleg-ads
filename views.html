@@ -3,9 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Shortener & Ads Platform</title>
+  <title>Telega.ads | Enterprise Shortener & Ad Network</title>
+  
+  <!-- External Scripts -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+
   <style>
     :root {
       --bg-main: #0f172a;
@@ -19,26 +22,32 @@
       --text-muted: #94a3b8;
       --border-color: #334155;
       --nav-bg: rgba(15, 23, 42, 0.95);
+      --font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
-    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+    
     body { 
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+      font-family: var(--font-family); 
       background: var(--bg-main); 
       color: var(--text); 
       margin: 0; 
       padding: 12px; 
       padding-bottom: 95px;
-      direction: ltr; 
+      direction: ltr;
+      user-select: none;
     }
-    .container { max-width: 500px; margin: 0 auto; }
+
+    .container { max-width: 520px; margin: 0 auto; }
+    
     .card { 
       background: var(--card-bg); 
       border-radius: 16px; 
       padding: 18px; 
       margin-bottom: 14px; 
       border: 1px solid var(--border-color); 
-      box-shadow: 0 4px 20px rgba(0,0,0,0.3); 
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35); 
+      transition: transform 0.2s ease, border-color 0.2s ease;
     }
 
     /* Header Profile */
@@ -48,10 +57,12 @@
       gap: 12px;
       padding: 12px;
       background: rgba(30, 41, 59, 0.7);
-      border-radius: 14px;
+      backdrop-filter: blur(8px);
+      border-radius: 16px;
       margin-bottom: 14px;
       border: 1px solid var(--border-color);
     }
+    
     .user-avatar-img {
       width: 48px;
       height: 48px;
@@ -59,22 +70,26 @@
       object-fit: cover;
       border: 2px solid var(--accent);
     }
+    
     .user-avatar-placeholder {
       width: 48px;
       height: 48px;
       border-radius: 50%;
-      background: var(--accent);
+      background: linear-gradient(135deg, var(--accent), #1d4ed8);
       color: #fff;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: bold;
+      font-weight: 800;
       font-size: 20px;
+      box-shadow: 0 2px 10px rgba(59, 130, 246, 0.4);
     }
+
     .user-badge {
       display: inline-block;
       padding: 2px 8px;
       font-size: 10px;
+      font-weight: 700;
       border-radius: 10px;
       background: rgba(59, 130, 246, 0.2);
       color: var(--accent);
@@ -123,188 +138,118 @@
       margin: 0;
     }
 
-    .nav-btn svg { width: 18px; height: 18px; fill: currentColor; transition: transform 0.2s; }
+    .nav-btn svg { width: 20px; height: 20px; fill: currentColor; transition: transform 0.2s; }
     .nav-btn.active { color: var(--accent); background: rgba(59, 130, 246, 0.15); }
-    .nav-btn.active svg { transform: scale(1.1); }
+    .nav-btn.active svg { transform: scale(1.15); }
 
-    /* Inputs & Buttons */
+    /* Forms & Controls */
     input, button, select { 
       width: 100%; 
       padding: 12px 14px; 
       margin-top: 8px; 
-      border-radius: 10px; 
+      border-radius: 12px; 
       border: 1px solid var(--border-color); 
       background: #0f172a; 
       color: var(--text); 
       font-size: 14px; 
-      outline: none; 
+      font-family: inherit;
+      transition: border-color 0.2s;
     }
+    
     input:focus, select:focus { border-color: var(--accent); }
-    input:read-only { background: #090d16; color: var(--text-muted); cursor: not-allowed; }
+    input:read-only { background: #080c14; color: var(--text-muted); cursor: not-allowed; }
+    
     button { 
       background: var(--accent); 
       font-weight: 700; 
       cursor: pointer; 
       border: none; 
-      transition: background 0.2s, transform 0.1s; 
+      transition: background 0.2s, transform 0.1s, opacity 0.2s; 
       color: #fff; 
       display: inline-flex; 
       align-items: center; 
       justify-content: center; 
       gap: 8px; 
     }
+    
+    button:hover { background: var(--accent-hover); }
     button:active { transform: scale(0.98); }
-    button:disabled { background: #334155; cursor: not-allowed; opacity: 0.7; }
+    button:disabled { background: #334155 !important; cursor: not-allowed; opacity: 0.6; }
+    
     .btn-danger { background: var(--danger); }
+    .btn-danger:hover { background: #dc2626; }
     .btn-warning { background: var(--warning); color: #000; }
+    .btn-warning:hover { background: #d97706; }
     .btn-success { background: var(--success); color: #fff; }
-    .btn-small { padding: 6px 10px; font-size: 11px; width: auto; margin: 0 2px; }
+    .btn-success:hover { background: #059669; }
+    .btn-small { padding: 6px 12px; font-size: 11px; width: auto; margin: 0 2px; border-radius: 8px; }
 
     /* Action Switcher inside Wallet */
-    .wallet-actions-nav {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 14px;
-    }
+    .wallet-actions-nav { display: flex; gap: 10px; margin-bottom: 14px; }
     .wallet-action-btn {
-      flex: 1;
-      padding: 10px;
-      font-size: 13px;
-      background: #0d1527;
-      color: var(--text-muted);
-      border: 1px solid var(--border-color);
-      border-radius: 12px;
-      margin: 0;
+      flex: 1; padding: 10px; font-size: 13px; background: #0d1527;
+      color: var(--text-muted); border: 1px solid var(--border-color);
+      border-radius: 12px; margin: 0;
     }
-    .wallet-action-btn.active {
-      background: var(--accent);
-      color: #fff;
-      border-color: var(--accent);
-    }
+    .wallet-action-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
-    /* Crypto Address Box */
-    .address-card {
-      background: #0d1527;
-      border: 1px dashed var(--border-color);
-      border-radius: 10px;
-      padding: 10px;
-      margin-top: 8px;
-    }
-    .address-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 6px;
-      margin-top: 4px;
-    }
+    /* Crypto Boxes */
+    .address-card { background: #0d1527; border: 1px dashed var(--border-color); border-radius: 12px; padding: 12px; margin-top: 10px; }
+    .address-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
     .address-text {
-      font-family: monospace;
-      font-size: 11px;
-      color: var(--warning);
-      word-break: break-all;
-      background: #050811;
-      padding: 6px 8px;
-      border-radius: 6px;
-      flex: 1;
+      font-family: monospace; font-size: 11px; color: var(--warning); word-break: break-all;
+      background: #050811; padding: 8px 10px; border-radius: 8px; flex: 1; border: 1px solid #1e293b;
     }
 
-    /* Fee Details Box */
     .fee-breakdown {
-      background: #0d1527;
-      border: 1px solid var(--border-color);
-      border-radius: 10px;
-      padding: 10px;
-      margin-top: 10px;
-      font-size: 12px;
-      display: flex;
-      justify-content: space-between;
+      background: #0d1527; border: 1px solid var(--border-color); border-radius: 10px;
+      padding: 10px 14px; margin-top: 10px; font-size: 12px; display: flex; justify-content: space-between;
     }
 
     /* Modal Overlay */
     .modal-overlay {
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.8);
-      backdrop-filter: blur(4px);
-      z-index: 10000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 16px;
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.85); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 16px;
     }
     .modal-content {
-      background: var(--card-bg);
-      border: 1px solid var(--border-color);
-      border-radius: 16px;
-      padding: 20px;
-      max-width: 440px;
-      width: 100%;
-      max-height: 85vh;
-      overflow-y: auto;
-    }
-
-    /* Quick Links Group */
-    .tg-links-group {
-      display: flex;
-      gap: 8px;
-      margin-top: 10px;
-    }
-    .tg-links-group a {
-      flex: 1;
-      text-decoration: none;
+      background: var(--card-bg); border: 1px solid var(--border-color);
+      border-radius: 20px; padding: 22px; max-width: 440px; width: 100%; max-height: 85vh; overflow-y: auto;
     }
 
     /* Stats Grid */
     .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
-    .stat-box { background: #0d1527; padding: 14px; border-radius: 12px; border: 1px solid var(--border-color); text-align: center; }
+    .stat-box { background: #0d1527; padding: 14px; border-radius: 14px; border: 1px solid var(--border-color); text-align: center; }
     .stat-box small { color: var(--text-muted); font-size: 11px; display: block; margin-bottom: 4px; }
-    .stat-box h3 { margin: 0; font-size: 18px; color: var(--text); }
+    .stat-box h3 { margin: 0; font-size: 18px; color: var(--text); font-weight: 800; }
 
-    .link-item, .ad-item { background: #0d1527; padding: 12px; border-radius: 10px; margin-bottom: 8px; border: 1px solid var(--border-color); font-size: 13px; }
-    .link-header, .ad-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-    .link-actions, .ad-actions { display: flex; justify-content: flex-end; margin-top: 8px; gap: 4px; }
+    .link-item, .ad-item { background: #0d1527; padding: 12px 14px; border-radius: 12px; margin-bottom: 10px; border: 1px solid var(--border-color); font-size: 13px; }
+    .link-header, .ad-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .link-actions, .ad-actions { display: flex; justify-content: flex-end; margin-top: 10px; gap: 6px; }
 
     .hidden { display: none !important; }
 
+    /* UI Loaders & Notifications */
     .spinner {
-      width: 18px;
-      height: 18px;
-      border: 2px solid rgba(255,255,255,0.3);
-      border-radius: 50%;
-      border-top-color: #fff;
-      animation: spin 0.8s linear infinite;
+      width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 50%; border-top-color: #fff; animation: spin 0.8s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
     #toast { 
-      visibility: hidden; 
-      min-width: 220px; 
-      background-color: var(--card-bg); 
-      color: #fff; 
-      text-align: center; 
-      border-radius: 8px; 
-      padding: 12px; 
-      position: fixed; 
-      z-index: 10001; 
-      left: 50%; 
-      bottom: 90px; 
-      transform: translateX(-50%); 
-      border: 1px solid var(--accent); 
-      font-size: 13px; 
-      opacity: 0; 
-      transition: opacity 0.3s; 
-      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+      visibility: hidden; min-width: 240px; background-color: var(--card-bg); 
+      color: #fff; text-align: center; border-radius: 12px; padding: 12px 16px; 
+      position: fixed; z-index: 10001; left: 50%; bottom: 85px; transform: translateX(-50%); 
+      border: 1px solid var(--accent); font-size: 13px; opacity: 0; transition: opacity 0.3s, visibility 0.3s; 
+      box-shadow: 0 10px 25px rgba(0,0,0,0.6); font-weight: 600;
     }
     #toast.show { visibility: visible; opacity: 1; }
 
-    details {
-      background: #0d1527;
-      padding: 10px 12px;
-      border-radius: 8px;
-      border: 1px solid var(--border-color);
-      margin-bottom: 8px;
-    }
-    summary { font-weight: bold; cursor: pointer; outline: none; }
+    details { background: #0d1527; padding: 12px; border-radius: 10px; border: 1px solid var(--border-color); margin-bottom: 8px; }
+    summary { font-weight: bold; cursor: pointer; }
+    
+    .tab-pane { animation: fadeIn 0.25s ease-in-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
   </style>
 </head>
 <body>
@@ -312,30 +257,30 @@
   <div class="container">
     <div id="toast"></div>
 
-    <!-- Modal: instructions -->
+    <!-- Modal: Deposit Instructions Guide -->
     <div id="instructions-modal" class="modal-overlay hidden">
       <div class="modal-content">
-        <h3 style="margin-top: 0; color: var(--accent); font-size: 16px;">Deposit & TxID Guide</h3>
-        <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 10px 0;">
-        <ol style="font-size: 12px; color: var(--text); padding-left: 18px; line-height: 1.6;">
-          <li><b>Select Network:</b> Choose (USDT TRC20 or BEP20) to view your deposit address, then click <i>Copy</i>.</li>
-          <li><b>Transfer Funds:</b> Open your wallet (Binance, Trust Wallet, OKX, etc.) and send USDT to the copied address.</li>
-          <li><b>Copy Transaction Hash (TxID):</b> After the transfer succeeds, copy the <b>TxHash / TxID</b>.
+        <h3 style="margin-top: 0; color: var(--accent); font-size: 17px;" data-i18n="guide_modal_title">Deposit & TxID Guide</h3>
+        <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 12px 0;">
+        <ol style="font-size: 12px; color: var(--text); padding-left: 18px; line-height: 1.7;">
+          <li><b data-i18n="guide_step1_b">Select Network:</b> <span data-i18n="guide_step1_t">Choose USDT (TRC20 or BEP20) to reveal your dedicated deposit address and copy it.</span></li>
+          <li><b data-i18n="guide_step2_b">Transfer Funds:</b> <span data-i18n="guide_step2_t">Open your exchange or wallet app (Binance, Trust Wallet, OKX) and transfer USDT.</span></li>
+          <li><b data-i18n="guide_step3_b">Copy Transaction Hash (TxID):</b> <span data-i18n="guide_step3_t">After confirmation, copy the transaction Hash/TxID.</span>
             <div style="background: #050811; padding: 8px; border-radius: 8px; margin: 6px 0; border: 1px solid var(--border-color); text-align: center;">
               <small style="color: var(--text-muted);">Example TxID format:</small><br>
-              <code style="color: var(--success); font-size: 10px;">4a8f92b...e83120c91</code>
+              <code style="color: var(--success); font-size: 11px; word-break: break-all;">4a8f92b8d01...e83120c91</code>
             </div>
           </li>
-          <li><b>Submit Request:</b> Return here, enter the deposit amount and TxID, then click <b>Submit Deposit Request</b>.</li>
+          <li><b data-i18n="guide_step4_b">Submit Request:</b> <span data-i18n="guide_step4_t">Return here, enter the exact deposited amount and TxID, then submit.</span></li>
         </ol>
-        <button class="btn-danger" style="margin-top: 12px;" onclick="toggleInstructionsModal(false)">Close</button>
+        <button class="btn-danger" style="margin-top: 14px;" onclick="toggleInstructionsModal(false)" data-i18n="close">Close</button>
       </div>
     </div>
 
-    <!-- Bridge View -->
-    <div id="bridge-view" class="card hidden">
-      <h2 style="text-align: center; margin-bottom: 6px;" data-i18n="bridge_title">Preparing your link...</h2>
-      <p style="text-align: center; color: var(--text-muted); font-size: 12px; margin: 0;" data-i18n="bridge_desc">Please wait while we redirect you to your destination</p>
+    <!-- Bridge View Page (Short Link Landing) -->
+    <div id="bridge-view" class="card hidden tab-pane">
+      <h2 style="text-align: center; margin-bottom: 6px; font-size: 20px;" data-i18n="bridge_title">Preparing your link...</h2>
+      <p style="text-align: center; color: var(--text-muted); font-size: 12px; margin: 0;" data-i18n="bridge_desc">Please wait while we prepare your destination link</p>
       
       <div id="ad-container" style="min-height: 220px; background: #000; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 16px 0; border: 1px dashed var(--border-color); overflow: hidden; padding: 12px; text-align: center;">
         <span style="color: var(--text-muted); font-size: 12px;" data-i18n="ad_loading">Loading advertisement...</span>
@@ -348,25 +293,25 @@
 
       <div style="margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border-color); text-align: center; font-size: 11px; color: var(--text-muted);">
         <p style="margin: 0 0 6px 0;">
-          All rights reserved for <a href="https://t.me/Ads_telegabot" target="_blank" rel="noopener noreferrer" style="color: var(--accent); text-decoration: none; font-weight: bold;">Telega.ads</a> | Powered by <a href="https://t.me/Ads_telegabot" target="_blank" rel="noopener noreferrer" style="color: var(--accent); text-decoration: none; font-weight: bold;">Telega.ads</a>
+          All rights reserved for <a href="https://t.me/Ads_telegabot" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: none; font-weight: bold;">Telega.ads</a>
         </p>
         <div style="margin-top: 8px;">
-          <a href="https://t.me/ttelega_ads" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: rgba(59, 130, 246, 0.15); border: 1px solid var(--accent); border-radius: 20px; color: var(--accent); text-decoration: none; font-weight: bold;">
+          <a href="https://t.me/ttelega_ads" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; background: rgba(59, 130, 246, 0.15); border: 1px solid var(--accent); border-radius: 20px; color: var(--accent); text-decoration: none; font-weight: bold;">
             📢 Official Channel
           </a>
         </div>
       </div>
     </div>
 
-    <!-- Main Telegram Mini App View -->
+    <!-- Main App Container View -->
     <div id="app-view" class="hidden">
       
-      <!-- User Profile Header -->
+      <!-- User Header Profile Card -->
       <div class="user-profile-header">
         <div id="user-avatar-container"></div>
-        <div style="flex: 1;">
+        <div style="flex: 1; overflow: hidden;">
           <div style="display: flex; align-items: center; gap: 6px;">
-            <span id="user-display-name" style="font-weight: bold; font-size: 15px;">...</span>
+            <span id="user-display-name" style="font-weight: bold; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">...</span>
             <span id="user-premium-badge" class="user-badge hidden">★ Premium</span>
           </div>
           <div id="user-display-handle" style="font-size: 12px; color: var(--text-muted);">@user</div>
@@ -374,18 +319,18 @@
         </div>
       </div>
 
-      <!-- 1. Dashboard Tab -->
-      <div id="tab-content-dashboard">
+      <!-- Tab 1: Dashboard -->
+      <div id="tab-content-dashboard" class="tab-pane">
         <div class="card" style="border-color: var(--accent); background: rgba(30, 41, 59, 0.9);">
           <h4 style="margin: 0 0 6px 0; color: var(--accent); font-size: 14px;" data-i18n="about_title">ℹ️ About & Terms of Use</h4>
           <p style="margin: 0; font-size: 12px; color: var(--text-muted); line-height: 1.5;" data-i18n="about_desc">
-            This bot is securely dedicated to shortening links and managing promotional campaigns safely. By using this platform, you agree to comply with our traffic quality guidelines and terms of service.
+            This platform allows you to shorten links safely and manage promotion campaigns efficiently. By using our service, you agree to our traffic quality and safety guidelines.
           </p>
         </div>
 
-        <div id="announcement-box" class="card hidden" style="border-color: var(--accent);">
-          <h4 id="anc-title" style="margin: 0 0 6px 0; color: var(--accent);"></h4>
-          <p id="anc-content" style="margin: 0; font-size: 12px; color: var(--text-muted);"></p>
+        <div id="announcement-box" class="card hidden" style="border-color: var(--warning);">
+          <h4 id="anc-title" style="margin: 0 0 6px 0; color: var(--warning);"></h4>
+          <p id="anc-content" style="margin: 0; font-size: 12px; color: var(--text-muted); line-height: 1.5;"></p>
         </div>
 
         <div class="card">
@@ -403,41 +348,41 @@
         </div>
       </div>
 
-      <!-- 2. Wallet Tab -->
-      <div id="tab-content-wallet" class="hidden">
+      <!-- Tab 2: Wallet & Transactions -->
+      <div id="tab-content-wallet" class="tab-pane hidden">
         <div class="stats-grid">
           <div class="stat-box">
             <small data-i18n="pending_bal">Pending Balance</small>
-            <h3 id="pending-bal" style="color:#f59e0b;">$0.00</h3>
+            <h3 id="pending-bal" style="color: var(--warning);">$0.00</h3>
           </div>
           <div class="stat-box">
             <small data-i18n="avail_bal">Available Balance</small>
-            <h3 id="avail-bal" style="color:var(--success);">$0.00</h3>
+            <h3 id="avail-bal" style="color: var(--success);">$0.00</h3>
           </div>
         </div>
 
-        <!-- Action Nav -->
+        <!-- Wallet Action Controls -->
         <div class="wallet-actions-nav">
           <button id="wallet-nav-deposit" class="wallet-action-btn active" onclick="switchWalletView('deposit')">📥 Deposit</button>
           <button id="wallet-nav-withdraw" class="wallet-action-btn" onclick="switchWalletView('withdraw')">📤 Withdraw</button>
         </div>
 
-        <!-- Deposit View -->
+        <!-- Wallet View: Deposit -->
         <div id="wallet-view-deposit" class="card">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <h3 style="font-size: 15px; margin:0;">Deposit Funds (USDT)</h3>
             <button class="btn-small btn-warning" style="width: auto;" onclick="toggleInstructionsModal(true)">❓ Deposit Guide</button>
           </div>
           
-          <h4 style="font-size: 13px; margin: 8px 0 4px 0;">Select Deposit Network:</h4>
+          <h4 style="font-size: 13px; margin: 10px 0 4px 0;">Select Network:</h4>
           <select id="deposit-network" onchange="handleNetworkChange(this.value)">
-            <option value="">-- Choose Network to View Address --</option>
+            <option value="">-- Select Payment Network --</option>
             <option value="USDT_TRC20">USDT (TRC20 Network)</option>
             <option value="USDT_BEP20">USDT (BEP20 Network)</option>
           </select>
 
           <div id="card-addr-trc20" class="address-card hidden">
-            <small style="color: var(--text-muted);">USDT - TRC20 (Tron) Deposit Address:</small>
+            <small style="color: var(--text-muted);">USDT - TRC20 Address:</small>
             <div class="address-row">
               <span class="address-text" id="addr-trc20">TYqN8xM9KzL3pQ2vA5wR7jH4uE1sD8fX9k</span>
               <button class="btn-small" onclick="copyToClipboard(document.getElementById('addr-trc20').innerText)">Copy</button>
@@ -445,7 +390,7 @@
           </div>
 
           <div id="card-addr-bep20" class="address-card hidden">
-            <small style="color: var(--text-muted);">USDT - BEP20 (BNB Smart Chain) Deposit Address:</small>
+            <small style="color: var(--text-muted);">USDT - BEP20 (BSC) Address:</small>
             <div class="address-row">
               <span class="address-text" id="addr-bep20">0x71C7656EC7ab88b098defB751B7401B5f6d8976F</span>
               <button class="btn-small" onclick="copyToClipboard(document.getElementById('addr-bep20').innerText)">Copy</button>
@@ -453,15 +398,15 @@
           </div>
 
           <h4 style="font-size: 13px; margin: 14px 0 6px 0;">Submit Deposit Proof:</h4>
-          <input type="number" id="deposit-amount" placeholder="Deposited Amount ($)">
-          <input type="text" id="deposit-txhash" placeholder="Transaction TxID / TxHash">
+          <input type="number" id="deposit-amount" placeholder="Amount ($)" min="1" step="any">
+          <input type="text" id="deposit-txhash" placeholder="Transaction TxID / Hash">
           
-          <button id="btn-request-deposit" class="btn-success" style="margin-top: 10px;" onclick="requestDeposit()">
+          <button id="btn-request-deposit" class="btn-success" style="margin-top: 12px;" onclick="requestDeposit()">
             <span>Submit Deposit Request</span>
           </button>
         </div>
 
-        <!-- Withdraw View -->
+        <!-- Wallet View: Withdraw -->
         <div id="wallet-view-withdraw" class="card hidden">
           <h3 style="font-size: 15px; margin-top:0;" data-i18n="withdraw_request_title">Withdraw Earnings</h3>
           
@@ -471,36 +416,35 @@
               <input type="text" id="default-wallet" placeholder="Enter wallet address" readonly style="margin-top: 0;">
               <button class="btn-small btn-warning" id="edit-wallet-btn" onclick="toggleWalletEdit()" style="margin-top: 0; width: auto;" data-i18n="btn_edit">Edit</button>
             </div>
-            <button id="save-wallet-btn" class="hidden btn-small" onclick="saveSettings()" style="margin-top: 6px; width: 100%;" data-i18n="btn_save_wallet">Save New Address</button>
+            <button id="save-wallet-btn" class="hidden btn-small" onclick="saveSettings()" style="margin-top: 8px; width: 100%;" data-i18n="btn_save_wallet">Save New Address</button>
           </div>
 
-          <input type="number" id="withdraw-amount" placeholder="Amount (Min. $30)" min="30" oninput="updateWithdrawCalculations()">
+          <input type="number" id="withdraw-amount" placeholder="Amount (Min. $30)" min="30" step="any" oninput="updateWithdrawCalculations()">
           
           <div class="fee-breakdown hidden" id="withdraw-fee-box">
-            <span>Amount: <b id="calc-req">$0</b></span>
-            <span>Fee (10%): <b id="calc-fee" style="color: var(--danger);">$0</b></span>
-            <span>Net: <b id="calc-net" style="color: var(--success);">$0</b></span>
+            <span>Amount: <b id="calc-req">$0.00</b></span>
+            <span>Fee (10%): <b id="calc-fee" style="color: var(--danger);">$0.00</b></span>
+            <span>Net: <b id="calc-net" style="color: var(--success);">$0.00</b></span>
           </div>
 
-          <button id="btn-request-withdraw" style="margin-top: 12px;" onclick="requestWithdrawal()">
+          <button id="btn-request-withdraw" style="margin-top: 14px;" onclick="requestWithdrawal()">
             <span data-i18n="btn_submit_withdraw">Request Withdrawal</span>
           </button>
 
-          <h4 style="font-size: 13px; margin: 16px 0 8px 0; border-top: 1px solid var(--border-color); padding-top: 12px;" data-i18n="withdraw_history">Withdrawal History</h4>
+          <h4 style="font-size: 13px; margin: 18px 0 8px 0; border-top: 1px solid var(--border-color); padding-top: 12px;" data-i18n="withdraw_history">Withdrawal History</h4>
           <div id="withdraws-list" style="font-size: 12px; color: var(--text-muted);" data-i18n="loading">Loading...</div>
         </div>
-
       </div>
 
-      <!-- 3. Self-Serve Ads Tab -->
-      <div id="tab-content-ads" class="hidden">
+      <!-- Tab 3: Self-Serve Ads -->
+      <div id="tab-content-ads" class="tab-pane hidden">
         <div class="card">
           <h3 style="font-size: 15px; margin-top:0;" data-i18n="create_ad_title">Create New Ad Campaign</h3>
           <p style="font-size: 11px; color: var(--text-muted); margin-top:-4px;" data-i18n="ad_rate_desc">Ad Rate: $1.50 per 1,000 real impressions (CPM)</p>
           
           <input type="text" id="ad-title" data-i18n-ph="ph_ad_title" placeholder="Ad Title">
           <input type="url" id="ad-target-url" data-i18n-ph="ph_ad_target_url" placeholder="Target URL (https://...)">
-          <input type="number" id="ad-budget" data-i18n-ph="ph_ad_budget" placeholder="Total Budget (Min. $5)">
+          <input type="number" id="ad-budget" data-i18n-ph="ph_ad_budget" placeholder="Total Budget (Min. $5)" min="5" step="any">
           
           <button id="btn-create-ad" onclick="createAdCampaign()">
             <span data-i18n="btn_launch_ad">Launch Ad Campaign</span>
@@ -513,8 +457,8 @@
         </div>
       </div>
 
-      <!-- 4. Referral Tab -->
-      <div id="tab-content-referral" class="hidden">
+      <!-- Tab 4: Referral System -->
+      <div id="tab-content-referral" class="tab-pane hidden">
         <div class="card">
           <h3 style="margin-top:0;" data-i18n="ref_title">Referral System (10%)</h3>
           <p style="font-size: 12px; color: var(--text-muted); line-height: 1.5;" data-i18n="ref_desc">Invite your friends and instantly earn 10% of their total revenues.</p>
@@ -529,8 +473,8 @@
         </div>
       </div>
 
-      <!-- 5. Settings Tab -->
-      <div id="tab-content-settings" class="hidden">
+      <!-- Tab 5: Settings & FAQ -->
+      <div id="tab-content-settings" class="tab-pane hidden">
         <div class="card">
           <h3 style="margin-top:0; font-size: 15px;" data-i18n="lang_settings_title">Language / تغيير اللغة</h3>
           <select id="language-select" onchange="changeAppLanguage(this.value)">
@@ -547,19 +491,19 @@
           </details>
           <details>
             <summary data-i18n="faq_q2">What is the 1-day pending period?</summary>
-            <p style="color: var(--text-muted); font-size: 12px; margin-top: 6px;" data-i18n="faq_a2">It is a hold period to review traffic sources and prevent fraud before transferring earnings to available balance within 1 day.</p>
+            <p style="color: var(--text-muted); font-size: 12px; margin-top: 6px;" data-i18n="faq_a2">It is a hold period to review traffic sources and prevent fraud before transferring earnings to available balance within 24 hours.</p>
           </details>
           
-          <div style="margin-top: 16px; padding: 12px; background: #0d1527; border-radius: 10px; border: 1px solid var(--border-color); font-size: 12px; text-align: center;">
+          <div style="margin-top: 16px; padding: 12px; background: #0d1527; border-radius: 12px; border: 1px solid var(--border-color); font-size: 12px; text-align: center;">
             <span data-i18n="support_text">Contact technical support on Telegram:</span>
-            <div class="tg-links-group" style="flex-wrap: wrap;">
-              <a href="https://t.me/Ads_telegabot" target="_blank" rel="noopener noreferrer">
-                <button class="btn-small" style="width: 100%; background: var(--accent);">🤖 Official Bot</button>
+            <div style="display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;">
+              <a href="https://t.me/Ads_telegabot" target="_blank" rel="noopener" style="flex: 1; text-decoration: none;">
+                <button class="btn-small" style="width: 100%; background: var(--accent);">🤖 Bot</button>
               </a>
-              <a href="https://t.me/ttelega_ads" target="_blank" rel="noopener noreferrer">
-                <button class="btn-small btn-success" style="width: 100%;">📢 Official Channel</button>
+              <a href="https://t.me/ttelega_ads" target="_blank" rel="noopener" style="flex: 1; text-decoration: none;">
+                <button class="btn-small btn-success" style="width: 100%;">📢 Channel</button>
               </a>
-              <a href="https://t.me/Te_AdsNs_bot" target="_blank" rel="noopener noreferrer">
+              <a href="https://t.me/Te_AdsNs_bot" target="_blank" rel="noopener" style="flex: 1; text-decoration: none;">
                 <button class="btn-small btn-warning" style="width: 100%;">🎧 Support</button>
               </a>
             </div>
@@ -567,36 +511,36 @@
         </div>
       </div>
 
-      <!-- 6. Admin Tab -->
-      <div id="tab-content-admin" class="hidden">
+      <!-- Tab 6: Admin Dashboard Panel -->
+      <div id="tab-content-admin" class="tab-pane hidden">
         <div class="stats-grid" style="margin-bottom: 15px;">
-          <div class="stat-box"><small>Total Users</small><h3 id="admin-total-users">0</h3></div>
-          <div class="stat-box"><small>Total Pending</small><h3 id="admin-total-pending" style="color: var(--warning);">$0.00</h3></div>
+          <div class="stat-box"><small>Total Platform Users</small><h3 id="admin-total-users">0</h3></div>
+          <div class="stat-box"><small>Total Pending Balances</small><h3 id="admin-total-pending" style="color: var(--warning);">$0.00</h3></div>
         </div>
 
         <div class="card">
-          <h4 style="margin-top:0;">Revenue Distribution</h4>
-          <input type="number" id="revenue-amount" placeholder="Total Revenue ($)">
-          <button id="btn-distribute-rev" onclick="distributeRevenue()">Distribute Revenue to Links</button>
+          <h4 style="margin-top:0;">Revenue Pool Distribution</h4>
+          <input type="number" id="revenue-amount" placeholder="Total Revenue Amount ($)" step="any">
+          <button id="btn-distribute-rev" onclick="distributeRevenue()" style="margin-top: 10px;">Distribute Revenue Pool</button>
         </div>
 
         <div class="card">
           <h4 style="margin-top:0;">Pending Deposit Requests</h4>
-          <div id="admin-deposits-list" style="font-size: 12px;">No pending deposits.</div>
+          <div id="admin-deposits-list" style="font-size: 12px;">Loading deposits...</div>
         </div>
 
         <div class="card">
           <h4 style="margin-top:0;">Pending Withdrawal Requests</h4>
-          <div id="admin-withdraws-list" style="font-size: 12px;">No pending withdrawals.</div>
+          <div id="admin-withdraws-list" style="font-size: 12px;">Loading withdrawals...</div>
         </div>
         
         <div class="card">
-          <h4 style="margin-top:0;">User Management</h4>
-          <div id="admin-users-list" style="font-size: 12px;">Loading...</div>
+          <h4 style="margin-top:0;">System User Management</h4>
+          <div id="admin-users-list" style="font-size: 12px;">Loading users...</div>
         </div>
       </div>
 
-      <!-- Floating Bottom Nav Bar -->
+      <!-- Floating Bottom Nav Dock Bar -->
       <nav class="tg-nav-dock">
         <button onclick="switchTab('dashboard')" class="nav-btn active" id="tab-btn-dashboard">
           <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
@@ -633,20 +577,19 @@
   </div>
 
   <script>
+    // System Configurations
     const API_BASE = window.location.protocol.startsWith('file') 
       ? 'http://localhost:3000' 
       : window.location.origin;
 
-    const tg = window.Telegram?.WebApp;
-    const currentTgUserId = tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe.user.id) : 'guest';
-    const AUTH_STORAGE_KEY = `authToken_${currentTgUserId}`;
-
-    let authToken = localStorage.getItem(AUTH_STORAGE_KEY);
+    let authToken = localStorage.getItem('authToken');
     let currentSessionId = null;
     let bridgeStartTime = Date.now();
     let isUserAdmin = false;
     let currentLang = localStorage.getItem('appLang') || 'en';
+    const tg = window.Telegram?.WebApp;
 
+    // Internationalization Engine
     const i18n = {
       en: {
         nav_home: "Home",
@@ -683,21 +626,31 @@
         faq_q1: "How are earnings calculated?",
         faq_a1: "Earnings depend on ad revenue and are distributed proportionally based on verified visits.",
         faq_q2: "What is the 1-day pending period?",
-        faq_a2: "It is a hold period to review traffic sources and prevent fraud before transferring earnings to available balance within 1 day.",
+        faq_a2: "It is a hold period to review traffic sources and prevent fraud before transferring earnings to available balance within 24 hours.",
         support_text: "Contact technical support on Telegram:",
         loading: "Loading...",
         copied: "Copied successfully!",
         bridge_title: "Preparing your link...",
-        bridge_desc: "Please wait while we redirect you to your destination",
+        bridge_desc: "Please wait while we prepare your destination link",
         ad_loading: "Loading advertisement...",
         timer_text: "Button unlocks in:",
         seconds: "seconds",
         go_button: "Continue to Destination",
         cancel: "Cancel",
+        close: "Close",
         network_error: "Network connection error. Please check your internet connection.",
         about_title: "ℹ️ About & Terms of Use",
-        about_desc: "This bot is securely dedicated to shortening links and managing promotional campaigns safely. By using this platform, you agree to comply with our traffic quality guidelines and terms of service.",
-        link_success_msg: "Link shortened successfully!"
+        about_desc: "This platform allows you to shorten links safely and manage promotion campaigns efficiently. By using our service, you agree to our traffic quality and safety guidelines.",
+        link_success_msg: "Link shortened successfully!",
+        guide_modal_title: "Deposit & TxID Guide",
+        guide_step1_b: "Select Network:",
+        guide_step1_t: "Choose USDT (TRC20 or BEP20) to reveal your dedicated deposit address and copy it.",
+        guide_step2_b: "Transfer Funds:",
+        guide_step2_t: "Open your exchange or wallet app (Binance, Trust Wallet, OKX) and transfer USDT.",
+        guide_step3_b: "Copy Transaction Hash (TxID):",
+        guide_step3_t: "After confirmation, copy the transaction Hash/TxID.",
+        guide_step4_b: "Submit Request:",
+        guide_step4_t: "Return here, enter the exact deposited amount and TxID, then submit."
       },
       ar: {
         nav_home: "الرئيسية",
@@ -734,7 +687,7 @@
         faq_q1: "كيف يتم احتساب الأرباح؟",
         faq_a1: "تعتمد الأرباح على إيرادات الإعلانات وتوزع نسبياً حسب الزيارات الحقيقية المعتمدة.",
         faq_q2: "ما هي فترة الرصيد المعلق (يوم واحد)؟",
-        faq_a2: "هي فترة أمان لمراجعة مصادر الحركة والتأكد من عدم وجود نقرات وهمية قبل تحويل الأرباح للرصيد المتاح خلال يوم واحد.",
+        faq_a2: "هي فترة أمان لمراجعة مصادر الحركة والتأكد من عدم وجود نقرات وهمية قبل تحويل الأرباح للرصيد المتاح خلال 24 ساعة.",
         support_text: "للتواصل والدعم الفني عبر التليجرام:",
         loading: "جاري التحميل...",
         copied: "تم النسخ بنجاح!",
@@ -745,10 +698,20 @@
         seconds: "ثوانٍ",
         go_button: "الانتقال إلى الرابط الأصلي",
         cancel: "إلغاء",
+        close: "إغلاق",
         network_error: "تعذر الاتصال بالشبكة، يرجى التحقق من اتصال الإنترنت لديك.",
         about_title: "ℹ️ نبذة وشروط الاستخدام",
         about_desc: "هذا البوت مخصص لاختصار الروابط بأمان وإدارة الحملات الإعلانية بكفاءة عالية. باستخدامك لهذه المنصة، فإنك توافق على الالتزام بشروط الاستخدام وسياسة الجودة لدينا.",
-        link_success_msg: "تم اختصار الرابط بنجاح!"
+        link_success_msg: "تم اختصار الرابط بنجاح!",
+        guide_modal_title: "دليل الشحن ورمز المعاملة TxID",
+        guide_step1_b: "اختر الشبكة:",
+        guide_step1_t: "حدد شبكة USDT (TRC20 أو BEP20) لإظهار عنوان المحفظة ثم قم بنسخه.",
+        guide_step2_b: "تحويل الأموال:",
+        guide_step2_t: "افتح تطبيق محفظتك (Binance, Trust Wallet) وقم بتحويل المبلغ إلى العنوان المنسوخ.",
+        guide_step3_b: "نسخ رمز العملية (TxID):",
+        guide_step3_t: "بعد نجاح التحويل، انسخ معرف المعاملة TxHash/TxID.",
+        guide_step4_b: "إرسال الطلب:",
+        guide_step4_t: "عد هنا وأدخل قيمة المبلغ المودع ورمز المعاملة ثم انقر تقديم الطلب."
       }
     };
 
@@ -819,11 +782,6 @@
 
     async function safeFetch(endpoint, options = {}) {
       options.headers = options.headers || {};
-      
-      if (tg?.initData) {
-        options.headers['x-telegram-init-data'] = tg.initData;
-      }
-      
       if (authToken) {
         options.headers['Authorization'] = `Bearer ${authToken}`;
       }
@@ -833,11 +791,10 @@
       
       try {
         let response = await fetch(targetUrl, options);
-        if (response && response.status === 401) {
+        if (response.status === 401) {
           const reAuth = await authLogin();
           if (reAuth) {
             options.headers['Authorization'] = `Bearer ${authToken}`;
-            if (tg?.initData) options.headers['x-telegram-init-data'] = tg.initData;
             response = await fetch(targetUrl, options);
           }
         }
@@ -891,14 +848,14 @@
         if (savedLang && i18n[savedLang]) {
           currentLang = savedLang;
         } else if (u.language_code && i18n[u.language_code]) {
-          currentLang = u.language_code;
+          currentLang = u.language_code === 'ar' ? 'ar' : 'en';
         } else {
           currentLang = 'en';
         }
       } else {
-        nameElem.innerText = 'Demo User';
-        handleElem.innerText = '@demo_user';
-        idElem.innerText = 'ID: 000000000';
+        nameElem.innerText = 'Demo Partner';
+        handleElem.innerText = '@demo_partner';
+        idElem.innerText = 'ID: 88888888';
         avatarContainer.innerHTML = `<div class="user-avatar-placeholder">D</div>`;
         if (!localStorage.getItem('appLang')) {
           currentLang = 'en';
@@ -945,7 +902,7 @@
       if (!toast) return;
       toast.innerText = msg;
       toast.classList.add("show");
-      setTimeout(() => { toast.classList.remove("show"); }, 3000);
+      setTimeout(() => { toast.classList.remove("show"); }, 3200);
     }
 
     function copyToClipboard(text) {
@@ -993,30 +950,20 @@
 
     async function authLogin() {
       const startParam = tg?.initDataUnsafe?.start_param || null;
-      let demoUserId = localStorage.getItem('demo_unique_device_id');
-      if (!demoUserId) {
-        demoUserId = 'DEMO_DEV_' + Math.random().toString(36).substring(2, 10);
-        localStorage.setItem('demo_unique_device_id', demoUserId);
-      }
-
-      const headers = { 'Content-Type': 'application/json' };
-      if (tg?.initData) {
-        headers['x-telegram-init-data'] = tg.initData;
-      } else {
-        headers['x-demo-user-id'] = demoUserId;
-      }
-
       try {
         const res = await safeFetch('/api/auth/login', {
           method: 'POST',
-          headers,
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(tg?.initData ? {'x-telegram-init-data': tg.initData} : {'x-demo-user-id': 'DEMO_USER_DEV'}) 
+          },
           body: JSON.stringify({ referrerId: startParam, telegramUserInfo: tg?.initDataUnsafe?.user || {} })
         });
         if (!res) return false;
         const data = await res.json();
         if (data && data.token) {
           authToken = data.token;
-          localStorage.setItem(AUTH_STORAGE_KEY, authToken);
+          localStorage.setItem('authToken', authToken);
           isUserAdmin = !!data.isAdmin;
           return true;
         }
@@ -1076,12 +1023,12 @@
             else if (w.status === 'Rejected') { statusColor = 'var(--danger)'; statusText = currentLang === 'ar' ? 'مرفوض' : 'Rejected'; }
 
             return `
-            <div style="background: #0d1527; padding: 8px; margin-bottom: 6px; border-radius: 6px; border: 1px solid var(--border-color);">
+            <div style="background: #0d1527; padding: 10px; margin-bottom: 6px; border-radius: 8px; border: 1px solid var(--border-color);">
               <div style="display: flex; justify-content: space-between;">
                 <span>Amount: <b>$${parseFloat(w.amount || 0).toFixed(2)}</b></span>
                 <span style="color: ${statusColor}; font-weight: bold;">${statusText}</span>
               </div>
-              <div style="color: var(--text-muted); font-size: 11px; margin-top: 2px; word-break: break-all;">Wallet: ${escapeHTML(w.walletAddress)}</div>
+              <div style="color: var(--text-muted); font-size: 11px; margin-top: 4px; word-break: break-all;">Wallet: ${escapeHTML(w.walletAddress)}</div>
               ${w.rejectReason ? `<div style="color: var(--danger); font-size: 11px; margin-top: 2px;">Reason: ${escapeHTML(w.rejectReason)}</div>` : ''}
             </div>`;
           }).join('');
@@ -1099,7 +1046,7 @@
             <div class="link-item" style="border-left: 3px solid ${statusColor}; border-right: 3px solid ${statusColor};">
               <div class="link-header">
                 <b>${escapeHTML(l.title || (currentLang === 'ar' ? 'رابط بدون عنوان' : 'Untitled Link'))}</b>
-                <span style="font-size: 10px; color: ${statusColor};">${statusText}</span>
+                <span style="font-size: 10px; color: ${statusColor}; font-weight: bold;">${statusText}</span>
               </div>
               <div style="color:var(--text-muted); font-size:11px; margin-bottom:4px; word-break: break-all;">${escapeHTML(shortUrl)}</div>
               <div>Views: <b>${l.views || 0}</b> | Valid: <b style="color:var(--success);">${l.validImpressions || 0}</b></div>
@@ -1121,7 +1068,7 @@
             <div class="ad-item" style="border-left: 3px solid ${statusColor};">
               <div class="ad-header">
                 <b>${escapeHTML(ad.title)}</b>
-                <span style="font-size: 10px; color: ${statusColor};">${escapeHTML(ad.status.toUpperCase())}</span>
+                <span style="font-size: 10px; color: ${statusColor}; font-weight: bold;">${escapeHTML(ad.status.toUpperCase())}</span>
               </div>
               <div style="color:var(--text-muted); font-size:11px; margin-bottom:4px; word-break: break-all;">${escapeHTML(ad.targetUrl)}</div>
               <div>Remaining Budget: <b style="color:var(--success);">$${(ad.remainingBudget || 0).toFixed(2)}</b> / $${parseFloat(ad.totalBudget || 0).toFixed(2)} | Views: <b>${ad.impressionsCount || 0}</b></div>
@@ -1292,10 +1239,10 @@
 
     function renderInternalAd(adData) {
       document.getElementById('ad-container').innerHTML = `
-        <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid var(--accent); border-radius: 10px; padding: 16px; width: 100%; text-align: center;">
-          <span style="font-size: 10px; color: var(--accent); background: rgba(59,130,246,0.2); padding: 2px 6px; border-radius: 4px;">Sponsored Ad</span>
-          <h3 style="margin: 8px 0; font-size: 16px; color: var(--text);">${escapeHTML(adData.title)}</h3>
-          <a href="${escapeHTML(adData.targetUrl)}" target="_blank" rel="noopener noreferrer" style="display: inline-block; margin-top: 6px; padding: 8px 16px; background: var(--accent); color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 12px;">Visit Ad ↗</a>
+        <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid var(--accent); border-radius: 12px; padding: 18px; width: 100%; text-align: center;">
+          <span style="font-size: 10px; color: var(--accent); background: rgba(59,130,246,0.2); padding: 2px 8px; border-radius: 6px; font-weight: bold;">Sponsored Ad</span>
+          <h3 style="margin: 10px 0; font-size: 16px; color: var(--text);">${escapeHTML(adData.title)}</h3>
+          <a href="${escapeHTML(adData.targetUrl)}" target="_blank" rel="noopener noreferrer" style="display: inline-block; margin-top: 6px; padding: 8px 18px; background: var(--accent); color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 12px;">Visit Ad ↗</a>
         </div>
       `;
     }
@@ -1453,11 +1400,11 @@
         if (!data.deposits || data.deposits.length === 0) dList.innerHTML = 'No pending deposit requests.';
         else {
           dList.innerHTML = data.deposits.map(d => `
-            <div style="background:#0d1527; padding:8px; margin-bottom:6px; border-radius:6px; border: 1px solid var(--border-color);">
+            <div style="background:#0d1527; padding:10px; margin-bottom:6px; border-radius:8px; border: 1px solid var(--border-color);">
               User: <b>${escapeHTML(d.advertiserId?.username || d.advertiserId?.telegramId || 'Unknown')}</b><br>
               Amount: <b style="color:var(--success);">$${parseFloat(d.amount || 0).toFixed(2)}</b> | Network: <code>${escapeHTML(d.paymentMethod)}</code><br>
               TxID: <code style="color: var(--warning); word-break: break-all;">${escapeHTML(d.txHash || 'N/A')}</code><br>
-              <div style="margin-top: 6px; display: flex; gap: 4px;">
+              <div style="margin-top: 8px; display: flex; gap: 6px;">
                 <button class="btn-small btn-success" onclick="handleAdminDeposit('${d._id}', 'Completed')">Approve</button>
                 <button class="btn-small btn-danger" onclick="handleAdminDeposit('${d._id}', 'Rejected')">Reject</button>
               </div>
@@ -1469,11 +1416,11 @@
         if (!data.withdraws || data.withdraws.length === 0) wList.innerHTML = 'No pending withdrawal requests.';
         else {
           wList.innerHTML = data.withdraws.map(w => `
-            <div style="background:#0d1527; padding:8px; margin-bottom:6px; border-radius:6px; border: 1px solid var(--border-color);">
+            <div style="background:#0d1527; padding:10px; margin-bottom:6px; border-radius:8px; border: 1px solid var(--border-color);">
               User: <b>${escapeHTML(w.userId?.username || w.userId?.telegramId || 'Unknown')}</b><br>
               Amount: <b style="color:var(--success);">$${parseFloat(w.amount || 0).toFixed(2)}</b><br>
-              Wallet: <code>${escapeHTML(w.walletAddress)}</code><br>
-              <div style="margin-top: 6px; display: flex; gap: 4px;">
+              Wallet: <code style="word-break: break-all;">${escapeHTML(w.walletAddress)}</code><br>
+              <div style="margin-top: 8px; display: flex; gap: 6px;">
                 <button class="btn-small btn-success" onclick="handleAdminWithdraw('${w._id}', 'Completed')">Approve</button>
                 <button class="btn-small btn-danger" onclick="handleAdminWithdraw('${w._id}', 'Rejected')">Reject</button>
               </div>
@@ -1485,7 +1432,7 @@
         if (!data.users || data.users.length === 0) uList.innerHTML = 'No users found.';
         else {
           uList.innerHTML = data.users.map(u => `
-            <div style="background:#0d1527; padding:8px; margin-bottom:6px; border-radius:6px; display: flex; justify-content: space-between; align-items: center; border-left: 3px solid ${u.isBanned ? 'var(--danger)' : 'var(--success)'};">
+            <div style="background:#0d1527; padding:10px; margin-bottom:6px; border-radius:8px; display: flex; justify-content: space-between; align-items: center; border-left: 3px solid ${u.isBanned ? 'var(--danger)' : 'var(--success)'};">
               <div>
                 <b>${escapeHTML(u.username || 'Unknown')}</b> (${escapeHTML(String(u.telegramId || ''))})<br>
                 <span style="color: var(--text-muted);">Available: $${(u.availableBalance || 0).toFixed(2)}</span>
@@ -1590,10 +1537,11 @@
       } catch (e) {
         showToast("Error distributing revenue");
       } finally {
-        setButtonLoading('btn-distribute-rev', false, 'Distribute Revenue to Links');
+        setButtonLoading('btn-distribute-rev', false, 'Distribute Revenue Pool');
       }
     }
 
+    // App Startup & Event Listeners Initialization
     window.addEventListener('DOMContentLoaded', () => {
       try {
         if (tg) {
@@ -1601,7 +1549,7 @@
           tg.expand();
         }
       } catch (e) {
-        console.warn("Telegram WebApp API ready error:", e);
+        console.warn("Telegram WebApp API initialization failed:", e);
       }
       
       renderTelegramUser();
