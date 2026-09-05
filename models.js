@@ -90,7 +90,7 @@ const userSchema = new mongoose.Schema({
   }
 }, { 
   timestamps: true,
-  versionKey: '__v'
+  versionKey: false
 });
 
 userSchema.index({ telegramId: 1, isBanned: 1 });
@@ -175,6 +175,7 @@ const adSchema = new mongoose.Schema({
 
 adSchema.index({ status: 1, remainingBudget: 1, createdAt: -1 });
 adSchema.index({ advertiserId: 1, status: 1 });
+adSchema.index({ advertiserId: 1, _id: 1 });
 
 // --------------------------------------------------
 // 3. Shortened Link Model
@@ -229,6 +230,7 @@ const linkSchema = new mongoose.Schema({
 });
 
 linkSchema.index({ userId: 1, isActive: 1, createdAt: -1 });
+linkSchema.index({ userId: 1, _id: 1 });
 linkSchema.index({ validImpressions: -1 });
 
 // --------------------------------------------------
@@ -468,6 +470,7 @@ const depositSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 depositSchema.index({ advertiserId: 1, status: 1 });
+depositSchema.index({ advertiserId: 1, _id: 1 });
 
 // --------------------------------------------------
 // 9. Announcement Model
@@ -480,7 +483,7 @@ const announcementSchema = new mongoose.Schema({
 
 announcementSchema.index({ isActive: 1, createdAt: -1 });
 
-// Model exports with fallback check against overwriting existing models
+// Model exports
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Ad = mongoose.models.Ad || mongoose.model('Ad', adSchema);
 const Link = mongoose.models.Link || mongoose.model('Link', linkSchema);
