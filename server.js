@@ -204,7 +204,8 @@ const authenticateToken = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
-    const user = await User.findById(decoded.id || decoded.userId).lean();
+    const userId = decoded.id || decoded.userId;
+    const user = await User.findById(userId).lean();
     if (!user || user.isBanned) return res.status(403).json({ success: false, error: 'الحساب محظور أو غير موجود' });
     
     req.user = user;
@@ -303,11 +304,14 @@ app.post('/api/auth/login', async (req, res, next) => {
 
 app.get('/api/user/data', authenticateToken, async (req, res, next) => {
   try {
+    const currentUserId = req.user._id;
+
+    // تم إصلاح تسريب البيانات: تصفية كل البيانات بحسب معرف المستخدم req.user._id حصراً
     const [rawLinks, ads, withdraws, deposits, announcements] = await Promise.all([
-      Link.find({ userId: req.user._id }).sort({ createdAt: -1 }).lean(),
-      Ad.find({ advertiserId: req.user._id }).sort({ createdAt: -1 }).lean(),
-      Transaction.find({ userId: req.user._id, type: 'withdraw' }).sort({ createdAt: -1 }).lean(),
-      Transaction.find({ userId: req.user._id, type: 'deposit' }).sort({ createdAt: -1 }).lean(),
+      Link.find({ userId: currentUserId }).sort({ createdAt: -1 }).lean(),
+      Ad.find({ advertiserId: currentUserId }).sort({ createdAt: -1 }).lean(),
+      Transaction.find({ userId: currentUserId, type: 'withdraw' }).sort({ createdAt: -1 }).lean(),
+      Transaction.find({ userId: currentUserId, type: 'deposit' }).sort({ createdAt: -1 }).lean(),
       Announcement ? Announcement.find({ isActive: true }).sort({ createdAt: -1 }).limit(5).lean() : []
     ]);
     
@@ -389,7 +393,6 @@ app.post('/api/links', authenticateToken, linkCreationLimiter, async (req, res, 
       userId: req.user._id,
       title: title ? String(title).trim() : 'بدون عنوان',
       originalUrl: cleanUrl,
-      targetUrl: cleanUrl,
       shortCode: shortCode,
       isActive: true
     });
@@ -428,7 +431,7 @@ app.post('/api/links/toggle', authenticateToken, async (req, res, next) => {
 });
 
 // ==========================================
-// 7. Ads & Transactions Engine (ACID Transactional)
+// 7. Ads & Transactions Engine
 // ==========================================
 
 app.post('/api/ads', authenticateToken, async (req, res, next) => {
@@ -512,13 +515,11 @@ app.post('/api/deposit', authenticateToken, async (req, res, next) => {
 
     const tx = new Transaction({
       userId: req.user._id,
-      advertiserId: req.user._id,
       type: 'deposit',
       amount: numAmount,
       paymentMethod: paymentMethod || network || 'Crypto',
       network: String(network || 'TRC20').toUpperCase(),
       txHash: hash,
-      txid: hash,
       status: 'pending'
     });
 
@@ -590,7 +591,7 @@ app.post('/api/withdraw', authenticateToken, async (req, res, next) => {
 });
 
 // ==========================================
-// 8. Advanced Ultra-Bridge & Ad Execution Engine
+// 8. Bridge & Ad Execution Engine
 // ==========================================
 
 app.post('/api/init-click', validateTraffic, async (req, res, next) => {
@@ -617,7 +618,7 @@ app.post('/api/init-click', validateTraffic, async (req, res, next) => {
       await safeRedisSet(`link:data:${cleanCode}`, JSON.stringify({
         id: linkId,
         userId: linkOwnerId,
-        targetUrl: link.originalUrl || link.targetUrl
+        targetUrl: link.originalUrl
       }), 'EX', 3600);
     }
 
@@ -685,7 +686,6 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
       return res.status(400).json({ success: false, error: 'زيارة غير صالحة (مدة البقاء أقل من 5 ثوانٍ)' });
     }
 
-    // 1. Anti-Fraud Guard: Max 20 Clicks per IP Daily
     const ipDailyKey = `daily:ip:${req.ip}`;
     const dailyClicks = await safeRedisIncr(ipDailyKey);
     if (dailyClicks === 1) {
@@ -696,7 +696,6 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
       return res.status(429).json({ success: false, error: 'تم التوصل للحد الأقصى للزيارات من هذا العنوان اليوم' });
     }
 
-    // 2. Validate Session and Bridge Security Key
     let sessionData = null;
     if (sessionId) {
       const rawSession = await safeRedisGet(`click:session:${sessionId}`);
@@ -708,7 +707,6 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
       return res.status(403).json({ success: false, error: 'تم اكتشاف محاولة تجاوز أمان التوكن (Anti-Bypass Triggered)' });
     }
 
-    // 3. Time Verification (Real Dwell Time Check)
     const now = Date.now();
     const elapsedSeconds = (now - sessionData.createdAt) / 1000;
     if (elapsedSeconds < 4.5) {
@@ -728,7 +726,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
     if (isDuplicate) {
       await Link.findByIdAndUpdate(link._id, { $inc: { views: 1, invalidImpressions: 1 } }, { session });
       await session.commitTransaction();
-      return res.json({ success: true, targetUrl: link.originalUrl || link.targetUrl, counted: false });
+      return res.json({ success: true, targetUrl: link.originalUrl, counted: false });
     }
 
     await safeRedisSet(lockKey, '1', 'EX', 86400);
@@ -782,7 +780,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
     if (sessionId) await safeRedisDel(`click:session:${sessionId}`);
 
     await session.commitTransaction();
-    res.json({ success: true, targetUrl: link.originalUrl || link.targetUrl, counted: true });
+    res.json({ success: true, targetUrl: link.originalUrl, counted: true });
   } catch (err) {
     await session.abortTransaction();
     next(err);
@@ -799,7 +797,7 @@ app.get('/api/admin/dashboard-data', authenticateToken, isAdmin, async (req, res
   try {
     const [withdraws, deposits, users, stats, totalAds] = await Promise.all([
       Transaction.find({ type: 'withdraw' }).populate('userId').sort({ createdAt: -1 }).lean(),
-      Transaction.find({ type: 'deposit' }).populate('userId advertiserId').sort({ createdAt: -1 }).lean(),
+      Transaction.find({ type: 'deposit' }).populate('userId').sort({ createdAt: -1 }).lean(),
       User.find().sort({ createdAt: -1 }).limit(100).lean(),
       User.aggregate([
         { $group: { _id: null, totalPending: { $sum: "$pendingBalance" }, totalAvailable: { $sum: "$availableBalance" }, totalUsers: { $sum: 1 } } }
@@ -879,7 +877,6 @@ app.post('/api/admin/withdraw/action', authenticateToken, isAdmin, async (req, r
         `✅ <b>تمت إجابة طلب السحب بنجاح!</b>\nالمبلغ الصافي: <code>$${withdraw.netAmount}</code>\nتم التحويل للعنوان: <code>${withdraw.walletAddress}</code>`
       );
     } else {
-      // Revert user funds back to available balance upon rejection
       await User.findByIdAndUpdate(
         withdraw.userId._id,
         { $inc: { availableBalance: withdraw.amount } },
