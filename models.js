@@ -12,15 +12,13 @@ const mongoose = require('mongoose');
 // ==========================================
 // 0. Utilities & Precise Financial Helpers
 // ==========================================
-
-// حماية الأرقام المالية دقيقة الحسابات من أخطاء التقريب البرمجي Float Precision
 const safeFinance = (val) => {
   if (typeof val !== 'number' || isNaN(val) || !isFinite(val)) return 0;
   return Math.round((val + Number.EPSILON) * 100000) / 100000;
 };
 
 // ==========================================
-// 1. User Schema (فائق الأمان والذكاء)
+// 1. User Schema
 // ==========================================
 const userSchema = new mongoose.Schema({
   telegramId: { 
@@ -44,7 +42,7 @@ const userSchema = new mongoose.Schema({
   },
   language: {
     type: String,
-    default: 'en',
+    default: 'ar',
     trim: true,
     lowercase: true
   },
@@ -111,17 +109,15 @@ const userSchema = new mongoose.Schema({
   versionKey: false
 });
 
-// فهارس مركبة تسرع أداء الاستعلامات الضخمة والفلترة
 userSchema.index({ telegramId: 1, isBanned: 1 });
 userSchema.index({ role: 1, createdAt: -1 });
 
-// دالة ذكية سريعة للتحقق المباشر من الصلاحيات
 userSchema.methods.canPerformAction = function() {
   return !this.isBanned;
 };
 
 // ==========================================
-// 2. Link Schema (مُحسّن لحركة المرور العالية)
+// 2. Link Schema
 // ==========================================
 const linkSchema = new mongoose.Schema({
   userId: { 
@@ -184,7 +180,7 @@ linkSchema.index({ shortCode: 1, isActive: 1 });
 linkSchema.index({ validImpressions: -1 });
 
 // ==========================================
-// 3. Ad Schema (إدارة الحملات المتقدمة)
+// 3. Ad Schema
 // ==========================================
 const adSchema = new mongoose.Schema({
   advertiserId: { 
@@ -265,7 +261,6 @@ const adSchema = new mongoose.Schema({
   versionKey: false
 });
 
-// إغلاق الإعلان تلقائياً عند استهلاك كامل الميزانية
 adSchema.pre('save', function(next) {
   if (this.remainingBudget <= 0 && this.status === 'active') {
     this.status = 'completed';
@@ -277,7 +272,7 @@ adSchema.index({ status: 1, remainingBudget: 1, createdAt: -1 });
 adSchema.index({ advertiserId: 1, status: 1 });
 
 // ==========================================
-// 4. Transaction Schema (سجل العمليات الشامل)
+// 4. Transaction Schema
 // ==========================================
 const transactionSchema = new mongoose.Schema({
   userId: { 
@@ -351,7 +346,6 @@ const transactionSchema = new mongoose.Schema({
   versionKey: false
 });
 
-// الحساب الأوتوماتيكي للمبلغ الصافي بناءً على الرسوم قبل الحفظ
 transactionSchema.pre('save', function(next) {
   if (this.amount && this.fee) {
     this.netAmount = safeFinance(Math.max(0, this.amount - this.fee));
@@ -365,7 +359,7 @@ transactionSchema.index({ userId: 1, type: 1, status: 1, createdAt: -1 });
 transactionSchema.index({ status: 1, createdAt: -1 });
 
 // ==========================================
-// 5. Impression Schema (تتبع الزيارات الدقيق)
+// 5. Impression Schema
 // ==========================================
 const impressionSchema = new mongoose.Schema({
   linkId: { 
@@ -408,7 +402,7 @@ const impressionSchema = new mongoose.Schema({
   createdAt: { 
     type: Date, 
     default: Date.now, 
-    expires: '60d' // مسح أوتوماتيكي بعد 60 يوماً لتوفير مساحة الـ Database
+    expires: '60d'
   }
 }, { versionKey: false });
 
@@ -416,7 +410,7 @@ impressionSchema.index({ linkId: 1, createdAt: -1 });
 impressionSchema.index({ ip: 1, createdAt: -1 });
 
 // ==========================================
-// 6. ClickSession Schema (نظام حماية Anti-Bypass)
+// 6. ClickSession Schema
 // ==========================================
 const clickSessionSchema = new mongoose.Schema({
   linkId: { 
@@ -447,7 +441,7 @@ const clickSessionSchema = new mongoose.Schema({
   createdAt: { 
     type: Date, 
     default: Date.now, 
-    expires: 300 // تنظيف الذاكرة وتدمير الجلسة تلقائياً بعد 5 دقائق
+    expires: 300 
   }
 }, { versionKey: false });
 
@@ -455,7 +449,7 @@ clickSessionSchema.index({ linkId: 1, ip: 1 });
 clickSessionSchema.index({ bridgeToken: 1 }, { unique: true });
 
 // ==========================================
-// 7. EarningsHold Schema (نظام تعليق الأرباح المؤقت)
+// 7. EarningsHold Schema
 // ==========================================
 const earningsHoldSchema = new mongoose.Schema({
   userId: { 
@@ -473,7 +467,7 @@ const earningsHoldSchema = new mongoose.Schema({
   releaseAt: { 
     type: Date, 
     required: true, 
-    default: () => new Date(Date.now() + 24 * 60 * 60 * 1000), // الإفراج التلقائي بعد 24 ساعة
+    default: () => new Date(Date.now() + 24 * 60 * 60 * 1000), 
     index: true 
   },
   isReleased: { 
@@ -490,7 +484,7 @@ earningsHoldSchema.index({ isReleased: 1, releaseAt: 1 });
 earningsHoldSchema.index({ userId: 1, isReleased: 1 });
 
 // ==========================================
-// 8. Announcement Schema (إعلانات وإشعارات المنصة)
+// 8. Announcement Schema
 // ==========================================
 const announcementSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
@@ -503,9 +497,7 @@ const announcementSchema = new mongoose.Schema({
 
 announcementSchema.index({ isActive: 1, createdAt: -1 });
 
-// ==========================================
-// Model Export Engine (تجنب Overwrite Error)
-// ==========================================
+// Model Export Engine
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Link = mongoose.models.Link || mongoose.model('Link', linkSchema);
 const Ad = mongoose.models.Ad || mongoose.model('Ad', adSchema);
