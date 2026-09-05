@@ -19,7 +19,7 @@ const app = express();
 // --- Setup Server Trust Proxy ---
 app.set('trust proxy', 1);
 
-// --- CORS Configuration (تفعيل حزمة cors لجميع الطلبات وتسمح بـ Credentials) ---
+// --- CORS Configuration ---
 app.use(cors({
   origin: true,
   credentials: true
@@ -30,9 +30,12 @@ app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(express.static(__dirname));
 
-// --- التأكد من أن جميع مسارات الـ API ترجع استجابات JSON بترميز UTF-8 ---
+// --- Global Header Guard to Prevent Browser/App Data Caching across users ---
 app.use('/api', (req, res, next) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   next();
 });
 
@@ -58,7 +61,7 @@ app.use(morgan('combined', { stream: { write: (message) => logger.info(message.t
 const CONFIG = Object.freeze({
   BOT_TOKEN: process.env.BOT_TOKEN,
   MONGO_URI: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/shortener',
-  ADMIN_ID: process.env.ADMIN_ID || '123456789',
+  ADMIN_ID: String(process.env.ADMIN_ID || '123456789').trim(),
   JWT_SECRET: process.env.JWT_SECRET || 'fallback_jwt_secret_key_32bytes_long!',
   ADSGRAM_BLOCK_ID: process.env.ADSGRAM_BLOCK_ID || '1234',
   APP_DOMAIN: process.env.APP_DOMAIN || 'localhost:3000',
@@ -169,7 +172,7 @@ function verifyTelegramData(initData) {
   }
 }
 
-// --- Middlewares ---
+// --- Rate Limiters & Security Checks ---
 const linkCreationLimiter = rateLimit({
   windowMs: 24 * 60 * 60 * 1000,
   max: 100,
@@ -202,24 +205,38 @@ const isPhishingOrMalicious = (url) => {
   return blacklistedKeywords.some(keyword => lowerUrl.includes(keyword));
 };
 
+// --- Strict Multi-Tenant Auth Middleware ---
 const authMiddleware = async (req, res, next) => {
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return res.status(401).json({ success: false, error: 'Access token missing' });
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ success: false, error: 'Access token missing' });
+  }
 
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
+    if (!decoded || !decoded.userId) {
+      return res.status(401).json({ success: false, error: 'Invalid authentication token' });
+    }
+
     const user = await User.findById(decoded.userId).lean();
-    if (!user || user.isBanned) return res.status(403).json({ success: false, error: 'Unauthorized access' });
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'User account no longer exists' });
+    }
+
+    if (user.isBanned) {
+      return res.status(403).json({ success: false, error: 'Account suspended due to terms violation' });
+    }
+
     req.user = user;
     next();
   } catch (err) {
-    res.status(401).json({ success: false, error: 'Session expired, please log in again' });
+    return res.status(401).json({ success: false, error: 'Session expired, please log in again' });
   }
 };
 
 const adminMiddleware = async (req, res, next) => {
-  if (!req.user || String(req.user.telegramId) !== String(CONFIG.ADMIN_ID)) {
+  if (!req.user || String(req.user.telegramId) !== CONFIG.ADMIN_ID) {
     return res.status(403).json({ success: false, error: 'Unauthorized access to admin section' });
   }
   next();
@@ -231,21 +248,33 @@ app.post('/api/auth/login', async (req, res, next) => {
     const initData = req.headers['x-telegram-init-data'];
     const telegramUser = verifyTelegramData(initData);
 
-    const tgId = telegramUser ? String(telegramUser.id) : (process.env.NODE_ENV !== 'production' ? String(req.headers['x-demo-user-id'] || '') : null);
+    const tgId = telegramUser 
+      ? String(telegramUser.id) 
+      : (process.env.NODE_ENV !== 'production' ? String(req.headers['x-demo-user-id'] || '').trim() : null);
+
     const { referrerId } = req.body;
 
-    if (!tgId) return res.status(401).json({ success: false, error: 'Invalid or tampered Telegram initData authentication.' });
+    if (!tgId) {
+      return res.status(401).json({ success: false, error: 'Invalid or tampered Telegram initData authentication.' });
+    }
 
     const currentUsername = telegramUser?.username || `User_${tgId.slice(-4)}`;
     const userLanguage = telegramUser?.language_code || CONFIG.DEFAULT_LANGUAGE;
 
     let user = await User.findOne({ telegramId: tgId });
+
     if (!user) {
+      let validReferrer = null;
+      if (referrerId && mongoose.Types.ObjectId.isValid(referrerId)) {
+        const refUser = await User.findById(referrerId).select('_id').lean();
+        if (refUser) validReferrer = refUser._id;
+      }
+
       user = await User.create({
         telegramId: tgId,
         username: currentUsername,
         language: userLanguage,
-        referredBy: mongoose.Types.ObjectId.isValid(referrerId) ? referrerId : null
+        referredBy: validReferrer
       });
     } else {
       let updated = false;
@@ -260,7 +289,9 @@ app.post('/api/auth/login', async (req, res, next) => {
       if (updated) await user.save();
     }
 
-    if (user.isBanned) return res.status(403).json({ success: false, error: `Your account is suspended due to policy violations. Contact support: ${CONFIG.SUPPORT_USERNAME}` });
+    if (user.isBanned) {
+      return res.status(403).json({ success: false, error: `Your account is suspended. Contact support: ${CONFIG.SUPPORT_USERNAME}` });
+    }
 
     const token = jwt.sign(
       { userId: user._id, telegramId: user.telegramId, role: user.role },
@@ -268,12 +299,24 @@ app.post('/api/auth/login', async (req, res, next) => {
       { expiresIn: '7d', algorithm: 'HS256' }
     );
 
+    const safeUserData = {
+      _id: user._id,
+      telegramId: user.telegramId,
+      username: user.username,
+      language: user.language,
+      role: user.role,
+      availableBalance: user.availableBalance,
+      pendingBalance: user.pendingBalance,
+      referralEarnings: user.referralEarnings,
+      defaultWallet: user.defaultWallet
+    };
+
     res.json({ 
       success: true, 
       token, 
-      user, 
+      user: safeUserData, 
       language: user.language || CONFIG.DEFAULT_LANGUAGE,
-      isAdmin: String(user.telegramId) === String(CONFIG.ADMIN_ID),
+      isAdmin: String(user.telegramId) === CONFIG.ADMIN_ID,
       botUsername: CONFIG.BOT_USERNAME,
       supportUsername: CONFIG.SUPPORT_USERNAME,
       botUrl: CONFIG.OFFICIAL_BOT_URL,
@@ -289,7 +332,7 @@ app.post('/api/auth/login', async (req, res, next) => {
   }
 });
 
-// --- Self-Serve Ad Campaign APIs ---
+// --- Self-Serve Ad Campaign APIs (Strict User Scoped) ---
 app.post('/api/ads', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
@@ -358,10 +401,12 @@ app.get('/api/user/ads', authMiddleware, async (req, res, next) => {
 app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
   try {
     const { adId } = req.body;
-    if (!mongoose.Types.ObjectId.isValid(adId)) return res.status(400).json({ success: false, error: 'Invalid Ad ID' });
+    if (!mongoose.Types.ObjectId.isValid(adId)) {
+      return res.status(400).json({ success: false, error: 'Invalid Ad ID' });
+    }
 
     const ad = await Ad.findOne({ _id: adId, advertiserId: req.user._id });
-    if (!ad) return res.status(404).json({ success: false, error: 'Ad not found' });
+    if (!ad) return res.status(404).json({ success: false, error: 'Ad not found or unauthorized' });
 
     if (ad.status === 'completed') {
       return res.status(400).json({ success: false, error: 'Cannot activate a completed campaign with exhausted budget' });
@@ -376,7 +421,7 @@ app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Deposit Routes ---
+// --- Deposit Routes (Strict User Scoped) ---
 app.post('/api/deposit', authMiddleware, async (req, res, next) => {
   try {
     const { amount, network, txid } = req.body;
@@ -420,7 +465,7 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Withdraw Routes ---
+// --- Withdraw Routes (Strict User Scoped) ---
 app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
@@ -681,7 +726,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
   }
 });
 
-// --- Link Management (Updated & Secured) ---
+// --- Link Management (Strict User Scoped) ---
 app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res, next) => {
   try {
     let { title, targetUrl } = req.body;
@@ -724,10 +769,12 @@ app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res, nex
 app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
   try {
     const { linkId } = req.body;
-    if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'Invalid Link ID' });
+    if (!mongoose.Types.ObjectId.isValid(linkId)) {
+      return res.status(400).json({ success: false, error: 'Invalid Link ID' });
+    }
 
     const link = await Link.findOne({ _id: linkId, userId: req.user._id });
-    if (!link) return res.status(404).json({ success: false, error: 'Link not found' });
+    if (!link) return res.status(404).json({ success: false, error: 'Link not found or unauthorized' });
 
     link.isActive = !link.isActive;
     await link.save();
@@ -739,14 +786,17 @@ app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
   }
 });
 
+// --- Primary Dashboard Data Endpoint (Strict Isolation & Zero Data Leakage) ---
 app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   try {
+    const userId = req.user._id;
+
     const [rawLinks, withdraws, announcements, ads, deposits] = await Promise.all([
-      Link.find({ userId: req.user._id }).sort({ createdAt: -1 }).lean(),
-      Withdraw.find({ userId: req.user._id }).sort({ createdAt: -1 }).lean(),
+      Link.find({ userId: userId }).sort({ createdAt: -1 }).lean(),
+      Withdraw.find({ userId: userId }).sort({ createdAt: -1 }).lean(),
       Announcement.find({ isActive: true }).sort({ createdAt: -1 }).limit(5).lean(),
-      Ad.find({ advertiserId: req.user._id }).sort({ createdAt: -1 }).lean(),
-      Deposit.find({ advertiserId: req.user._id }).sort({ createdAt: -1 }).lean()
+      Ad.find({ advertiserId: userId }).sort({ createdAt: -1 }).lean(),
+      Deposit.find({ advertiserId: userId }).sort({ createdAt: -1 }).lean()
     ]);
 
     const links = rawLinks.map(link => {
@@ -763,10 +813,23 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
       };
     });
 
-    const isAdmin = String(req.user.telegramId) === String(CONFIG.ADMIN_ID);
+    const safeUserData = {
+      _id: req.user._id,
+      telegramId: req.user.telegramId,
+      username: req.user.username,
+      language: req.user.language,
+      role: req.user.role,
+      availableBalance: req.user.availableBalance,
+      pendingBalance: req.user.pendingBalance,
+      referralEarnings: req.user.referralEarnings,
+      defaultWallet: req.user.defaultWallet
+    };
+
+    const isAdmin = String(req.user.telegramId) === CONFIG.ADMIN_ID;
+
     res.json({ 
       success: true,
-      user: req.user, 
+      user: safeUserData, 
       language: req.user.language || CONFIG.DEFAULT_LANGUAGE,
       links, 
       withdraws, 
@@ -808,9 +871,9 @@ app.post('/api/user/settings', authMiddleware, async (req, res, next) => {
 app.get('/api/admin/dashboard-data', authMiddleware, adminMiddleware, async (req, res, next) => {
   try {
     const [withdraws, deposits, users, stats, totalAds] = await Promise.all([
-      Withdraw.find().populate('userId').sort({ createdAt: -1 }).lean(),
-      Deposit.find().populate('advertiserId').sort({ createdAt: -1 }).lean(),
-      User.find().sort({ createdAt: -1 }).limit(100).lean(),
+      Withdraw.find().populate('userId', 'username telegramId').sort({ createdAt: -1 }).lean(),
+      Deposit.find().populate('advertiserId', 'username telegramId').sort({ createdAt: -1 }).lean(),
+      User.find().select('-__v').sort({ createdAt: -1 }).limit(100).lean(),
       User.aggregate([
         { $group: { _id: null, totalPending: { $sum: "$pendingBalance" }, totalAvailable: { $sum: "$availableBalance" }, totalUsers: { $sum: 1 } } }
       ]),
