@@ -1,5 +1,5 @@
 /**
- * Ultra-Enterprise Server Architecture
+ * Ultra-Enterprise Server Architecture (V2 - Strict User Data Isolation)
  * Telegram Link Shortener & Mini App Engine
  * Complete User Session Isolation & Real-Time Security Engine
  */
@@ -296,7 +296,7 @@ app.post('/api/auth/login', async (req, res, next) => {
   }
 });
 
-// --- Isolated User Data Gateway ---
+// --- Isolated User Data Gateway (100% User Specific) ---
 app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   try {
     const [rawLinks, withdraws, announcements, ads, deposits] = await Promise.all([
@@ -678,6 +678,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 
     await Impression.create([{
       linkId: link._id,
+      publisherId: link.userId._id,
       adSource: clickSession.adSource,
       adId: clickSession.adId,
       publisherEarnings: clickSession.adSource === 'internal' ? 0.00135 : 0,
