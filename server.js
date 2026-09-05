@@ -745,7 +745,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
   }
 });
 
-// --- Strict Link Management Engine ---
+// --- Strict Link Management Engine (100% Data Isolated Routes) ---
 app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res, next) => {
   try {
     let { title, targetUrl } = req.body;
@@ -756,7 +756,7 @@ app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res, nex
     }
 
     if (isPhishingOrMalicious(cleanUrl)) {
-      return res.status(400).json({ success: false, error: 'الرابط ينتهك معاير الأمان' });
+      return res.status(400).json({ success: false, error: 'الرابط ينتهك معايير الأمان' });
     }
 
     try {
@@ -767,6 +767,8 @@ app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res, nex
     } catch (e) {}
 
     const shortCode = crypto.randomBytes(3).toString('hex');
+    
+    // Strict isolation: Save with explicitly authenticated user ID
     const link = await Link.create({
       userId: req.user._id,
       title: title ? String(title).trim() : 'رابط بدون عنوان',
@@ -774,6 +776,9 @@ app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res, nex
       shortCode,
       isActive: true
     });
+
+    // Update user stats summary
+    await User.findByIdAndUpdate(req.user._id, { $inc: { 'statsSummary.totalLinksCreated': 1 } });
 
     res.json({ 
       success: true, 
@@ -785,13 +790,34 @@ app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res, nex
   }
 });
 
+// Strict Isolated User Links Fetching Endpoint
+app.get('/api/user/links', authMiddleware, async (req, res, next) => {
+  try {
+    const rawLinks = await Link.find({ userId: req.user._id }).sort({ createdAt: -1 }).lean();
+    const links = rawLinks.map(link => {
+      const totalViews = link.views || 0;
+      const validImp = link.validImpressions || 0;
+      const ctr = totalViews > 0 ? ((validImp / totalViews) * 100).toFixed(1) : "0.0";
+      return { 
+        ...link, 
+        ctr,
+        shortUrl: `https://${CONFIG.APP_DOMAIN}/r/${link.shortCode}`
+      };
+    });
+    res.json({ success: true, links });
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
   try {
     const { linkId } = req.body;
     if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
 
+    // Enforce Isolation Condition: userId = req.user._id
     const link = await Link.findOne({ _id: linkId, userId: req.user._id });
-    if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود' });
+    if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات التعديل عليه' });
 
     link.isActive = !link.isActive;
     await link.save();
