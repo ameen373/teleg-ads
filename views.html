@@ -593,6 +593,7 @@
     let bridgeStartTime = Date.now();
     let isUserAdmin = false;
     let currentLang = localStorage.getItem('appLang') || 'en';
+    let currentUserTelegramId = null; // Session security check
     const tg = window.Telegram?.WebApp;
 
     // Comprehensive Translation Dictionary
@@ -875,6 +876,7 @@
       const premiumBadge = document.getElementById('user-premium-badge');
 
       if (u) {
+        currentUserTelegramId = String(u.id);
         const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || 'Telegram User';
         nameElem.innerText = fullName;
         handleElem.innerText = u.username ? `@${u.username}` : '@no_username';
@@ -900,6 +902,7 @@
           currentLang = 'en';
         }
       } else {
+        currentUserTelegramId = 'DEMO_USER_DEV';
         nameElem.innerText = 'Demo Partner';
         handleElem.innerText = '@demo_partner';
         idElem.innerText = 'ID: 88888888';
@@ -1031,9 +1034,18 @@
       }
     }
 
-    // Data Loaders & Synchronizers
+    // Data Loaders & Synchronizers - Strictly Isolated Per User Session
     async function loadUserData() {
       try {
+        // Clear containers immediately to avoid cross-user data leakage
+        const linksContainer = document.getElementById('links-list');
+        const adsContainer = document.getElementById('ads-list');
+        const withdrawsContainer = document.getElementById('withdraws-list');
+        
+        if (linksContainer) linksContainer.innerHTML = i18n[currentLang]?.loading || 'Loading...';
+        if (adsContainer) adsContainer.innerHTML = i18n[currentLang]?.loading || 'Loading...';
+        if (withdrawsContainer) withdrawsContainer.innerHTML = i18n[currentLang]?.loading || 'Loading...';
+
         const res = await safeFetch('/api/user/data');
         if (!res) return;
         const data = await res.json();
@@ -1061,7 +1073,7 @@
           document.getElementById('anc-content').innerText = data.announcements[0].content;
         }
 
-        const withdrawsContainer = document.getElementById('withdraws-list');
+        // Render Withdrawals
         if (!data.withdraws || data.withdraws.length === 0) {
           withdrawsContainer.innerHTML = currentLang === 'ar' ? 'لا توجد طلبات سحب سابقة.' : 'No withdrawal history.';
         } else {
@@ -1083,11 +1095,18 @@
           }).join('');
         }
 
-        const linksContainer = document.getElementById('links-list');
-        if (!data.links || data.links.length === 0) {
+        // Filter and Render Short Links safely for this specific user
+        const userLinks = (data.links || []).filter(l => {
+          if (l.ownerTelegramId && currentUserTelegramId) {
+            return String(l.ownerTelegramId) === String(currentUserTelegramId);
+          }
+          return true;
+        });
+
+        if (userLinks.length === 0) {
           linksContainer.innerHTML = currentLang === 'ar' ? 'لا توجد روابط مُختصرة حالياً.' : 'No short links created yet.';
         } else {
-          linksContainer.innerHTML = data.links.map(l => {
+          linksContainer.innerHTML = userLinks.map(l => {
             const shortUrl = `${API_BASE}/r/${l.shortCode}`;
             const statusColor = l.isActive ? 'var(--success)' : 'var(--danger)';
             const statusText = l.isActive ? (currentLang === 'ar' ? 'نشط' : 'Active') : (currentLang === 'ar' ? 'معطل' : 'Disabled');
@@ -1107,11 +1126,18 @@
           }).join('');
         }
 
-        const adsContainer = document.getElementById('ads-list');
-        if (!data.ads || data.ads.length === 0) {
+        // Filter and Render Ads safely for this specific advertiser
+        const userAds = (data.ads || []).filter(ad => {
+          if (ad.advertiserTelegramId && currentUserTelegramId) {
+            return String(ad.advertiserTelegramId) === String(currentUserTelegramId);
+          }
+          return true;
+        });
+
+        if (userAds.length === 0) {
           adsContainer.innerHTML = currentLang === 'ar' ? 'لا توجد حملات إعلانية نشطة حالياً.' : 'No active ad campaigns.';
         } else {
-          adsContainer.innerHTML = data.ads.map(ad => {
+          adsContainer.innerHTML = userAds.map(ad => {
             let statusColor = ad.status === 'active' ? 'var(--success)' : (ad.status === 'paused' ? 'var(--warning)' : 'var(--text-muted)');
             return `
             <div class="ad-item" style="border-left: 3px solid ${statusColor};">
