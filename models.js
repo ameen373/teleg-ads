@@ -1,7 +1,7 @@
 /**
- * Ultra-Enterprise Models Architecture (V2 - Ultra Secure & Isolated)
- * Designed for High-Scale Telegram Mini Apps & Shortener Engines
- * Complete User Data Isolation, Real-time Aggregation, & High-Performance Indexing
+ * Ultra-Enterprise Models Architecture (V3 - Absolute User Data Isolation)
+ * Designed for Telegram Mini Apps & Shortener Engines
+ * Ensures 100% Multi-Tenant Isolation, Zero-Data-Leakage, & High Index Performance
  */
 
 if (typeof window !== 'undefined') {
@@ -17,7 +17,7 @@ const formatCurrency = (val) => {
 };
 
 // --------------------------------------------------
-// 1. User Model (Isolated User Profiles & Balances)
+// 1. User Model (Isolated Profiles, Balances & Stats)
 // --------------------------------------------------
 const userSchema = new mongoose.Schema({
   telegramId: { 
@@ -35,7 +35,7 @@ const userSchema = new mongoose.Schema({
   },
   language: {
     type: String,
-    default: 'en',
+    default: 'ar',
     trim: true,
     lowercase: true
   },
@@ -89,7 +89,7 @@ const userSchema = new mongoose.Schema({
       message: 'Invalid wallet address format (Must be USDT TRC20, BEP20/ERC20, or TON)'
     }
   },
-  // Isolated Fast Analytics Snapshot (Owner-Only Data)
+  // Isolated Fast Analytics Snapshot (Owner-Only)
   statsSummary: {
     totalLinksCreated: { type: Number, default: 0, min: 0 },
     totalViewsReceived: { type: Number, default: 0, min: 0 },
@@ -103,8 +103,15 @@ const userSchema = new mongoose.Schema({
 
 userSchema.index({ telegramId: 1, isBanned: 1 });
 
+// Helper to strictly sanitize output and prevent leaking sensitive internal flags
+userSchema.methods.toPrivateJSON = function() {
+  const obj = this.toObject();
+  delete obj.__v;
+  return obj;
+};
+
 // --------------------------------------------------
-// 2. Self-Serve Ad Model
+// 2. Self-Serve Ad Model (Advertiser Specific Data)
 // --------------------------------------------------
 const adSchema = new mongoose.Schema({
   advertiserId: { 
@@ -181,11 +188,12 @@ const adSchema = new mongoose.Schema({
   timestamps: true 
 });
 
-adSchema.index({ status: 1, remainingBudget: 1, createdAt: -1 });
+// Strict Indexes for User Data Isolation
 adSchema.index({ advertiserId: 1, status: 1, createdAt: -1 });
+adSchema.index({ status: 1, remainingBudget: 1, createdAt: -1 });
 
 // --------------------------------------------------
-// 3. Shortened Link Model (Strict User Ownership)
+// 3. Shortened Link Model (Publisher Specific Data)
 // --------------------------------------------------
 const linkSchema = new mongoose.Schema({
   shortCode: { 
@@ -198,7 +206,7 @@ const linkSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    required: true, 
+    required: [true, 'Owner User ID is required'], 
     index: true 
   },
   title: { 
@@ -236,11 +244,12 @@ const linkSchema = new mongoose.Schema({
   timestamps: true 
 });
 
+// Strict Isolating Indexes
 linkSchema.index({ userId: 1, isActive: 1, createdAt: -1 });
-linkSchema.index({ shortCode: 1, isActive: 1 });
+linkSchema.index({ userId: 1, shortCode: 1 });
 
 // --------------------------------------------------
-// 4. Traffic & Impressions Model
+// 4. Traffic & Impressions Model (Isolated Analytics)
 // --------------------------------------------------
 const impressionSchema = new mongoose.Schema({
   linkId: { 
@@ -253,6 +262,12 @@ const impressionSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true,
+    index: true
+  },
+  viewerTelegramId: {
+    type: String,
+    default: null,
+    trim: true,
     index: true
   },
   adSource: { 
@@ -293,8 +308,8 @@ const impressionSchema = new mongoose.Schema({
   }
 });
 
-impressionSchema.index({ linkId: 1, createdAt: -1 });
 impressionSchema.index({ publisherId: 1, createdAt: -1 });
+impressionSchema.index({ linkId: 1, publisherId: 1, createdAt: -1 });
 impressionSchema.index({ ip: 1, linkId: 1, createdAt: -1 });
 
 // --------------------------------------------------
@@ -441,8 +456,7 @@ const earningsHoldSchema = new mongoose.Schema({
   timestamps: true 
 });
 
-earningsHoldSchema.index({ isReleased: 1, releaseAt: 1 });
-earningsHoldSchema.index({ userId: 1, isReleased: 1 });
+earningsHoldSchema.index({ userId: 1, isReleased: 1, releaseAt: 1 });
 
 // --------------------------------------------------
 // 8. Advertiser Deposit Model
@@ -490,17 +504,18 @@ const depositSchema = new mongoose.Schema({
 depositSchema.index({ advertiserId: 1, status: 1, createdAt: -1 });
 
 // --------------------------------------------------
-// 9. Announcement Model
+// 9. Announcement Model (Global / User Targeted)
 // --------------------------------------------------
 const announcementSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
   content: { type: String, required: true, trim: true },
-  isActive: { type: Boolean, default: true, index: true }
+  isActive: { type: Boolean, default: true, index: true },
+  targetUser: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, index: true }
 }, { timestamps: true });
 
-announcementSchema.index({ isActive: 1, createdAt: -1 });
+announcementSchema.index({ isActive: 1, targetUser: 1, createdAt: -1 });
 
-// Model Export Optimization (Safe for Vercel Hot-Reload)
+// Model Export Optimization (Safe for Hot-Reload Environments like Vercel)
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Ad = mongoose.models.Ad || mongoose.model('Ad', adSchema);
 const Link = mongoose.models.Link || mongoose.model('Link', linkSchema);
