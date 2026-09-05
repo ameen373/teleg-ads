@@ -1,7 +1,7 @@
 /**
- * Ultra-Enterprise Models Architecture
+ * Ultra-Enterprise Models Architecture (V2 - Ultra Secure & Isolated)
  * Designed for High-Scale Telegram Mini Apps & Shortener Engines
- * Complete User Data Isolation & High-Performance Indexing
+ * Complete User Data Isolation, Real-time Aggregation, & High-Performance Indexing
  */
 
 if (typeof window !== 'undefined') {
@@ -88,6 +88,13 @@ const userSchema = new mongoose.Schema({
       },
       message: 'Invalid wallet address format (Must be USDT TRC20, BEP20/ERC20, or TON)'
     }
+  },
+  // Isolated Fast Analytics Snapshot (Owner-Only Data)
+  statsSummary: {
+    totalLinksCreated: { type: Number, default: 0, min: 0 },
+    totalViewsReceived: { type: Number, default: 0, min: 0 },
+    totalValidViews: { type: Number, default: 0, min: 0 },
+    totalLifetimeEarned: { type: Number, default: 0, min: 0, set: formatCurrency }
   }
 }, { 
   timestamps: true,
@@ -175,7 +182,7 @@ const adSchema = new mongoose.Schema({
 });
 
 adSchema.index({ status: 1, remainingBudget: 1, createdAt: -1 });
-adSchema.index({ advertiserId: 1, status: 1 });
+adSchema.index({ advertiserId: 1, status: 1, createdAt: -1 });
 
 // --------------------------------------------------
 // 3. Shortened Link Model (Strict User Ownership)
@@ -242,6 +249,12 @@ const impressionSchema = new mongoose.Schema({
     required: true, 
     index: true 
   },
+  publisherId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true
+  },
   adSource: { 
     type: String, 
     enum: ['internal', 'adsgram'], 
@@ -281,10 +294,11 @@ const impressionSchema = new mongoose.Schema({
 });
 
 impressionSchema.index({ linkId: 1, createdAt: -1 });
-impressionSchema.index({ ip: 1, createdAt: -1 });
+impressionSchema.index({ publisherId: 1, createdAt: -1 });
+impressionSchema.index({ ip: 1, linkId: 1, createdAt: -1 });
 
 // --------------------------------------------------
-// 5. Anti-Bypass Click Session Model (Per User/Visitor Session Isolation)
+// 5. Anti-Bypass Click Session Model
 // --------------------------------------------------
 const clickSessionSchema = new mongoose.Schema({
   linkId: { 
@@ -473,7 +487,7 @@ const depositSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-depositSchema.index({ advertiserId: 1, status: 1 });
+depositSchema.index({ advertiserId: 1, status: 1, createdAt: -1 });
 
 // --------------------------------------------------
 // 9. Announcement Model
@@ -486,7 +500,7 @@ const announcementSchema = new mongoose.Schema({
 
 announcementSchema.index({ isActive: 1, createdAt: -1 });
 
-// Model Export Optimization
+// Model Export Optimization (Safe for Vercel Hot-Reload)
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Ad = mongoose.models.Ad || mongoose.model('Ad', adSchema);
 const Link = mongoose.models.Link || mongoose.model('Link', linkSchema);
