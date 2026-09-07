@@ -425,6 +425,10 @@
           <button id="btn-request-deposit" class="btn-success" style="margin-top: 14px;" onclick="requestDeposit()">
             <span data-i18n="btn_submit_deposit">Submit Deposit Request</span>
           </button>
+
+          <!-- Deposit History Section -->
+          <h4 style="font-size: 13px; margin: 20px 0 10px 0; border-top: 1px solid var(--card-border); padding-top: 14px;">Deposit History</h4>
+          <div id="deposits-list" style="font-size: 12px; color: var(--text-muted);" data-i18n="loading">Loading...</div>
         </div>
 
         <!-- Wallet View: Withdraw -->
@@ -604,10 +608,11 @@
       ? 'http://localhost:3000' 
       : window.location.origin;
 
+    let authToken = localStorage.getItem('authToken');
     let currentSessionId = null;
     let bridgeStartTime = Date.now();
     let isUserAdmin = false;
-    let currentLang = 'en';
+    let currentLang = localStorage.getItem('appLang') || 'en';
     let currentUserTelegramId = null;
     let rawUserLinksCache = [];
     const tg = window.Telegram?.WebApp;
@@ -845,15 +850,19 @@
     }
 
     /**
-     * UNIFIED SECURE FETCH WRAPPER FOR DIRECT SERVER SYNC
+     * UNIFIED SECURE FETCH WRAPPER
      */
     async function safeFetch(endpoint, options = {}) {
       options.headers = options.headers || {};
       
-      const tgUser = tg?.initDataUnsafe?.user;
+      // استخراج telegramId من Telegram WebApp SDK
+      const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
       const currentTgId = tgUser?.id ? String(tgUser.id) : (currentUserTelegramId || '');
       const initDataStr = tg?.initData || '';
 
+      if (authToken) {
+        options.headers['Authorization'] = `Bearer ${authToken}`;
+      }
       if (initDataStr) {
         options.headers['x-telegram-init-data'] = initDataStr;
       }
@@ -893,7 +902,18 @@
       } catch(e) {}
 
       try {
-        const response = await fetch(targetUrl, options);
+        let response = await fetch(targetUrl, options);
+        
+        if (response && response.status === 401 && !options._isRetry) {
+          options._isRetry = true;
+          const reAuth = await authLogin();
+          if (reAuth) {
+            if (authToken) options.headers['Authorization'] = `Bearer ${authToken}`;
+            if (initDataStr) options.headers['x-telegram-init-data'] = initDataStr;
+            if (currentTgId) options.headers['x-telegram-id'] = currentTgId;
+            response = await fetch(targetUrl, options);
+          }
+        }
         return response;
       } catch (err) {
         console.error("Fetch Network Error:", err);
@@ -916,14 +936,14 @@
     }
 
     function renderTelegramUser() {
-      const u = tg?.initDataUnsafe?.user;
+      const u = window.Telegram?.WebApp?.initDataUnsafe?.user;
       const avatarContainer = document.getElementById('user-avatar-container');
       const nameElem = document.getElementById('user-display-name');
       const handleElem = document.getElementById('user-display-handle');
       const idElem = document.getElementById('user-tg-id');
       const premiumBadge = document.getElementById('user-premium-badge');
 
-      if (u) {
+      if (u && u.id) {
         currentUserTelegramId = String(u.id);
         const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || 'Telegram User';
         nameElem.innerText = fullName;
@@ -941,7 +961,10 @@
           avatarContainer.innerHTML = `<div class="user-avatar-placeholder">${escapeHTML(letter)}</div>`;
         }
 
-        if (u.language_code && i18n[u.language_code]) {
+        const savedLang = localStorage.getItem('appLang');
+        if (savedLang && i18n[savedLang]) {
+          currentLang = savedLang;
+        } else if (u.language_code && i18n[u.language_code]) {
           currentLang = u.language_code === 'ar' ? 'ar' : 'en';
         } else {
           currentLang = 'en';
@@ -952,7 +975,9 @@
         handleElem.innerText = '@demo_partner';
         idElem.innerText = 'ID: 88888888';
         avatarContainer.innerHTML = `<div class="user-avatar-placeholder">D</div>`;
-        currentLang = 'en';
+        if (!localStorage.getItem('appLang')) {
+          currentLang = 'en';
+        }
       }
 
       applyLanguage(currentLang);
@@ -960,6 +985,7 @@
 
     function changeAppLanguage(lang) {
       currentLang = i18n[lang] ? lang : 'en';
+      localStorage.setItem('appLang', currentLang);
       applyLanguage(currentLang);
       loadUserData();
     }
@@ -1040,9 +1066,9 @@
       }
     }
 
-    // Check Admin Privilege (HTTP POST)
+    // Check Admin Privilege
     async function checkAdminStatus() {
-      const userId = tg?.initDataUnsafe?.user?.id || currentUserTelegramId;
+      const userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id || currentUserTelegramId;
       if (!userId) return;
 
       try {
@@ -1067,7 +1093,7 @@
       }
     }
 
-    // Authentication Engine (HTTP POST)
+    // Authentication Engine
     async function authLogin() {
       const startParam = tg?.initDataUnsafe?.start_param || null;
       try {
@@ -1083,7 +1109,11 @@
         });
         if (!res) return false;
         const data = await res.json();
-        return true;
+        if (data && data.token) {
+          authToken = data.token;
+          localStorage.setItem('authToken', authToken);
+          return true;
+        }
       } catch (e) {
         console.error("Auth error:", e);
         showToast(currentLang === 'ar' ? "فشل الاتصال بمركز المصادقة" : "Authentication connection failed");
@@ -1091,9 +1121,10 @@
       return false;
     }
 
+    // Direct Data Retrieval on Page Load
     async function initializeApp() {
       try {
-        await authLogin();
+        if (!authToken) await authLogin();
         await checkAdminStatus();
         await loadUserData();
       } catch (err) {
@@ -1101,22 +1132,27 @@
       }
     }
 
-    // Direct Data Fetching from Server (GET)
+    // Fetch and display user data (Campaigns, Wallet, Deposits, Withdrawals)
     async function loadUserData() {
       try {
         const linksContainer = document.getElementById('links-list');
         const adsContainer = document.getElementById('ads-list');
         const withdrawsContainer = document.getElementById('withdraws-list');
+        const depositsContainer = document.getElementById('deposits-list');
         
         if (linksContainer) linksContainer.innerHTML = i18n[currentLang]?.loading || 'Loading...';
         if (adsContainer) adsContainer.innerHTML = i18n[currentLang]?.loading || 'Loading...';
         if (withdrawsContainer) withdrawsContainer.innerHTML = i18n[currentLang]?.loading || 'Loading...';
+        if (depositsContainer) depositsContainer.innerHTML = i18n[currentLang]?.loading || 'Loading...';
 
-        const res = await safeFetch('/api/user/data', { method: 'GET' });
+        // إرسال طلب fetch بالـ telegramId المأخوذ فوراً
+        const telegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id || currentUserTelegramId;
+        const res = await safeFetch(`/api/user/data?telegramId=${telegramId}`);
         if (!res) return;
         const data = await res.json();
         if (!data || !data.user) return;
 
+        // عرض بيانات المحفظة والرصيد
         document.getElementById('pending-bal').innerText = `$${(data.user.pendingBalance || 0).toFixed(2)}`;
         document.getElementById('avail-bal').innerText = `$${(data.user.availableBalance || 0).toFixed(2)}`;
         document.getElementById('ref-earnings').innerText = `$${(data.user.referralEarnings || 0).toFixed(2)}`;
@@ -1136,7 +1172,7 @@
           document.getElementById('anc-content').innerText = data.announcements[0].content;
         }
 
-        // Render Withdrawals
+        // عرض السحوبات (Withdrawals)
         if (!data.withdraws || data.withdraws.length === 0) {
           withdrawsContainer.innerHTML = currentLang === 'ar' ? 'لا توجد طلبات سحب سابقة.' : 'No withdrawal history.';
         } else {
@@ -1158,6 +1194,31 @@
           }).join('');
         }
 
+        // عرض الإيداعات (Deposits)
+        if (depositsContainer) {
+          if (!data.deposits || data.deposits.length === 0) {
+            depositsContainer.innerHTML = currentLang === 'ar' ? 'لا توجد طلبات إيداع سابقة.' : 'No deposit history.';
+          } else {
+            depositsContainer.innerHTML = data.deposits.map(d => {
+              let statusColor = 'var(--warning)';
+              let statusText = currentLang === 'ar' ? 'قيد المراجعة' : 'Pending';
+              if (d.status === 'Completed') { statusColor = 'var(--success)'; statusText = currentLang === 'ar' ? 'مكتمل' : 'Completed'; }
+              else if (d.status === 'Rejected') { statusColor = 'var(--danger)'; statusText = currentLang === 'ar' ? 'مرفوض' : 'Rejected'; }
+
+              return `
+              <div style="background: #0f172a; padding: 12px; margin-bottom: 8px; border-radius: 12px; border: 1px solid var(--card-border);">
+                <div style="display: flex; justify-content: space-between;">
+                  <span>Amount: <b>$${parseFloat(d.amount || 0).toFixed(2)}</b></span>
+                  <span style="color: ${statusColor}; font-weight: bold;">${statusText}</span>
+                </div>
+                <div style="color: var(--text-muted); font-size: 11px; margin-top: 4px;">Network: <code>${escapeHTML(d.paymentMethod || 'USDT')}</code></div>
+                <div style="color: var(--text-muted); font-size: 11px; margin-top: 2px; word-break: break-all;">TxID: ${escapeHTML(d.txHash || 'N/A')}</div>
+              </div>`;
+            }).join('');
+          }
+        }
+
+        // عرض الروابط الشخصية
         rawUserLinksCache = (data.links || []).filter(l => {
           if (!l.ownerTelegramId && !l.owner) return false;
           if (l.ownerTelegramId && currentUserTelegramId) {
@@ -1168,6 +1229,7 @@
 
         renderUserLinks(rawUserLinksCache);
 
+        // عرض الحملات الإعلانية (Campaigns)
         const userAds = (data.ads || []).filter(ad => {
           if (ad.advertiserTelegramId && currentUserTelegramId) {
             return String(ad.advertiserTelegramId) === String(currentUserTelegramId);
@@ -1184,7 +1246,7 @@
             <div class="ad-item" style="border-left: 4px solid ${statusColor};">
               <div class="ad-header">
                 <b>${escapeHTML(ad.title)}</b>
-                <span style="font-size: 10px; color: ${statusColor}; font-weight: bold;">${escapeHTML(ad.status.toUpperCase())}</span>
+                <span style="font-size: 10px; color: ${statusColor}; font-weight: bold;">${escapeHTML((ad.status || '').toUpperCase())}</span>
               </div>
               <div style="color:var(--text-muted); font-size:11px; margin-bottom:6px; word-break: break-all;">${escapeHTML(ad.targetUrl)}</div>
               <div>Remaining Budget: <b style="color:var(--success);">$${(ad.remainingBudget || 0).toFixed(2)}</b> / $${parseFloat(ad.totalBudget || 0).toFixed(2)} | Views: <b>${ad.impressionsCount || 0}</b></div>
@@ -1262,7 +1324,6 @@
       renderUserLinks(filtered);
     }
 
-    // Toggle Short Link State (HTTP POST)
     async function toggleLinkStatus(linkId) {
       triggerHaptic('light');
       try {
@@ -1282,7 +1343,6 @@
       }
     }
 
-    // Toggle Ad Campaign State (HTTP POST)
     async function toggleAdStatus(adId) {
       triggerHaptic('light');
       try {
@@ -1302,7 +1362,6 @@
       }
     }
 
-    // Create New Ad Campaign (HTTP POST)
     async function createAdCampaign() {
       const title = document.getElementById('ad-title').value;
       const targetUrl = document.getElementById('ad-target-url').value;
@@ -1335,7 +1394,6 @@
       }
     }
 
-    // Submit Deposit Request (HTTP POST)
     async function requestDeposit() {
       const amount = document.getElementById('deposit-amount').value;
       const paymentMethod = document.getElementById('deposit-network').value;
@@ -1371,7 +1429,7 @@
       }
     }
 
-    // Bridge Page Processing (HTTP POST)
+    // Bridge Page Processing
     async function initBridge() {
       const pathParts = window.location.pathname.split('/r/');
       const shortCode = pathParts[1];
@@ -1429,7 +1487,6 @@
       document.getElementById('ad-container').innerHTML = `<iframe src="https://adsterra.com/preview" width="100%" height="220" frameborder="0"></iframe>`;
     }
 
-    // Complete Click & Redirect Impression (HTTP POST)
     async function completeImpression() {
       triggerHaptic('medium');
       setButtonLoading('go-btn', true);
@@ -1455,7 +1512,6 @@
       }
     }
 
-    // Shorten New URL (HTTP POST)
     async function handleShortenClick() {
       const title = document.getElementById('link-title').value;
       const targetUrl = document.getElementById('link-url').value;
@@ -1510,7 +1566,6 @@
       }
     }
 
-    // Submit Withdrawal Request (HTTP POST)
     async function requestWithdrawal() {
       const amount = parseFloat(document.getElementById('withdraw-amount').value);
       const walletAddress = document.getElementById('default-wallet').value;
@@ -1542,7 +1597,6 @@
       }
     }
 
-    // Save User Settings to Server (HTTP PUT)
     async function saveSettings() {
       const defaultWallet = document.getElementById('default-wallet').value;
       if (!defaultWallet || defaultWallet.trim().length < 5) {
@@ -1551,14 +1605,14 @@
       triggerHaptic('light');
       try {
         const res = await safeFetch('/api/user/settings', {
-          method: 'PUT',
+          method: 'POST',
           body: JSON.stringify({ defaultWallet, userId: currentUserTelegramId })
         });
         if (!res) return;
         const data = await res.json();
         if (data.error) showToast(data.error);
         else {
-          showToast(currentLang === 'ar' ? "تم حفظ المحفظة بنجاح في قاعدة البيانات" : "Wallet saved successfully");
+          showToast(currentLang === 'ar' ? "تم حفظ المحفظة بنجاح" : "Wallet saved successfully");
           loadUserData();
         }
       } catch (e) {
@@ -1584,11 +1638,11 @@
       }
     }
 
-    // Admin Operations (HTTP GET/POST)
+    // Admin Operations
     async function loadAdminData() {
       if (!isUserAdmin) return;
       try {
-        const res = await safeFetch('/api/admin/dashboard-data', { method: 'GET' });
+        const res = await safeFetch('/api/admin/dashboard-data');
         if (!res) return;
         const data = await res.json();
         if (data.error) return showToast(data.error);
@@ -1749,6 +1803,7 @@
         }
       } catch (e) {}
 
+      // Render Telegram profile and execute fetch call on launch
       renderTelegramUser();
 
       if (window.location.pathname.includes('/r/')) {
