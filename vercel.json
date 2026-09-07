@@ -22,8 +22,8 @@
   ],
   "rewrites": [
     {
-      "source": "/(.*)",
-      "destination": "server.js"
+      "source": "/:path*",
+      "destination": "/server.js"
     }
   ]
 }
