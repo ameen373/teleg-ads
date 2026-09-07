@@ -1,7 +1,6 @@
 /**
- * Ultra-Enterprise Server Architecture (V6 - Absolute Multi-Tenant Security & High-Performance Core)
- * Telegram Link Shortener & Mini App Engine (Telega.ads)
- * Absolute Isolated Session System & Financial Security Core
+ * Enterprise Server Architecture - Telegram Link Shortener & Mini App Engine (Telega.ads)
+ * Fully Stateless Database-Driven Architecture Optimized for Vercel Serverless & Express
  */
 
 require('dotenv').config();
@@ -25,7 +24,7 @@ const app = express();
 // --- Setup Server Trust Proxy ---
 app.set('trust proxy', 1);
 
-// --- CORS Configuration (Strict Isolation & Security) ---
+// --- CORS Configuration ---
 app.use(cors({
   origin: true,
   credentials: true
@@ -49,14 +48,9 @@ const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(winston.format.timestamp(), winston.format.json()),
   transports: [
-    new winston.transports.File({ filename: 'error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'combined.log' })
+    new winston.transports.Console({ format: winston.format.simple() })
   ]
 });
-
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(new winston.transports.Console({ format: winston.format.simple() }));
-}
 
 app.use(morgan('combined', { stream: { write: (message) => logger.info(message.trim()) } }));
 
@@ -120,20 +114,44 @@ async function safeRedisDel(key) {
 }
 
 // =========================================================================
-// --- Database Connection Pipeline (MongoDB Models Storage) ---
+// --- MongoDB Serverless Connection Pipeline ---
 // =========================================================================
-mongoose.connect(CONFIG.MONGO_URI, {
-  maxPoolSize: 50,
-  minPoolSize: 10,
-  serverSelectionTimeoutMS: 5000,
-  socketTimeoutMS: 45000,
-}).then(() => console.log('✅ Enterprise MongoDB Pipeline Connected to: ' + CONFIG.MONGO_URI))
-  .catch(err => {
-    logger.error('❌ Critical MongoDB Connection Failure:', err);
-    process.exit(1);
+let cachedDb = null;
+async function connectToDatabase() {
+  if (cachedDb && mongoose.connection.readyState === 1) {
+    return cachedDb;
+  }
+  const db = await mongoose.connect(CONFIG.MONGO_URI, {
+    maxPoolSize: 50,
+    minPoolSize: 5,
+    serverSelectionTimeoutMS: 5000,
+    socketTimeoutMS: 45000,
   });
+  cachedDb = db;
+  console.log('✅ Connected to MongoDB Atlas Engine');
+  return cachedDb;
+}
 
-// --- Telegram Dispatch Helper ---
+app.use(async (req, res, next) => {
+  try {
+    await connectToDatabase();
+    next();
+  } catch (err) {
+    logger.error('❌ Critical MongoDB Connection Failure:', err);
+    res.status(500).json({ success: false, error: 'فشل الاتصال بقاعدة البيانات' });
+  }
+});
+
+// --- Helper Functions ---
+function extractTelegramId(req) {
+  return String(
+    req.body?.telegramId || 
+    req.query?.telegramId || 
+    req.headers['x-telegram-id'] || 
+    ''
+  ).trim();
+}
+
 async function sendTelegramNotification(telegramId, message) {
   if (!CONFIG.BOT_TOKEN || !telegramId) return;
   try {
@@ -148,7 +166,6 @@ async function sendTelegramNotification(telegramId, message) {
   }
 }
 
-// --- Cryptographic Telegram Authenticator (Strict Verification) ---
 function verifyTelegramData(initData) {
   if (!initData) return null;
   try {
@@ -179,7 +196,7 @@ function verifyTelegramData(initData) {
   }
 }
 
-// --- Middlewares & Security Limiters ---
+// --- Middlewares & Limiters ---
 const linkCreationLimiter = rateLimit({
   windowMs: 24 * 60 * 60 * 1000,
   max: 100,
@@ -213,24 +230,17 @@ const isPhishingOrMalicious = (url) => {
 };
 
 // =========================================================================
-// --- Middleware للتحقق من هوية المستخدم باستخدام telegramId أينما وُجد ---
+// --- Auth Middleware: استخراج telegramId مباشرة وبشكل حصري من الطلب ---
 // =========================================================================
 const authMiddleware = async (req, res, next) => {
   try {
     let user = null;
-    
-    // 1. استخراج telegramId المباشر من الطلب (Query / Body / Headers)
-    const tgId = String(
-      req.body?.telegramId || 
-      req.query?.telegramId || 
-      req.headers['x-telegram-id'] || ''
-    ).trim();
+    const tgId = extractTelegramId(req);
 
     if (tgId) {
       user = await User.findOne({ telegramId: tgId }).lean();
     }
 
-    // 2. التحقق الاحتياطي من Header الخاص بـ Telegram InitData
     if (!user) {
       const initData = req.headers['x-telegram-init-data'];
       const telegramUser = verifyTelegramData(initData);
@@ -239,7 +249,6 @@ const authMiddleware = async (req, res, next) => {
       }
     }
 
-    // 3. التحقق الاحتياطي من Bearer Token Authorization Header
     if (!user) {
       const authHeader = req.headers.authorization;
       if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -277,7 +286,7 @@ const adminMiddleware = async (req, res, next) => {
 };
 
 // =========================================================================
-// --- دالة المساعدة المركزية: جلب كل بيانات المستخدم بالكامل عبر telegramId ---
+// --- دالة استعلام البيانات عبر telegramId الحصري من قاعدة البيانات ---
 // =========================================================================
 async function fetchFullUserDataByTelegramId(telegramId) {
   const tgIdStr = String(telegramId).trim();
@@ -288,7 +297,7 @@ async function fetchFullUserDataByTelegramId(telegramId) {
 
   const userId = user._id;
 
-  // استعلام مباشر ودقيق من قاعدة البيانات MongoDB بناءً على telegramId أو userId للمستخدم
+  // جلب البيانات بشكل كلي ومباشر من MongoDB بـ telegramId
   const [rawLinks, withdraws, announcements, ads, deposits] = await Promise.all([
     Link.find({ $or: [{ telegramId: tgIdStr }, { publisherTelegramId: tgIdStr }, { userId: userId }] }).sort({ createdAt: -1 }).lean(),
     Withdraw.find({ $or: [{ telegramId: tgIdStr }, { userId: userId }] }).sort({ createdAt: -1 }).lean(),
@@ -315,12 +324,13 @@ async function fetchFullUserDataByTelegramId(telegramId) {
 }
 
 // =========================================================================
-// --- API Endpoints: جلب بيانات المستخدم كاملة بناءً على telegramId ---
+// --- API Endpoints ---
 // =========================================================================
-app.get('/api/user-data/:telegramId', async (req, res, next) => {
+
+// --- GET User Data بواسطة Parameter أو Headers أو Query ---
+app.get('/api/user-data/:telegramId?', async (req, res, next) => {
   try {
-    const { telegramId } = req.params;
-    const cleanTgId = String(telegramId || '').trim();
+    const cleanTgId = extractTelegramId(req) || String(req.params.telegramId || '').trim();
 
     if (!cleanTgId) {
       return res.status(400).json({ success: false, error: 'معرف تلغرام (telegramId) مطلوب' });
@@ -363,10 +373,10 @@ app.get('/api/user-data/:telegramId', async (req, res, next) => {
   }
 });
 
-// --- API Endpoint: Check Admin Role ---
+// --- Check Admin Role ---
 app.all('/api/check-admin', async (req, res) => {
   try {
-    let targetUserId = req.body?.telegramId || req.query?.telegramId || req.body?.userId || req.query?.userId;
+    let targetUserId = extractTelegramId(req) || req.body?.userId || req.query?.userId;
     let telegramIdToCheck = null;
 
     if (targetUserId && mongoose.Types.ObjectId.isValid(targetUserId)) {
@@ -402,16 +412,13 @@ app.all('/api/check-admin', async (req, res) => {
   }
 });
 
-// --- Authentication & User Login ---
+// --- Auth Login ---
 app.post('/api/auth/login', async (req, res, next) => {
   try {
     const initData = req.headers['x-telegram-init-data'];
     const telegramUser = verifyTelegramData(initData);
 
-    const tgId = req.body.telegramId 
-      ? String(req.body.telegramId).trim() 
-      : (telegramUser ? String(telegramUser.id) : null);
-
+    const tgId = extractTelegramId(req) || (telegramUser ? String(telegramUser.id) : null);
     const { referrerId } = req.body;
 
     if (!tgId) return res.status(401).json({ success: false, error: 'بيانات الاعتماد الخاصة بتليجرام غير صالحة (telegramId مفقود)' });
@@ -476,35 +483,10 @@ app.post('/api/auth/login', async (req, res, next) => {
   }
 });
 
-app.get('/api/user/by-telegram/:telegramId', async (req, res, next) => {
-  try {
-    const { telegramId } = req.params;
-    const fullData = await fetchFullUserDataByTelegramId(telegramId);
-    if (!fullData) return res.status(404).json({ success: false, error: 'المستخدم غير موجود' });
-    
-    res.json({
-      success: true,
-      ...fullData,
-      isAdmin: String(fullData.user.telegramId).trim() === CONFIG.ADMIN_ID,
-      botUsername: CONFIG.BOT_USERNAME,
-      supportUsername: CONFIG.SUPPORT_USERNAME,
-      botUrl: CONFIG.OFFICIAL_BOT_URL,
-      officialChannelUrl: CONFIG.OFFICIAL_CHANNEL_URL,
-      supportUrl: CONFIG.TELEGRAM_SUPPORT_URL,
-      depositWallets: {
-        bep20: CONFIG.DEPOSIT_USDT_BEP20,
-        trc20: CONFIG.DEPOSIT_USDT_TRC20
-      }
-    });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// --- Isolated User Data Gateway ---
+// --- Get User Data Authenticated Router ---
 app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   try {
-    const tgId = String(req.query.telegramId || req.user.telegramId).trim();
+    const tgId = extractTelegramId(req) || String(req.user.telegramId).trim();
     const fullData = await fetchFullUserDataByTelegramId(tgId);
 
     res.json({ 
@@ -526,13 +508,11 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   }
 });
 
-// =========================================================================
-// --- POST /api/links: إنشاء رابط وإسناده لـ telegramId ---
-// =========================================================================
+// --- إنشاء رابط جديد وحفظه في MongoDB باستخدام telegramId ---
 app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res) => {
   try {
-    const { title, targetUrl, telegramId } = req.body;
-    const tgId = String(telegramId || req.user.telegramId).trim();
+    const { title, targetUrl } = req.body;
+    const tgId = extractTelegramId(req) || String(req.user.telegramId).trim();
 
     const user = await User.findOne({ telegramId: tgId });
     if (!user) {
@@ -569,7 +549,6 @@ app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res) => 
     });
 
     await newLink.save();
-
     await User.findByIdAndUpdate(user._id, { $inc: { 'statsSummary.totalLinksCreated': 1 } }).catch(() => {});
 
     const linkObj = newLink.toObject ? newLink.toObject() : newLink;
@@ -592,15 +571,13 @@ app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res) => 
   }
 });
 
-// =========================================================================
-// --- POST /api/ads: إنشاء حملة إعلانية واستقطاع الرصيد عبر telegramId ---
-// =========================================================================
+// --- إنشاء حملة إعلانية وحفظها بالـ MongoDB عبر telegramId ---
 app.post('/api/ads', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
-    const { title, targetUrl, totalBudget, telegramId } = req.body;
-    const tgId = String(telegramId || req.user.telegramId).trim();
+    const { title, targetUrl, totalBudget } = req.body;
+    const tgId = extractTelegramId(req) || String(req.user.telegramId).trim();
     const budget = Number(totalBudget);
 
     const user = await User.findOne({ telegramId: tgId }).session(session);
@@ -658,13 +635,11 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
   }
 });
 
-// =========================================================================
-// --- POST /api/deposit: تقديم طلب إيداع وربطه مع telegramId ---
-// =========================================================================
+// --- تقديم طلب إيداع وتخزينه في MongoDB عبر telegramId ---
 app.post('/api/deposit', authMiddleware, async (req, res, next) => {
   try {
-    const { amount, network, txid, telegramId } = req.body;
-    const tgId = String(telegramId || req.user.telegramId).trim();
+    const { amount, network, txid } = req.body;
+    const tgId = extractTelegramId(req) || String(req.user.telegramId).trim();
     const numAmount = Number(amount);
     const cleanNetwork = String(network || '').toUpperCase();
     const cleanTxid = String(txid || '').trim();
@@ -713,15 +688,13 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
   }
 });
 
-// =========================================================================
-// --- POST /api/withdraw: تقديم طلب سحب بناءً على telegramId ---
-// =========================================================================
+// --- تقديم طلب سحب رصيد وحفظه بالـ MongoDB عبر telegramId ---
 app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
-    const { amount, network, walletAddress, telegramId } = req.body;
-    const tgId = String(telegramId || req.user.telegramId).trim();
+    const { amount, network, walletAddress } = req.body;
+    const tgId = extractTelegramId(req) || String(req.user.telegramId).trim();
     const numAmt = Number(amount);
     const cleanNetwork = String(network || '').toUpperCase();
     const cleanWallet = String(walletAddress || '').trim();
@@ -792,9 +765,10 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
   }
 });
 
+// --- جلب حملات الإعلانات الخاصة بالمستخدم عبر telegramId ---
 app.get('/api/user/ads', authMiddleware, async (req, res, next) => {
   try {
-    const tgId = String(req.query.telegramId || req.user.telegramId).trim();
+    const tgId = extractTelegramId(req) || String(req.user.telegramId).trim();
     const ads = await Ad.find({ $or: [{ telegramId: tgId }, { advertiserTelegramId: tgId }, { userId: req.userId }] }).sort({ createdAt: -1 }).lean();
     res.json({ success: true, ads });
   } catch (err) {
@@ -802,10 +776,11 @@ app.get('/api/user/ads', authMiddleware, async (req, res, next) => {
   }
 });
 
+// --- تبديل حالة الحملة عبر telegramId ---
 app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
   try {
-    const { adId, telegramId } = req.body;
-    const tgId = String(telegramId || req.user.telegramId).trim();
+    const { adId } = req.body;
+    const tgId = extractTelegramId(req) || String(req.user.telegramId).trim();
 
     if (!mongoose.Types.ObjectId.isValid(adId)) return res.status(400).json({ success: false, error: 'معرف الإعلان غير صالح' });
 
@@ -825,7 +800,7 @@ app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Bridge Page & Redirect Traffic Engine ---
+// --- Traffic Engine / Clicks ---
 app.post('/api/init-click', validateTraffic, async (req, res, next) => {
   try {
     const { linkCode } = req.body;
@@ -906,9 +881,7 @@ app.post('/api/init-click', validateTraffic, async (req, res, next) => {
   }
 });
 
-// =========================================================================
-// --- POST /api/impression: تسجيل مشاهدة وربط الأرباح عبر telegramId ---
-// =========================================================================
+// --- Impression Counter Engine ---
 app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next) => {
   const sessionDb = await mongoose.startSession();
   try {
@@ -1035,7 +1008,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
   }
 });
 
-// Helper Function لجلب روابط المستخدم بالاستعلام الحصري بـ telegramId
+// --- جلب روابط المستخدم من MongoDB حصرياً باستعمال telegramId ---
 const getUserLinks = async (telegramId) => {
   if (!telegramId) return [];
 
@@ -1060,7 +1033,7 @@ const getUserLinks = async (telegramId) => {
 
 app.get('/api/links', authMiddleware, async (req, res, next) => {
   try {
-    const tgId = String(req.query.telegramId || req.user.telegramId).trim();
+    const tgId = extractTelegramId(req) || String(req.user.telegramId).trim();
     const links = await getUserLinks(tgId);
     res.json({ success: true, links });
   } catch (err) {
@@ -1070,7 +1043,7 @@ app.get('/api/links', authMiddleware, async (req, res, next) => {
 
 app.get('/api/user/links', authMiddleware, async (req, res, next) => {
   try {
-    const tgId = String(req.query.telegramId || req.user.telegramId).trim();
+    const tgId = extractTelegramId(req) || String(req.user.telegramId).trim();
     const links = await getUserLinks(tgId);
     res.json({ success: true, links });
   } catch (err) {
@@ -1080,8 +1053,8 @@ app.get('/api/user/links', authMiddleware, async (req, res, next) => {
 
 app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
   try {
-    const { linkId, telegramId } = req.body;
-    const tgId = String(telegramId || req.user.telegramId).trim();
+    const { linkId } = req.body;
+    const tgId = extractTelegramId(req) || String(req.user.telegramId).trim();
 
     if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
 
@@ -1100,8 +1073,8 @@ app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
 
 app.post('/api/user/settings', authMiddleware, async (req, res, next) => {
   try {
-    const { defaultWallet, language, telegramId } = req.body;
-    const tgId = String(telegramId || req.user.telegramId).trim();
+    const { defaultWallet, language } = req.body;
+    const tgId = extractTelegramId(req) || String(req.user.telegramId).trim();
     const updateData = {};
     
     if (defaultWallet !== undefined) updateData.defaultWallet = String(defaultWallet).trim();
@@ -1302,12 +1275,13 @@ app.post('/api/admin/distribute-revenue', authMiddleware, adminMiddleware, async
 });
 
 app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (req, res, next) => {
-  const { userId, telegramId } = req.body;
+  const tgId = extractTelegramId(req);
+  const { userId } = req.body;
   
   try {
     const user = userId 
       ? await User.findById(userId) 
-      : await User.findOne({ telegramId: String(telegramId).trim() });
+      : await User.findOne({ telegramId: tgId });
 
     if (!user) return res.status(404).json({ success: false, error: 'المستخدم غير موجود' });
 
@@ -1325,42 +1299,44 @@ app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (r
 });
 
 // --- Automated Cron Task for Earnings Settlement ---
-cron.schedule('0 0 * * *', async () => {
-  try {
-    const readyHolds = await EarningsHold.find({ releaseAt: { $lte: new Date() }, isReleased: false }).lean();
+if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_CRON === 'true') {
+  cron.schedule('0 0 * * *', async () => {
+    try {
+      const readyHolds = await EarningsHold.find({ releaseAt: { $lte: new Date() }, isReleased: false }).lean();
 
-    for (let hold of readyHolds) {
-      const session = await mongoose.startSession();
-      try {
-        session.startTransaction();
-        
-        const userUpdate = await User.findByIdAndUpdate(
-          hold.userId,
-          { $inc: { pendingBalance: -hold.amount, availableBalance: hold.amount } },
-          { session, new: true }
-        );
-
-        await EarningsHold.findByIdAndUpdate(hold._id, { isReleased: true }, { session });
-
-        await session.commitTransaction();
-
-        if (userUpdate && userUpdate.telegramId) {
-          sendTelegramNotification(
-            userUpdate.telegramId,
-            `✅ <b>تم إطلاق الأرباح!</b>\nتم تحويل <code>$${hold.amount.toFixed(4)}</code> إلى رصيدك المتاح.`
+      for (let hold of readyHolds) {
+        const session = await mongoose.startSession();
+        try {
+          session.startTransaction();
+          
+          const userUpdate = await User.findByIdAndUpdate(
+            hold.userId,
+            { $inc: { pendingBalance: -hold.amount, availableBalance: hold.amount } },
+            { session, new: true }
           );
+
+          await EarningsHold.findByIdAndUpdate(hold._id, { isReleased: true }, { session });
+
+          await session.commitTransaction();
+
+          if (userUpdate && userUpdate.telegramId) {
+            sendTelegramNotification(
+              userUpdate.telegramId,
+              `✅ <b>تم إطلاق الأرباح!</b>\nتم تحويل <code>$${hold.amount.toFixed(4)}</code> إلى رصيدك المتاح.`
+            );
+          }
+        } catch (err) {
+          await session.abortTransaction();
+          logger.error(`Error processing hold release for ID ${hold._id}: ${err.message}`);
+        } finally {
+          session.endSession();
         }
-      } catch (err) {
-        await session.abortTransaction();
-        logger.error(`Error processing hold release for ID ${hold._id}: ${err.message}`);
-      } finally {
-        session.endSession();
       }
+    } catch (err) {
+      logger.error('❌ Error executing Cron Settlement: ' + err.message);
     }
-  } catch (err) {
-    logger.error('❌ Error executing Cron Settlement: ' + err.message);
-  }
-});
+  });
+}
 
 // --- Static HTML Delivery Routes ---
 app.get('/', (req, res) => {
@@ -1394,7 +1370,6 @@ app.use((err, req, res, next) => {
   });
 });
 
-// --- Global Crash Guard ---
 process.on('uncaughtException', (err) => {
   logger.error('Uncaught Exception Detected: ' + err.stack);
 });
@@ -1404,4 +1379,8 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Enterprise Server V6 Active on Port ${PORT}`));
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => console.log(`🚀 Enterprise Server Active on Port ${PORT}`));
+}
+
+module.exports = app;
