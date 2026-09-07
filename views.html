@@ -610,7 +610,7 @@
 
     const tg = window.Telegram?.WebApp;
 
-    // تهيئة واستخراج telegramId فوراً عند جاهزية المكتبة
+    // 1. استخراج telegramId فوراً مع بداية فتح التطبيق
     let telegramId = null;
     if (tg) {
       tg.ready();
@@ -858,8 +858,8 @@
     }
 
     /**
-     * UNIFIED SECURE FETCH WRAPPER
-     * إرفاق telegramId تلقائياً في الـ body وفي الهيدر لكافة طلبات الحفظ والإرسال
+     * 2. UNIFIED SECURE FETCH WRAPPER
+     * إرفاق telegramId تلقائياً في جميع الطلبات (Headers, Body, Query Params)
      */
     async function safeFetch(endpoint, options = {}) {
       options.headers = options.headers || {};
@@ -877,7 +877,7 @@
         options.headers['x-telegram-id'] = currentTgId;
       }
 
-      // تجهيز إرفاق telegramId في الـ body لكل طلبات الإرسال والحفظ (POST, PUT, DELETE, etc.)
+      // إرفاق telegramId في الـ body لكافة طلبات التعديل والحفظ (POST, PUT, DELETE, etc.)
       let bodyObj = {};
       if (options.body && typeof options.body === 'string') {
         try { bodyObj = JSON.parse(options.body); } catch(e) {}
@@ -1134,8 +1134,8 @@
     }
 
     /**
-     * تنفيذ طلب fetch('/api/user-data/' + telegramId) فوراً عند فتح الصفحة
-     * لجلب بيانات المستخدم المخزنة وعرضها مباشرة على الشاشة وضمان عدم ضياع العمليات.
+     * 3. جلب بيانات المستخدم فورياً عند فتح التطبيق
+     * لجلب الروابط، الحملات، المحفظة، الإيداع، والسحب عبر /api/user-data/:telegramId
      */
     async function fetchUserDataImmediately() {
       const activeTelegramId = telegramId || currentUserTelegramId || window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
@@ -1149,7 +1149,6 @@
         const user = data.user || data;
 
         if (user) {
-          // تحديث بيانات المحفظة والأرباح فوراً
           const pendingElem = document.getElementById('pending-bal');
           const availElem = document.getElementById('avail-bal');
           const refElem = document.getElementById('ref-earnings');
@@ -1200,7 +1199,7 @@
     async function initializeApp() {
       try {
         renderTelegramUser();
-        // جلب البيانات فوراً بمجرد فتح الصفحة لعرضها تلقائياً
+        // جلب البيانات فوراً بمجرد فتح الصفحة
         await fetchUserDataImmediately();
 
         if (!authToken) await authLogin();
