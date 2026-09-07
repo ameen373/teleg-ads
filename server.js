@@ -63,7 +63,6 @@ app.use(morgan('combined', { stream: { write: (message) => logger.info(message.t
 // ==================================================
 const CONFIG = Object.freeze({
   BOT_TOKEN: process.env.BOT_TOKEN,
-  MONGODB_URI: process.env.MONGODB_URI,
   ADMIN_ID: String(process.env.ADMIN_ID || '').trim(),
   JWT_SECRET: process.env.JWT_SECRET || 'fallback_jwt_secret_key_32bytes_long!',
   ADSGRAM_BLOCK_ID: process.env.ADSGRAM_BLOCK_ID || '1234',
@@ -83,7 +82,7 @@ const CONFIG = Object.freeze({
 });
 
 // ==================================================
-// --- 2. Database Connection (MongoDB Mongoose via process.env.MONGODB_URI) ---
+// --- 2. Database Connection (MongoDB Mongoose via process.env.MONGO_URI for Serverless) ---
 // ==================================================
 let cached = global.mongoose;
 if (!cached) {
@@ -91,7 +90,18 @@ if (!cached) {
 }
 
 async function connectDB() {
-  if (cached.conn) return cached.conn;
+  const mongoUri = process.env.MONGO_URI;
+
+  if (!mongoUri) {
+    const uriError = new Error('❌ Critical Error: process.env.MONGO_URI is undefined or missing!');
+    console.error(uriError);
+    throw uriError;
+  }
+
+  // إعادة استخدام الاتصال المفتوح إذا كان خادم Vercel Serverless يحتفظ بالجلسة
+  if (cached.conn) {
+    return cached.conn;
+  }
 
   if (!cached.promise) {
     const opts = {
@@ -101,14 +111,15 @@ async function connectDB() {
       socketTimeoutMS: 45000,
     };
 
-    if (!CONFIG.MONGODB_URI) {
-      throw new Error('❌ Critical Error: process.env.MONGODB_URI is missing!');
-    }
-
-    cached.promise = mongoose.connect(CONFIG.MONGODB_URI, opts).then((mongooseInstance) => {
-      console.log('✅ MongoDB Database Connected via process.env.MONGODB_URI');
-      return mongooseInstance;
-    });
+    cached.promise = mongoose.connect(mongoUri, opts)
+      .then((mongooseInstance) => {
+        console.log('✅ MongoDB Database Connected via process.env.MONGO_URI');
+        return mongooseInstance;
+      })
+      .catch((err) => {
+        console.error('❌ Failed to connect to MongoDB:', err);
+        throw err;
+      });
   }
 
   try {
@@ -127,7 +138,7 @@ app.use(async (req, res, next) => {
     await connectDB();
     next();
   } catch (err) {
-    logger.error('❌ Database Middleware Failure:', err);
+    console.error('❌ Database Connection Error during request execution:', err);
     res.status(500).json({ success: false, error: 'تعذر الاتصال بقاعدة البيانات MongoDB' });
   }
 });
