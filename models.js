@@ -1,7 +1,7 @@
 /**
- * Ultra-Enterprise Models Architecture (V6.0 - Next-Gen Hybrid Architecture)
+ * Models Architecture (Mongoose Schemas & Models)
  * Platform: Telega.ads Advertising & Shortener Network Engine
- * Security: Zero-Data-Leakage Enforcement, Dynamic Context Scoping, Dual-ID Ownership Bindings
+ * MongoDB Database Integration File
  */
 
 if (typeof window !== 'undefined') {
@@ -51,7 +51,7 @@ const validateWalletAddress = (v) => {
 };
 
 // --------------------------------------------------
-// 1. User Model (Isolated Profiles, Balances & Stats)
+// 1. User Schema & Model (المستخدمين)
 // --------------------------------------------------
 const userSchema = new mongoose.Schema({
   telegramId: { 
@@ -152,7 +152,7 @@ userSchema.statics.findByTelegramIdIsolated = function(telegramId) {
 };
 
 // --------------------------------------------------
-// 2. Isolated Wallet Model (Central Balance Control)
+// 2. Wallet Schema & Model (المحفظة والرصيد المركزية)
 // --------------------------------------------------
 const walletSchema = new mongoose.Schema({
   userId: { 
@@ -208,7 +208,7 @@ walletSchema.statics.getWalletIsolated = function(userId) {
 };
 
 // --------------------------------------------------
-// 3. Isolated Transaction History Model
+// 3. Transaction Schema & Model (سجل المعاملات المالية)
 // --------------------------------------------------
 const transactionSchema = new mongoose.Schema({
   userId: { 
@@ -260,7 +260,7 @@ transactionSchema.statics.getUserTransactionsIsolated = function(userId, filter 
 };
 
 // --------------------------------------------------
-// 4. Self-Serve Ad Model (Campaigns)
+// 4. Ad Schema & Model (حملات المعلنين - الإعلانات)
 // --------------------------------------------------
 const adSchema = new mongoose.Schema({
   userId: { 
@@ -380,7 +380,7 @@ adSchema.statics.findAdvertiserAdsIsolated = function(userId, filter = {}) {
 };
 
 // --------------------------------------------------
-// 5. Shortened Link Model (Links - Isolated Multi-Tenant)
+// 5. Link Schema & Model (الروابط المقصرة للناشرين)
 // --------------------------------------------------
 const linkSchema = new mongoose.Schema({
   shortCode: { 
@@ -474,7 +474,7 @@ linkSchema.statics.findOneIsolated = function(shortCode, userId) {
 };
 
 // --------------------------------------------------
-// 6. Traffic & Impressions Model
+// 6. Impression Schema & Model (سجل المشاهدات والانطباعات)
 // --------------------------------------------------
 const impressionSchema = new mongoose.Schema({
   linkId: { 
@@ -569,7 +569,7 @@ impressionSchema.statics.getPublisherImpressionsIsolated = function(userId, extr
 };
 
 // --------------------------------------------------
-// 7. Anti-Bypass Click Session Model
+// 7. ClickSession Schema & Model (جلسات النقرات ومنع التخطي)
 // --------------------------------------------------
 const clickSessionSchema = new mongoose.Schema({
   linkId: { 
@@ -642,7 +642,7 @@ clickSessionSchema.index({ linkId: 1, ip: 1 });
 clickSessionSchema.index({ bridgeToken: 1 }, { unique: true });
 
 // --------------------------------------------------
-// 8. Withdraw Request Model (Withdrawals)
+// 8. Withdraw Schema & Model (طلبات السحب والناشرين)
 // --------------------------------------------------
 const withdrawSchema = new mongoose.Schema({
   userId: { 
@@ -736,7 +736,7 @@ withdrawSchema.statics.getUserWithdrawalsIsolated = function(userId, status = nu
 };
 
 // --------------------------------------------------
-// 9. Earnings Hold Model
+// 9. EarningsHold Schema & Model (الأرباح المحتجزة)
 // --------------------------------------------------
 const earningsHoldSchema = new mongoose.Schema({
   userId: { 
@@ -779,7 +779,7 @@ earningsHoldSchema.statics.getUserHoldsIsolated = function(userId) {
 };
 
 // --------------------------------------------------
-// 10. Advertiser Deposit Model (Deposits)
+// 10. Deposit Schema & Model (طلبات إيداع المعلنين)
 // --------------------------------------------------
 const depositSchema = new mongoose.Schema({
   userId: {
@@ -861,7 +861,7 @@ depositSchema.statics.getAdvertiserDepositsIsolated = function(userId) {
 };
 
 // --------------------------------------------------
-// 11. Announcement Model
+// 11. Announcement Schema & Model (الإعلانات الإدارية والتنبيهات)
 // --------------------------------------------------
 const announcementSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
@@ -894,7 +894,9 @@ announcementSchema.statics.getForUserIsolated = function(userId, telegramId) {
   }).sort({ createdAt: -1 });
 };
 
-// Model exports with fallback check against overwriting existing models
+// --------------------------------------------------
+// Models Compilation & Export
+// --------------------------------------------------
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Wallet = mongoose.models.Wallet || mongoose.model('Wallet', walletSchema);
 const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
