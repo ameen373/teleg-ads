@@ -119,13 +119,15 @@ async function safeRedisDel(key) {
   try { await redis.del(key); } catch (e) { logger.error('Redis Del Failed: ' + e.message); }
 }
 
-// --- Database Connection Pipeline (استخدام MONGO_URI حتماً للحفظ الدائم) ---
+// =========================================================================
+// --- Database Connection Pipeline (استخدام process.env.MONGO_URI للحفظ الدائم) ---
+// =========================================================================
 mongoose.connect(CONFIG.MONGO_URI, {
   maxPoolSize: 50,
   minPoolSize: 10,
   serverSelectionTimeoutMS: 5000,
   socketTimeoutMS: 45000,
-}).then(() => console.log('✅ Enterprise MongoDB Pipeline Connected'))
+}).then(() => console.log('✅ Enterprise MongoDB Pipeline Connected to: ' + CONFIG.MONGO_URI))
   .catch(err => {
     logger.error('❌ Critical MongoDB Connection Failure:', err);
     process.exit(1);
@@ -267,18 +269,19 @@ const adminMiddleware = async (req, res, next) => {
   next();
 };
 
-// Helper لتهيئة وجلب بيانات المستخدم الكاملة فقط عبر telegramId أو userId من قواعد البيانات
+// Helper لتهيئة وجلب كافة بيانات المستخدم بناءً على telegramId
 async function fetchFullUserDataByTelegramId(telegramId) {
-  const user = await User.findOne({ telegramId: String(telegramId).trim() }).lean();
+  const tgIdStr = String(telegramId).trim();
+  const user = await User.findOne({ telegramId: tgIdStr }).lean();
   if (!user) return null;
 
   const userId = user._id;
   const [rawLinks, withdraws, announcements, ads, deposits] = await Promise.all([
-    Link.find({ $or: [{ userId: userId }, { publisherTelegramId: String(telegramId) }] }).sort({ createdAt: -1 }).lean(),
-    Withdraw.find({ $or: [{ userId: userId }, { telegramId: String(telegramId) }] }).sort({ createdAt: -1 }).lean(),
+    Link.find({ $or: [{ userId: userId }, { publisherTelegramId: tgIdStr }, { telegramId: tgIdStr }] }).sort({ createdAt: -1 }).lean(),
+    Withdraw.find({ $or: [{ userId: userId }, { telegramId: tgIdStr }] }).sort({ createdAt: -1 }).lean(),
     Announcement.find({ $or: [{ isGlobal: true }, { targetUserId: userId }] }).sort({ createdAt: -1 }).lean(),
-    Ad.find({ $or: [{ userId: userId }, { advertiserTelegramId: String(telegramId) }] }).sort({ createdAt: -1 }).lean(),
-    Deposit.find({ $or: [{ userId: userId }, { advertiserTelegramId: String(telegramId) }] }).sort({ createdAt: -1 }).lean()
+    Ad.find({ $or: [{ userId: userId }, { advertiserTelegramId: tgIdStr }, { telegramId: tgIdStr }] }).sort({ createdAt: -1 }).lean(),
+    Deposit.find({ $or: [{ userId: userId }, { advertiserTelegramId: tgIdStr }, { telegramId: tgIdStr }] }).sort({ createdAt: -1 }).lean()
   ]);
 
   const links = rawLinks.map(link => {
@@ -299,7 +302,7 @@ async function fetchFullUserDataByTelegramId(telegramId) {
 }
 
 // =========================================================================
-// --- API Endpoint المطلوب: جلب كافة بيانات المستخدم بناءً على telegramId ---
+// --- API Endpoint المطلوبة: جلب كافة بيانات المستخدم بـ GET عبر telegramId ---
 // =========================================================================
 app.get('/api/user-data/:telegramId', async (req, res, next) => {
   try {
@@ -313,7 +316,7 @@ app.get('/api/user-data/:telegramId', async (req, res, next) => {
     const fullData = await fetchFullUserDataByTelegramId(cleanTgId);
 
     if (!fullData || !fullData.user) {
-      return res.status(404).json({ success: false, error: 'المستخدم غير موجود' });
+      return res.status(404).json({ success: false, error: 'المستخدم غير موجود في قاعدة البيانات' });
     }
 
     if (fullData.user.isBanned) {
@@ -347,9 +350,7 @@ app.get('/api/user-data/:telegramId', async (req, res, next) => {
   }
 });
 
-// =========================================================================
 // --- API Endpoint: Check Admin Role ---
-// =========================================================================
 app.all('/api/check-admin', async (req, res) => {
   try {
     let targetUserId = req.body?.userId || req.query?.userId;
@@ -502,7 +503,74 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
 });
 
 // =========================================================================
-// --- تعديل مسار إنشاء حملة إعلانية ليتحقق من telegramId وحفظ البيانات ---
+// --- POST /api/links: إنشاء رابط جديد وحفظ telegramId في MongoDB ---
+// =========================================================================
+app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res) => {
+  try {
+    const { title, targetUrl, telegramId } = req.body;
+    const tgId = String(telegramId || req.user.telegramId).trim();
+
+    const user = await User.findOne({ telegramId: tgId });
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'المستخدم غير موجود' });
+    }
+
+    const cleanUrl = String(targetUrl || '').trim();
+
+    if (!cleanUrl || !validUrl.isWebUri(cleanUrl)) {
+      return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
+    }
+
+    if (isPhishingOrMalicious(cleanUrl)) {
+      return res.status(400).json({ success: false, error: 'الرابط ينتهك معايير الأمان' });
+    }
+
+    try {
+      const domainCheck = new URL(cleanUrl).hostname;
+      if (domainCheck.includes(CONFIG.APP_DOMAIN)) {
+        return res.status(400).json({ success: false, error: 'لا يمكن اختصار روابط الموقع نفسه' });
+      }
+    } catch (e) {}
+
+    const shortCode = crypto.randomBytes(3).toString('hex');
+
+    // حفظ الرابط في قاعدة البيانات وتخزين telegramId في كافة الحقول المناسبة
+    const newLink = new Link({
+      userId: user._id,
+      publisherTelegramId: tgId,
+      telegramId: tgId,
+      title: title ? String(title).trim() : 'رابط بدون عنوان',
+      targetUrl: cleanUrl,
+      shortCode,
+      isActive: true
+    });
+
+    await newLink.save();
+
+    await User.findByIdAndUpdate(user._id, { $inc: { 'statsSummary.totalLinksCreated': 1 } }).catch(() => {});
+
+    const linkObj = newLink.toObject ? newLink.toObject() : newLink;
+    const shortUrl = `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`;
+
+    return res.json({ 
+      success: true, 
+      link: {
+        ...linkObj,
+        shortUrl
+      },
+      shortUrl
+    });
+  } catch (err) {
+    console.error('❌ Error in POST /api/links:', err);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'حدث خطأ أثناء اختصار الرابط، يرجى المحاولة لاحقاً' 
+    });
+  }
+});
+
+// =========================================================================
+// --- POST /api/ads: إنشاء حملة إعلانية جديدة وحفظ telegramId في MongoDB ---
 // =========================================================================
 app.post('/api/ads', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
@@ -542,11 +610,12 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
     user.availableBalance -= budget;
     await user.save({ session });
 
-    // حفظ الحملة في قاعدة البيانات بشكل دائم عبر Ad Model
+    // حفظ الحملة الإعلانية وتخزين telegramId في الموديل بشكل دائم
     const ad = await Ad.create([{
       userId: user._id,
       advertiserId: user._id,
       advertiserTelegramId: tgId,
+      telegramId: tgId,
       title: String(title).trim(),
       targetUrl: String(targetUrl).trim(),
       totalBudget: budget,
@@ -568,39 +637,8 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
   }
 });
 
-app.get('/api/user/ads', authMiddleware, async (req, res, next) => {
-  try {
-    const tgId = String(req.query.telegramId || req.user.telegramId).trim();
-    const ads = await Ad.find({ $or: [{ advertiserTelegramId: tgId }, { userId: req.userId }] }).sort({ createdAt: -1 }).lean();
-    res.json({ success: true, ads });
-  } catch (err) {
-    next(err);
-  }
-});
-
-app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
-  try {
-    const { adId } = req.body;
-    if (!mongoose.Types.ObjectId.isValid(adId)) return res.status(400).json({ success: false, error: 'معرف الإعلان غير صالح' });
-
-    const ad = await Ad.findOne({ _id: adId, userId: req.userId });
-    if (!ad) return res.status(404).json({ success: false, error: 'الإعلان غير موجود أو لا تملك صلاحية تعديله' });
-
-    if (ad.status === 'completed') {
-      return res.status(400).json({ success: false, error: 'لا يمكن تفعيل حملة مكتملة ونفاذ ميزانيتها' });
-    }
-
-    ad.status = ad.status === 'active' ? 'paused' : 'active';
-    await ad.save();
-
-    res.json({ success: true, status: ad.status });
-  } catch (err) {
-    next(err);
-  }
-});
-
 // =========================================================================
-// --- تعديل مسار طلب الإيداع للتعامل مع telegramId وحفظ البيانات بشكل دائم ---
+// --- POST /api/deposit: تقديم طلب إيداع وحفظ telegramId في MongoDB ---
 // =========================================================================
 app.post('/api/deposit', authMiddleware, async (req, res, next) => {
   try {
@@ -632,11 +670,12 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'تم تقديم رقم هذه المعاملة (TxID) من قبل' });
     }
 
-    // حفظ طلب الإيداع في قاعدة البيانات عبر Deposit Model بشكل دائم
+    // حفظ طلب الإيداع وتخزين telegramId نهائياً في MongoDB عبر Deposit Model
     const deposit = await Deposit.create({
       userId: user._id,
       advertiserId: user._id,
       advertiserTelegramId: tgId,
+      telegramId: tgId,
       amount: numAmount,
       network: cleanNetwork,
       txid: cleanTxid,
@@ -655,7 +694,7 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
 });
 
 // =========================================================================
-// --- تعديل مسار طلب السحب للتعامل مع telegramId وحفظ البيانات بشكل دائم ---
+// --- POST /api/withdraw: تقديم طلب سحب وحفظ telegramId في MongoDB ---
 // =========================================================================
 app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
@@ -706,7 +745,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
     user.defaultWallet = cleanWallet;
     await user.save({ session });
 
-    // حفظ طلب السحب بشكل دائم في قاعدة البيانات عبر Withdraw Model
+    // حفظ طلب السحب وتخزين telegramId في MongoDB عبر Withdraw Model بشكل دائم
     const withdrawRequest = await Withdraw.create([{
       userId: user._id,
       telegramId: tgId,
@@ -734,6 +773,37 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
   }
 });
 
+app.get('/api/user/ads', authMiddleware, async (req, res, next) => {
+  try {
+    const tgId = String(req.query.telegramId || req.user.telegramId).trim();
+    const ads = await Ad.find({ $or: [{ advertiserTelegramId: tgId }, { telegramId: tgId }, { userId: req.userId }] }).sort({ createdAt: -1 }).lean();
+    res.json({ success: true, ads });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
+  try {
+    const { adId } = req.body;
+    if (!mongoose.Types.ObjectId.isValid(adId)) return res.status(400).json({ success: false, error: 'معرف الإعلان غير صالح' });
+
+    const ad = await Ad.findOne({ _id: adId, userId: req.userId });
+    if (!ad) return res.status(404).json({ success: false, error: 'الإعلان غير موجود أو لا تملك صلاحية تعديله' });
+
+    if (ad.status === 'completed') {
+      return res.status(400).json({ success: false, error: 'لا يمكن تفعيل حملة مكتملة ونفاذ ميزانيتها' });
+    }
+
+    ad.status = ad.status === 'active' ? 'paused' : 'active';
+    await ad.save();
+
+    res.json({ success: true, status: ad.status });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // --- Bridge Page & Redirect Traffic Engine ---
 app.post('/api/init-click', validateTraffic, async (req, res, next) => {
   try {
@@ -750,11 +820,11 @@ app.post('/api/init-click', validateTraffic, async (req, res, next) => {
       linkOwnerId = parsed.userId;
       linkOwnerTelegramId = parsed.publisherTelegramId;
     } else {
-      const link = await Link.findOne({ shortCode: cleanCode, isActive: true }).select('_id userId publisherTelegramId').lean();
+      const link = await Link.findOne({ shortCode: cleanCode, isActive: true }).select('_id userId publisherTelegramId telegramId').lean();
       if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود أو معطل' });
       linkId = link._id.toString();
       linkOwnerId = link.userId.toString();
-      linkOwnerTelegramId = link.publisherTelegramId;
+      linkOwnerTelegramId = link.publisherTelegramId || link.telegramId;
       await safeRedisSet(`link:data:${cleanCode}`, JSON.stringify({ id: linkId, userId: linkOwnerId, publisherTelegramId: linkOwnerTelegramId }), 'EX', 3600);
     }
 
@@ -815,6 +885,9 @@ app.post('/api/init-click', validateTraffic, async (req, res, next) => {
   }
 });
 
+// =========================================================================
+// --- POST /api/impression: تسجيل ظهور مع حفظ telegramId في MongoDB ---
+// =========================================================================
 app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next) => {
   const sessionDb = await mongoose.startSession();
   try {
@@ -872,12 +945,15 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 
     await safeRedisSet(lockKey, '1', 'EX', 86400);
 
-    // تسجيل ظهور جديد في قاعدة البيانات بشكل دائم عبر Impression Model
+    const pubTgId = String(link.publisherTelegramId || link.telegramId || link.userId.telegramId);
+
+    // تسجيل ظهور جديد وتخزين telegramId الناشر نهائياً
     await Impression.create([{
       linkId: link._id,
       userId: link.userId._id,
       publisherId: link.userId._id,
-      publisherTelegramId: link.userId.telegramId,
+      publisherTelegramId: pubTgId,
+      telegramId: pubTgId,
       adSource: clickSession.adSource,
       adId: clickSession.adId,
       publisherEarnings: clickSession.adSource === 'internal' ? 0.00135 : 0,
@@ -922,7 +998,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
         releaseDate.setDate(releaseDate.getDate() + 1);
         await EarningsHold.create([{
           userId: link.userId._id,
-          telegramId: link.userId.telegramId,
+          telegramId: pubTgId,
           amount: publisherShare,
           releaseAt: releaseDate
         }], { session: sessionDb });
@@ -939,78 +1015,11 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
   }
 });
 
-// =========================================================================
-// --- تعديل مسار إنشاء رابط مختصر لاستقبال telegramId والحفظ في قاعدة البيانات ---
-// =========================================================================
-app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res) => {
-  try {
-    const { title, targetUrl, telegramId } = req.body;
-    const tgId = String(telegramId || req.user.telegramId).trim();
-
-    const user = await User.findOne({ telegramId: tgId });
-    if (!user) {
-      return res.status(404).json({ success: false, error: 'المستخدم غير موجود' });
-    }
-
-    const cleanUrl = String(targetUrl || '').trim();
-
-    if (!cleanUrl || !validUrl.isWebUri(cleanUrl)) {
-      return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
-    }
-
-    if (isPhishingOrMalicious(cleanUrl)) {
-      return res.status(400).json({ success: false, error: 'الرابط ينتهك معايير الأمان' });
-    }
-
-    try {
-      const domainCheck = new URL(cleanUrl).hostname;
-      if (domainCheck.includes(CONFIG.APP_DOMAIN)) {
-        return res.status(400).json({ success: false, error: 'لا يمكن اختصار روابط الموقع نفسه' });
-      }
-    } catch (e) {}
-
-    const shortCode = crypto.randomBytes(3).toString('hex');
-
-    // حفظ الرابط المختصر نهائياً عبر Link Model
-    const newLink = new Link({
-      userId: user._id,
-      publisherTelegramId: tgId,
-      telegramId: tgId,
-      title: title ? String(title).trim() : 'رابط بدون عنوان',
-      targetUrl: cleanUrl,
-      shortCode,
-      isActive: true
-    });
-
-    await newLink.save();
-
-    await User.findByIdAndUpdate(user._id, { $inc: { 'statsSummary.totalLinksCreated': 1 } }).catch(() => {});
-
-    const linkObj = newLink.toObject ? newLink.toObject() : newLink;
-    const shortUrl = `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`;
-
-    return res.json({ 
-      success: true, 
-      link: {
-        ...linkObj,
-        shortUrl
-      },
-      shortUrl
-    });
-  } catch (err) {
-    console.error('❌ Error in POST /api/links:', err);
-    return res.status(500).json({ 
-      success: false, 
-      error: 'حدث خطأ أثناء اختصار الرابط، يرجى المحاولة لاحقاً' 
-    });
-  }
-});
-
-// Fetch Links Helper Function
+// Helper Function لجلب روابط المستخدم
 const getUserLinks = async (telegramId) => {
   if (!telegramId) return [];
 
-  const rawLinks = await Link.find({ publisherTelegramId: String(telegramId) }).sort({ createdAt: -1 }).lean();
+  const rawLinks = await Link.find({ $or: [{ publisherTelegramId: String(telegramId) }, { telegramId: String(telegramId) }] }).sort({ createdAt: -1 }).lean();
 
   return rawLinks.map(link => {
     const totalViews = link.views || 0;
@@ -1130,12 +1139,12 @@ app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (re
       );
 
       sendTelegramNotification(
-        deposit.advertiserTelegramId || deposit.advertiserId.telegramId,
+        deposit.telegramId || deposit.advertiserTelegramId || deposit.advertiserId.telegramId,
         `🎉 <b>تم تأكيد الإيداع!</b>\nتمت إضافة <code>$${deposit.amount}</code> إلى رصيدك المتاح.`
       );
     } else {
       sendTelegramNotification(
-        deposit.advertiserTelegramId || deposit.advertiserId.telegramId,
+        deposit.telegramId || deposit.advertiserTelegramId || deposit.advertiserId.telegramId,
         `❌ <b>تم رفض طلب الإيداع</b>\nالمبلغ: <code>$${deposit.amount}</code>\n⚠️ <b>السبب:</b> ${deposit.rejectReason}\n\nالدعم: ${CONFIG.SUPPORT_USERNAME}`
       );
     }
@@ -1232,6 +1241,7 @@ app.post('/api/admin/distribute-revenue', authMiddleware, adminMiddleware, async
 
     for (let link of links) {
       let earned = Number(((link.validImpressions / totalImp) * revenue).toFixed(4));
+      const pubTgId = String(link.publisherTelegramId || link.telegramId || link.userId.telegramId);
 
       if (link.userId && link.userId.referredBy) {
         const refBonus = Number((earned * 0.10).toFixed(4));
@@ -1246,7 +1256,7 @@ app.post('/api/admin/distribute-revenue', authMiddleware, adminMiddleware, async
 
       if (link.userId) {
         await User.findByIdAndUpdate(link.userId._id, { $inc: { pendingBalance: earned } }, { session });
-        await EarningsHold.create([{ userId: link.userId._id, telegramId: link.userId.telegramId, amount: earned, releaseAt: releaseDate }], { session });
+        await EarningsHold.create([{ userId: link.userId._id, telegramId: pubTgId, amount: earned, releaseAt: releaseDate }], { session });
       }
 
       link.validImpressions = 0;
