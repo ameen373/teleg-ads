@@ -1,5 +1,5 @@
 /**
- * Ultra-Enterprise Server Architecture (V7 - High-Precision Financial & Anti-Fraud Core)
+ * Ultra-Enterprise Server Architecture (V7.1 - High-Precision Financial & Anti-Fraud Core)
  * Telegram Link Shortener & Mini App Engine (Telega.ads)
  * Complete Integer-Cents Financial Precision & Atomic Isolation Core
  */
@@ -18,7 +18,7 @@ const validUrl = require('valid-url');
 const axios = require('axios');
 const Redis = require('ioredis');
 const cors = require('cors');
-const { User, Ad, Link, Impression, ClickSession, Withdraw, EarningsHold, Deposit, Announcement } = require('./models');
+const { User, Wallet, Transaction, Ad, Link, Impression, ClickSession, Withdraw, EarningsHold, Deposit, Announcement } = require('./models');
 
 const app = express();
 
@@ -123,17 +123,48 @@ async function safeRedisDel(key) {
   try { await redis.del(key); } catch (e) { logger.error('Redis Del Failed: ' + e.message); }
 }
 
-// --- Database Connection Pipeline ---
-mongoose.connect(CONFIG.MONGO_URI, {
-  maxPoolSize: 50,
-  minPoolSize: 10,
-  serverSelectionTimeoutMS: 5000,
-  socketTimeoutMS: 45000,
-}).then(() => console.log('✅ Enterprise MongoDB Pipeline Connected'))
-  .catch(err => {
-    logger.error('❌ Critical MongoDB Connection Failure:', err);
-    process.exit(1);
-  });
+// --- Database Connection Pipeline Optimized for Vercel Serverless ---
+let cachedConnection = global.mongoose;
+
+if (!cachedConnection) {
+  cachedConnection = global.mongoose = { conn: null, promise: null };
+}
+
+async function connectDB() {
+  if (cachedConnection.conn) {
+    return cachedConnection.conn;
+  }
+  if (!cachedConnection.promise) {
+    const opts = {
+      maxPoolSize: 10,
+      minPoolSize: 2,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+    };
+    cachedConnection.promise = mongoose.connect(CONFIG.MONGO_URI, opts).then((mongooseInstance) => {
+      console.log('✅ Enterprise MongoDB Pipeline Connected (Serverless Optimized)');
+      return mongooseInstance;
+    });
+  }
+  try {
+    cachedConnection.conn = await cachedConnection.promise;
+  } catch (e) {
+    cachedConnection.promise = null;
+    logger.error('❌ Critical MongoDB Connection Failure:', e);
+    throw e;
+  }
+  return cachedConnection.conn;
+}
+
+// Ensure DB connection on request for serverless architecture
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'قاعدة البيانات غير متاحة حالياً' });
+  }
+});
 
 // --- Telegram Dispatch Helper ---
 async function sendTelegramNotification(telegramId, message) {
@@ -214,17 +245,19 @@ const isPhishingOrMalicious = (url) => {
   return blacklistedKeywords.some(keyword => lowerUrl.includes(keyword));
 };
 
-// --- Authentication Middleware ---
+// --- Authentication Middleware with Strict Telegram ID Verification ---
 const authMiddleware = async (req, res, next) => {
   try {
     let user = null;
+    let telegramId = null;
 
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
       try {
         const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
-        user = await User.findById(decoded.userId).lean();
+        telegramId = decoded.telegramId;
+        user = await User.findOne({ telegramId: String(telegramId).trim() }).lean();
       } catch (err) {}
     }
 
@@ -232,7 +265,8 @@ const authMiddleware = async (req, res, next) => {
       const initData = req.headers['x-telegram-init-data'];
       const telegramUser = verifyTelegramData(initData);
       if (telegramUser) {
-        user = await User.findOne({ telegramId: String(telegramUser.id) }).lean();
+        telegramId = String(telegramUser.id);
+        user = await User.findOne({ telegramId }).lean();
       }
     }
 
@@ -245,8 +279,8 @@ const authMiddleware = async (req, res, next) => {
     }
 
     req.user = user;
-    req.user.id = user._id.toString();
     req.userId = user._id;
+    req.telegramId = user.telegramId;
 
     next();
   } catch (err) {
@@ -262,30 +296,19 @@ const adminMiddleware = async (req, res, next) => {
 };
 
 // =========================================================================
-// --- API Routes & Gateways ---
+// --- API Routes & Gateways (Strict Database Integration & telegram_id Isolation) ---
 // =========================================================================
 
 app.all('/api/check-admin', async (req, res) => {
   try {
-    let targetUserId = req.body?.userId || req.query?.userId;
     let telegramIdToCheck = null;
-
-    if (targetUserId && mongoose.Types.ObjectId.isValid(targetUserId)) {
-      const u = await User.findById(targetUserId).lean();
-      if (u) telegramIdToCheck = String(u.telegramId).trim();
-    } else if (targetUserId) {
-      telegramIdToCheck = String(targetUserId).trim();
-    }
-
-    if (!telegramIdToCheck) {
-      const authHeader = req.headers.authorization;
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        try {
-          const token = authHeader.split(' ')[1];
-          const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
-          telegramIdToCheck = String(decoded.telegramId).trim();
-        } catch (e) {}
-      }
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.split(' ')[1];
+        const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
+        telegramIdToCheck = String(decoded.telegramId).trim();
+      } catch (e) {}
     }
 
     if (!telegramIdToCheck) {
@@ -318,12 +341,25 @@ app.post('/api/auth/login', async (req, res, next) => {
 
     let user = await User.findOne({ telegramId: tgId });
     if (!user) {
+      let refDocId = null;
+      if (referrerId && mongoose.Types.ObjectId.isValid(referrerId)) {
+        const refUser = await User.findById(referrerId);
+        if (refUser) refDocId = refUser._id;
+      }
       user = await User.create({
         telegramId: tgId,
         username: currentUsername,
         language: userLanguage,
-        referredBy: mongoose.Types.ObjectId.isValid(referrerId) ? referrerId : null
+        referredBy: refDocId
       });
+      
+      // Initialize associated Wallet in DB
+      await Wallet.create({
+        userId: user._id,
+        telegramId: tgId,
+        availableBalance: 0,
+        pendingBalance: 0
+      }).catch(() => {});
     } else {
       let updated = false;
       if (user.username !== currentUsername) {
@@ -369,16 +405,17 @@ app.post('/api/auth/login', async (req, res, next) => {
 app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   try {
     const userId = req.userId;
+    const telegramId = req.telegramId;
 
-    const [rawLinks, withdraws, announcements, ads, deposits] = await Promise.all([
-      Link.find({ $or: [{ userId: userId }, { userId: userId.toString() }] }).sort({ createdAt: -1 }).lean(),
-      Withdraw.find({ userId: userId }).sort({ createdAt: -1 }).lean(),
-      Announcement.find({ $or: [{ isGlobal: true }, { targetUserId: userId }] }).sort({ createdAt: -1 }).lean(),
-      Ad.find({ userId: userId }).sort({ createdAt: -1 }).lean(),
-      Deposit.find({ userId: userId }).sort({ createdAt: -1 }).lean()
+    const [links, withdraws, announcements, ads, deposits] = await Promise.all([
+      Link.find({ $or: [{ userId }, { telegramId }] }).sort({ createdAt: -1 }).lean(),
+      Withdraw.find({ $or: [{ userId }, { telegramId }] }).sort({ createdAt: -1 }).lean(),
+      Announcement.getForUserIsolated(userId, telegramId),
+      Ad.find({ $or: [{ userId }, { telegramId }] }).sort({ createdAt: -1 }).lean(),
+      Deposit.getAdvertiserDepositsIsolated(userId)
     ]);
 
-    const links = rawLinks.map(link => {
+    const formattedLinks = links.map(link => {
       const totalViews = link.views || 0;
       const validImp = link.validImpressions || 0;
       const invalidImp = link.invalidImpressions || 0;
@@ -392,12 +429,12 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
       };
     });
 
-    const isAdmin = String(req.user.telegramId).trim() === CONFIG.ADMIN_ID;
+    const isAdmin = String(telegramId).trim() === CONFIG.ADMIN_ID;
     res.json({ 
       success: true,
       user: req.user, 
       language: req.user.language || CONFIG.DEFAULT_LANGUAGE,
-      links, 
+      links: formattedLinks, 
       withdraws, 
       announcements, 
       ads, 
@@ -418,7 +455,7 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- High-Precision Self-Serve Ad Campaign APIs ---
+// --- Campaign / Ad Management APIs ---
 app.post('/api/ads', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
@@ -442,8 +479,8 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
     }
 
     const updatedUser = await User.findOneAndUpdate(
-      { _id: req.userId, availableBalanceCents: { $gte: budgetCents } },
-      { $inc: { availableBalanceCents: -budgetCents } },
+      { _id: req.userId, availableBalance: { $gte: budgetCents } },
+      { $inc: { availableBalance: -budgetCents } },
       { new: true, session }
     );
 
@@ -454,14 +491,17 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
 
     const ad = await Ad.create([{
       userId: req.userId,
+      telegramId: req.telegramId,
       advertiserId: req.userId,
-      advertiserTelegramId: req.user.telegramId,
+      advertiserTelegramId: req.telegramId,
       title: String(title).trim(),
       targetUrl: String(targetUrl).trim(),
-      totalBudgetCents: budgetCents,
-      remainingBudgetCents: budgetCents,
-      costPerImpressionCents: 1, // $0.0015 -> 1 Cent scaling ratio
-      publisherEarningsPerImpressionCents: 1,
+      totalBudget: budgetCents,
+      remainingBudget: budgetCents,
+      cpmRate: 150, // Stored as cents
+      costPerImpression: 1,
+      publisherEarningsPerImpression: 1,
+      platformFeePerImpression: 0,
       status: 'active'
     }], { session });
 
@@ -477,7 +517,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
 
 app.get('/api/user/ads', authMiddleware, async (req, res, next) => {
   try {
-    const ads = await Ad.find({ userId: req.userId }).sort({ createdAt: -1 }).lean();
+    const ads = await Ad.findAdvertiserAdsIsolated(req.userId);
     res.json({ success: true, ads });
   } catch (err) {
     next(err);
@@ -489,7 +529,7 @@ app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
     const { adId } = req.body;
     if (!mongoose.Types.ObjectId.isValid(adId)) return res.status(400).json({ success: false, error: 'معرف الإعلان غير صالح' });
 
-    const ad = await Ad.findOne({ _id: adId, userId: req.userId });
+    const ad = await Ad.findOne({ _id: adId, $or: [{ userId: req.userId }, { advertiserId: req.userId }] });
     if (!ad) return res.status(404).json({ success: false, error: 'الإعلان غير موجود أو لا تملك صلاحية تعديله' });
 
     if (ad.status === 'completed') {
@@ -532,10 +572,10 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
 
     const deposit = await Deposit.create({
       userId: req.userId,
+      telegramId: req.telegramId,
       advertiserId: req.userId,
-      advertiserTelegramId: req.user.telegramId,
-      amountCents,
-      amount: toDollars(amountCents),
+      advertiserTelegramId: req.telegramId,
+      amount: amountCents,
       network: cleanNetwork,
       txid: cleanTxid,
       status: 'pending'
@@ -583,11 +623,11 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'لديك طلب سحب قيد الانتظار حالياً، يرجى الانتظار حتى معالجته' });
     }
 
-    const netAmountCents = amountCents - feeCents;
+    const netAmountCents = Math.max(0, amountCents - feeCents);
 
     const updatedUser = await User.findOneAndUpdate(
-      { _id: req.userId, availableBalanceCents: { $gte: amountCents } },
-      { $inc: { availableBalanceCents: -amountCents }, defaultWallet: cleanWallet },
+      { _id: req.userId, availableBalance: { $gte: amountCents } },
+      { $inc: { availableBalance: -amountCents }, defaultWallet: cleanWallet },
       { new: true, session }
     );
 
@@ -598,13 +638,10 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
 
     const withdrawRequest = await Withdraw.create([{
       userId: req.userId,
-      telegramId: req.user.telegramId,
-      amountCents,
-      feeCents,
-      netAmountCents,
-      amount: toDollars(amountCents),
-      fee: toDollars(feeCents),
-      netAmount: toDollars(netAmountCents),
+      telegramId: req.telegramId,
+      amount: amountCents,
+      fee: feeCents,
+      netAmount: netAmountCents,
       network: cleanNetwork,
       walletAddress: cleanWallet,
       status: 'pending'
@@ -613,7 +650,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
     await session.commitTransaction();
 
     sendTelegramNotification(
-      req.user.telegramId,
+      req.telegramId,
       `🔔 <b>تم تقديم طلب السحب بنجاح!</b>\nالمبلغ: <code>$${toDollars(amountCents)}</code>\nالرسوم: <code>$${toDollars(feeCents)}</code>\nالصافي: <code>$${toDollars(netAmountCents)}</code>\nالشبكة: <code>${cleanNetwork}</code>\nالمحفظة: <code>${cleanWallet}</code>\nالحالة: ⏳ قيد المراجعة\n\nالدعم: ${CONFIG.SUPPORT_USERNAME}`
     );
 
@@ -642,11 +679,11 @@ app.post('/api/init-click', validateTraffic, async (req, res, next) => {
       linkOwnerId = parsed.userId;
       linkOwnerTelegramId = parsed.publisherTelegramId;
     } else {
-      const link = await Link.findOne({ shortCode: cleanCode, isActive: true }).select('_id userId publisherTelegramId').lean();
+      const link = await Link.findOne({ shortCode: cleanCode, isActive: true }).select('_id userId telegramId publisherTelegramId').lean();
       if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود أو معطل' });
       linkId = link._id.toString();
       linkOwnerId = link.userId.toString();
-      linkOwnerTelegramId = link.publisherTelegramId;
+      linkOwnerTelegramId = link.publisherTelegramId || link.telegramId;
       await safeRedisSet(`link:data:${cleanCode}`, JSON.stringify({ id: linkId, userId: linkOwnerId, publisherTelegramId: linkOwnerTelegramId }), 'EX', 3600);
     }
 
@@ -656,7 +693,7 @@ app.post('/api/init-click', validateTraffic, async (req, res, next) => {
       { 
         $match: { 
           status: 'active', 
-          remainingBudgetCents: { $gte: 1 },
+          remainingBudget: { $gte: 1 },
           userId: { $ne: new mongoose.Types.ObjectId(linkOwnerId) }
         } 
       },
@@ -675,10 +712,13 @@ app.post('/api/init-click', validateTraffic, async (req, res, next) => {
     const session = await ClickSession.create({ 
       linkId, 
       userId: linkOwnerId,
+      telegramId: linkOwnerTelegramId,
       publisherId: linkOwnerId,
+      publisherTelegramId: linkOwnerTelegramId,
       ip: req.ip, 
       bridgeToken,
       adSource,
+      airdrop: false,
       adId: selectedAd ? selectedAd._id : null 
     });
 
@@ -767,6 +807,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
     await Impression.create([{
       linkId: link._id,
       userId: link.userId._id,
+      telegramId: link.userId.telegramId,
       publisherId: link.userId._id,
       publisherTelegramId: link.userId.telegramId,
       adSource: clickSession.adSource,
@@ -780,13 +821,13 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
     if (clickSession.adSource === 'internal' && clickSession.adId) {
       const ad = await Ad.findById(clickSession.adId).session(sessionDb);
       
-      if (ad && ad.remainingBudgetCents >= 1 && ad.status === 'active') {
-        const costCents = ad.costPerImpressionCents || 1;
-        let publisherShareCents = ad.publisherEarningsPerImpressionCents || 1;
+      if (ad && ad.remainingBudget >= 1 && ad.status === 'active') {
+        const costCents = ad.costPerImpression || 1;
+        let publisherShareCents = ad.publisherEarningsPerImpression || 1;
         
-        ad.remainingBudgetCents = Math.max(0, ad.remainingBudgetCents - costCents);
+        ad.remainingBudget = Math.max(0, ad.remainingBudget - costCents);
         ad.impressionsCount += 1;
-        if (ad.remainingBudgetCents < costCents) {
+        if (ad.remainingBudget < costCents) {
           ad.status = 'completed';
         }
         await ad.save({ session: sessionDb });
@@ -798,7 +839,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
           if (refBonusCents > 0) {
             await User.findByIdAndUpdate(
               link.userId.referredBy,
-              { $inc: { availableBalanceCents: refBonusCents, referralEarningsCents: refBonusCents } },
+              { $inc: { availableBalance: refBonusCents, referralEarnings: refBonusCents } },
               { session: sessionDb }
             );
           }
@@ -806,7 +847,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 
         await User.findByIdAndUpdate(
           link.userId._id,
-          { $inc: { pendingBalanceCents: publisherShareCents } },
+          { $inc: { pendingBalance: publisherShareCents } },
           { session: sessionDb }
         );
 
@@ -815,8 +856,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
         await EarningsHold.create([{
           userId: link.userId._id,
           telegramId: link.userId.telegramId,
-          amountCents: publisherShareCents,
-          amount: toDollars(publisherShareCents),
+          amount: publisherShareCents,
           releaseAt: releaseDate
         }], { session: sessionDb });
       }
@@ -832,13 +872,14 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
   }
 });
 
-// --- Links Management Engine ---
+// --- Links Management Engine (MongoDB direct connection & telegram_id isolation) ---
 app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res) => {
   try {
     const userId = req.userId;
+    const telegramId = req.telegramId;
 
-    if (!userId) {
-      return res.status(401).json({ success: false, error: 'غير مصرح: معرف المستخدم (userId) مفقود' });
+    if (!userId || !telegramId) {
+      return res.status(401).json({ success: false, error: 'غير مصرح: معرف المستخدم أو تيليجرام مفقود' });
     }
 
     const { title, targetUrl } = req.body;
@@ -860,12 +901,11 @@ app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res) => 
     } catch (e) {}
 
     const shortCode = crypto.randomBytes(3).toString('hex');
-    const publisherTelegramId = req.user?.telegramId || null;
     
     const newLink = new Link({
       userId: userId,
-      publisherTelegramId: publisherTelegramId,
-      telegramId: publisherTelegramId,
+      telegramId: telegramId,
+      publisherTelegramId: telegramId,
       title: title ? String(title).trim() : 'رابط بدون عنوان',
       targetUrl: cleanUrl,
       shortCode,
@@ -874,9 +914,7 @@ app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res) => 
 
     await newLink.save();
 
-    if (mongoose.Types.ObjectId.isValid(userId)) {
-      await User.findByIdAndUpdate(userId, { $inc: { 'statsSummary.totalLinksCreated': 1 } }).catch(() => {});
-    }
+    await User.findByIdAndUpdate(userId, { $inc: { 'statsSummary.totalLinksCreated': 1 } }).catch(() => {});
 
     const linkObj = newLink.toObject ? newLink.toObject() : newLink;
     const shortUrl = `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`;
@@ -894,16 +932,17 @@ app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res) => 
   }
 });
 
-const getUserLinks = async (userId) => {
-  if (!userId) return [];
+const getUserLinks = async (userId, telegramId) => {
+  if (!userId && !telegramId) return [];
 
   const rawLinks = await Link.find({
-    $or: [{ userId: userId }, { userId: userId.toString() }]
+    $or: [{ userId }, { telegramId }, { publisherTelegramId: telegramId }]
   }).sort({ createdAt: -1 }).lean();
 
   return rawLinks.map(link => {
     const totalViews = link.views || 0;
     const validImp = link.validImpressions || 0;
+    const invalidImp = link.invalidImpressions || 0;
     const ctr = totalViews > 0 ? ((validImp / totalViews) * 100).toFixed(1) : "0.0";
     return { 
       ...link, 
@@ -915,7 +954,7 @@ const getUserLinks = async (userId) => {
 
 app.get('/api/links', authMiddleware, async (req, res, next) => {
   try {
-    const links = await getUserLinks(req.userId);
+    const links = await getUserLinks(req.userId, req.telegramId);
     res.json({ success: true, links });
   } catch (err) {
     next(err);
@@ -924,7 +963,7 @@ app.get('/api/links', authMiddleware, async (req, res, next) => {
 
 app.get('/api/user/links', authMiddleware, async (req, res, next) => {
   try {
-    const links = await getUserLinks(req.userId);
+    const links = await getUserLinks(req.userId, req.telegramId);
     res.json({ success: true, links });
   } catch (err) {
     next(err);
@@ -935,11 +974,12 @@ app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
   try {
     const { linkId } = req.body;
     const userId = req.userId;
+    const telegramId = req.telegramId;
 
     if (!userId) return res.status(401).json({ success: false, error: 'معرف المستخدم مفقود' });
     if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
 
-    const link = await Link.findOne({ _id: linkId, $or: [{ userId: userId }, { userId: userId.toString() }] });
+    const link = await Link.findOne({ _id: linkId, $or: [{ userId }, { telegramId }, { publisherTelegramId: telegramId }] });
     if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات التعديل عليه' });
 
     link.isActive = !link.isActive;
@@ -975,7 +1015,7 @@ app.get('/api/admin/dashboard-data', authMiddleware, adminMiddleware, async (req
       Deposit.find().populate('advertiserId').sort({ createdAt: -1 }).lean(),
       User.find().sort({ createdAt: -1 }).limit(100).lean(),
       User.aggregate([
-        { $group: { _id: null, totalPending: { $sum: "$pendingBalanceCents" }, totalAvailable: { $sum: "$availableBalanceCents" }, totalUsers: { $sum: 1 } } }
+        { $group: { _id: null, totalPending: { $sum: "$pendingBalance" }, totalAvailable: { $sum: "$availableBalance" }, totalUsers: { $sum: 1 } } }
       ]),
       Ad.countDocuments()
     ]);
@@ -1020,10 +1060,10 @@ app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (re
 
     if (action === 'approved') {
       const targetUserId = deposit.userId || deposit.advertiserId._id;
-      const depositCents = deposit.amountCents || toCents(deposit.amount);
+      const depositCents = deposit.amount;
       await User.findByIdAndUpdate(
         targetUserId,
-        { $inc: { availableBalanceCents: depositCents } },
+        { $inc: { availableBalance: depositCents } },
         { session }
       );
 
@@ -1034,7 +1074,7 @@ app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (re
     } else {
       sendTelegramNotification(
         deposit.advertiserTelegramId || deposit.advertiserId.telegramId,
-        `❌ <b>تم رفض طلب الإيداع</b>\nالمبلغ: <code>$${deposit.amount}</code>\n⚠️ <b>السبب:</b> ${deposit.rejectReason}\n\nالدعم: ${CONFIG.SUPPORT_USERNAME}`
+        `❌ <b>تم رفض طلب الإيداع</b>\nالمبلغ: <code>$${toDollars(deposit.amount)}</code>\n⚠️ <b>السبب:</b> ${deposit.rejectReason}\n\nالدعم: ${CONFIG.SUPPORT_USERNAME}`
       );
     }
 
@@ -1074,10 +1114,10 @@ app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (r
     await withdraw.save({ session });
 
     if (action === 'rejected') {
-      const refundCents = withdraw.amountCents || toCents(withdraw.amount);
+      const refundCents = withdraw.amount;
       await User.findByIdAndUpdate(
         withdraw.userId._id, 
-        { $inc: { availableBalanceCents: refundCents } }, 
+        { $inc: { availableBalance: refundCents } }, 
         { session }
       );
 
@@ -1088,7 +1128,7 @@ app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (r
     } else if (action === 'approved') {
       sendTelegramNotification(
         withdraw.telegramId || withdraw.userId.telegramId,
-        `🎉 <b>تمت الموافقة على السحب!</b>\nإجمالي المبلغ: <code>$${withdraw.amount}</code>\nالصافي المحول: <code>$${withdraw.netAmount}</code>\nالشبكة: <code>${withdraw.network}</code>\nشكراً لاستخدامك منصتنا!`
+        `🎉 <b>تمت الموافقة على السحب!</b>\nإجمالي المبلغ: <code>$${toDollars(withdraw.amount)}</code>\nالصافي المحول: <code>$${toDollars(withdraw.netAmount)}</code>\nالشبكة: <code>${withdraw.network}</code>\nشكراً لاستخدامك منصتنا!`
       );
     }
 
@@ -1139,19 +1179,18 @@ app.post('/api/admin/distribute-revenue', authMiddleware, adminMiddleware, async
         if (refBonusCents > 0) {
           await User.findByIdAndUpdate(
             link.userId.referredBy,
-            { $inc: { availableBalanceCents: refBonusCents, referralEarningsCents: refBonusCents } },
+            { $inc: { availableBalance: refBonusCents, referralEarnings: refBonusCents } },
             { session }
           );
         }
       }
 
       if (link.userId && earnedCents > 0) {
-        await User.findByIdAndUpdate(link.userId._id, { $inc: { pendingBalanceCents: earnedCents } }, { session });
+        await User.findByIdAndUpdate(link.userId._id, { $inc: { pendingBalance: earnedCents } }, { session });
         await EarningsHold.create([{ 
           userId: link.userId._id, 
           telegramId: link.userId.telegramId, 
-          amountCents: earnedCents, 
-          amount: toDollars(earnedCents), 
+          amount: earnedCents, 
           releaseAt: releaseDate 
         }], { session });
       }
@@ -1194,6 +1233,7 @@ app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (r
 // --- Automated Cron Task for Settlement Engine ---
 cron.schedule('0 0 * * *', async () => {
   try {
+    await connectDB();
     const readyHolds = await EarningsHold.find({ releaseAt: { $lte: new Date() }, isReleased: false }).lean();
 
     for (let hold of readyHolds) {
@@ -1201,10 +1241,10 @@ cron.schedule('0 0 * * *', async () => {
       try {
         session.startTransaction();
         
-        const holdCents = hold.amountCents || toCents(hold.amount);
+        const holdCents = hold.amount;
         const userUpdate = await User.findByIdAndUpdate(
           hold.userId,
-          { $inc: { pendingBalanceCents: -holdCents, availableBalanceCents: holdCents } },
+          { $inc: { pendingBalance: -holdCents, availableBalance: holdCents } },
           { session, new: true }
         );
 
@@ -1270,4 +1310,8 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Ultra-Enterprise V7 Active on Port ${PORT}`));
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => console.log(`🚀 Ultra-Enterprise V7.1 Active on Port ${PORT}`));
+}
+
+module.exports = app;
