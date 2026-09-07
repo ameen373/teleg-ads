@@ -82,7 +82,7 @@ const CONFIG = Object.freeze({
 });
 
 // ==================================================
-// --- 2. Database Connection (MongoDB Mongoose via process.env.MONGO_URI for Serverless) ---
+// --- 2. Database Connection (MongoDB Mongoose via MONGO_URI) ---
 // ==================================================
 let cached = global.mongoose;
 if (!cached) {
@@ -98,7 +98,7 @@ async function connectDB() {
     throw uriError;
   }
 
-  // إعادة استخدام الاتصال المفتوح إذا كان خادم Vercel Serverless يحتفظ بالجلسة
+  // إعادة استخدام الاتصال المفتوح إذا كان الخادم يحتفظ بالجلسة (مثل بيئة Serverless)
   if (cached.conn) {
     return cached.conn;
   }
@@ -132,7 +132,7 @@ async function connectDB() {
   return cached.conn;
 }
 
-// Middleware لضمان الاتصال المباشر بقاعدة البيانات قبل تنفيذ الطلبات
+// Middleware لضمان الاتصال بقاعدة البيانات قبل تنفيذ الطلبات
 app.use(async (req, res, next) => {
   try {
     await connectDB();
@@ -182,7 +182,7 @@ app.use(async (req, res, next) => {
         }
       }
     } catch (e) {
-      // إكمال الطلب في حال وجود خطا تنفيذي جانبي
+      // إكمال الطلب في حال وجود خطأ تنفيذي جانبي
     }
   }
   next();
