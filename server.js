@@ -120,7 +120,7 @@ async function safeRedisDel(key) {
 }
 
 // =========================================================================
-// --- Database Connection Pipeline (استخدام process.env.MONGO_URI للحفظ الدائم) ---
+// --- Database Connection Pipeline (MongoDB Models Storage) ---
 // =========================================================================
 mongoose.connect(CONFIG.MONGO_URI, {
   maxPoolSize: 50,
@@ -269,19 +269,23 @@ const adminMiddleware = async (req, res, next) => {
   next();
 };
 
-// Helper لتهيئة وجلب كافة بيانات المستخدم بناءً على telegramId
+// =========================================================================
+// --- دالة المساعدة: البحث بـ Models المونجو بدلاً من المتغيرات المحلية ---
+// =========================================================================
 async function fetchFullUserDataByTelegramId(telegramId) {
   const tgIdStr = String(telegramId).trim();
   const user = await User.findOne({ telegramId: tgIdStr }).lean();
   if (!user) return null;
 
   const userId = user._id;
+  
+  // البحث مباشرة بـ MongoDB Models باستخدام telegramId
   const [rawLinks, withdraws, announcements, ads, deposits] = await Promise.all([
-    Link.find({ $or: [{ userId: userId }, { publisherTelegramId: tgIdStr }, { telegramId: tgIdStr }] }).sort({ createdAt: -1 }).lean(),
-    Withdraw.find({ $or: [{ userId: userId }, { telegramId: tgIdStr }] }).sort({ createdAt: -1 }).lean(),
+    Link.find({ $or: [{ telegramId: tgIdStr }, { publisherTelegramId: tgIdStr }, { userId: userId }] }).sort({ createdAt: -1 }).lean(),
+    Withdraw.find({ $or: [{ telegramId: tgIdStr }, { userId: userId }] }).sort({ createdAt: -1 }).lean(),
     Announcement.find({ $or: [{ isGlobal: true }, { targetUserId: userId }] }).sort({ createdAt: -1 }).lean(),
-    Ad.find({ $or: [{ userId: userId }, { advertiserTelegramId: tgIdStr }, { telegramId: tgIdStr }] }).sort({ createdAt: -1 }).lean(),
-    Deposit.find({ $or: [{ userId: userId }, { advertiserTelegramId: tgIdStr }, { telegramId: tgIdStr }] }).sort({ createdAt: -1 }).lean()
+    Ad.find({ $or: [{ telegramId: tgIdStr }, { advertiserTelegramId: tgIdStr }, { userId: userId }] }).sort({ createdAt: -1 }).lean(),
+    Deposit.find({ $or: [{ telegramId: tgIdStr }, { advertiserTelegramId: tgIdStr }, { userId: userId }] }).sort({ createdAt: -1 }).lean()
   ]);
 
   const links = rawLinks.map(link => {
@@ -302,7 +306,7 @@ async function fetchFullUserDataByTelegramId(telegramId) {
 }
 
 // =========================================================================
-// --- API Endpoint المطلوبة: جلب كافة بيانات المستخدم بـ GET عبر telegramId ---
+// --- [علامة النجاح] GET /api/user-data/:telegramId يجلب كل البيانات من DB ---
 // =========================================================================
 app.get('/api/user-data/:telegramId', async (req, res, next) => {
   try {
@@ -313,6 +317,7 @@ app.get('/api/user-data/:telegramId', async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'معرف تلغرام (telegramId) مطلوب' });
     }
 
+    // جلب البيانات بطلب Models لقاعدة البيانات
     const fullData = await fetchFullUserDataByTelegramId(cleanTgId);
 
     if (!fullData || !fullData.user) {
@@ -503,7 +508,7 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
 });
 
 // =========================================================================
-// --- POST /api/links: إنشاء رابط جديد وحفظ telegramId في MongoDB ---
+// --- POST /api/links: استلام وحفظ telegramId مع الرابط في MongoDB ---
 // =========================================================================
 app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res) => {
   try {
@@ -534,7 +539,7 @@ app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res) => 
 
     const shortCode = crypto.randomBytes(3).toString('hex');
 
-    // حفظ الرابط في قاعدة البيانات وتخزين telegramId في كافة الحقول المناسبة
+    // حفظ الرابط بـ Model ومرافقة telegramId مع الطلب
     const newLink = new Link({
       userId: user._id,
       publisherTelegramId: tgId,
@@ -570,7 +575,7 @@ app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res) => 
 });
 
 // =========================================================================
-// --- POST /api/ads: إنشاء حملة إعلانية جديدة وحفظ telegramId في MongoDB ---
+// --- POST /api/ads: استلام وحفظ telegramId مع الحملة في MongoDB ---
 // =========================================================================
 app.post('/api/ads', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
@@ -606,11 +611,10 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'رصيدك المتاح غير كافي لإنشاء هذه الحملة (الحد الأدنى $5)' });
     }
 
-    // خصم الميزانية
     user.availableBalance -= budget;
     await user.save({ session });
 
-    // حفظ الحملة الإعلانية وتخزين telegramId في الموديل بشكل دائم
+    // حفظ الإعلان في Model بدلاً من المصفوفات المؤقتة مع تخزين telegramId
     const ad = await Ad.create([{
       userId: user._id,
       advertiserId: user._id,
@@ -638,7 +642,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
 });
 
 // =========================================================================
-// --- POST /api/deposit: تقديم طلب إيداع وحفظ telegramId في MongoDB ---
+// --- POST /api/deposit: استلام وحفظ telegramId مع الإيداع في MongoDB ---
 // =========================================================================
 app.post('/api/deposit', authMiddleware, async (req, res, next) => {
   try {
@@ -670,7 +674,7 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'تم تقديم رقم هذه المعاملة (TxID) من قبل' });
     }
 
-    // حفظ طلب الإيداع وتخزين telegramId نهائياً في MongoDB عبر Deposit Model
+    // حفظ طلب الإيداع عبر Deposit Model
     const deposit = await Deposit.create({
       userId: user._id,
       advertiserId: user._id,
@@ -694,7 +698,7 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
 });
 
 // =========================================================================
-// --- POST /api/withdraw: تقديم طلب سحب وحفظ telegramId في MongoDB ---
+// --- POST /api/withdraw: استلام وحفظ telegramId مع السحب في MongoDB ---
 // =========================================================================
 app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
@@ -728,7 +732,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'عنوان المحفظة غير صالح' });
     }
 
-    const activePending = await Withdraw.findOne({ $or: [{ userId: user._id }, { telegramId: tgId }], status: 'pending' }).session(session);
+    const activePending = await Withdraw.findOne({ $or: [{ telegramId: tgId }, { userId: user._id }], status: 'pending' }).session(session);
     if (activePending) {
       await session.abortTransaction();
       return res.status(400).json({ success: false, error: 'لديك طلب سحب قيد الانتظار حالياً، يرجى الانتظار حتى معالجته' });
@@ -745,7 +749,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
     user.defaultWallet = cleanWallet;
     await user.save({ session });
 
-    // حفظ طلب السحب وتخزين telegramId في MongoDB عبر Withdraw Model بشكل دائم
+    // حفظ طلب السحب بـ Withdraw Model
     const withdrawRequest = await Withdraw.create([{
       userId: user._id,
       telegramId: tgId,
@@ -776,7 +780,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
 app.get('/api/user/ads', authMiddleware, async (req, res, next) => {
   try {
     const tgId = String(req.query.telegramId || req.user.telegramId).trim();
-    const ads = await Ad.find({ $or: [{ advertiserTelegramId: tgId }, { telegramId: tgId }, { userId: req.userId }] }).sort({ createdAt: -1 }).lean();
+    const ads = await Ad.find({ $or: [{ telegramId: tgId }, { advertiserTelegramId: tgId }, { userId: req.userId }] }).sort({ createdAt: -1 }).lean();
     res.json({ success: true, ads });
   } catch (err) {
     next(err);
@@ -886,7 +890,7 @@ app.post('/api/init-click', validateTraffic, async (req, res, next) => {
 });
 
 // =========================================================================
-// --- POST /api/impression: تسجيل ظهور مع حفظ telegramId في MongoDB ---
+// --- POST /api/impression: تسجيل ظهور بـ Impression Model مع telegramId ---
 // =========================================================================
 app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next) => {
   const sessionDb = await mongoose.startSession();
@@ -947,7 +951,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 
     const pubTgId = String(link.publisherTelegramId || link.telegramId || link.userId.telegramId);
 
-    // تسجيل ظهور جديد وتخزين telegramId الناشر نهائياً
+    // إضافة تسجيل ظهور مستقر بـ MongoDB
     await Impression.create([{
       linkId: link._id,
       userId: link.userId._id,
@@ -1015,11 +1019,11 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
   }
 });
 
-// Helper Function لجلب روابط المستخدم
+// Helper Function لجلب روابط المستخدم بالاستعلام الحصري
 const getUserLinks = async (telegramId) => {
   if (!telegramId) return [];
 
-  const rawLinks = await Link.find({ $or: [{ publisherTelegramId: String(telegramId) }, { telegramId: String(telegramId) }] }).sort({ createdAt: -1 }).lean();
+  const rawLinks = await Link.find({ $or: [{ telegramId: String(telegramId) }, { publisherTelegramId: String(telegramId) }] }).sort({ createdAt: -1 }).lean();
 
   return rawLinks.map(link => {
     const totalViews = link.views || 0;
