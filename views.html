@@ -425,10 +425,6 @@
           <button id="btn-request-deposit" class="btn-success" style="margin-top: 14px;" onclick="requestDeposit()">
             <span data-i18n="btn_submit_deposit">Submit Deposit Request</span>
           </button>
-
-          <!-- Deposit History Section -->
-          <h4 style="font-size: 13px; margin: 20px 0 10px 0; border-top: 1px solid var(--card-border); padding-top: 14px;">Deposit History</h4>
-          <div id="deposits-list" style="font-size: 12px; color: var(--text-muted);" data-i18n="loading">Loading...</div>
         </div>
 
         <!-- Wallet View: Withdraw -->
@@ -608,22 +604,14 @@
       ? 'http://localhost:3000' 
       : window.location.origin;
 
-    const tg = window.Telegram?.WebApp;
-
-    // 1. استخراج telegramId فوراً عند قراءة الملف
-    let telegramId = tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe.user.id) : null;
-    let currentUserTelegramId = telegramId;
-
-    if (tg) {
-      tg.ready();
-    }
-
     let authToken = localStorage.getItem('authToken');
     let currentSessionId = null;
     let bridgeStartTime = Date.now();
     let isUserAdmin = false;
     let currentLang = localStorage.getItem('appLang') || 'en';
+    let currentUserTelegramId = null;
     let rawUserLinksCache = [];
+    const tg = window.Telegram?.WebApp;
 
     // Translation Dictionary
     const i18n = {
@@ -858,13 +846,13 @@
     }
 
     /**
-     * 2. UNIFIED SECURE FETCH WRAPPER
-     * إرفاق telegramId تلقائياً مع كل طلب API للخادم (Headers + Body + Query Params)
+     * UNIFIED SECURE FETCH WRAPPER
      */
     async function safeFetch(endpoint, options = {}) {
       options.headers = options.headers || {};
       
-      const currentTgId = telegramId || currentUserTelegramId || tg?.initDataUnsafe?.user?.id || '';
+      const tgUser = tg?.initDataUnsafe?.user;
+      const currentTgId = tgUser?.id ? String(tgUser.id) : (currentUserTelegramId || '');
       const initDataStr = tg?.initData || '';
 
       if (authToken) {
@@ -874,24 +862,19 @@
         options.headers['x-telegram-init-data'] = initDataStr;
       }
       if (currentTgId) {
-        options.headers['x-telegram-id'] = String(currentTgId);
+        options.headers['x-telegram-id'] = currentTgId;
       }
 
-      // إرفاق telegramId في الـ Body لكافة الطلبات
-      let bodyObj = {};
       if (options.body && typeof options.body === 'string') {
-        try { bodyObj = JSON.parse(options.body); } catch(e) {}
-      } else if (options.body && typeof options.body === 'object') {
-        bodyObj = options.body;
-      }
-
-      if (options.method && options.method.toUpperCase() !== 'GET') {
-        if (currentTgId) {
-          bodyObj.telegramId = String(currentTgId);
-          bodyObj.userId = String(currentTgId);
-        }
-        if (initDataStr) bodyObj.initData = initDataStr;
-        options.body = JSON.stringify(bodyObj);
+        try {
+          const bodyObj = JSON.parse(options.body);
+          if (currentTgId) {
+            bodyObj.telegramId = currentTgId;
+            bodyObj.userId = currentTgId;
+          }
+          if (initDataStr) bodyObj.initData = initDataStr;
+          options.body = JSON.stringify(bodyObj);
+        } catch(e) {}
       }
 
       if (options.body && !options.headers['Content-Type']) {
@@ -904,8 +887,8 @@
       try {
         const urlObj = new URL(targetUrl);
         if (currentTgId && !urlObj.searchParams.has('telegramId')) {
-          urlObj.searchParams.set('telegramId', String(currentTgId));
-          urlObj.searchParams.set('userId', String(currentTgId));
+          urlObj.searchParams.set('telegramId', currentTgId);
+          urlObj.searchParams.set('userId', currentTgId);
         }
         if (initDataStr && !urlObj.searchParams.has('initData')) {
           urlObj.searchParams.set('initData', initDataStr);
@@ -922,7 +905,7 @@
           if (reAuth) {
             if (authToken) options.headers['Authorization'] = `Bearer ${authToken}`;
             if (initDataStr) options.headers['x-telegram-init-data'] = initDataStr;
-            if (currentTgId) options.headers['x-telegram-id'] = String(currentTgId);
+            if (currentTgId) options.headers['x-telegram-id'] = currentTgId;
             response = await fetch(targetUrl, options);
           }
         }
@@ -948,16 +931,15 @@
     }
 
     function renderTelegramUser() {
-      const u = window.Telegram?.WebApp?.initDataUnsafe?.user;
+      const u = tg?.initDataUnsafe?.user;
       const avatarContainer = document.getElementById('user-avatar-container');
       const nameElem = document.getElementById('user-display-name');
       const handleElem = document.getElementById('user-display-handle');
       const idElem = document.getElementById('user-tg-id');
       const premiumBadge = document.getElementById('user-premium-badge');
 
-      if (u && u.id) {
+      if (u) {
         currentUserTelegramId = String(u.id);
-        telegramId = String(u.id);
         const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || 'Telegram User';
         nameElem.innerText = fullName;
         handleElem.innerText = u.username ? `@${u.username}` : '@no_username';
@@ -984,7 +966,6 @@
         }
       } else {
         currentUserTelegramId = 'DEMO_USER_DEV';
-        telegramId = 'DEMO_USER_DEV';
         nameElem.innerText = 'Demo Partner';
         handleElem.innerText = '@demo_partner';
         idElem.innerText = 'ID: 88888888';
@@ -1082,13 +1063,13 @@
 
     // Check Admin Privilege
     async function checkAdminStatus() {
-      const userId = telegramId || currentUserTelegramId;
+      const userId = tg?.initDataUnsafe?.user?.id || currentUserTelegramId;
       if (!userId) return;
 
       try {
         const res = await safeFetch('/api/check-admin', {
           method: 'POST',
-          body: JSON.stringify({ userId, telegramId: userId })
+          body: JSON.stringify({ userId })
         });
         if (res) {
           const data = await res.json();
@@ -1114,8 +1095,8 @@
         const res = await safeFetch('/api/auth/login', {
           method: 'POST',
           body: JSON.stringify({ 
-            telegramId: telegramId || currentUserTelegramId,
-            userId: telegramId || currentUserTelegramId,
+            telegramId: currentUserTelegramId,
+            userId: currentUserTelegramId,
             initData: tg?.initData || '',
             referrerId: startParam, 
             telegramUserInfo: tg?.initDataUnsafe?.user || {} 
@@ -1130,79 +1111,13 @@
         }
       } catch (e) {
         console.error("Auth error:", e);
+        showToast(currentLang === 'ar' ? "فشل الاتصال بمركز المصادقة" : "Authentication connection failed");
       }
       return false;
     }
 
-    /**
-     * 3. التردد المباشر على الخادم بجلب بيانات المستخدم بناءً على الـ telegramId المستلم
-     * وتعبئة الواجهة بالكامل (المحفظة، الروابط، الحملات) عند فتح الصفحة
-     */
-    async function fetchUserDataImmediately() {
-      const activeTelegramId = telegramId || currentUserTelegramId || window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-      if (!activeTelegramId) return;
-
-      try {
-        const response = await safeFetch(`/api/user-data/${activeTelegramId}`);
-        if (!response || !response.ok) return;
-
-        const data = await response.json();
-        const user = data.user || data;
-
-        if (user) {
-          const pendingElem = document.getElementById('pending-bal');
-          const availElem = document.getElementById('avail-bal');
-          const refElem = document.getElementById('ref-earnings');
-          const walletElem = document.getElementById('default-wallet');
-
-          if (pendingElem) pendingElem.innerText = `$${(user.pendingBalance || 0).toFixed(2)}`;
-          if (availElem) availElem.innerText = `$${(user.availableBalance || 0).toFixed(2)}`;
-          if (refElem) refElem.innerText = `$${(user.referralEarnings || 0).toFixed(2)}`;
-          if (walletElem) walletElem.value = user.defaultWallet || '';
-
-          // تعبئة قائمة الحملات الإعلانية فوراً
-          const adsContainer = document.getElementById('ads-list');
-          if (adsContainer && data.ads) {
-            if (data.ads.length === 0) {
-              adsContainer.innerHTML = currentLang === 'ar' ? 'لا توجد حملات إعلانية نشطة حالياً.' : 'No active ad campaigns.';
-            } else {
-              adsContainer.innerHTML = data.ads.map(ad => {
-                let statusColor = ad.status === 'active' ? 'var(--success)' : (ad.status === 'paused' ? 'var(--warning)' : 'var(--text-muted)');
-                return `
-                <div class="ad-item" style="border-left: 4px solid ${statusColor};">
-                  <div class="ad-header">
-                    <b>${escapeHTML(ad.title)}</b>
-                    <span style="font-size: 10px; color: ${statusColor}; font-weight: bold;">${escapeHTML((ad.status || '').toUpperCase())}</span>
-                  </div>
-                  <div style="color:var(--text-muted); font-size:11px; margin-bottom:6px; word-break: break-all;">${escapeHTML(ad.targetUrl)}</div>
-                  <div>Remaining Budget: <b style="color:var(--success);">$${(ad.remainingBudget || 0).toFixed(2)}</b> / $${parseFloat(ad.totalBudget || 0).toFixed(2)} | Views: <b>${ad.impressionsCount || 0}</b></div>
-                  <div class="ad-actions">
-                    ${ad.status !== 'completed' ? `<button class="btn-small ${ad.status === 'active' ? 'btn-warning' : 'btn-success'}" onclick="toggleAdStatus('${ad._id}')">${ad.status === 'active' ? (currentLang === 'ar' ? 'إيقاف مؤقت' : 'Pause') : (currentLang === 'ar' ? 'تفعيل' : 'Activate')}</button>` : ''}
-                  </div>
-                </div>`;
-              }).join('');
-            }
-          }
-
-          // تعبئة قائمة الروابط فوراً
-          const linksContainer = document.getElementById('links-list');
-          if (linksContainer && data.links) {
-            rawUserLinksCache = data.links;
-            renderUserLinks(rawUserLinksCache);
-          }
-        }
-      } catch (err) {
-        console.error("Error executing immediate fetchUserData:", err);
-      }
-    }
-
-    // Direct Data Retrieval on Page Load
     async function initializeApp() {
       try {
-        renderTelegramUser();
-        // جلب وتعبئة بيانات المستخدم بناءً على telegramId المستلم فور فتح الصفحة
-        await fetchUserDataImmediately();
-
         if (!authToken) await authLogin();
         await checkAdminStatus();
         await loadUserData();
@@ -1211,28 +1126,26 @@
       }
     }
 
-    // Fetch and display user data (Campaigns, Wallet, Deposits, Withdrawals)
+    // Data Sync - Load Direct From Server
     async function loadUserData() {
       try {
         const linksContainer = document.getElementById('links-list');
         const adsContainer = document.getElementById('ads-list');
         const withdrawsContainer = document.getElementById('withdraws-list');
-        const depositsContainer = document.getElementById('deposits-list');
-
-        const activeTgId = telegramId || currentUserTelegramId;
         
-        const res = await safeFetch('/api/user-data/' + activeTgId);
+        if (linksContainer) linksContainer.innerHTML = i18n[currentLang]?.loading || 'Loading...';
+        if (adsContainer) adsContainer.innerHTML = i18n[currentLang]?.loading || 'Loading...';
+        if (withdrawsContainer) withdrawsContainer.innerHTML = i18n[currentLang]?.loading || 'Loading...';
+
+        const res = await safeFetch('/api/user/data');
         if (!res) return;
         const data = await res.json();
-        if (!data || (!data.user && !data._id)) return;
+        if (!data || !data.user) return;
 
-        const uData = data.user || data;
-
-        // تحديث إحصائيات المحفظة
-        document.getElementById('pending-bal').innerText = `$${(uData.pendingBalance || 0).toFixed(2)}`;
-        document.getElementById('avail-bal').innerText = `$${(uData.availableBalance || 0).toFixed(2)}`;
-        document.getElementById('ref-earnings').innerText = `$${(uData.referralEarnings || 0).toFixed(2)}`;
-        document.getElementById('default-wallet').value = uData.defaultWallet || '';
+        document.getElementById('pending-bal').innerText = `$${(data.user.pendingBalance || 0).toFixed(2)}`;
+        document.getElementById('avail-bal').innerText = `$${(data.user.availableBalance || 0).toFixed(2)}`;
+        document.getElementById('ref-earnings').innerText = `$${(data.user.referralEarnings || 0).toFixed(2)}`;
+        document.getElementById('default-wallet').value = data.user.defaultWallet || '';
         
         document.getElementById('default-wallet').setAttribute('readonly', 'readonly');
         document.getElementById('edit-wallet-btn').innerText = i18n[currentLang].btn_edit;
@@ -1240,7 +1153,7 @@
         document.getElementById('save-wallet-btn').classList.add('hidden');
 
         const botUsername = window.Telegram?.WebApp?.initDataUnsafe?.bot?.username || 'Ads_telegabot';
-        document.getElementById('ref-link').value = `https://t.me/${botUsername}?start=${uData._id}`;
+        document.getElementById('ref-link').value = `https://t.me/${botUsername}?start=${data.user._id}`;
 
         if (data.announcements && data.announcements.length > 0) {
           document.getElementById('announcement-box').classList.remove('hidden');
@@ -1248,93 +1161,63 @@
           document.getElementById('anc-content').innerText = data.announcements[0].content;
         }
 
-        // عرض السحوبات
-        if (withdrawsContainer) {
-          if (!data.withdraws || data.withdraws.length === 0) {
-            withdrawsContainer.innerHTML = currentLang === 'ar' ? 'لا توجد طلبات سحب سابقة.' : 'No withdrawal history.';
-          } else {
-            withdrawsContainer.innerHTML = data.withdraws.map(w => {
-              let statusColor = 'var(--warning)';
-              let statusText = currentLang === 'ar' ? 'قيد المراجعة' : 'Pending';
-              if (w.status === 'Completed') { statusColor = 'var(--success)'; statusText = currentLang === 'ar' ? 'مكتمل' : 'Completed'; }
-              else if (w.status === 'Rejected') { statusColor = 'var(--danger)'; statusText = currentLang === 'ar' ? 'مرفوض' : 'Rejected'; }
+        // Render Withdrawals
+        if (!data.withdraws || data.withdraws.length === 0) {
+          withdrawsContainer.innerHTML = currentLang === 'ar' ? 'لا توجد طلبات سحب سابقة.' : 'No withdrawal history.';
+        } else {
+          withdrawsContainer.innerHTML = data.withdraws.map(w => {
+            let statusColor = 'var(--warning)';
+            let statusText = currentLang === 'ar' ? 'قيد المراجعة' : 'Pending';
+            if (w.status === 'Completed') { statusColor = 'var(--success)'; statusText = currentLang === 'ar' ? 'مكتمل' : 'Completed'; }
+            else if (w.status === 'Rejected') { statusColor = 'var(--danger)'; statusText = currentLang === 'ar' ? 'مرفوض' : 'Rejected'; }
 
-              return `
-              <div style="background: #0f172a; padding: 12px; margin-bottom: 8px; border-radius: 12px; border: 1px solid var(--card-border);">
-                <div style="display: flex; justify-content: space-between;">
-                  <span>Amount: <b>$${parseFloat(w.amount || 0).toFixed(2)}</b></span>
-                  <span style="color: ${statusColor}; font-weight: bold;">${statusText}</span>
-                </div>
-                <div style="color: var(--text-muted); font-size: 11px; margin-top: 6px; word-break: break-all;">Wallet: ${escapeHTML(w.walletAddress)}</div>
-                ${w.rejectReason ? `<div style="color: var(--danger); font-size: 11px; margin-top: 4px;">Reason: ${escapeHTML(w.rejectReason)}</div>` : ''}
-              </div>`;
-            }).join('');
-          }
+            return `
+            <div style="background: #0f172a; padding: 12px; margin-bottom: 8px; border-radius: 12px; border: 1px solid var(--card-border);">
+              <div style="display: flex; justify-content: space-between;">
+                <span>Amount: <b>$${parseFloat(w.amount || 0).toFixed(2)}</b></span>
+                <span style="color: ${statusColor}; font-weight: bold;">${statusText}</span>
+              </div>
+              <div style="color: var(--text-muted); font-size: 11px; margin-top: 6px; word-break: break-all;">Wallet: ${escapeHTML(w.walletAddress)}</div>
+              ${w.rejectReason ? `<div style="color: var(--danger); font-size: 11px; margin-top: 4px;">Reason: ${escapeHTML(w.rejectReason)}</div>` : ''}
+            </div>`;
+          }).join('');
         }
 
-        // عرض الإيداعات
-        if (depositsContainer) {
-          if (!data.deposits || data.deposits.length === 0) {
-            depositsContainer.innerHTML = currentLang === 'ar' ? 'لا توجد طلبات إيداع سابقة.' : 'No deposit history.';
-          } else {
-            depositsContainer.innerHTML = data.deposits.map(d => {
-              let statusColor = 'var(--warning)';
-              let statusText = currentLang === 'ar' ? 'قيد المراجعة' : 'Pending';
-              if (d.status === 'Completed') { statusColor = 'var(--success)'; statusText = currentLang === 'ar' ? 'مكتمل' : 'Completed'; }
-              else if (d.status === 'Rejected') { statusColor = 'var(--danger)'; statusText = currentLang === 'ar' ? 'مرفوض' : 'Rejected'; }
-
-              return `
-              <div style="background: #0f172a; padding: 12px; margin-bottom: 8px; border-radius: 12px; border: 1px solid var(--card-border);">
-                <div style="display: flex; justify-content: space-between;">
-                  <span>Amount: <b>$${parseFloat(d.amount || 0).toFixed(2)}</b></span>
-                  <span style="color: ${statusColor}; font-weight: bold;">${statusText}</span>
-                </div>
-                <div style="color: var(--text-muted); font-size: 11px; margin-top: 4px;">Network: <code>${escapeHTML(d.paymentMethod || 'USDT')}</code></div>
-                <div style="color: var(--text-muted); font-size: 11px; margin-top: 2px; word-break: break-all;">TxID: ${escapeHTML(d.txHash || 'N/A')}</div>
-              </div>`;
-            }).join('');
-          }
-        }
-
-        // عرض الروابط
         rawUserLinksCache = (data.links || []).filter(l => {
           if (!l.ownerTelegramId && !l.owner) return false;
-          if (l.ownerTelegramId && activeTgId) {
-            return String(l.ownerTelegramId) === String(activeTgId);
+          if (l.ownerTelegramId && currentUserTelegramId) {
+            return String(l.ownerTelegramId) === String(currentUserTelegramId);
           }
           return true;
         });
 
         renderUserLinks(rawUserLinksCache);
 
-        // عرض الإعلانات
         const userAds = (data.ads || []).filter(ad => {
-          if (ad.advertiserTelegramId && activeTgId) {
-            return String(ad.advertiserTelegramId) === String(activeTgId);
+          if (ad.advertiserTelegramId && currentUserTelegramId) {
+            return String(ad.advertiserTelegramId) === String(currentUserTelegramId);
           }
           return true;
         });
 
-        if (adsContainer) {
-          if (userAds.length === 0) {
-            adsContainer.innerHTML = currentLang === 'ar' ? 'لا توجد حملات إعلانية نشطة حالياً.' : 'No active ad campaigns.';
-          } else {
-            adsContainer.innerHTML = userAds.map(ad => {
-              let statusColor = ad.status === 'active' ? 'var(--success)' : (ad.status === 'paused' ? 'var(--warning)' : 'var(--text-muted)');
-              return `
-              <div class="ad-item" style="border-left: 4px solid ${statusColor};">
-                <div class="ad-header">
-                  <b>${escapeHTML(ad.title)}</b>
-                  <span style="font-size: 10px; color: ${statusColor}; font-weight: bold;">${escapeHTML((ad.status || '').toUpperCase())}</span>
-                </div>
-                <div style="color:var(--text-muted); font-size:11px; margin-bottom:6px; word-break: break-all;">${escapeHTML(ad.targetUrl)}</div>
-                <div>Remaining Budget: <b style="color:var(--success);">$${(ad.remainingBudget || 0).toFixed(2)}</b> / $${parseFloat(ad.totalBudget || 0).toFixed(2)} | Views: <b>${ad.impressionsCount || 0}</b></div>
-                <div class="ad-actions">
-                  ${ad.status !== 'completed' ? `<button class="btn-small ${ad.status === 'active' ? 'btn-warning' : 'btn-success'}" onclick="toggleAdStatus('${ad._id}')">${ad.status === 'active' ? (currentLang === 'ar' ? 'إيقاف مؤقت' : 'Pause') : (currentLang === 'ar' ? 'تفعيل' : 'Activate')}</button>` : ''}
-                </div>
-              </div>`;
-            }).join('');
-          }
+        if (userAds.length === 0) {
+          adsContainer.innerHTML = currentLang === 'ar' ? 'لا توجد حملات إعلانية نشطة حالياً.' : 'No active ad campaigns.';
+        } else {
+          adsContainer.innerHTML = userAds.map(ad => {
+            let statusColor = ad.status === 'active' ? 'var(--success)' : (ad.status === 'paused' ? 'var(--warning)' : 'var(--text-muted)');
+            return `
+            <div class="ad-item" style="border-left: 4px solid ${statusColor};">
+              <div class="ad-header">
+                <b>${escapeHTML(ad.title)}</b>
+                <span style="font-size: 10px; color: ${statusColor}; font-weight: bold;">${escapeHTML(ad.status.toUpperCase())}</span>
+              </div>
+              <div style="color:var(--text-muted); font-size:11px; margin-bottom:6px; word-break: break-all;">${escapeHTML(ad.targetUrl)}</div>
+              <div>Remaining Budget: <b style="color:var(--success);">$${(ad.remainingBudget || 0).toFixed(2)}</b> / $${parseFloat(ad.totalBudget || 0).toFixed(2)} | Views: <b>${ad.impressionsCount || 0}</b></div>
+              <div class="ad-actions">
+                ${ad.status !== 'completed' ? `<button class="btn-small ${ad.status === 'active' ? 'btn-warning' : 'btn-success'}" onclick="toggleAdStatus('${ad._id}')">${ad.status === 'active' ? (currentLang === 'ar' ? 'إيقاف مؤقت' : 'Pause') : (currentLang === 'ar' ? 'تفعيل' : 'Activate')}</button>` : ''}
+              </div>
+            </div>`;
+          }).join('');
         }
 
       } catch (err) {
@@ -1409,7 +1292,7 @@
       try {
         const res = await safeFetch('/api/links/toggle', {
           method: 'POST',
-          body: JSON.stringify({ linkId, telegramId: telegramId || currentUserTelegramId })
+          body: JSON.stringify({ linkId })
         });
         if (!res) return;
         const data = await res.json();
@@ -1428,7 +1311,7 @@
       try {
         const res = await safeFetch('/api/ads/toggle', {
           method: 'POST',
-          body: JSON.stringify({ adId, telegramId: telegramId || currentUserTelegramId })
+          body: JSON.stringify({ adId })
         });
         if (!res) return;
         const data = await res.json();
@@ -1455,13 +1338,7 @@
       try {
         const res = await safeFetch('/api/ads', {
           method: 'POST',
-          body: JSON.stringify({ 
-            title, 
-            targetUrl, 
-            totalBudget, 
-            telegramId: telegramId || currentUserTelegramId,
-            userId: telegramId || currentUserTelegramId 
-          })
+          body: JSON.stringify({ title, targetUrl, totalBudget, userId: currentUserTelegramId })
         });
         if (!res) return;
         const data = await res.json();
@@ -1495,13 +1372,7 @@
       try {
         const res = await safeFetch('/api/deposit', {
           method: 'POST',
-          body: JSON.stringify({ 
-            amount, 
-            paymentMethod, 
-            txHash, 
-            telegramId: telegramId || currentUserTelegramId,
-            userId: telegramId || currentUserTelegramId 
-          })
+          body: JSON.stringify({ amount, paymentMethod, txHash, userId: currentUserTelegramId })
         });
         if (!res) return;
         const data = await res.json();
@@ -1530,11 +1401,7 @@
       try {
         const res = await safeFetch('/api/init-click', {
           method: 'POST',
-          body: JSON.stringify({ 
-            linkCode: shortCode, 
-            telegramId: telegramId || currentUserTelegramId,
-            userId: telegramId || currentUserTelegramId 
-          })
+          body: JSON.stringify({ linkCode: shortCode, userId: currentUserTelegramId })
         });
         if (res) {
           const data = await res.json();
@@ -1592,13 +1459,7 @@
       try {
         const res = await safeFetch('/api/impression', {
           method: 'POST',
-          body: JSON.stringify({ 
-            linkCode: shortCode, 
-            sessionId: currentSessionId, 
-            duration, 
-            telegramId: telegramId || currentUserTelegramId,
-            userId: telegramId || currentUserTelegramId 
-          })
+          body: JSON.stringify({ linkCode: shortCode, sessionId: currentSessionId, duration, userId: currentUserTelegramId })
         });
         if (!res) return;
         const data = await res.json();
@@ -1632,8 +1493,7 @@
           body: JSON.stringify({ 
             title, 
             targetUrl,
-            telegramId: telegramId || currentUserTelegramId,
-            userId: telegramId || currentUserTelegramId,
+            userId: currentUserTelegramId,
             initData: tg?.initData || ''
           })
         });
@@ -1655,7 +1515,7 @@
               views: 0,
               validImpressions: 0,
               isActive: true,
-              ownerTelegramId: telegramId || currentUserTelegramId
+              ownerTelegramId: currentUserTelegramId
             };
             prependLinkToDOM(newLinkObj);
           } else {
@@ -1682,12 +1542,7 @@
       try {
         const res = await safeFetch('/api/withdraw', {
           method: 'POST',
-          body: JSON.stringify({ 
-            amount, 
-            walletAddress, 
-            telegramId: telegramId || currentUserTelegramId,
-            userId: telegramId || currentUserTelegramId 
-          })
+          body: JSON.stringify({ amount, walletAddress, userId: currentUserTelegramId })
         });
         if (!res) return;
         const data = await res.json();
@@ -1714,11 +1569,7 @@
       try {
         const res = await safeFetch('/api/user/settings', {
           method: 'POST',
-          body: JSON.stringify({ 
-            defaultWallet, 
-            telegramId: telegramId || currentUserTelegramId,
-            userId: telegramId || currentUserTelegramId 
-          })
+          body: JSON.stringify({ defaultWallet, userId: currentUserTelegramId })
         });
         if (!res) return;
         const data = await res.json();
@@ -1757,83 +1608,171 @@
         const res = await safeFetch('/api/admin/dashboard-data');
         if (!res) return;
         const data = await res.json();
-        
-        document.getElementById('admin-total-users').innerText = data.totalUsers || 0;
-        document.getElementById('admin-total-pending').innerText = `$${(data.totalPending || 0).toFixed(2)}`;
+        if (data.error) return showToast(data.error);
 
-        const depList = document.getElementById('admin-deposits-list');
-        if (depList) {
-          if (!data.pendingDeposits || data.pendingDeposits.length === 0) depList.innerHTML = 'No pending deposits.';
-          else depList.innerHTML = data.pendingDeposits.map(d => `
-            <div style="background:#070a12; padding:10px; margin-bottom:6px; border-radius:8px;">
-              User: <b>${d.telegramId || d.userId}</b> | Amount: <b style="color:var(--success);">$${d.amount}</b> | TxID: <code>${escapeHTML(d.txHash)}</code>
-              <div style="margin-top:6px;">
-                <button class="btn-small btn-success" onclick="approveDeposit('${d._id}')">Approve</button>
-                <button class="btn-small btn-danger" onclick="rejectDeposit('${d._id}')">Reject</button>
+        document.getElementById('admin-total-users').innerText = data.stats?.totalUsers || 0;
+        document.getElementById('admin-total-pending').innerText = `$${(data.stats?.totalPending || 0).toFixed(2)}`;
+
+        const dList = document.getElementById('admin-deposits-list');
+        if (!data.deposits || data.deposits.length === 0) dList.innerHTML = 'No pending deposit requests.';
+        else {
+          dList.innerHTML = data.deposits.map(d => `
+            <div style="background:#0f172a; padding:12px; margin-bottom:8px; border-radius:12px; border: 1px solid var(--card-border);">
+              User: <b>${escapeHTML(d.advertiserId?.username || d.advertiserId?.telegramId || 'Unknown')}</b><br>
+              Amount: <b style="color:var(--success);">$${parseFloat(d.amount || 0).toFixed(2)}</b> | Network: <code>${escapeHTML(d.paymentMethod)}</code><br>
+              TxID: <code style="color: var(--warning); word-break: break-all;">${escapeHTML(d.txHash || 'N/A')}</code><br>
+              <div style="margin-top: 10px; display: flex; gap: 8px;">
+                <button class="btn-small btn-success" onclick="handleAdminDeposit('${d._id}', 'Completed')">Approve</button>
+                <button class="btn-small btn-danger" onclick="handleAdminDeposit('${d._id}', 'Rejected')">Reject</button>
               </div>
-            </div>`).join('');
+            </div>
+          `).join('');
         }
 
-        const withList = document.getElementById('admin-withdraws-list');
-        if (withList) {
-          if (!data.pendingWithdrawals || data.pendingWithdrawals.length === 0) withList.innerHTML = 'No pending withdrawals.';
-          else withList.innerHTML = data.pendingWithdrawals.map(w => `
-            <div style="background:#070a12; padding:10px; margin-bottom:6px; border-radius:8px;">
-              User: <b>${w.telegramId || w.userId}</b> | Amount: <b style="color:var(--warning);">$${w.amount}</b> | Wallet: <code>${escapeHTML(w.walletAddress)}</code>
-              <div style="margin-top:6px;">
-                <button class="btn-small btn-success" onclick="approveWithdrawal('${w._id}')">Approve</button>
-                <button class="btn-small btn-danger" onclick="rejectWithdrawal('${w._id}')">Reject</button>
+        const wList = document.getElementById('admin-withdraws-list');
+        if (!data.withdraws || data.withdraws.length === 0) wList.innerHTML = 'No pending withdrawal requests.';
+        else {
+          wList.innerHTML = data.withdraws.map(w => `
+            <div style="background:#0f172a; padding:12px; margin-bottom:8px; border-radius:12px; border: 1px solid var(--card-border);">
+              User: <b>${escapeHTML(w.userId?.username || w.userId?.telegramId || 'Unknown')}</b><br>
+              Amount: <b style="color:var(--success);">$${parseFloat(w.amount || 0).toFixed(2)}</b><br>
+              Wallet: <code style="word-break: break-all;">${escapeHTML(w.walletAddress)}</code><br>
+              <div style="margin-top: 10px; display: flex; gap: 8px;">
+                <button class="btn-small btn-success" onclick="handleAdminWithdraw('${w._id}', 'Completed')">Approve</button>
+                <button class="btn-small btn-danger" onclick="handleAdminWithdraw('${w._id}', 'Rejected')">Reject</button>
               </div>
-            </div>`).join('');
+            </div>
+          `).join('');
+        }
+
+        const uList = document.getElementById('admin-users-list');
+        if (!data.users || data.users.length === 0) uList.innerHTML = 'No users found.';
+        else {
+          uList.innerHTML = data.users.map(u => `
+            <div style="background:#0f172a; padding:12px; margin-bottom:8px; border-radius:12px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid ${u.isBanned ? 'var(--danger)' : 'var(--success)'};">
+              <div>
+                <b>${escapeHTML(u.username || 'Unknown')}</b> (${escapeHTML(String(u.telegramId || ''))})<br>
+                <span style="color: var(--text-muted);">Available: $${(u.availableBalance || 0).toFixed(2)}</span>
+              </div>
+              <button class="btn-small ${u.isBanned ? 'btn-warning' : 'btn-danger'}" onclick="toggleUserBan('${u._id}')">
+                ${u.isBanned ? 'Unban' : 'Ban'}
+              </button>
+            </div>
+          `).join('');
         }
       } catch (e) {
-        console.error("Error loading admin data:", e);
+        showToast("Failed to load admin data");
       }
     }
 
-    async function approveDeposit(depositId) {
-      if (!confirm("Approve this deposit request?")) return;
-      const res = await safeFetch('/api/admin/deposits/approve', { method: 'POST', body: JSON.stringify({ depositId }) });
-      if (res) { showToast("Deposit Approved"); loadAdminData(); }
+    async function handleAdminDeposit(depositId, action) {
+      triggerHaptic('medium');
+      try {
+        const res = await safeFetch('/api/admin/deposit/action', {
+          method: 'POST',
+          body: JSON.stringify({ depositId, action, userId: currentUserTelegramId })
+        });
+        if (!res) return;
+        const data = await res.json();
+        if (data.error) showToast(data.error);
+        else {
+          showToast("Deposit request updated");
+          loadAdminData();
+        }
+      } catch (e) {
+        showToast("Deposit action failed");
+      }
     }
 
-    async function rejectDeposit(depositId) {
-      if (!confirm("Reject this deposit request?")) return;
-      const res = await safeFetch('/api/admin/deposits/reject', { method: 'POST', body: JSON.stringify({ depositId }) });
-      if (res) { showToast("Deposit Rejected"); loadAdminData(); }
+    async function handleAdminWithdraw(withdrawId, action) {
+      let rejectReason = '';
+      if (action === 'Rejected') {
+        rejectReason = prompt("Rejection reason (shown to user):");
+        if (rejectReason === null) return;
+      }
+
+      triggerHaptic('medium');
+      try {
+        const res = await safeFetch('/api/admin/withdraw/action', {
+          method: 'POST',
+          body: JSON.stringify({ withdrawId, action, rejectReason, userId: currentUserTelegramId })
+        });
+        if (!res) return;
+        const data = await res.json();
+        if (data.error) showToast(data.error);
+        else {
+          showToast("Withdrawal request updated");
+          loadAdminData();
+        }
+      } catch (e) {
+        showToast("Action failed");
+      }
     }
 
-    async function approveWithdrawal(withdrawalId) {
-      if (!confirm("Approve this withdrawal request?")) return;
-      const res = await safeFetch('/api/admin/withdrawals/approve', { method: 'POST', body: JSON.stringify({ withdrawalId }) });
-      if (res) { showToast("Withdrawal Approved"); loadAdminData(); }
-    }
-
-    async function rejectWithdrawal(withdrawalId) {
-      const reason = prompt("Enter rejection reason:");
-      if (!reason) return;
-      const res = await safeFetch('/api/admin/withdrawals/reject', { method: 'POST', body: JSON.stringify({ withdrawalId, reason }) });
-      if (res) { showToast("Withdrawal Rejected"); loadAdminData(); }
+    async function toggleUserBan(userId) {
+      triggerHaptic('medium');
+      try {
+        const res = await safeFetch('/api/admin/user/toggle-ban', {
+          method: 'POST',
+          body: JSON.stringify({ userId, adminId: currentUserTelegramId })
+        });
+        if (!res) return;
+        const data = await res.json();
+        if (data.error) showToast(data.error);
+        else {
+          showToast(data.isBanned ? "User banned" : "User unbanned");
+          loadAdminData();
+        }
+      } catch (e) {
+        showToast("Error changing ban state");
+      }
     }
 
     async function distributeRevenue() {
-      const amount = document.getElementById('revenue-amount').value;
-      if (!amount || amount <= 0) return showToast("Enter valid revenue amount");
-      if (!confirm(`Distribute $${amount} to eligible users?`)) return;
-      
-      const res = await safeFetch('/api/admin/distribute-revenue', { method: 'POST', body: JSON.stringify({ amount }) });
-      if (res) { showToast("Revenue Distributed!"); loadAdminData(); }
+      const totalRevenue = document.getElementById('revenue-amount').value;
+      if (!totalRevenue || totalRevenue <= 0) return showToast("Enter a valid amount");
+
+      triggerHaptic('medium');
+      setButtonLoading('btn-distribute-rev', true);
+
+      try {
+        const res = await safeFetch('/api/admin/distribute-revenue', {
+          method: 'POST',
+          body: JSON.stringify({ totalRevenue, userId: currentUserTelegramId })
+        });
+        if (!res) return;
+        const data = await res.json();
+        if (data.error) showToast(data.error);
+        else {
+          showToast(data.message || "Revenue distributed successfully");
+          document.getElementById('revenue-amount').value = '';
+        }
+      } catch (e) {
+        showToast("Error distributing revenue");
+      } finally {
+        setButtonLoading('btn-distribute-rev', false, 'Distribute Revenue Pool');
+      }
     }
 
-    // Router and Startup Setup
+    // App Initialization Lifecycle
     window.addEventListener('DOMContentLoaded', () => {
+      try {
+        if (tg) {
+          tg.ready();
+          tg.expand();
+          if (tg.isVersionAtLeast && tg.isVersionAtLeast('6.1')) {
+            tg.enableClosingConfirmation();
+          }
+        }
+      } catch (e) {}
+
+      renderTelegramUser();
+
       if (window.location.pathname.includes('/r/')) {
         document.getElementById('app-view').classList.add('hidden');
         document.getElementById('bridge-view').classList.remove('hidden');
         initBridge();
       } else {
-        document.getElementById('bridge-view').classList.add('hidden');
-        document.getElementById('app-view').classList.remove('hidden');
         initializeApp();
       }
     });
