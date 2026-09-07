@@ -609,9 +609,18 @@
     let bridgeStartTime = Date.now();
     let isUserAdmin = false;
     let currentLang = localStorage.getItem('appLang') || 'en';
-    let currentUserTelegramId = null;
     let rawUserLinksCache = [];
     const tg = window.Telegram?.WebApp;
+
+    /**
+     * Helper to retrieve the actual Telegram User ID dynamically from Telegram Web App
+     */
+    function getTelegramId() {
+      if (tg?.initDataUnsafe?.user?.id) {
+        return String(tg.initDataUnsafe.user.id);
+      }
+      return null;
+    }
 
     // Translation Dictionary
     const i18n = {
@@ -846,13 +855,12 @@
     }
 
     /**
-     * UNIFIED SECURE FETCH WRAPPER (Sends telegram_id & initData automatically)
+     * UNIFIED SECURE FETCH WRAPPER (Reads telegramId dynamically from window.Telegram.WebApp)
      */
     async function safeFetch(endpoint, options = {}) {
       options.headers = options.headers || {};
       
-      const tgUser = tg?.initDataUnsafe?.user;
-      const currentTgId = tgUser?.id ? String(tgUser.id) : (currentUserTelegramId || '');
+      const currentTgId = getTelegramId();
       const initDataStr = tg?.initData || '';
 
       if (authToken) {
@@ -865,6 +873,7 @@
       if (currentTgId) {
         options.headers['x-telegram-id'] = currentTgId;
         options.headers['telegram_id'] = currentTgId;
+        options.headers['telegramId'] = currentTgId;
         options.headers['userId'] = currentTgId;
       }
 
@@ -916,6 +925,7 @@
             if (currentTgId) {
               options.headers['x-telegram-id'] = currentTgId;
               options.headers['telegram_id'] = currentTgId;
+              options.headers['telegramId'] = currentTgId;
               options.headers['userId'] = currentTgId;
             }
             response = await fetch(targetUrl, options);
@@ -951,7 +961,6 @@
       const premiumBadge = document.getElementById('user-premium-badge');
 
       if (u && u.id) {
-        currentUserTelegramId = String(u.id);
         const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || 'Telegram User';
         nameElem.innerText = fullName;
         handleElem.innerText = u.username ? `@${u.username}` : '@no_username';
@@ -977,10 +986,9 @@
           currentLang = 'en';
         }
       } else {
-        currentUserTelegramId = 'DEMO_USER_DEV';
         nameElem.innerText = 'Demo Partner';
         handleElem.innerText = '@demo_partner';
-        idElem.innerText = 'ID: 88888888';
+        idElem.innerText = 'ID: -';
         avatarContainer.innerHTML = `<div class="user-avatar-placeholder">D</div>`;
         if (!localStorage.getItem('appLang')) {
           currentLang = 'en';
@@ -1075,13 +1083,13 @@
 
     // Check Admin Privilege
     async function checkAdminStatus() {
-      const userId = tg?.initDataUnsafe?.user?.id || currentUserTelegramId;
+      const userId = getTelegramId();
       if (!userId) return;
 
       try {
         const res = await safeFetch('/api/check-admin', {
           method: 'POST',
-          body: JSON.stringify({ userId, telegram_id: userId })
+          body: JSON.stringify({ userId, telegram_id: userId, telegramId: userId })
         });
         if (res) {
           const data = await res.json();
@@ -1103,13 +1111,14 @@
     // Authentication Engine
     async function authLogin() {
       const startParam = tg?.initDataUnsafe?.start_param || null;
+      const currentTgId = getTelegramId();
       try {
         const res = await safeFetch('/api/auth/login', {
           method: 'POST',
           body: JSON.stringify({ 
-            telegram_id: currentUserTelegramId,
-            telegramId: currentUserTelegramId,
-            userId: currentUserTelegramId,
+            telegram_id: currentTgId,
+            telegramId: currentTgId,
+            userId: currentTgId,
             initData: tg?.initData || '',
             referrerId: startParam, 
             telegramUserInfo: tg?.initDataUnsafe?.user || {} 
@@ -1146,7 +1155,7 @@
         const data = await res.json();
         if (!data || !data.user) return;
 
-        // Automatically update balances & UI elements instantly without clearing or blinking sections
+        // Automatically update balances & UI elements instantly
         document.getElementById('pending-bal').innerText = `$${(data.user.pendingBalance || 0).toFixed(2)}`;
         document.getElementById('avail-bal').innerText = `$${(data.user.availableBalance || 0).toFixed(2)}`;
         document.getElementById('ref-earnings').innerText = `$${(data.user.referralEarnings || 0).toFixed(2)}`;
@@ -1158,8 +1167,9 @@
 
         const botUsername = window.Telegram?.WebApp?.initDataUnsafe?.bot?.username || 'Ads_telegabot';
         const refLinkInput = document.getElementById('ref-link');
+        const currentTgId = getTelegramId();
         if (refLinkInput) {
-          refLinkInput.value = `https://t.me/${botUsername}?start=${data.user._id || currentUserTelegramId}`;
+          refLinkInput.value = `https://t.me/${botUsername}?start=${data.user._id || currentTgId}`;
         }
 
         if (data.announcements && data.announcements.length > 0) {
@@ -1193,10 +1203,11 @@
           }
         }
 
+        const currentTgIdForFilter = getTelegramId();
         rawUserLinksCache = (data.links || []).filter(l => {
           if (!l.ownerTelegramId && !l.owner) return false;
-          if (l.ownerTelegramId && currentUserTelegramId) {
-            return String(l.ownerTelegramId) === String(currentUserTelegramId);
+          if (l.ownerTelegramId && currentTgIdForFilter) {
+            return String(l.ownerTelegramId) === String(currentTgIdForFilter);
           }
           return true;
         });
@@ -1207,8 +1218,8 @@
         const adsContainer = document.getElementById('ads-list');
         if (adsContainer) {
           const userAds = (data.ads || []).filter(ad => {
-            if (ad.advertiserTelegramId && currentUserTelegramId) {
-              return String(ad.advertiserTelegramId) === String(currentUserTelegramId);
+            if (ad.advertiserTelegramId && currentTgIdForFilter) {
+              return String(ad.advertiserTelegramId) === String(currentTgIdForFilter);
             }
             return true;
           });
@@ -1303,10 +1314,11 @@
 
     async function toggleLinkStatus(linkId) {
       triggerHaptic('light');
+      const currentTgId = getTelegramId();
       try {
         const res = await safeFetch('/api/links/toggle', {
           method: 'POST',
-          body: JSON.stringify({ linkId, telegram_id: currentUserTelegramId })
+          body: JSON.stringify({ linkId, telegram_id: currentTgId, telegramId: currentTgId })
         });
         if (!res) return;
         const data = await res.json();
@@ -1322,10 +1334,11 @@
 
     async function toggleAdStatus(adId) {
       triggerHaptic('light');
+      const currentTgId = getTelegramId();
       try {
         const res = await safeFetch('/api/ads/toggle', {
           method: 'POST',
-          body: JSON.stringify({ adId, telegram_id: currentUserTelegramId })
+          body: JSON.stringify({ adId, telegram_id: currentTgId, telegramId: currentTgId })
         });
         if (!res) return;
         const data = await res.json();
@@ -1343,6 +1356,7 @@
       const title = document.getElementById('ad-title').value;
       const targetUrl = document.getElementById('ad-target-url').value;
       const totalBudget = document.getElementById('ad-budget').value;
+      const currentTgId = getTelegramId();
 
       if (!title || !targetUrl || !totalBudget) return showToast(currentLang === 'ar' ? "يرجى ملء جميع البيانات المطلوب الإعلان عنها" : "Please fill in all ad details");
 
@@ -1352,7 +1366,7 @@
       try {
         const res = await safeFetch('/api/ads', {
           method: 'POST',
-          body: JSON.stringify({ title, targetUrl, totalBudget, telegram_id: currentUserTelegramId, userId: currentUserTelegramId })
+          body: JSON.stringify({ title, targetUrl, totalBudget, telegram_id: currentTgId, telegramId: currentTgId, userId: currentTgId })
         });
         if (!res) return;
         const data = await res.json();
@@ -1375,6 +1389,7 @@
       const amount = document.getElementById('deposit-amount').value;
       const paymentMethod = document.getElementById('deposit-network').value;
       const txHash = document.getElementById('deposit-txhash').value;
+      const currentTgId = getTelegramId();
 
       if (!paymentMethod) return showToast(currentLang === 'ar' ? "يرجى تحديد نوع الشبكة أولاً" : "Select deposit network first");
       if (!amount || amount <= 0) return showToast(currentLang === 'ar' ? "يرجى إدخال مبلغ الشحن الصحيح" : "Enter a valid deposit amount");
@@ -1386,7 +1401,7 @@
       try {
         const res = await safeFetch('/api/deposit', {
           method: 'POST',
-          body: JSON.stringify({ amount, paymentMethod, txHash, telegram_id: currentUserTelegramId, userId: currentUserTelegramId })
+          body: JSON.stringify({ amount, paymentMethod, txHash, telegram_id: currentTgId, telegramId: currentTgId, userId: currentTgId })
         });
         if (!res) return;
         const data = await res.json();
@@ -1410,12 +1425,13 @@
     async function initBridge() {
       const pathParts = window.location.pathname.split('/r/');
       const shortCode = pathParts[1];
+      const currentTgId = getTelegramId();
       bridgeStartTime = Date.now();
 
       try {
         const res = await safeFetch('/api/init-click', {
           method: 'POST',
-          body: JSON.stringify({ linkCode: shortCode, telegram_id: currentUserTelegramId, userId: currentUserTelegramId })
+          body: JSON.stringify({ linkCode: shortCode, telegram_id: currentTgId, telegramId: currentTgId, userId: currentTgId })
         });
         if (res) {
           const data = await res.json();
@@ -1469,11 +1485,12 @@
       setButtonLoading('go-btn', true);
       const shortCode = window.location.pathname.split('/r/')[1];
       const duration = Math.floor((Date.now() - bridgeStartTime) / 1000);
+      const currentTgId = getTelegramId();
 
       try {
         const res = await safeFetch('/api/impression', {
           method: 'POST',
-          body: JSON.stringify({ linkCode: shortCode, sessionId: currentSessionId, duration, telegram_id: currentUserTelegramId, userId: currentUserTelegramId })
+          body: JSON.stringify({ linkCode: shortCode, sessionId: currentSessionId, duration, telegram_id: currentTgId, telegramId: currentTgId, userId: currentTgId })
         });
         if (!res) return;
         const data = await res.json();
@@ -1492,6 +1509,7 @@
     async function handleShortenClick() {
       const title = document.getElementById('link-title').value;
       const targetUrl = document.getElementById('link-url').value;
+      const currentTgId = getTelegramId();
 
       if (!targetUrl) {
         showToast(currentLang === 'ar' ? "يرجى إدخال الرابط الأصلي بشكل صحيح" : "Please enter original URL");
@@ -1507,8 +1525,9 @@
           body: JSON.stringify({ 
             title, 
             targetUrl,
-            telegram_id: currentUserTelegramId,
-            userId: currentUserTelegramId,
+            telegram_id: currentTgId,
+            telegramId: currentTgId,
+            userId: currentTgId,
             initData: tg?.initData || ''
           })
         });
@@ -1530,7 +1549,7 @@
               views: 0,
               validImpressions: 0,
               isActive: true,
-              ownerTelegramId: currentUserTelegramId
+              ownerTelegramId: currentTgId
             };
             prependLinkToDOM(newLinkObj);
           } else {
@@ -1547,6 +1566,7 @@
     async function requestWithdrawal() {
       const amount = parseFloat(document.getElementById('withdraw-amount').value);
       const walletAddress = document.getElementById('default-wallet').value;
+      const currentTgId = getTelegramId();
 
       if (!walletAddress) return showToast(currentLang === 'ar' ? "يرجى إدخال عنوان محفظة السحب أولاً" : "Please enter a wallet address first");
       if (!amount || amount < 30) return showToast(currentLang === 'ar' ? "الحد الأدنى للسحب هو 30$" : "Minimum withdrawal is $30");
@@ -1557,7 +1577,7 @@
       try {
         const res = await safeFetch('/api/withdraw', {
           method: 'POST',
-          body: JSON.stringify({ amount, walletAddress, telegram_id: currentUserTelegramId, userId: currentUserTelegramId })
+          body: JSON.stringify({ amount, walletAddress, telegram_id: currentTgId, telegramId: currentTgId, userId: currentTgId })
         });
         if (!res) return;
         const data = await res.json();
@@ -1577,6 +1597,7 @@
 
     async function saveSettings() {
       const defaultWallet = document.getElementById('default-wallet').value;
+      const currentTgId = getTelegramId();
       if (!defaultWallet || defaultWallet.trim().length < 5) {
         return showToast(currentLang === 'ar' ? "عنوان المحفظة غير صالح" : "Invalid wallet address");
       }
@@ -1584,7 +1605,7 @@
       try {
         const res = await safeFetch('/api/user/settings', {
           method: 'POST',
-          body: JSON.stringify({ defaultWallet, telegram_id: currentUserTelegramId, userId: currentUserTelegramId })
+          body: JSON.stringify({ defaultWallet, telegram_id: currentTgId, telegramId: currentTgId, userId: currentTgId })
         });
         if (!res) return;
         const data = await res.json();
@@ -1682,10 +1703,11 @@
 
     async function handleAdminDeposit(depositId, action) {
       triggerHaptic('medium');
+      const currentTgId = getTelegramId();
       try {
         const res = await safeFetch('/api/admin/deposit/action', {
           method: 'POST',
-          body: JSON.stringify({ depositId, action, telegram_id: currentUserTelegramId, userId: currentUserTelegramId })
+          body: JSON.stringify({ depositId, action, telegram_id: currentTgId, telegramId: currentTgId, userId: currentTgId })
         });
         if (!res) return;
         const data = await res.json();
@@ -1707,10 +1729,11 @@
       }
 
       triggerHaptic('medium');
+      const currentTgId = getTelegramId();
       try {
         const res = await safeFetch('/api/admin/withdraw/action', {
           method: 'POST',
-          body: JSON.stringify({ withdrawId, action, rejectReason, telegram_id: currentUserTelegramId, userId: currentUserTelegramId })
+          body: JSON.stringify({ withdrawId, action, rejectReason, telegram_id: currentTgId, telegramId: currentTgId, userId: currentTgId })
         });
         if (!res) return;
         const data = await res.json();
@@ -1726,10 +1749,11 @@
 
     async function toggleUserBan(userId) {
       triggerHaptic('medium');
+      const currentTgId = getTelegramId();
       try {
         const res = await safeFetch('/api/admin/user/toggle-ban', {
           method: 'POST',
-          body: JSON.stringify({ userId, adminId: currentUserTelegramId, telegram_id: currentUserTelegramId })
+          body: JSON.stringify({ userId, adminId: currentTgId, telegram_id: currentTgId, telegramId: currentTgId })
         });
         if (!res) return;
         const data = await res.json();
@@ -1745,6 +1769,7 @@
 
     async function distributeRevenue() {
       const totalRevenue = document.getElementById('revenue-amount').value;
+      const currentTgId = getTelegramId();
       if (!totalRevenue || totalRevenue <= 0) return showToast("Enter a valid amount");
 
       triggerHaptic('medium');
@@ -1753,7 +1778,7 @@
       try {
         const res = await safeFetch('/api/admin/distribute-revenue', {
           method: 'POST',
-          body: JSON.stringify({ totalRevenue, telegram_id: currentUserTelegramId, userId: currentUserTelegramId })
+          body: JSON.stringify({ totalRevenue, telegram_id: currentTgId, telegramId: currentTgId, userId: currentTgId })
         });
         if (!res) return;
         const data = await res.json();
