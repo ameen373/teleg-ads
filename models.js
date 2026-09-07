@@ -1,5 +1,5 @@
 /**
- * Ultra-Enterprise Models Architecture (V6.0 - Zero Precision Loss & Strict Multi-Tenant Isolation)
+ * Ultra-Enterprise Models Architecture (V6.1 - Zero Precision Loss & Strict Multi-Tenant Isolation)
  * Platform: Telega.ads Advertising & Shortener Network
  * Engine: Mongoose / Node.js
  * Security Standard: Strict Tenant Isolation, Strict Integer-Cent Currency Conversion, Anti-Bypass Validation
@@ -62,7 +62,7 @@ const enforceTenantKey = (tenantKey, keyName = 'userId') => {
 };
 
 // --------------------------------------------------
-// 1. User Model
+// 1. User Model (حفظ حساب المستخدم ورصيده بالسنتات)
 // --------------------------------------------------
 const userSchema = new mongoose.Schema({
   telegramId: { 
@@ -78,6 +78,8 @@ const userSchema = new mongoose.Schema({
     trim: true,
     lowercase: true 
   },
+  firstName: { type: String, default: '', trim: true },
+  lastName: { type: String, default: '', trim: true },
   language: {
     type: String,
     default: 'ar',
@@ -172,7 +174,7 @@ walletSchema.statics.getWalletIsolated = function(userId) {
 };
 
 // --------------------------------------------------
-// 3. Transaction Model
+// 3. Transaction Model (سجل الإيداعات والسحوبات والحالة والرصيد)
 // --------------------------------------------------
 const transactionSchema = new mongoose.Schema({
   userId: { 
@@ -192,6 +194,13 @@ const transactionSchema = new mongoose.Schema({
     enum: ['deposit', 'withdrawal', 'campaign_spend', 'publisher_earning', 'referral_bonus', 'refund'], 
     required: true,
     index: true 
+  },
+  status: {
+    type: String,
+    enum: ['pending', 'completed', 'approved', 'rejected', 'failed'],
+    default: 'completed',
+    lowercase: true,
+    index: true
   },
   amount: currencyCentsField({ required: true }),
   balanceAfter: currencyCentsField({ required: true }),
@@ -217,7 +226,7 @@ transactionSchema.statics.getUserTransactionsIsolated = function(userId, filter 
 };
 
 // --------------------------------------------------
-// 4. Self-Serve Ad Model (Campaigns)
+// 4. Campaign / Ad Model (حملات الإعلانات الخاصة بالمستخدم)
 // --------------------------------------------------
 const adSchema = new mongoose.Schema({
   userId: { 
@@ -291,7 +300,6 @@ adSchema.pre('validate', function(next) {
 adSchema.index({ userId: 1, status: 1, createdAt: -1 });
 adSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
 adSchema.index({ advertiserTelegramId: 1, status: 1, createdAt: -1 });
-adSchema.index({ status: 1, remainingBudget: 1, createdAt: -1 });
 
 adSchema.statics.findAdvertiserAdsIsolated = function(userId, filter = {}) {
   enforceTenantKey(userId, 'userId');
@@ -299,7 +307,7 @@ adSchema.statics.findAdvertiserAdsIsolated = function(userId, filter = {}) {
 };
 
 // --------------------------------------------------
-// 5. Shortened Link Model
+// 5. Shortened Link Model (الروابط المختصرة التابعة لـ telegram_id)
 // --------------------------------------------------
 const linkSchema = new mongoose.Schema({
   shortCode: { 
@@ -466,14 +474,6 @@ impressionSchema.pre('validate', function(next) {
 
 impressionSchema.index({ userId: 1, createdAt: -1 });
 impressionSchema.index({ telegramId: 1, createdAt: -1 });
-impressionSchema.index({ publisherTelegramId: 1, createdAt: -1 });
-impressionSchema.index({ linkId: 1, userId: 1, createdAt: -1 });
-impressionSchema.index({ ip: 1, linkId: 1, createdAt: -1 });
-
-impressionSchema.statics.getPublisherImpressionsIsolated = function(userId, extraFilter = {}) {
-  enforceTenantKey(userId, 'userId');
-  return this.find({ ...extraFilter, $or: [{ userId }, { publisherId: userId }] }).sort({ createdAt: -1 });
-};
 
 // --------------------------------------------------
 // 7. Anti-Bypass Click Session Model
@@ -502,27 +502,6 @@ const clickSessionSchema = new mongoose.Schema({
     required: true,
     index: true
   },
-  visitorTelegramId: { 
-    type: String, 
-    default: null, 
-    trim: true,
-    index: true 
-  },
-  adSource: { 
-    type: String, 
-    enum: ['internal', 'adsgram'], 
-    default: 'adsgram'
-  },
-  adId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'Ad', 
-    default: null 
-  },
-  ip: { 
-    type: String, 
-    required: true, 
-    trim: true 
-  },
   bridgeToken: { 
     type: String, 
     required: true,
@@ -535,15 +514,6 @@ const clickSessionSchema = new mongoose.Schema({
   }
 }, globalSchemaOptions);
 
-clickSessionSchema.pre('validate', function(next) {
-  if (this.publisherId && !this.userId) this.userId = this.publisherId;
-  if (this.userId && !this.publisherId) this.publisherId = this.userId;
-  next();
-});
-
-clickSessionSchema.index({ linkId: 1, ip: 1 });
-clickSessionSchema.index({ userId: 1, createdAt: -1 });
-clickSessionSchema.index({ telegramId: 1, createdAt: -1 });
 clickSessionSchema.index({ bridgeToken: 1 }, { unique: true });
 
 // --------------------------------------------------
@@ -568,7 +538,7 @@ const withdrawSchema = new mongoose.Schema({
   network: {
     type: String,
     enum: ['BEP20', 'TRC20', 'TON'],
-    required: [true, 'Please select network (BEP20, TRC20, or TON)'],
+    required: [true, 'Please select network'],
     trim: true,
     uppercase: true
   },
@@ -584,40 +554,17 @@ const withdrawSchema = new mongoose.Schema({
     lowercase: true,
     index: true 
   },
-  rejectReason: { 
-    type: String, 
-    default: '', 
-    trim: true 
-  },
-  note: { 
-    type: String, 
-    default: '', 
-    trim: true 
-  }
+  rejectReason: { type: String, default: '', trim: true }
 }, globalSchemaOptions);
 
 withdrawSchema.pre('validate', function(next) {
   const amount = typeof this.amount === 'number' ? this.amount : 0;
-  const fee = typeof this.fee === 'number' ? this.fee : 300; // 300 cents = $3
+  const fee = typeof this.fee === 'number' ? this.fee : 300;
   this.netAmount = Math.max(0, amount - fee);
   next();
 });
 
 withdrawSchema.index({ userId: 1, status: 1, createdAt: -1 });
-withdrawSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
-
-// Database-level prevention of duplicate active withdrawals
-withdrawSchema.index(
-  { userId: 1, status: 'pending' }, 
-  { unique: true, partialFilterExpression: { status: 'pending' } }
-);
-
-withdrawSchema.statics.getUserWithdrawalsIsolated = function(userId, status = null) {
-  enforceTenantKey(userId, 'userId');
-  const query = { userId };
-  if (status) query.status = status;
-  return this.find(query).sort({ createdAt: -1 });
-};
 
 // --------------------------------------------------
 // 9. Earnings Hold Model
@@ -650,12 +597,6 @@ const earningsHoldSchema = new mongoose.Schema({
 }, globalSchemaOptions);
 
 earningsHoldSchema.index({ userId: 1, isReleased: 1, releaseAt: 1 });
-earningsHoldSchema.index({ telegramId: 1, isReleased: 1, releaseAt: 1 });
-
-earningsHoldSchema.statics.getUserHoldsIsolated = function(userId) {
-  enforceTenantKey(userId, 'userId');
-  return this.find({ userId, isReleased: false }).sort({ releaseAt: 1 });
-};
 
 // --------------------------------------------------
 // 10. Deposit Model
@@ -673,23 +614,11 @@ const depositSchema = new mongoose.Schema({
     trim: true,
     index: true
   },
-  advertiserId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: [true, 'Advertiser User ID is required'],
-    index: true
-  },
-  advertiserTelegramId: {
-    type: String,
-    required: [true, 'Advertiser Telegram ID is required'],
-    trim: true,
-    index: true
-  },
   amount: currencyCentsField({ required: [true, 'Deposit amount is required'] }),
   network: {
     type: String,
     enum: ['BEP20', 'TRC20', 'TON'],
-    required: [true, 'Please select network (BEP20, TRC20, TON)'],
+    required: [true, 'Please select network'],
     trim: true,
     uppercase: true
   },
@@ -705,30 +634,10 @@ const depositSchema = new mongoose.Schema({
     default: 'pending',
     lowercase: true,
     index: true
-  },
-  rejectReason: {
-    type: String,
-    default: '',
-    trim: true
   }
 }, globalSchemaOptions);
 
-depositSchema.pre('validate', function(next) {
-  if (this.userId && !this.advertiserId) this.advertiserId = this.userId;
-  if (this.advertiserId && !this.userId) this.userId = this.advertiserId;
-  if (this.telegramId && !this.advertiserTelegramId) this.advertiserTelegramId = this.telegramId;
-  if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.advertiserTelegramId;
-  next();
-});
-
 depositSchema.index({ userId: 1, status: 1, createdAt: -1 });
-depositSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
-depositSchema.index({ advertiserTelegramId: 1, status: 1, createdAt: -1 });
-
-depositSchema.statics.getAdvertiserDepositsIsolated = function(userId) {
-  enforceTenantKey(userId, 'userId');
-  return this.find({ $or: [{ userId }, { advertiserId: userId }] }).sort({ createdAt: -1 });
-};
 
 // --------------------------------------------------
 // 11. Announcement Model
@@ -742,18 +651,6 @@ const announcementSchema = new mongoose.Schema({
 }, globalSchemaOptions);
 
 announcementSchema.index({ isActive: 1, targetUser: 1, createdAt: -1 });
-announcementSchema.index({ isActive: 1, targetTelegramId: 1, createdAt: -1 });
-
-announcementSchema.statics.getForUserIsolated = function(userId, telegramId) {
-  return this.find({
-    isActive: true,
-    $or: [
-      { targetUser: null, targetTelegramId: null },
-      { targetUser: userId },
-      { targetTelegramId: String(telegramId) }
-    ]
-  }).sort({ createdAt: -1 });
-};
 
 // --------------------------------------------------
 // Exporting Production Models
