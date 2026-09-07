@@ -1,8 +1,6 @@
 /**
- * Ultra-Enterprise Server Architecture (V6 - Absolute Multi-Tenant Security & High-Performance Core)
+ * Ultra-Enterprise Server Architecture (V6 - MongoDB Mongoose Integrated Engine)
  * Telegram Link Shortener & Mini App Engine (Telega.ads)
- * Absolute Isolated Session System & Financial Security Core
- * Serverless / Vercel Optimized Production-Ready Engine
  */
 
 require('dotenv').config();
@@ -18,15 +16,15 @@ const validUrl = require('valid-url');
 const Redis = require('ioredis');
 const cors = require('cors');
 
-// استدعاء النماذج الحقيقية من المجلد Local
+// 1. استيراد الـ Models من ملف models.js
 const { User, Ad, Link, Impression, ClickSession, Withdraw, EarningsHold, Deposit, Announcement } = require('./models');
 
 const app = express();
 
-// --- Setup Server Trust Proxy (مهم جداً للعمل خلف Vercel / Cloudflare) ---
+// --- Setup Server Trust Proxy ---
 app.set('trust proxy', 1);
 
-// --- CORS Configuration (Strict Security) ---
+// --- CORS Configuration ---
 app.use(cors({
   origin: true,
   credentials: true
@@ -65,7 +63,7 @@ app.use(morgan('combined', { stream: { write: (message) => logger.info(message.t
 // ==================================================
 const CONFIG = Object.freeze({
   BOT_TOKEN: process.env.BOT_TOKEN,
-  MONGO_URI: process.env.MONGO_URI,
+  MONGODB_URI: process.env.MONGODB_URI,
   ADMIN_ID: String(process.env.ADMIN_ID || '').trim(),
   JWT_SECRET: process.env.JWT_SECRET || 'fallback_jwt_secret_key_32bytes_long!',
   ADSGRAM_BLOCK_ID: process.env.ADSGRAM_BLOCK_ID || '1234',
@@ -85,7 +83,7 @@ const CONFIG = Object.freeze({
 });
 
 // ==================================================
-// --- Database Connection Pipeline (Atlas Serverless) ---
+// --- 2. Database Connection (MongoDB Mongoose via process.env.MONGODB_URI) ---
 // ==================================================
 let cached = global.mongoose;
 if (!cached) {
@@ -103,12 +101,12 @@ async function connectDB() {
       socketTimeoutMS: 45000,
     };
 
-    if (!CONFIG.MONGO_URI) {
-      throw new Error('❌ Critical Error: process.env.MONGO_URI is missing!');
+    if (!CONFIG.MONGODB_URI) {
+      throw new Error('❌ Critical Error: process.env.MONGODB_URI is missing!');
     }
 
-    cached.promise = mongoose.connect(CONFIG.MONGO_URI, opts).then((mongooseInstance) => {
-      console.log('✅ MongoDB Atlas Serverless Real DB Connected');
+    cached.promise = mongoose.connect(CONFIG.MONGODB_URI, opts).then((mongooseInstance) => {
+      console.log('✅ MongoDB Database Connected via process.env.MONGODB_URI');
       return mongooseInstance;
     });
   }
@@ -123,21 +121,20 @@ async function connectDB() {
   return cached.conn;
 }
 
-// Middleware لضمان الاتصال الحقيقي بقاعدة البيانات قبل أي طلب
+// Middleware لضمان الاتصال المباشر بقاعدة البيانات قبل تنفيذ الطلبات
 app.use(async (req, res, next) => {
   try {
     await connectDB();
     next();
   } catch (err) {
-    logger.error('❌ Critical Database Middleware Failure:', err);
-    res.status(500).json({ success: false, error: 'تعذر الاتصال بقاعدة البيانات الحقيقية' });
+    logger.error('❌ Database Middleware Failure:', err);
+    res.status(500).json({ success: false, error: 'تعذر الاتصال بقاعدة البيانات MongoDB' });
   }
 });
 
 // ==================================================
-// --- Smart Serverless Earnings Auto-Release Engine ---
+// --- Automatic Earnings Release Engine ---
 // ==================================================
-// حل مشكلة احتجاز الأرباح في Serverless بدلاً من node-cron
 app.use(async (req, res, next) => {
   if (req.path.startsWith('/api/')) {
     try {
@@ -174,7 +171,7 @@ app.use(async (req, res, next) => {
         }
       }
     } catch (e) {
-      // إكمال الطلب وعدم إيقافه في حال حدوث خطأ جانبي
+      // إكمال الطلب في حال وجود خطا تنفيذي جانبي
     }
   }
   next();
@@ -199,7 +196,7 @@ if (CONFIG.REDIS_URL) {
   });
   redis.on('ready', () => {
     redisIsConnected = true;
-    console.log('✅ Enterprise Redis Client Connected');
+    console.log('✅ Redis Client Connected');
   });
 }
 
@@ -305,7 +302,7 @@ const isPhishingOrMalicious = (url) => {
 };
 
 // =========================================================================
-// --- Middleware التحقق من الهوية (Authentication) ---
+// --- Middleware التحقق من الهوية عبر MongoDB ---
 // =========================================================================
 const authMiddleware = async (req, res, next) => {
   try {
@@ -356,9 +353,10 @@ const adminMiddleware = async (req, res, next) => {
 };
 
 // =========================================================================
-// --- USER ROUTES (حفظ واسترجاع الحساب الحقيقي) ---
+// --- 3. ROUTES & APIs تتعامل مباشرة مع MongoDB Mongoose ---
 // =========================================================================
 
+// --- حفظ وتحديث حساب المستخدم ---
 app.all(['/api/user/save', '/api/user/update'], authMiddleware, async (req, res) => {
   try {
     const { username, language, defaultWallet, settings } = req.body;
@@ -377,7 +375,7 @@ app.all(['/api/user/save', '/api/user/update'], authMiddleware, async (req, res)
 
     return res.json({
       success: true,
-      message: 'تم حفظ البيانات بنجاح في MongoDB Atlas',
+      message: 'تم حفظ البيانات بنجاح في قاعدة البيانات',
       user: updatedUser
     });
   } catch (err) {
@@ -386,6 +384,7 @@ app.all(['/api/user/save', '/api/user/update'], authMiddleware, async (req, res)
   }
 });
 
+// --- استرجاع الملف الشخصي ---
 app.get('/api/user/profile', authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.userId).lean();
@@ -399,6 +398,7 @@ app.get('/api/user/profile', authMiddleware, async (req, res) => {
   }
 });
 
+// --- فحص رتبة الأدمن ---
 app.all('/api/check-admin', async (req, res) => {
   try {
     let targetUserId = req.body?.userId || req.query?.userId;
@@ -437,7 +437,7 @@ app.all('/api/check-admin', async (req, res) => {
   }
 });
 
-// --- Auth Login Engine ---
+// --- تسجيل الدخول وإنشاء المستخدم ---
 app.post('/api/auth/login', async (req, res, next) => {
   try {
     const initData = req.headers['x-telegram-init-data'];
@@ -495,7 +495,7 @@ app.post('/api/auth/login', async (req, res, next) => {
   }
 });
 
-// --- User Dashboard Data Gateway ---
+// --- جلب كل بيانات لوحة تحكم المستخدم من قاعدة البيانات ---
 app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   try {
     const userId = req.userId;
@@ -551,7 +551,7 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Self-Serve Ad Campaign APIs ---
+// --- إنشاء حملة إعلانية جديدة ---
 app.post('/api/ads', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
@@ -610,6 +610,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
   }
 });
 
+// --- جلب إعلانات المستخدم ---
 app.get('/api/user/ads', authMiddleware, async (req, res, next) => {
   try {
     const ads = await Ad.find({ userId: req.userId }).sort({ createdAt: -1 }).lean();
@@ -619,6 +620,7 @@ app.get('/api/user/ads', authMiddleware, async (req, res, next) => {
   }
 });
 
+// --- إيقاف/تفعيل الإعلان ---
 app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
   try {
     const { adId } = req.body;
@@ -638,7 +640,7 @@ app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Deposit & Withdraw Systems ---
+// --- طلب إيداع جديد ---
 app.post('/api/deposit', authMiddleware, async (req, res, next) => {
   try {
     const { amount, network, txid } = req.body;
@@ -684,6 +686,7 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
   }
 });
 
+// --- طلب سحب الأرباح ---
 app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
@@ -755,7 +758,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Traffic & Bridge Page Routing Engine ---
+// --- بدء الجلسة والتوجيه عبر MongoDB ---
 app.post('/api/init-click', validateTraffic, async (req, res, next) => {
   try {
     const { linkCode } = req.body;
@@ -836,6 +839,7 @@ app.post('/api/init-click', validateTraffic, async (req, res, next) => {
   }
 });
 
+// --- احتساب النقرات والظهور وتسجيل الأرباح ---
 app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next) => {
   const sessionDb = await mongoose.startSession();
   try {
@@ -960,10 +964,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
   }
 });
 
-// =========================================================================
-// --- Link Shortener Operations ---
-// =========================================================================
-
+// --- إنشاء رابط مختصر وحفظه في MongoDB ---
 app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res) => {
   try {
     const userId = req.userId;
@@ -988,7 +989,7 @@ app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res) => 
     const shortCode = crypto.randomBytes(3).toString('hex');
     const publisherTelegramId = req.user?.telegramId || null;
     
-    const newLink = new Link({
+    const newLink = await Link.create({
       userId: userId,
       publisherTelegramId: publisherTelegramId,
       telegramId: publisherTelegramId,
@@ -997,8 +998,6 @@ app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res) => 
       shortCode,
       isActive: true
     });
-
-    await newLink.save();
 
     await User.findByIdAndUpdate(userId, { $inc: { 'statsSummary.totalLinksCreated': 1 } }).catch(() => {});
 
@@ -1017,37 +1016,34 @@ app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res) => 
   }
 });
 
-const getUserLinks = async (userId) => {
-  if (!userId) return [];
-
-  const rawLinks = await Link.find({
-    $or: [
-      { userId: userId },
-      { userId: userId.toString() }
-    ]
-  }).sort({ createdAt: -1 }).lean();
-
-  return rawLinks.map(link => {
-    const totalViews = link.views || 0;
-    const validImp = link.validImpressions || 0;
-    const ctr = totalViews > 0 ? ((validImp / totalViews) * 100).toFixed(1) : "0.0";
-    return { 
-      ...link, 
-      ctr,
-      shortUrl: `https://${CONFIG.APP_DOMAIN}/r/${link.shortCode}`
-    };
-  });
-};
-
+// --- جلب روابط المستخدم ---
 app.get(['/api/links', '/api/user/links'], authMiddleware, async (req, res, next) => {
   try {
-    const links = await getUserLinks(req.userId);
+    const rawLinks = await Link.find({
+      $or: [
+        { userId: req.userId },
+        { userId: req.userId.toString() }
+      ]
+    }).sort({ createdAt: -1 }).lean();
+
+    const links = rawLinks.map(link => {
+      const totalViews = link.views || 0;
+      const validImp = link.validImpressions || 0;
+      const ctr = totalViews > 0 ? ((validImp / totalViews) * 100).toFixed(1) : "0.0";
+      return { 
+        ...link, 
+        ctr,
+        shortUrl: `https://${CONFIG.APP_DOMAIN}/r/${link.shortCode}`
+      };
+    });
+
     res.json({ success: true, data: links, links });
   } catch (err) {
     next(err);
   }
 });
 
+// --- تفعيل/إيقاف الرابط ---
 app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
   try {
     const { linkId } = req.body;
@@ -1068,7 +1064,10 @@ app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Admin Panel Routes ---
+// =========================================================================
+// --- Admin Panel API Routes ---
+// =========================================================================
+
 app.get('/api/admin/dashboard-data', authMiddleware, adminMiddleware, async (req, res, next) => {
   try {
     const [withdraws, deposits, users, stats, totalAds] = await Promise.all([
@@ -1216,7 +1215,7 @@ app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (r
   }
 });
 
-// --- UI Direct Express Routing ---
+// --- Express UI Static Routes ---
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'views.html'));
 });
@@ -1256,11 +1255,11 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // ==================================================
-// --- Production Export Architecture ---
+// --- Export System App ---
 // ==================================================
 if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
   const PORT = process.env.PORT || 3000;
-  app.listen(PORT, () => console.log(`🚀 Enterprise Server V6 Active on Port ${PORT}`));
+  app.listen(PORT, () => console.log(`🚀 MongoDB Enterprise Server Active on Port ${PORT}`));
 }
 
 module.exports = app;
