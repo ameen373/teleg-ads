@@ -909,7 +909,7 @@ const EarningsHold = mongoose.models.EarningsHold || mongoose.model('EarningsHol
 const Deposit = mongoose.models.Deposit || mongoose.model('Deposit', depositSchema);
 const Announcement = mongoose.models.Announcement || mongoose.model('Announcement', announcementSchema);
 
-module.exports = {
+const models = {
   User,
   Wallet,
   Transaction,
@@ -922,3 +922,6 @@ module.exports = {
   Deposit,
   Announcement
 };
+
+module.exports = models;
+module.exports.default = models;
