@@ -119,7 +119,7 @@ async function safeRedisDel(key) {
   try { await redis.del(key); } catch (e) { logger.error('Redis Del Failed: ' + e.message); }
 }
 
-// --- Database Connection Pipeline ---
+// --- Database Connection Pipeline (استخدام MONGO_URI حتماً للحفظ الدائم) ---
 mongoose.connect(CONFIG.MONGO_URI, {
   maxPoolSize: 50,
   minPoolSize: 10,
@@ -211,7 +211,7 @@ const isPhishingOrMalicious = (url) => {
 };
 
 // =========================================================================
-// --- Middleware للتحقق من هوية المستخدم واستخراج userId ---
+// --- Middleware للتحقق من هوية المستخدم واستخراج البيانات ---
 // =========================================================================
 const authMiddleware = async (req, res, next) => {
   try {
@@ -236,6 +236,12 @@ const authMiddleware = async (req, res, next) => {
       }
     }
 
+    // Option 3: Fallback via Body or Query telegramId
+    if (!user && (req.body.telegramId || req.query.telegramId)) {
+      const tgId = String(req.body.telegramId || req.query.telegramId).trim();
+      user = await User.findOne({ telegramId: tgId }).lean();
+    }
+
     if (!user) {
       return res.status(401).json({ success: false, error: 'جلسة غير صالحة، يرجى إعادة تحميل التطبيق' });
     }
@@ -244,7 +250,6 @@ const authMiddleware = async (req, res, next) => {
       return res.status(403).json({ success: false, error: 'حسابك معطل بسبب مخالفة الشروط' });
     }
 
-    // ربط كائن المستخدم واستخراج userId بشكل صريح وموحد
     req.user = user;
     req.user.id = user._id.toString();
     req.userId = user._id;
@@ -262,14 +267,18 @@ const adminMiddleware = async (req, res, next) => {
   next();
 };
 
-// Helper لتهيئة بيانات المستخدم كاملة المرجعة للتطبيق
-async function fetchFullUserData(userId) {
+// Helper لتهيئة وجلب بيانات المستخدم الكاملة فقط عبر telegramId أو userId من قواعد البيانات
+async function fetchFullUserDataByTelegramId(telegramId) {
+  const user = await User.findOne({ telegramId: String(telegramId).trim() }).lean();
+  if (!user) return null;
+
+  const userId = user._id;
   const [rawLinks, withdraws, announcements, ads, deposits] = await Promise.all([
-    Link.find({ $or: [{ userId: userId }, { userId: userId.toString() }] }).sort({ createdAt: -1 }).lean(),
-    Withdraw.find({ userId: userId }).sort({ createdAt: -1 }).lean(),
+    Link.find({ $or: [{ userId: userId }, { publisherTelegramId: String(telegramId) }] }).sort({ createdAt: -1 }).lean(),
+    Withdraw.find({ $or: [{ userId: userId }, { telegramId: String(telegramId) }] }).sort({ createdAt: -1 }).lean(),
     Announcement.find({ $or: [{ isGlobal: true }, { targetUserId: userId }] }).sort({ createdAt: -1 }).lean(),
-    Ad.find({ userId: userId }).sort({ createdAt: -1 }).lean(),
-    Deposit.find({ userId: userId }).sort({ createdAt: -1 }).lean()
+    Ad.find({ $or: [{ userId: userId }, { advertiserTelegramId: String(telegramId) }] }).sort({ createdAt: -1 }).lean(),
+    Deposit.find({ $or: [{ userId: userId }, { advertiserTelegramId: String(telegramId) }] }).sort({ createdAt: -1 }).lean()
   ]);
 
   const links = rawLinks.map(link => {
@@ -286,11 +295,60 @@ async function fetchFullUserData(userId) {
     };
   });
 
-  return { links, withdraws, announcements, ads, deposits };
+  return { user, links, withdraws, announcements, ads, deposits };
 }
 
 // =========================================================================
-// --- API Endpoint: Check Admin Role (/api/check-admin) ---
+// --- API Endpoint المطلوب: جلب كافة بيانات المستخدم بناءً على telegramId ---
+// =========================================================================
+app.get('/api/user-data/:telegramId', async (req, res, next) => {
+  try {
+    const { telegramId } = req.params;
+    const cleanTgId = String(telegramId || '').trim();
+
+    if (!cleanTgId) {
+      return res.status(400).json({ success: false, error: 'معرف تلغرام (telegramId) مطلوب' });
+    }
+
+    const fullData = await fetchFullUserDataByTelegramId(cleanTgId);
+
+    if (!fullData || !fullData.user) {
+      return res.status(404).json({ success: false, error: 'المستخدم غير موجود' });
+    }
+
+    if (fullData.user.isBanned) {
+      return res.status(403).json({ success: false, error: 'حسابك معطل بسبب مخالفة الشروط' });
+    }
+
+    const isAdmin = String(fullData.user.telegramId).trim() === CONFIG.ADMIN_ID;
+
+    return res.json({
+      success: true,
+      user: fullData.user,
+      language: fullData.user.language || CONFIG.DEFAULT_LANGUAGE,
+      links: fullData.links,
+      withdraws: fullData.withdraws,
+      announcements: fullData.announcements,
+      ads: fullData.ads,
+      deposits: fullData.deposits,
+      isAdmin,
+      botUsername: CONFIG.BOT_USERNAME,
+      supportUsername: CONFIG.SUPPORT_USERNAME,
+      botUrl: CONFIG.OFFICIAL_BOT_URL,
+      officialChannelUrl: CONFIG.OFFICIAL_CHANNEL_URL,
+      supportUrl: CONFIG.TELEGRAM_SUPPORT_URL,
+      depositWallets: {
+        bep20: CONFIG.DEPOSIT_USDT_BEP20,
+        trc20: CONFIG.DEPOSIT_USDT_TRC20
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// =========================================================================
+// --- API Endpoint: Check Admin Role ---
 // =========================================================================
 app.all('/api/check-admin', async (req, res) => {
   try {
@@ -330,18 +388,18 @@ app.all('/api/check-admin', async (req, res) => {
   }
 });
 
-// --- Authentication & Isolated User Login ---
+// --- Authentication & User Login ---
 app.post('/api/auth/login', async (req, res, next) => {
   try {
     const initData = req.headers['x-telegram-init-data'];
     const telegramUser = verifyTelegramData(initData);
 
-    const tgId = telegramUser ? String(telegramUser.id) : (process.env.NODE_ENV !== 'production' ? String(req.headers['x-demo-user-id'] || '') : null);
+    const tgId = telegramUser ? String(telegramUser.id) : (req.body.telegramId ? String(req.body.telegramId) : null);
     const { referrerId } = req.body;
 
     if (!tgId) return res.status(401).json({ success: false, error: 'بيانات الاعتماد الخاصة بتليجرام غير صالحة' });
 
-    const currentUsername = telegramUser?.username || `User_${tgId.slice(-4)}`;
+    const currentUsername = telegramUser?.username || req.body.username || `User_${tgId.slice(-4)}`;
     const userLanguage = telegramUser?.language_code || CONFIG.DEFAULT_LANGUAGE;
 
     let user = await User.findOne({ telegramId: tgId });
@@ -394,38 +452,16 @@ app.post('/api/auth/login', async (req, res, next) => {
   }
 });
 
-// =========================================================================
-// --- API Endpoint: Get Full User Data by telegramId عند فتح التطبيق ---
-// =========================================================================
 app.get('/api/user/by-telegram/:telegramId', async (req, res, next) => {
   try {
     const { telegramId } = req.params;
-    const cleanTgId = String(telegramId || '').trim();
-
-    if (!cleanTgId) {
-      return res.status(400).json({ success: false, error: 'معرف تلغرام (telegramId) مطلوب' });
-    }
-
-    // البحث عن المستخدم باستخدام telegramId عبر Models
-    const user = await User.findOne({ telegramId: cleanTgId }).lean();
-    if (!user) {
-      return res.status(404).json({ success: false, error: 'المستخدم غير موجود' });
-    }
-
-    if (user.isBanned) {
-      return res.status(403).json({ success: false, error: 'حسابك معطل بسبب مخالفة الشروط' });
-    }
-
-    // جلب بيانات المستخدم الكاملة
-    const userData = await fetchFullUserData(user._id);
-    const isAdmin = String(user.telegramId).trim() === CONFIG.ADMIN_ID;
-
+    const fullData = await fetchFullUserDataByTelegramId(telegramId);
+    if (!fullData) return res.status(404).json({ success: false, error: 'المستخدم غير موجود' });
+    
     res.json({
       success: true,
-      user,
-      language: user.language || CONFIG.DEFAULT_LANGUAGE,
-      ...userData,
-      isAdmin,
+      ...fullData,
+      isAdmin: String(fullData.user.telegramId).trim() === CONFIG.ADMIN_ID,
       botUsername: CONFIG.BOT_USERNAME,
       supportUsername: CONFIG.SUPPORT_USERNAME,
       botUrl: CONFIG.OFFICIAL_BOT_URL,
@@ -444,31 +480,12 @@ app.get('/api/user/by-telegram/:telegramId', async (req, res, next) => {
 // --- Isolated User Data Gateway ---
 app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   try {
-    const userId = req.userId;
-
-    if (!userId) {
-      return res.json({
-        success: true,
-        user: req.user,
-        language: req.user.language || CONFIG.DEFAULT_LANGUAGE,
-        links: [],
-        withdraws: [],
-        announcements: [],
-        ads: [],
-        deposits: [],
-        isAdmin: false
-      });
-    }
-
-    const userData = await fetchFullUserData(userId);
-    const isAdmin = String(req.user.telegramId).trim() === CONFIG.ADMIN_ID;
+    const fullData = await fetchFullUserDataByTelegramId(req.user.telegramId);
 
     res.json({ 
       success: true,
-      user: req.user, 
-      language: req.user.language || CONFIG.DEFAULT_LANGUAGE,
-      ...userData,
-      isAdmin,
+      ...fullData,
+      isAdmin: String(req.user.telegramId).trim() === CONFIG.ADMIN_ID,
       botUsername: CONFIG.BOT_USERNAME,
       supportUsername: CONFIG.SUPPORT_USERNAME,
       botUrl: CONFIG.OFFICIAL_BOT_URL,
@@ -484,13 +501,22 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Self-Serve Ad Campaign APIs ---
+// =========================================================================
+// --- تعديل مسار إنشاء حملة إعلانية ليتحقق من telegramId وحفظ البيانات ---
+// =========================================================================
 app.post('/api/ads', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
-    const { title, targetUrl, totalBudget } = req.body;
+    const { title, targetUrl, totalBudget, telegramId } = req.body;
+    const tgId = String(telegramId || req.user.telegramId).trim();
     const budget = Number(totalBudget);
+
+    const user = await User.findOne({ telegramId: tgId }).session(session);
+    if (!user) {
+      await session.abortTransaction();
+      return res.status(404).json({ success: false, error: 'المستخدم غير موجود' });
+    }
 
     if (!title || String(title).trim().length === 0) {
       await session.abortTransaction();
@@ -507,23 +533,20 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'الحد الأدنى لميزانية الحملة هو $5' });
     }
 
-    // خصم الميزانية من رصيد المستخدم
-    const updatedUser = await User.findOneAndUpdate(
-      { _id: req.userId, availableBalance: { $gte: budget } },
-      { $inc: { availableBalance: -budget } },
-      { new: true, session }
-    );
-
-    if (!updatedUser) {
+    if (user.availableBalance < budget) {
       await session.abortTransaction();
       return res.status(400).json({ success: false, error: 'رصيدك المتاح غير كافي لإنشاء هذه الحملة (الحد الأدنى $5)' });
     }
 
-    // حفظ الحملة في قاعدة البيانات عبر Ad Model
+    // خصم الميزانية
+    user.availableBalance -= budget;
+    await user.save({ session });
+
+    // حفظ الحملة في قاعدة البيانات بشكل دائم عبر Ad Model
     const ad = await Ad.create([{
-      userId: req.userId,
-      advertiserId: req.userId,
-      advertiserTelegramId: req.user.telegramId,
+      userId: user._id,
+      advertiserId: user._id,
+      advertiserTelegramId: tgId,
       title: String(title).trim(),
       targetUrl: String(targetUrl).trim(),
       totalBudget: budget,
@@ -547,7 +570,8 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
 
 app.get('/api/user/ads', authMiddleware, async (req, res, next) => {
   try {
-    const ads = await Ad.find({ userId: req.userId }).sort({ createdAt: -1 }).lean();
+    const tgId = String(req.query.telegramId || req.user.telegramId).trim();
+    const ads = await Ad.find({ $or: [{ advertiserTelegramId: tgId }, { userId: req.userId }] }).sort({ createdAt: -1 }).lean();
     res.json({ success: true, ads });
   } catch (err) {
     next(err);
@@ -575,13 +599,21 @@ app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Deposit & Withdraw Routes ---
+// =========================================================================
+// --- تعديل مسار طلب الإيداع للتعامل مع telegramId وحفظ البيانات بشكل دائم ---
+// =========================================================================
 app.post('/api/deposit', authMiddleware, async (req, res, next) => {
   try {
-    const { amount, network, txid } = req.body;
+    const { amount, network, txid, telegramId } = req.body;
+    const tgId = String(telegramId || req.user.telegramId).trim();
     const numAmount = Number(amount);
     const cleanNetwork = String(network || '').toUpperCase();
     const cleanTxid = String(txid || '').trim();
+
+    const user = await User.findOne({ telegramId: tgId });
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'المستخدم غير موجود' });
+    }
 
     if (isNaN(numAmount) || numAmount < 1) {
       return res.status(400).json({ success: false, error: 'الحد الأدنى للإيداع هو $1' });
@@ -600,11 +632,11 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'تم تقديم رقم هذه المعاملة (TxID) من قبل' });
     }
 
-    // حفظ طلب الإيداع في قاعدة البيانات عبر Deposit Model
+    // حفظ طلب الإيداع في قاعدة البيانات عبر Deposit Model بشكل دائم
     const deposit = await Deposit.create({
-      userId: req.userId,
-      advertiserId: req.userId,
-      advertiserTelegramId: req.user.telegramId,
+      userId: user._id,
+      advertiserId: user._id,
+      advertiserTelegramId: tgId,
       amount: numAmount,
       network: cleanNetwork,
       txid: cleanTxid,
@@ -613,7 +645,7 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
 
     sendTelegramNotification(
       CONFIG.ADMIN_ID,
-      `💳 <b>طلب إيداع جديد!</b>\nالمستخدم: <code>${req.user.username}</code>\nالمبلغ: <code>$${numAmount}</code>\nالشبكة: <code>${cleanNetwork}</code>\nTxID: <code>${cleanTxid}</code>`
+      `💳 <b>طلب إيداع جديد!</b>\nالمستخدم: <code>${user.username}</code>\nالمبلغ: <code>$${numAmount}</code>\nالشبكة: <code>${cleanNetwork}</code>\nTxID: <code>${cleanTxid}</code>`
     );
 
     res.json({ success: true, deposit });
@@ -622,15 +654,25 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
   }
 });
 
+// =========================================================================
+// --- تعديل مسار طلب السحب للتعامل مع telegramId وحفظ البيانات بشكل دائم ---
+// =========================================================================
 app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
-    const { amount, network, walletAddress } = req.body;
+    const { amount, network, walletAddress, telegramId } = req.body;
+    const tgId = String(telegramId || req.user.telegramId).trim();
     const numAmt = Number(amount);
     const cleanNetwork = String(network || '').toUpperCase();
     const cleanWallet = String(walletAddress || '').trim();
     const FEE = 3;
+
+    const user = await User.findOne({ telegramId: tgId }).session(session);
+    if (!user) {
+      await session.abortTransaction();
+      return res.status(404).json({ success: false, error: 'المستخدم غير موجود' });
+    }
 
     if (isNaN(numAmt) || numAmt < 30) {
       await session.abortTransaction();
@@ -647,29 +689,27 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'عنوان المحفظة غير صالح' });
     }
 
-    const activePending = await Withdraw.findOne({ userId: req.userId, status: 'pending' }).session(session);
+    const activePending = await Withdraw.findOne({ $or: [{ userId: user._id }, { telegramId: tgId }], status: 'pending' }).session(session);
     if (activePending) {
       await session.abortTransaction();
       return res.status(400).json({ success: false, error: 'لديك طلب سحب قيد الانتظار حالياً، يرجى الانتظار حتى معالجته' });
     }
 
-    const netAmount = numAmt - FEE;
-
-    const updatedUser = await User.findOneAndUpdate(
-      { _id: req.userId, availableBalance: { $gte: numAmt } },
-      { $inc: { availableBalance: -numAmt }, defaultWallet: cleanWallet },
-      { new: true, session }
-    );
-
-    if (!updatedUser) {
+    if (user.availableBalance < numAmt) {
       await session.abortTransaction();
       return res.status(400).json({ success: false, error: 'رصيدك المتاح لا يكفي لإتمام عملية السحب' });
     }
 
-    // حفظ طلب السحب في قاعدة البيانات عبر Withdraw Model
+    const netAmount = numAmt - FEE;
+
+    user.availableBalance -= numAmt;
+    user.defaultWallet = cleanWallet;
+    await user.save({ session });
+
+    // حفظ طلب السحب بشكل دائم في قاعدة البيانات عبر Withdraw Model
     const withdrawRequest = await Withdraw.create([{
-      userId: req.userId,
-      telegramId: req.user.telegramId,
+      userId: user._id,
+      telegramId: tgId,
       amount: numAmt,
       fee: FEE,
       netAmount: netAmount,
@@ -681,7 +721,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
     await session.commitTransaction();
 
     sendTelegramNotification(
-      req.user.telegramId,
+      tgId,
       `🔔 <b>تم تقديم طلب السحب بنجاح!</b>\nالمبلغ: <code>$${numAmt}</code>\nالرسوم: <code>$${FEE}</code>\nالصافي: <code>$${netAmount}</code>\nالشبكة: <code>${cleanNetwork}</code>\nالمحفظة: <code>${cleanWallet}</code>\nالحالة: ⏳ قيد المراجعة\n\nالدعم: ${CONFIG.SUPPORT_USERNAME}`
     );
 
@@ -832,7 +872,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 
     await safeRedisSet(lockKey, '1', 'EX', 86400);
 
-    // تسجيل ظهور جديد في قاعدة البيانات عبر Impression Model
+    // تسجيل ظهور جديد في قاعدة البيانات بشكل دائم عبر Impression Model
     await Impression.create([{
       linkId: link._id,
       userId: link.userId._id,
@@ -900,22 +940,18 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 });
 
 // =========================================================================
-// --- Strict Link Management Engine ---
+// --- تعديل مسار إنشاء رابط مختصر لاستقبال telegramId والحفظ في قاعدة البيانات ---
 // =========================================================================
-
-// Create Link Engine (حفظ الرابط عبر Link Model)
 app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res) => {
   try {
-    const userId = req.userId;
+    const { title, targetUrl, telegramId } = req.body;
+    const tgId = String(telegramId || req.user.telegramId).trim();
 
-    if (!userId) {
-      return res.status(401).json({ 
-        success: false, 
-        error: 'غير مصرح: معرف المستخدم (userId) مفقود' 
-      });
+    const user = await User.findOne({ telegramId: tgId });
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'المستخدم غير موجود' });
     }
 
-    const { title, targetUrl } = req.body;
     const cleanUrl = String(targetUrl || '').trim();
 
     if (!cleanUrl || !validUrl.isWebUri(cleanUrl)) {
@@ -934,13 +970,12 @@ app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res) => 
     } catch (e) {}
 
     const shortCode = crypto.randomBytes(3).toString('hex');
-    const publisherTelegramId = req.user?.telegramId || null;
-    
-    // حفظ الوثيقة في قاعدة البيانات عبر Link Model
+
+    // حفظ الرابط المختصر نهائياً عبر Link Model
     const newLink = new Link({
-      userId: userId,
-      publisherTelegramId: publisherTelegramId,
-      telegramId: publisherTelegramId,
+      userId: user._id,
+      publisherTelegramId: tgId,
+      telegramId: tgId,
       title: title ? String(title).trim() : 'رابط بدون عنوان',
       targetUrl: cleanUrl,
       shortCode,
@@ -949,9 +984,7 @@ app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res) => 
 
     await newLink.save();
 
-    if (mongoose.Types.ObjectId.isValid(userId)) {
-      await User.findByIdAndUpdate(userId, { $inc: { 'statsSummary.totalLinksCreated': 1 } }).catch(() => {});
-    }
+    await User.findByIdAndUpdate(user._id, { $inc: { 'statsSummary.totalLinksCreated': 1 } }).catch(() => {});
 
     const linkObj = newLink.toObject ? newLink.toObject() : newLink;
     const shortUrl = `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`;
@@ -974,15 +1007,10 @@ app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res) => 
 });
 
 // Fetch Links Helper Function
-const getUserLinks = async (userId) => {
-  if (!userId) return [];
+const getUserLinks = async (telegramId) => {
+  if (!telegramId) return [];
 
-  const rawLinks = await Link.find({
-    $or: [
-      { userId: userId },
-      { userId: userId.toString() }
-    ]
-  }).sort({ createdAt: -1 }).lean();
+  const rawLinks = await Link.find({ publisherTelegramId: String(telegramId) }).sort({ createdAt: -1 }).lean();
 
   return rawLinks.map(link => {
     const totalViews = link.views || 0;
@@ -998,7 +1026,8 @@ const getUserLinks = async (userId) => {
 
 app.get('/api/links', authMiddleware, async (req, res, next) => {
   try {
-    const links = await getUserLinks(req.userId);
+    const tgId = String(req.query.telegramId || req.user.telegramId).trim();
+    const links = await getUserLinks(tgId);
     res.json({ success: true, links });
   } catch (err) {
     next(err);
@@ -1007,7 +1036,8 @@ app.get('/api/links', authMiddleware, async (req, res, next) => {
 
 app.get('/api/user/links', authMiddleware, async (req, res, next) => {
   try {
-    const links = await getUserLinks(req.userId);
+    const tgId = String(req.query.telegramId || req.user.telegramId).trim();
+    const links = await getUserLinks(tgId);
     res.json({ success: true, links });
   } catch (err) {
     next(err);
@@ -1017,12 +1047,9 @@ app.get('/api/user/links', authMiddleware, async (req, res, next) => {
 app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
   try {
     const { linkId } = req.body;
-    const userId = req.userId;
-
-    if (!userId) return res.status(401).json({ success: false, error: 'معرف المستخدم مفقود' });
     if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
 
-    const link = await Link.findOne({ _id: linkId, $or: [{ userId: userId }, { userId: userId.toString() }] });
+    const link = await Link.findOne({ _id: linkId, userId: req.userId });
     if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات التعديل عليه' });
 
     link.isActive = !link.isActive;
