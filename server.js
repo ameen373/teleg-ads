@@ -88,30 +88,43 @@ const CONFIG = Object.freeze({
 const toCents = (dollars) => Math.round((Number(dollars) || 0) * 100);
 const toDollars = (cents) => Number(((Number(cents) || 0) / 100).toFixed(2));
 
-// --- Redis Client Initialization ---
-let redisIsConnected = false;
-const redis = new Redis(CONFIG.REDIS_URL, {
-  maxRetriesPerRequest: 3,
-  enableReadyCheck: true,
-  retryStrategy: (times) => Math.min(times * 50, 2000)
-});
+// --- Cached Redis Client Initialization for Serverless ---
+let cachedRedis = global.redisClient;
+if (!cachedRedis) {
+  cachedRedis = global.redisClient = { instance: null, isConnected: false };
+}
 
-redis.on('error', (err) => {
-  redisIsConnected = false;
-  logger.error('⚠️ Redis Connection Warning: ' + err.message);
-});
-redis.on('ready', () => {
-  redisIsConnected = true;
-  console.log('✅ Enterprise Redis Client Connected & Ready');
-});
+function getRedisInstance() {
+  if (!cachedRedis.instance && CONFIG.REDIS_URL) {
+    const instance = new Redis(CONFIG.REDIS_URL, {
+      maxRetriesPerRequest: 3,
+      enableReadyCheck: true,
+      lazyConnect: true,
+      retryStrategy: (times) => Math.min(times * 50, 2000)
+    });
+
+    instance.on('error', (err) => {
+      cachedRedis.isConnected = false;
+      logger.error('⚠️ Redis Connection Warning: ' + err.message);
+    });
+    instance.on('ready', () => {
+      cachedRedis.isConnected = true;
+    });
+
+    cachedRedis.instance = instance;
+  }
+  return cachedRedis.instance;
+}
+
+const redis = getRedisInstance();
 
 async function safeRedisGet(key) {
-  if (!redisIsConnected) return null;
+  if (!redis) return null;
   try { return await redis.get(key); } catch (e) { return null; }
 }
 
 async function safeRedisSet(key, value, mode, duration) {
-  if (!redisIsConnected) return;
+  if (!redis) return;
   try {
     if (mode && duration) await redis.set(key, value, mode, duration);
     else await redis.set(key, value);
@@ -119,7 +132,7 @@ async function safeRedisSet(key, value, mode, duration) {
 }
 
 async function safeRedisDel(key) {
-  if (!redisIsConnected) return;
+  if (!redis) return;
   try { await redis.del(key); } catch (e) { logger.error('Redis Del Failed: ' + e.message); }
 }
 
@@ -296,7 +309,7 @@ const adminMiddleware = async (req, res, next) => {
 };
 
 // =========================================================================
-// --- API Routes & Gateways (MongoDB Direct Query & telegram_id Isolation) ---
+// --- API Routes & Gateways ---
 // =========================================================================
 
 app.all('/api/check-admin', async (req, res) => {
@@ -353,7 +366,6 @@ app.post('/api/auth/login', async (req, res, next) => {
         referredBy: refDocId
       });
       
-      // Atomic initialization of corresponding wallet in MongoDB
       await Wallet.create({
         userId: user._id,
         telegramId: tgId,
@@ -407,7 +419,6 @@ app.post('/api/auth/login', async (req, res, next) => {
 
 app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   try {
-    const userId = req.userId;
     const telegramId = req.telegramId;
 
     const [links, withdraws, announcements, ads, deposits] = await Promise.all([
@@ -520,7 +531,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
 
 app.get('/api/user/ads', authMiddleware, async (req, res, next) => {
   try {
-    const ads = await Ad.findAdvertiserAdsIsolated(req.telegramId);
+    const ads = await Ad.find({ telegramId: req.telegramId }).sort({ createdAt: -1 }).lean();
     res.json({ success: true, ads });
   } catch (err) {
     next(err);
@@ -775,7 +786,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
     }
 
     let dailyIpClicks = 1;
-    if (redisIsConnected) {
+    if (cachedRedis.isConnected && redis) {
       const dailyIpClickKey = `daily:ip:${req.ip}`;
       dailyIpClicks = await redis.incr(dailyIpClickKey);
       if (dailyIpClicks === 1) {
@@ -871,7 +882,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
   }
 });
 
-// --- Links Management Engine (Direct MongoDB Queries Isolation) ---
+// --- Links Management Engine ---
 app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res) => {
   try {
     const userId = req.userId;
