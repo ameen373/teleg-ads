@@ -191,7 +191,7 @@ walletSchema.statics.getWalletByTelegramIdIsolated = function(telegramId) {
 };
 
 // --------------------------------------------------
-// 3. Isolated Transaction History Model
+// 3. Isolated Transaction History Model (العمليات المالية)
 // --------------------------------------------------
 const transactionSchema = new mongoose.Schema({
   telegramId: { 
@@ -244,7 +244,7 @@ transactionSchema.statics.getUserTransactionsIsolated = function(userId, filter 
 };
 
 // --------------------------------------------------
-// 4. Self-Serve Ad Model (الحملات)
+// 4. Self-Serve Ad Model (الحملات الإعلانية)
 // --------------------------------------------------
 const adSchema = new mongoose.Schema({
   telegramId: { 
@@ -438,7 +438,7 @@ linkSchema.statics.findOneIsolated = function(shortCode, userId) {
 };
 
 // --------------------------------------------------
-// 6. Traffic & Impressions Model
+// 6. Traffic & Impressions Model (الزيارات والرؤى)
 // --------------------------------------------------
 const impressionSchema = new mongoose.Schema({
   telegramId: { 
@@ -793,7 +793,7 @@ depositSchema.pre('validate', function(next) {
   if (this.userId && !this.advertiserId) this.advertiserId = this.userId;
   if (this.advertiserId && !this.userId) this.userId = this.advertiserId;
   if (this.telegramId && !this.advertiserTelegramId) this.advertiserTelegramId = this.telegramId;
-  if (this.advertiserTelegramId && !this.telegramId) this.advertiserTelegramId = this.telegramId;
+  if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.advertiserTelegramId;
   next();
 });
 
@@ -807,7 +807,7 @@ depositSchema.statics.getAdvertiserDepositsIsolated = function(userId) {
 };
 
 // --------------------------------------------------
-// 11. Announcement Model
+// 11. Announcement Model (الإعلانات الإدارية)
 // --------------------------------------------------
 const announcementSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
