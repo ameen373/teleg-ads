@@ -213,23 +213,24 @@ const isPhishingOrMalicious = (url) => {
 };
 
 // =========================================================================
-// --- Middleware للتحقق من هوية المستخدم واستخراج البيانات ---
+// --- Middleware للتحقق من هوية المستخدم باستخدام telegramId أينما وُجد ---
 // =========================================================================
 const authMiddleware = async (req, res, next) => {
   try {
     let user = null;
+    
+    // 1. استخراج telegramId المباشر من الطلب (Query / Body / Headers)
+    const tgId = String(
+      req.body?.telegramId || 
+      req.query?.telegramId || 
+      req.headers['x-telegram-id'] || ''
+    ).trim();
 
-    // Option 1: Bearer Token Authorization Header
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
-      try {
-        const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
-        user = await User.findById(decoded.userId).lean();
-      } catch (err) {}
+    if (tgId) {
+      user = await User.findOne({ telegramId: tgId }).lean();
     }
 
-    // Option 2: Fallback to Direct Telegram InitData Header
+    // 2. التحقق الاحتياطي من Header الخاص بـ Telegram InitData
     if (!user) {
       const initData = req.headers['x-telegram-init-data'];
       const telegramUser = verifyTelegramData(initData);
@@ -238,14 +239,20 @@ const authMiddleware = async (req, res, next) => {
       }
     }
 
-    // Option 3: Fallback via Body or Query telegramId
-    if (!user && (req.body.telegramId || req.query.telegramId)) {
-      const tgId = String(req.body.telegramId || req.query.telegramId).trim();
-      user = await User.findOne({ telegramId: tgId }).lean();
+    // 3. التحقق الاحتياطي من Bearer Token Authorization Header
+    if (!user) {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        try {
+          const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
+          user = await User.findOne({ $or: [{ telegramId: String(decoded.telegramId) }, { _id: decoded.userId }] }).lean();
+        } catch (err) {}
+      }
     }
 
     if (!user) {
-      return res.status(401).json({ success: false, error: 'جلسة غير صالحة، يرجى إعادة تحميل التطبيق' });
+      return res.status(401).json({ success: false, error: 'جلسة غير صالحة أو معرف تلغرام مفقود، يرجى إعادة تحديث الصفحة' });
     }
 
     if (user.isBanned) {
@@ -270,16 +277,18 @@ const adminMiddleware = async (req, res, next) => {
 };
 
 // =========================================================================
-// --- دالة المساعدة: جلب البيانات بالكامل عبر Models المونجو باستخدام telegramId ---
+// --- دالة المساعدة المركزية: جلب كل بيانات المستخدم بالكامل عبر telegramId ---
 // =========================================================================
 async function fetchFullUserDataByTelegramId(telegramId) {
   const tgIdStr = String(telegramId).trim();
+  if (!tgIdStr) return null;
+
   const user = await User.findOne({ telegramId: tgIdStr }).lean();
   if (!user) return null;
 
   const userId = user._id;
-  
-  // البحث المباشر في قاعدة البيانات عبر MongoDB Models (Ad/Campaign, Link, Withdraw, Deposit)
+
+  // استعلام مباشر ودقيق من قاعدة البيانات MongoDB بناءً على telegramId أو userId للمستخدم
   const [rawLinks, withdraws, announcements, ads, deposits] = await Promise.all([
     Link.find({ $or: [{ telegramId: tgIdStr }, { publisherTelegramId: tgIdStr }, { userId: userId }] }).sort({ createdAt: -1 }).lean(),
     Withdraw.find({ $or: [{ telegramId: tgIdStr }, { userId: userId }] }).sort({ createdAt: -1 }).lean(),
@@ -306,7 +315,7 @@ async function fetchFullUserDataByTelegramId(telegramId) {
 }
 
 // =========================================================================
-// --- [علامة النجاح] GET /api/user-data/:telegramId يجلب كل البيانات بـ Models من DB ---
+// --- API Endpoints: جلب بيانات المستخدم كاملة بناءً على telegramId ---
 // =========================================================================
 app.get('/api/user-data/:telegramId', async (req, res, next) => {
   try {
@@ -317,7 +326,6 @@ app.get('/api/user-data/:telegramId', async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'معرف تلغرام (telegramId) مطلوب' });
     }
 
-    // جلب البيانات مباشرة من MongoDB عبر Ad.find({ telegramId }) و Link.find({ telegramId }) وغيرها
     const fullData = await fetchFullUserDataByTelegramId(cleanTgId);
 
     if (!fullData || !fullData.user) {
@@ -337,7 +345,7 @@ app.get('/api/user-data/:telegramId', async (req, res, next) => {
       links: fullData.links,
       withdraws: fullData.withdraws,
       announcements: fullData.announcements,
-      ads: fullData.ads, // يتضمن الحملات المجلوبة بواسطة Ad.find({ telegramId })
+      ads: fullData.ads,
       deposits: fullData.deposits,
       isAdmin,
       botUsername: CONFIG.BOT_USERNAME,
@@ -358,7 +366,7 @@ app.get('/api/user-data/:telegramId', async (req, res, next) => {
 // --- API Endpoint: Check Admin Role ---
 app.all('/api/check-admin', async (req, res) => {
   try {
-    let targetUserId = req.body?.userId || req.query?.userId;
+    let targetUserId = req.body?.telegramId || req.query?.telegramId || req.body?.userId || req.query?.userId;
     let telegramIdToCheck = null;
 
     if (targetUserId && mongoose.Types.ObjectId.isValid(targetUserId)) {
@@ -400,10 +408,13 @@ app.post('/api/auth/login', async (req, res, next) => {
     const initData = req.headers['x-telegram-init-data'];
     const telegramUser = verifyTelegramData(initData);
 
-    const tgId = telegramUser ? String(telegramUser.id) : (req.body.telegramId ? String(req.body.telegramId) : null);
+    const tgId = req.body.telegramId 
+      ? String(req.body.telegramId).trim() 
+      : (telegramUser ? String(telegramUser.id) : null);
+
     const { referrerId } = req.body;
 
-    if (!tgId) return res.status(401).json({ success: false, error: 'بيانات الاعتماد الخاصة بتليجرام غير صالحة' });
+    if (!tgId) return res.status(401).json({ success: false, error: 'بيانات الاعتماد الخاصة بتليجرام غير صالحة (telegramId مفقود)' });
 
     const currentUsername = telegramUser?.username || req.body.username || `User_${tgId.slice(-4)}`;
     const userLanguage = telegramUser?.language_code || CONFIG.DEFAULT_LANGUAGE;
@@ -437,10 +448,17 @@ app.post('/api/auth/login', async (req, res, next) => {
       { expiresIn: '7d', algorithm: 'HS256' }
     );
 
+    const fullData = await fetchFullUserDataByTelegramId(tgId);
+
     res.json({ 
       success: true, 
       token, 
-      user, 
+      user: fullData.user, 
+      links: fullData.links,
+      withdraws: fullData.withdraws,
+      announcements: fullData.announcements,
+      ads: fullData.ads,
+      deposits: fullData.deposits,
       language: user.language || CONFIG.DEFAULT_LANGUAGE,
       isAdmin: String(user.telegramId).trim() === CONFIG.ADMIN_ID,
       botUsername: CONFIG.BOT_USERNAME,
@@ -486,12 +504,13 @@ app.get('/api/user/by-telegram/:telegramId', async (req, res, next) => {
 // --- Isolated User Data Gateway ---
 app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   try {
-    const fullData = await fetchFullUserDataByTelegramId(req.user.telegramId);
+    const tgId = String(req.query.telegramId || req.user.telegramId).trim();
+    const fullData = await fetchFullUserDataByTelegramId(tgId);
 
     res.json({ 
       success: true,
       ...fullData,
-      isAdmin: String(req.user.telegramId).trim() === CONFIG.ADMIN_ID,
+      isAdmin: String(tgId).trim() === CONFIG.ADMIN_ID,
       botUsername: CONFIG.BOT_USERNAME,
       supportUsername: CONFIG.SUPPORT_USERNAME,
       botUrl: CONFIG.OFFICIAL_BOT_URL,
@@ -508,7 +527,7 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
 });
 
 // =========================================================================
-// --- POST /api/links: استلام وحفظ telegramId مع الرابط مباشرة في MongoDB ---
+// --- POST /api/links: إنشاء رابط وإسناده لـ telegramId ---
 // =========================================================================
 app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res) => {
   try {
@@ -539,7 +558,6 @@ app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res) => 
 
     const shortCode = crypto.randomBytes(3).toString('hex');
 
-    // حفظ الرابط بـ Link Model ومرافقة telegramId مع البيانات
     const newLink = new Link({
       userId: user._id,
       publisherTelegramId: tgId,
@@ -575,7 +593,7 @@ app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res) => 
 });
 
 // =========================================================================
-// --- POST /api/ads: استلام وحفظ telegramId مع الحملة (الإعلان) في MongoDB ---
+// --- POST /api/ads: إنشاء حملة إعلانية واستقطاع الرصيد عبر telegramId ---
 // =========================================================================
 app.post('/api/ads', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
@@ -614,7 +632,6 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
     user.availableBalance -= budget;
     await user.save({ session });
 
-    // حفظ الحملة الإعلانية عبر Ad Model مباشرة مع ربط telegramId
     const ad = await Ad.create([{
       userId: user._id,
       advertiserId: user._id,
@@ -642,7 +659,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
 });
 
 // =========================================================================
-// --- POST /api/deposit: استلام وحفظ telegramId مع طلب الإيداع في MongoDB ---
+// --- POST /api/deposit: تقديم طلب إيداع وربطه مع telegramId ---
 // =========================================================================
 app.post('/api/deposit', authMiddleware, async (req, res, next) => {
   try {
@@ -674,7 +691,6 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'تم تقديم رقم هذه المعاملة (TxID) من قبل' });
     }
 
-    // حفظ طلب الإيداع عبر Deposit Model مع حفظ telegramId
     const deposit = await Deposit.create({
       userId: user._id,
       advertiserId: user._id,
@@ -698,7 +714,7 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
 });
 
 // =========================================================================
-// --- POST /api/withdraw: استلام وحفظ telegramId مع طلب السحب في MongoDB ---
+// --- POST /api/withdraw: تقديم طلب سحب بناءً على telegramId ---
 // =========================================================================
 app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
@@ -749,7 +765,6 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
     user.defaultWallet = cleanWallet;
     await user.save({ session });
 
-    // حفظ طلب السحب عبر Withdraw Model متضمناً telegramId
     const withdrawRequest = await Withdraw.create([{
       userId: user._id,
       telegramId: tgId,
@@ -789,10 +804,12 @@ app.get('/api/user/ads', authMiddleware, async (req, res, next) => {
 
 app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
   try {
-    const { adId } = req.body;
+    const { adId, telegramId } = req.body;
+    const tgId = String(telegramId || req.user.telegramId).trim();
+
     if (!mongoose.Types.ObjectId.isValid(adId)) return res.status(400).json({ success: false, error: 'معرف الإعلان غير صالح' });
 
-    const ad = await Ad.findOne({ _id: adId, userId: req.userId });
+    const ad = await Ad.findOne({ _id: adId, $or: [{ telegramId: tgId }, { userId: req.userId }] });
     if (!ad) return res.status(404).json({ success: false, error: 'الإعلان غير موجود أو لا تملك صلاحية تعديله' });
 
     if (ad.status === 'completed') {
@@ -890,7 +907,7 @@ app.post('/api/init-click', validateTraffic, async (req, res, next) => {
 });
 
 // =========================================================================
-// --- POST /api/impression: تسجيل ظهور بـ Impression Model مع telegramId ---
+// --- POST /api/impression: تسجيل مشاهدة وربط الأرباح عبر telegramId ---
 // =========================================================================
 app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next) => {
   const sessionDb = await mongoose.startSession();
@@ -951,7 +968,6 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 
     const pubTgId = String(link.publisherTelegramId || link.telegramId || link.userId.telegramId);
 
-    // إضافة تسجيل ظهور بـ Impression Model مرافقة للـ telegramId
     await Impression.create([{
       linkId: link._id,
       userId: link.userId._id,
@@ -1023,7 +1039,12 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 const getUserLinks = async (telegramId) => {
   if (!telegramId) return [];
 
-  const rawLinks = await Link.find({ $or: [{ telegramId: String(telegramId) }, { publisherTelegramId: String(telegramId) }] }).sort({ createdAt: -1 }).lean();
+  const rawLinks = await Link.find({ 
+    $or: [
+      { telegramId: String(telegramId) }, 
+      { publisherTelegramId: String(telegramId) }
+    ] 
+  }).sort({ createdAt: -1 }).lean();
 
   return rawLinks.map(link => {
     const totalViews = link.views || 0;
@@ -1059,10 +1080,12 @@ app.get('/api/user/links', authMiddleware, async (req, res, next) => {
 
 app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
   try {
-    const { linkId } = req.body;
+    const { linkId, telegramId } = req.body;
+    const tgId = String(telegramId || req.user.telegramId).trim();
+
     if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
 
-    const link = await Link.findOne({ _id: linkId, userId: req.userId });
+    const link = await Link.findOne({ _id: linkId, $or: [{ telegramId: tgId }, { publisherTelegramId: tgId }, { userId: req.userId }] });
     if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات التعديل عليه' });
 
     link.isActive = !link.isActive;
@@ -1077,13 +1100,14 @@ app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
 
 app.post('/api/user/settings', authMiddleware, async (req, res, next) => {
   try {
-    const { defaultWallet, language } = req.body;
+    const { defaultWallet, language, telegramId } = req.body;
+    const tgId = String(telegramId || req.user.telegramId).trim();
     const updateData = {};
     
     if (defaultWallet !== undefined) updateData.defaultWallet = String(defaultWallet).trim();
     if (language !== undefined) updateData.language = String(language).trim().toLowerCase() || CONFIG.DEFAULT_LANGUAGE;
 
-    await User.findByIdAndUpdate(req.userId, updateData);
+    await User.findOneAndUpdate({ telegramId: tgId }, updateData);
     res.json({ success: true, message: 'تم تحديث الإعدادات بنجاح' });
   } catch (err) {
     next(err);
@@ -1278,11 +1302,13 @@ app.post('/api/admin/distribute-revenue', authMiddleware, adminMiddleware, async
 });
 
 app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (req, res, next) => {
-  const { userId } = req.body;
-  if (!mongoose.Types.ObjectId.isValid(userId)) return res.status(400).json({ success: false, error: 'معرف المستخدم غير صالح' });
-
+  const { userId, telegramId } = req.body;
+  
   try {
-    const user = await User.findById(userId);
+    const user = userId 
+      ? await User.findById(userId) 
+      : await User.findOne({ telegramId: String(telegramId).trim() });
+
     if (!user) return res.status(404).json({ success: false, error: 'المستخدم غير موجود' });
 
     user.isBanned = !user.isBanned;
