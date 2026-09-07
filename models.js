@@ -130,22 +130,22 @@ userSchema.statics.findByTelegramIdIsolated = function(telegramId) {
 };
 
 // --------------------------------------------------
-// 2. Isolated Wallet Model (Central Balance Control)
+// 2. Isolated Wallet Model (المحفظة - Central Balance Control)
 // --------------------------------------------------
 const walletSchema = new mongoose.Schema({
+  telegramId: { 
+    type: String, 
+    required: [true, 'Telegram ID is required'], 
+    unique: true,
+    index: true, 
+    trim: true 
+  },
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
     required: [true, 'User ID is required for tenant isolation'], 
     unique: true,
     index: true 
-  },
-  telegramId: { 
-    type: String, 
-    required: [true, 'Telegram ID is required for fast tenant lookup'], 
-    unique: true,
-    index: true, 
-    trim: true 
   },
   availableBalance: { 
     type: Number, 
@@ -186,21 +186,26 @@ walletSchema.statics.getWalletIsolated = function(userId) {
   return this.findOne({ userId });
 };
 
+walletSchema.statics.getWalletByTelegramIdIsolated = function(telegramId) {
+  enforceTenantKey(telegramId, 'telegramId');
+  return this.findOne({ telegramId: String(telegramId).trim() });
+};
+
 // --------------------------------------------------
 // 3. Isolated Transaction History Model
 // --------------------------------------------------
 const transactionSchema = new mongoose.Schema({
+  telegramId: { 
+    type: String, 
+    required: [true, 'Telegram ID is required'], 
+    index: true, 
+    trim: true 
+  },
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
     required: [true, 'User ID is required for tenant isolation'], 
     index: true 
-  },
-  telegramId: { 
-    type: String, 
-    required: [true, 'Telegram ID is required for fast tenant lookup'], 
-    index: true, 
-    trim: true 
   },
   type: { 
     type: String, 
@@ -240,20 +245,20 @@ transactionSchema.statics.getUserTransactionsIsolated = function(userId, filter 
 };
 
 // --------------------------------------------------
-// 4. Self-Serve Ad Model (Campaigns)
+// 4. Self-Serve Ad Model (الحملات الإعلانية - Campaigns)
 // --------------------------------------------------
 const adSchema = new mongoose.Schema({
+  telegramId: {
+    type: String,
+    required: [true, 'Telegram ID is required'],
+    index: true,
+    trim: true
+  },
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
     required: [true, 'User ID is required for tenant isolation'], 
     index: true 
-  },
-  telegramId: {
-    type: String,
-    required: [true, 'Telegram ID is required for fast tenant lookup'],
-    index: true,
-    trim: true
   },
   advertiserId: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -337,7 +342,7 @@ adSchema.pre('validate', function(next) {
   if (this.userId && !this.advertiserId) this.advertiserId = this.userId;
   if (this.advertiserId && !this.userId) this.userId = this.advertiserId;
   if (this.telegramId && !this.advertiserTelegramId) this.advertiserTelegramId = this.telegramId;
-  if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.advertiserTelegramId;
+  if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.telegramId;
   next();
 });
 
@@ -352,9 +357,15 @@ adSchema.statics.findAdvertiserAdsIsolated = function(userId, filter = {}) {
 };
 
 // --------------------------------------------------
-// 5. Shortened Link Model (Links - Isolated Multi-Tenant)
+// 5. Shortened Link Model (الروابط المختصرة - Links)
 // --------------------------------------------------
 const linkSchema = new mongoose.Schema({
+  telegramId: {
+    type: String,
+    required: [true, 'Telegram ID is required'],
+    index: true,
+    trim: true
+  },
   shortCode: { 
     type: String, 
     required: [true, 'Short code is required'], 
@@ -367,12 +378,6 @@ const linkSchema = new mongoose.Schema({
     ref: 'User',
     required: [true, 'User ID is required for tenant isolation'], 
     index: true
-  },
-  telegramId: {
-    type: String,
-    required: [true, 'Telegram ID is required for zero-leakage index queries'],
-    index: true,
-    trim: true
   },
   publisherTelegramId: {
     type: String,
@@ -440,6 +445,12 @@ linkSchema.statics.findOneIsolated = function(shortCode, userId) {
 // 6. Traffic & Impressions Model
 // --------------------------------------------------
 const impressionSchema = new mongoose.Schema({
+  telegramId: {
+    type: String,
+    required: [true, 'Telegram ID is required'],
+    trim: true,
+    index: true
+  },
   linkId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'Link', 
@@ -450,12 +461,6 @@ const impressionSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: [true, 'User ID is required for tenant isolation'],
-    index: true
-  },
-  telegramId: {
-    type: String,
-    required: [true, 'Telegram ID is required for tenant isolation'],
-    trim: true,
     index: true
   },
   publisherId: {
@@ -518,7 +523,7 @@ impressionSchema.pre('validate', function(next) {
   if (this.publisherId && !this.userId) this.userId = this.publisherId;
   if (this.userId && !this.publisherId) this.publisherId = this.userId;
   if (this.telegramId && !this.publisherTelegramId) this.publisherTelegramId = this.telegramId;
-  if (this.publisherTelegramId && !this.telegramId) this.telegramId = this.publisherTelegramId;
+  if (this.publisherTelegramId && !this.telegramId) this.telegramId = this.telegramId;
   next();
 });
 
@@ -537,6 +542,12 @@ impressionSchema.statics.getPublisherImpressionsIsolated = function(userId, extr
 // 7. Anti-Bypass Click Session Model
 // --------------------------------------------------
 const clickSessionSchema = new mongoose.Schema({
+  telegramId: {
+    type: String,
+    required: [true, 'Telegram ID is required'],
+    trim: true,
+    index: true
+  },
   linkId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'Link', 
@@ -546,12 +557,6 @@ const clickSessionSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: [true, 'User ID is required for tenant isolation'],
-    index: true
-  },
-  telegramId: {
-    type: String,
-    required: [true, 'Telegram ID is required for tenant isolation'],
-    trim: true,
     index: true
   },
   publisherId: {
@@ -605,20 +610,20 @@ clickSessionSchema.index({ telegramId: 1, createdAt: -1 });
 clickSessionSchema.index({ bridgeToken: 1 }, { unique: true });
 
 // --------------------------------------------------
-// 8. Withdraw Request Model (Withdrawals)
+// 8. Withdraw Request Model (السحب - Withdrawals)
 // --------------------------------------------------
 const withdrawSchema = new mongoose.Schema({
+  telegramId: {
+    type: String,
+    required: [true, 'Telegram ID is required'],
+    trim: true,
+    index: true
+  },
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
     required: [true, 'User ID is required for tenant isolation'], 
     index: true 
-  },
-  telegramId: {
-    type: String,
-    required: [true, 'Telegram ID is required for tenant isolation'],
-    trim: true,
-    index: true
   },
   amount: { 
     type: Number, 
@@ -693,17 +698,17 @@ withdrawSchema.statics.getUserWithdrawalsIsolated = function(userId, status = nu
 // 9. Earnings Hold Model
 // --------------------------------------------------
 const earningsHoldSchema = new mongoose.Schema({
+  telegramId: {
+    type: String,
+    required: [true, 'Telegram ID is required'],
+    trim: true,
+    index: true
+  },
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
     required: [true, 'User ID is required for tenant isolation'], 
     index: true 
-  },
-  telegramId: {
-    type: String,
-    required: [true, 'Telegram ID is required for tenant isolation'],
-    trim: true,
-    index: true
   },
   amount: { 
     type: Number, 
@@ -733,19 +738,19 @@ earningsHoldSchema.statics.getUserHoldsIsolated = function(userId) {
 };
 
 // --------------------------------------------------
-// 10. Advertiser Deposit Model (Deposits)
+// 10. Advertiser Deposit Model (الإيداع - Deposits)
 // --------------------------------------------------
 const depositSchema = new mongoose.Schema({
+  telegramId: {
+    type: String,
+    required: [true, 'Telegram ID is required'],
+    trim: true,
+    index: true
+  },
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: [true, 'User ID is required for tenant isolation'],
-    index: true
-  },
-  telegramId: {
-    type: String,
-    required: [true, 'Telegram ID is required for fast tenant lookup'],
-    trim: true,
     index: true
   },
   advertiserId: {
@@ -797,7 +802,7 @@ depositSchema.pre('validate', function(next) {
   if (this.userId && !this.advertiserId) this.advertiserId = this.userId;
   if (this.advertiserId && !this.userId) this.userId = this.advertiserId;
   if (this.telegramId && !this.advertiserTelegramId) this.advertiserTelegramId = this.telegramId;
-  if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.advertiserTelegramId;
+  if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.telegramId;
   next();
 });
 
