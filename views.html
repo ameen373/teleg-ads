@@ -610,11 +610,12 @@
 
     const tg = window.Telegram?.WebApp;
 
-    // 1. استخراج telegramId فوراً مع بداية فتح التطبيق
-    let telegramId = null;
+    // 1. استخراج telegramId فوراً عند قراءة الملف
+    let telegramId = tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe.user.id) : null;
+    let currentUserTelegramId = telegramId;
+
     if (tg) {
       tg.ready();
-      telegramId = tg.initDataUnsafe?.user?.id || null;
     }
 
     let authToken = localStorage.getItem('authToken');
@@ -622,7 +623,6 @@
     let bridgeStartTime = Date.now();
     let isUserAdmin = false;
     let currentLang = localStorage.getItem('appLang') || 'en';
-    let currentUserTelegramId = telegramId ? String(telegramId) : null;
     let rawUserLinksCache = [];
 
     // Translation Dictionary
@@ -859,12 +859,12 @@
 
     /**
      * 2. UNIFIED SECURE FETCH WRAPPER
-     * إرفاق telegramId تلقائياً في جميع الطلبات (Headers, Body, Query Params)
+     * إرفاق telegramId تلقائياً مع كل طلب API للخادم (Headers + Body + Query Params)
      */
     async function safeFetch(endpoint, options = {}) {
       options.headers = options.headers || {};
       
-      const currentTgId = telegramId ? String(telegramId) : (currentUserTelegramId || '');
+      const currentTgId = telegramId || currentUserTelegramId || tg?.initDataUnsafe?.user?.id || '';
       const initDataStr = tg?.initData || '';
 
       if (authToken) {
@@ -874,10 +874,10 @@
         options.headers['x-telegram-init-data'] = initDataStr;
       }
       if (currentTgId) {
-        options.headers['x-telegram-id'] = currentTgId;
+        options.headers['x-telegram-id'] = String(currentTgId);
       }
 
-      // إرفاق telegramId في الـ body لكافة طلبات التعديل والحفظ (POST, PUT, DELETE, etc.)
+      // إرفاق telegramId في الـ Body لكافة الطلبات
       let bodyObj = {};
       if (options.body && typeof options.body === 'string') {
         try { bodyObj = JSON.parse(options.body); } catch(e) {}
@@ -887,8 +887,8 @@
 
       if (options.method && options.method.toUpperCase() !== 'GET') {
         if (currentTgId) {
-          bodyObj.telegramId = currentTgId;
-          bodyObj.userId = currentTgId;
+          bodyObj.telegramId = String(currentTgId);
+          bodyObj.userId = String(currentTgId);
         }
         if (initDataStr) bodyObj.initData = initDataStr;
         options.body = JSON.stringify(bodyObj);
@@ -904,8 +904,8 @@
       try {
         const urlObj = new URL(targetUrl);
         if (currentTgId && !urlObj.searchParams.has('telegramId')) {
-          urlObj.searchParams.set('telegramId', currentTgId);
-          urlObj.searchParams.set('userId', currentTgId);
+          urlObj.searchParams.set('telegramId', String(currentTgId));
+          urlObj.searchParams.set('userId', String(currentTgId));
         }
         if (initDataStr && !urlObj.searchParams.has('initData')) {
           urlObj.searchParams.set('initData', initDataStr);
@@ -922,7 +922,7 @@
           if (reAuth) {
             if (authToken) options.headers['Authorization'] = `Bearer ${authToken}`;
             if (initDataStr) options.headers['x-telegram-init-data'] = initDataStr;
-            if (currentTgId) options.headers['x-telegram-id'] = currentTgId;
+            if (currentTgId) options.headers['x-telegram-id'] = String(currentTgId);
             response = await fetch(targetUrl, options);
           }
         }
@@ -957,7 +957,7 @@
 
       if (u && u.id) {
         currentUserTelegramId = String(u.id);
-        telegramId = u.id;
+        telegramId = String(u.id);
         const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || 'Telegram User';
         nameElem.innerText = fullName;
         handleElem.innerText = u.username ? `@${u.username}` : '@no_username';
@@ -984,6 +984,7 @@
         }
       } else {
         currentUserTelegramId = 'DEMO_USER_DEV';
+        telegramId = 'DEMO_USER_DEV';
         nameElem.innerText = 'Demo Partner';
         handleElem.innerText = '@demo_partner';
         idElem.innerText = 'ID: 88888888';
@@ -1134,16 +1135,16 @@
     }
 
     /**
-     * 3. جلب بيانات المستخدم فورياً عند فتح التطبيق
-     * لجلب الروابط، الحملات، المحفظة، الإيداع، والسحب عبر /api/user-data/:telegramId
+     * 3. التردد المباشر على الخادم بجلب بيانات المستخدم بناءً على الـ telegramId المستلم
+     * وتعبئة الواجهة بالكامل (المحفظة، الروابط، الحملات) عند فتح الصفحة
      */
     async function fetchUserDataImmediately() {
       const activeTelegramId = telegramId || currentUserTelegramId || window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
       if (!activeTelegramId) return;
 
       try {
-        const response = await fetch('/api/user-data/' + activeTelegramId);
-        if (!response.ok) return;
+        const response = await safeFetch(`/api/user-data/${activeTelegramId}`);
+        if (!response || !response.ok) return;
 
         const data = await response.json();
         const user = data.user || data;
@@ -1159,7 +1160,7 @@
           if (refElem) refElem.innerText = `$${(user.referralEarnings || 0).toFixed(2)}`;
           if (walletElem) walletElem.value = user.defaultWallet || '';
 
-          // عرض الحملات الإعلانية فوراً
+          // تعبئة قائمة الحملات الإعلانية فوراً
           const adsContainer = document.getElementById('ads-list');
           if (adsContainer && data.ads) {
             if (data.ads.length === 0) {
@@ -1183,7 +1184,7 @@
             }
           }
 
-          // عرض الروابط فوراً
+          // تعبئة قائمة الروابط فوراً
           const linksContainer = document.getElementById('links-list');
           if (linksContainer && data.links) {
             rawUserLinksCache = data.links;
@@ -1199,7 +1200,7 @@
     async function initializeApp() {
       try {
         renderTelegramUser();
-        // جلب البيانات فوراً بمجرد فتح الصفحة
+        // جلب وتعبئة بيانات المستخدم بناءً على telegramId المستلم فور فتح الصفحة
         await fetchUserDataImmediately();
 
         if (!authToken) await authLogin();
