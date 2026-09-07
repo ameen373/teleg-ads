@@ -7,6 +7,8 @@
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
+const session = require('express-session');
+const MongoStore = require('connect-mongo');
 const rateLimit = require('express-rate-limit');
 const cron = require('node-cron');
 const path = require('path');
@@ -33,6 +35,60 @@ const {
 } = require('./models');
 
 const app = express();
+
+// ==================================================
+// --- System Constants & Environment Variables ---
+// ==================================================
+const CONFIG = Object.freeze({
+  BOT_TOKEN: process.env.BOT_TOKEN,
+  MONGO_URI: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/shortener',
+  SESSION_SECRET: process.env.SESSION_SECRET || 'telega_ads_super_secure_session_secret_key_2026',
+  ADMIN_ID: String(process.env.ADMIN_ID || '123456789').trim(),
+  JWT_SECRET: process.env.JWT_SECRET || 'fallback_jwt_secret_key_32bytes_long!',
+  ADSGRAM_BLOCK_ID: process.env.ADSGRAM_BLOCK_ID || '1234',
+  APP_DOMAIN: process.env.APP_DOMAIN || 'teleg-ads.vercel.app',
+  REDIS_URL: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
+  DEFAULT_LANGUAGE: 'ar',
+  
+  OFFICIAL_BOT_URL: process.env.OFFICIAL_BOT_URL || 'https://t.me/Ads_telegabot',
+  OFFICIAL_CHANNEL_URL: process.env.OFFICIAL_CHANNEL_URL || 'https://t.me/ttelega_ads',
+  TELEGRAM_SUPPORT_URL: process.env.TELEGRAM_SUPPORT_URL || 'https://t.me/Te_AdsNs_bot',
+  
+  DEPOSIT_USDT_BEP20: process.env.DEPOSIT_USDT_BEP20 || '',
+  DEPOSIT_USDT_TRC20: process.env.DEPOSIT_USDT_TRC20 || '',
+
+  BOT_USERNAME: '@' + (process.env.OFFICIAL_BOT_URL || 'https://t.me/Ads_telegabot').split('/').pop(),
+  SUPPORT_USERNAME: '@' + (process.env.TELEGRAM_SUPPORT_URL || 'https://t.me/Te_AdsNs_bot').split('/').pop()
+});
+
+// --- MongoDB Direct Connection ---
+mongoose.connect(process.env.MONGO_URI || CONFIG.MONGO_URI, {
+  maxPoolSize: 50,
+  minPoolSize: 10,
+  serverSelectionTimeoutMS: 5000,
+  socketTimeoutMS: 45000,
+}).then(() => console.log('✅ Enterprise MongoDB Pipeline Connected'))
+  .catch(err => {
+    console.error('❌ Critical MongoDB Connection Failure:', err);
+    process.exit(1);
+  });
+
+// --- Express Session & Connect Mongo Middleware ---
+app.use(session({
+  secret: CONFIG.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  store: MongoStore.create({
+    mongoUrl: process.env.MONGO_URI || CONFIG.MONGO_URI,
+    collectionName: 'sessions',
+    ttl: 14 * 24 * 60 * 60 // 14 يوم حفظ الجلسة
+  }),
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    maxAge: 14 * 24 * 60 * 60 * 1000 // 14 يوم
+  }
+}));
 
 // --- Setup Server Trust Proxy ---
 app.set('trust proxy', 1);
@@ -71,42 +127,6 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 app.use(morgan('combined', { stream: { write: (message) => logger.info(message.trim()) } }));
-
-// ==================================================
-// --- System Constants & Environment Variables ---
-// ==================================================
-const CONFIG = Object.freeze({
-  BOT_TOKEN: process.env.BOT_TOKEN,
-  MONGO_URI: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/shortener',
-  ADMIN_ID: String(process.env.ADMIN_ID || '123456789').trim(),
-  JWT_SECRET: process.env.JWT_SECRET || 'fallback_jwt_secret_key_32bytes_long!',
-  ADSGRAM_BLOCK_ID: process.env.ADSGRAM_BLOCK_ID || '1234',
-  APP_DOMAIN: process.env.APP_DOMAIN || 'teleg-ads.vercel.app',
-  REDIS_URL: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
-  DEFAULT_LANGUAGE: 'ar',
-  
-  OFFICIAL_BOT_URL: process.env.OFFICIAL_BOT_URL || 'https://t.me/Ads_telegabot',
-  OFFICIAL_CHANNEL_URL: process.env.OFFICIAL_CHANNEL_URL || 'https://t.me/ttelega_ads',
-  TELEGRAM_SUPPORT_URL: process.env.TELEGRAM_SUPPORT_URL || 'https://t.me/Te_AdsNs_bot',
-  
-  DEPOSIT_USDT_BEP20: process.env.DEPOSIT_USDT_BEP20 || '',
-  DEPOSIT_USDT_TRC20: process.env.DEPOSIT_USDT_TRC20 || '',
-
-  BOT_USERNAME: '@' + (process.env.OFFICIAL_BOT_URL || 'https://t.me/Ads_telegabot').split('/').pop(),
-  SUPPORT_USERNAME: '@' + (process.env.TELEGRAM_SUPPORT_URL || 'https://t.me/Te_AdsNs_bot').split('/').pop()
-});
-
-// --- MongoDB Direct Pipeline Connection ---
-mongoose.connect(process.env.MONGO_URI || CONFIG.MONGO_URI, {
-  maxPoolSize: 50,
-  minPoolSize: 10,
-  serverSelectionTimeoutMS: 5000,
-  socketTimeoutMS: 45000,
-}).then(() => console.log('✅ Enterprise MongoDB Pipeline Connected'))
-  .catch(err => {
-    logger.error('❌ Critical MongoDB Connection Failure:', err);
-    process.exit(1);
-  });
 
 // --- Redis Client Initialization ---
 let redisIsConnected = false;
@@ -223,21 +243,30 @@ const isPhishingOrMalicious = (url) => {
 };
 
 // =========================================================================
-// --- Middleware للتحقق من هوية المستخدم واستخراج userId من MongoDB ---
+// --- Middleware للتحقق من هوية المستخدم واستخراج userId من MongoDB أو الـ Session ---
 // =========================================================================
 const authMiddleware = async (req, res, next) => {
   try {
     let user = null;
 
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
-      try {
-        const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
-        user = await User.findById(decoded.userId).lean();
-      } catch (err) {}
+    // 1. التحقق عبر الـ Session
+    if (req.session && req.session.userId) {
+      user = await User.findById(req.session.userId).lean();
     }
 
+    // 2. التحقق عبر الـ Bearer Token
+    if (!user) {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        try {
+          const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
+          user = await User.findById(decoded.userId).lean();
+        } catch (err) {}
+      }
+    }
+
+    // 3. التحقق عبر بيانات InitData الخاصة بتليجرام
     if (!user) {
       const initData = req.headers['x-telegram-init-data'];
       const telegramUser = verifyTelegramData(initData);
@@ -257,6 +286,11 @@ const authMiddleware = async (req, res, next) => {
     req.user = user;
     req.user.id = user._id.toString();
     req.userId = user._id;
+
+    // حفظ المترابط في Session لضمان استمرارية الاتصال
+    if (req.session) {
+      req.session.userId = user._id.toString();
+    }
 
     next();
   } catch (err) {
@@ -282,6 +316,11 @@ app.all('/api/check-admin', async (req, res) => {
       if (u) telegramIdToCheck = String(u.telegramId).trim();
     } else if (targetUserId) {
       telegramIdToCheck = String(targetUserId).trim();
+    }
+
+    if (!telegramIdToCheck && req.session?.userId) {
+      const u = await User.findById(req.session.userId).lean();
+      if (u) telegramIdToCheck = String(u.telegramId).trim();
     }
 
     if (!telegramIdToCheck) {
@@ -310,7 +349,7 @@ app.all('/api/check-admin', async (req, res) => {
   }
 });
 
-// --- Auth Login Endpoint (MongoDB Persisted User) ---
+// --- Auth Login Endpoint (MongoDB Persisted User + Session Binding) ---
 app.post('/api/auth/login', async (req, res, next) => {
   try {
     const initData = req.headers['x-telegram-init-data'];
@@ -347,10 +386,13 @@ app.post('/api/auth/login', async (req, res, next) => {
 
     if (user.isBanned) return res.status(403).json({ success: false, error: `حسابك معطل بسبب مخالفة الشروط. التواصل مع الدعم: ${CONFIG.SUPPORT_USERNAME}` });
 
+    // حفظ جلسة المستخدم في Session
+    req.session.userId = user._id.toString();
+
     const token = jwt.sign(
       { userId: user._id, telegramId: user.telegramId, role: user.role },
       CONFIG.JWT_SECRET,
-      { expiresIn: '7d', algorithm: 'HS256' }
+      { expiresIn: '14d', algorithm: 'HS256' }
     );
 
     res.json({ 
@@ -374,12 +416,81 @@ app.post('/api/auth/login', async (req, res, next) => {
   }
 });
 
+// =========================================================================
+// --- API جديد: /api/user/me لتأكيد هوية المستخدم وإرجاع بياناته الكاملة ---
+// =========================================================================
+app.get('/api/user/me', authMiddleware, async (req, res, next) => {
+  try {
+    const userId = req.userId;
+
+    // جلب كافة بيانات المستخدم الحالية مباشرة من قواعد البيانات Mongoose
+    const [freshUser, rawLinks, withdraws, announcements, ads, deposits] = await Promise.all([
+      User.findById(userId).lean(),
+      Link.find({ $or: [{ userId: userId }, { userId: userId.toString() }] }).sort({ createdAt: -1 }).lean(),
+      Withdraw.find({ userId: userId }).sort({ createdAt: -1 }).lean(),
+      Announcement.find({ $or: [{ isGlobal: true }, { targetUserId: userId }] }).sort({ createdAt: -1 }).lean(),
+      Ad.find({ userId: userId }).sort({ createdAt: -1 }).lean(),
+      Deposit.find({ userId: userId }).sort({ createdAt: -1 }).lean()
+    ]);
+
+    if (!freshUser) {
+      return res.status(404).json({ success: false, error: 'المستخدم غير موجود' });
+    }
+
+    const links = rawLinks.map(link => {
+      const totalViews = link.views || 0;
+      const validImp = link.validImpressions || 0;
+      const invalidImp = link.invalidImpressions || 0;
+      const ctr = totalViews > 0 ? ((validImp / totalViews) * 100).toFixed(1) : "0.0";
+      return { 
+        ...link, 
+        ctr, 
+        validImpressions: validImp, 
+        invalidImpressions: invalidImp,
+        shortUrl: `https://${CONFIG.APP_DOMAIN}/r/${link.shortCode}`
+      };
+    });
+
+    const isAdmin = String(freshUser.telegramId).trim() === CONFIG.ADMIN_ID;
+
+    res.json({
+      success: true,
+      user: freshUser,
+      wallet: {
+        availableBalance: freshUser.availableBalance || 0,
+        pendingBalance: freshUser.pendingBalance || 0,
+        referralEarnings: freshUser.referralEarnings || 0,
+        defaultWallet: freshUser.defaultWallet || ''
+      },
+      links,
+      ads,
+      withdraws,
+      deposits,
+      announcements,
+      language: freshUser.language || CONFIG.DEFAULT_LANGUAGE,
+      isAdmin,
+      botUsername: CONFIG.BOT_USERNAME,
+      supportUsername: CONFIG.SUPPORT_USERNAME,
+      botUrl: CONFIG.OFFICIAL_BOT_URL,
+      officialChannelUrl: CONFIG.OFFICIAL_CHANNEL_URL,
+      supportUrl: CONFIG.TELEGRAM_SUPPORT_URL,
+      depositWallets: {
+        bep20: CONFIG.DEPOSIT_USDT_BEP20,
+        trc20: CONFIG.DEPOSIT_USDT_TRC20
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // --- Get User Dashboard Data ---
 app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   try {
     const userId = req.userId;
 
-    const [rawLinks, withdraws, announcements, ads, deposits] = await Promise.all([
+    const [freshUser, rawLinks, withdraws, announcements, ads, deposits] = await Promise.all([
+      User.findById(userId).lean(),
       Link.find({ $or: [{ userId: userId }, { userId: userId.toString() }] }).sort({ createdAt: -1 }).lean(),
       Withdraw.find({ userId: userId }).sort({ createdAt: -1 }).lean(),
       Announcement.find({ $or: [{ isGlobal: true }, { targetUserId: userId }] }).sort({ createdAt: -1 }).lean(),
@@ -401,11 +512,11 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
       };
     });
 
-    const isAdmin = String(req.user.telegramId).trim() === CONFIG.ADMIN_ID;
+    const isAdmin = String(freshUser.telegramId).trim() === CONFIG.ADMIN_ID;
     res.json({ 
       success: true,
-      user: req.user, 
-      language: req.user.language || CONFIG.DEFAULT_LANGUAGE,
+      user: freshUser, 
+      language: freshUser.language || CONFIG.DEFAULT_LANGUAGE,
       links, 
       withdraws, 
       announcements, 
@@ -681,7 +792,7 @@ app.post('/api/init-click', validateTraffic, async (req, res, next) => {
     }
 
     const bridgeToken = crypto.randomBytes(16).toString('hex');
-    const session = await ClickSession.create({ 
+    const sessionDoc = await ClickSession.create({ 
       linkId, 
       userId: linkOwnerId,
       publisherId: linkOwnerId,
@@ -691,11 +802,11 @@ app.post('/api/init-click', validateTraffic, async (req, res, next) => {
       adId: selectedAd ? selectedAd._id : null 
     });
 
-    await safeRedisSet(`bridge:token:${session._id}`, bridgeToken, 'EX', 300);
+    await safeRedisSet(`bridge:token:${sessionDoc._id}`, bridgeToken, 'EX', 300);
 
     res.json({ 
       success: true,
-      sessionId: session._id, 
+      sessionId: sessionDoc._id, 
       bridgeToken, 
       blockId: CONFIG.ADSGRAM_BLOCK_ID,
       adSource,
