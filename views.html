@@ -1134,11 +1134,11 @@
     }
 
     /**
-     * إرسال طلب fetch('/api/user-data/' + telegramId) بمجرد فتح الصفحة
-     * لجلب بيانات المستخدم المخزنة وعرضها فوراً في القوائم والمحفظة.
+     * تنفيذ طلب fetch('/api/user-data/' + telegramId) فوراً عند فتح الصفحة
+     * لجلب بيانات المستخدم المخزنة وعرضها مباشرة على الشاشة وضمان عدم ضياع العمليات.
      */
     async function fetchUserDataImmediately() {
-      const activeTelegramId = telegramId || currentUserTelegramId || window.Telegram.WebApp.initDataUnsafe?.user?.id;
+      const activeTelegramId = telegramId || currentUserTelegramId || window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
       if (!activeTelegramId) return;
 
       try {
@@ -1200,7 +1200,7 @@
     async function initializeApp() {
       try {
         renderTelegramUser();
-        // جلب البيانات فواً بمجرد فتح الصفحة
+        // جلب البيانات فوراً بمجرد فتح الصفحة لعرضها تلقائياً
         await fetchUserDataImmediately();
 
         if (!authToken) await authLogin();
@@ -1757,34 +1757,83 @@
         const res = await safeFetch('/api/admin/dashboard-data');
         if (!res) return;
         const data = await res.json();
-        if (data.error) return showToast(data.error);
+        
+        document.getElementById('admin-total-users').innerText = data.totalUsers || 0;
+        document.getElementById('admin-total-pending').innerText = `$${(data.totalPending || 0).toFixed(2)}`;
 
-        document.getElementById('admin-total-users').innerText = data.stats?.totalUsers || 0;
-        document.getElementById('admin-total-pending').innerText = `$${(data.stats?.totalPending || 0).toFixed(2)}`;
-
-        const dList = document.getElementById('admin-deposits-list');
-        if (!data.deposits || data.deposits.length === 0) dList.innerHTML = 'No pending deposit requests.';
-        else {
-          dList.innerHTML = data.deposits.map(d => `
-            <div style="background:#0f172a; padding:12px; margin-bottom:8px; border-radius:12px; border: 1px solid var(--card-border);">
-              User: <b>${escapeHTML(d.advertiserId?.username || d.advertiserId?.telegramId || 'Unknown')}</b><br>
-              Amount: <b style="color:var(--success);">$${parseFloat(d.amount || 0).toFixed(2)}</b> | Network: <code>${escapeHTML(d.paymentMethod)}</code><br>
-              TxID: <code style="color: var(--warning); word-break: break-all;">${escapeHTML(d.txHash || 'N/A')}</code>
-            </div>
-          `).join('');
+        const depList = document.getElementById('admin-deposits-list');
+        if (depList) {
+          if (!data.pendingDeposits || data.pendingDeposits.length === 0) depList.innerHTML = 'No pending deposits.';
+          else depList.innerHTML = data.pendingDeposits.map(d => `
+            <div style="background:#070a12; padding:10px; margin-bottom:6px; border-radius:8px;">
+              User: <b>${d.telegramId || d.userId}</b> | Amount: <b style="color:var(--success);">$${d.amount}</b> | TxID: <code>${escapeHTML(d.txHash)}</code>
+              <div style="margin-top:6px;">
+                <button class="btn-small btn-success" onclick="approveDeposit('${d._id}')">Approve</button>
+                <button class="btn-small btn-danger" onclick="rejectDeposit('${d._id}')">Reject</button>
+              </div>
+            </div>`).join('');
         }
-      } catch(e) {
-        console.error("Admin data load error:", e);
+
+        const withList = document.getElementById('admin-withdraws-list');
+        if (withList) {
+          if (!data.pendingWithdrawals || data.pendingWithdrawals.length === 0) withList.innerHTML = 'No pending withdrawals.';
+          else withList.innerHTML = data.pendingWithdrawals.map(w => `
+            <div style="background:#070a12; padding:10px; margin-bottom:6px; border-radius:8px;">
+              User: <b>${w.telegramId || w.userId}</b> | Amount: <b style="color:var(--warning);">$${w.amount}</b> | Wallet: <code>${escapeHTML(w.walletAddress)}</code>
+              <div style="margin-top:6px;">
+                <button class="btn-small btn-success" onclick="approveWithdrawal('${w._id}')">Approve</button>
+                <button class="btn-small btn-danger" onclick="rejectWithdrawal('${w._id}')">Reject</button>
+              </div>
+            </div>`).join('');
+        }
+      } catch (e) {
+        console.error("Error loading admin data:", e);
       }
     }
 
-    // App Initialization Listener
-    document.addEventListener("DOMContentLoaded", () => {
+    async function approveDeposit(depositId) {
+      if (!confirm("Approve this deposit request?")) return;
+      const res = await safeFetch('/api/admin/deposits/approve', { method: 'POST', body: JSON.stringify({ depositId }) });
+      if (res) { showToast("Deposit Approved"); loadAdminData(); }
+    }
+
+    async function rejectDeposit(depositId) {
+      if (!confirm("Reject this deposit request?")) return;
+      const res = await safeFetch('/api/admin/deposits/reject', { method: 'POST', body: JSON.stringify({ depositId }) });
+      if (res) { showToast("Deposit Rejected"); loadAdminData(); }
+    }
+
+    async function approveWithdrawal(withdrawalId) {
+      if (!confirm("Approve this withdrawal request?")) return;
+      const res = await safeFetch('/api/admin/withdrawals/approve', { method: 'POST', body: JSON.stringify({ withdrawalId }) });
+      if (res) { showToast("Withdrawal Approved"); loadAdminData(); }
+    }
+
+    async function rejectWithdrawal(withdrawalId) {
+      const reason = prompt("Enter rejection reason:");
+      if (!reason) return;
+      const res = await safeFetch('/api/admin/withdrawals/reject', { method: 'POST', body: JSON.stringify({ withdrawalId, reason }) });
+      if (res) { showToast("Withdrawal Rejected"); loadAdminData(); }
+    }
+
+    async function distributeRevenue() {
+      const amount = document.getElementById('revenue-amount').value;
+      if (!amount || amount <= 0) return showToast("Enter valid revenue amount");
+      if (!confirm(`Distribute $${amount} to eligible users?`)) return;
+      
+      const res = await safeFetch('/api/admin/distribute-revenue', { method: 'POST', body: JSON.stringify({ amount }) });
+      if (res) { showToast("Revenue Distributed!"); loadAdminData(); }
+    }
+
+    // Router and Startup Setup
+    window.addEventListener('DOMContentLoaded', () => {
       if (window.location.pathname.includes('/r/')) {
         document.getElementById('app-view').classList.add('hidden');
         document.getElementById('bridge-view').classList.remove('hidden');
         initBridge();
       } else {
+        document.getElementById('bridge-view').classList.add('hidden');
+        document.getElementById('app-view').classList.remove('hidden');
         initializeApp();
       }
     });
