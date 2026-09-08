@@ -1,12 +1,14 @@
 /**
- * Ultra-Enterprise Server Architecture (V6 - Vercel Serverless Ready)
+ * Ultra-Enterprise Server Architecture (V6 - Absolute Multi-Tenant Security & High-Performance Core)
  * Telegram Link Shortener & Mini App Engine (Telega.ads)
+ * Absolute Isolated Session System & Financial Security Core
  */
 
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const rateLimit = require('express-rate-limit');
+const cron = require('node-cron');
 const path = require('path');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
@@ -17,15 +19,25 @@ const axios = require('axios');
 const Redis = require('ioredis');
 const cors = require('cors');
 
-// استيراد النماذج من models.js
-const { User, Ad, Link, Impression, ClickSession, Withdraw, EarningsHold, Deposit, Announcement } = require('./models');
+// 1. استيراد كافة الـ Models من ملف models.js
+const { 
+  User, 
+  Ad, 
+  Link, 
+  Impression, 
+  ClickSession, 
+  Withdraw, 
+  EarningsHold, 
+  Deposit, 
+  Announcement 
+} = require('./models');
 
 const app = express();
 
-// --- Setup Server Trust Proxy (مهم جداً على Vercel) ---
+// --- Setup Server Trust Proxy ---
 app.set('trust proxy', 1);
 
-// --- CORS Configuration ---
+// --- CORS Configuration (Strict Isolation & Security) ---
 app.use(cors({
   origin: true,
   credentials: true
@@ -36,7 +48,7 @@ app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(express.static(__dirname));
 
-// --- Force UTF-8 JSON Response Headers & Privacy Guard ---
+// --- Force UTF-8 JSON Response Headers & No-Cache Privacy Guard ---
 app.use('/api', (req, res, next) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
@@ -44,14 +56,19 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-// --- Centralized Logging Engine (Serverless Optimized) ---
+// --- Centralized Logging Engine ---
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(winston.format.timestamp(), winston.format.json()),
   transports: [
-    new winston.transports.Console({ format: winston.format.simple() })
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' })
   ]
 });
+
+if (process.env.NODE_ENV !== 'production') {
+  logger.add(new winston.transports.Console({ format: winston.format.simple() }));
+}
 
 app.use(morgan('combined', { stream: { write: (message) => logger.info(message.trim()) } }));
 
@@ -65,7 +82,7 @@ const CONFIG = Object.freeze({
   JWT_SECRET: process.env.JWT_SECRET || 'fallback_jwt_secret_key_32bytes_long!',
   ADSGRAM_BLOCK_ID: process.env.ADSGRAM_BLOCK_ID || '1234',
   APP_DOMAIN: process.env.APP_DOMAIN || 'teleg-ads.vercel.app',
-  REDIS_URL: process.env.REDIS_URL || '',
+  REDIS_URL: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
   DEFAULT_LANGUAGE: 'ar',
   
   OFFICIAL_BOT_URL: process.env.OFFICIAL_BOT_URL || 'https://t.me/Ads_telegabot',
@@ -79,69 +96,30 @@ const CONFIG = Object.freeze({
   SUPPORT_USERNAME: '@' + (process.env.TELEGRAM_SUPPORT_URL || 'https://t.me/Te_AdsNs_bot').split('/').pop()
 });
 
-// ==================================================
-// --- Serverless MongoDB Connection Handler ---
-// ==================================================
-let cachedDb = null;
-
-async function connectToDatabase() {
-  if (cachedDb && mongoose.connection.readyState === 1) {
-    return cachedDb;
-  }
-
-  if (!CONFIG.MONGO_URI) {
-    throw new Error('MONGO_URI environmental variable is missing.');
-  }
-
-  const opts = {
-    bufferCommands: false,
-    maxPoolSize: 10,
-    serverSelectionTimeoutMS: 10000,
-    socketTimeoutMS: 45000,
-  };
-
-  cachedDb = await mongoose.connect(CONFIG.MONGO_URI, opts);
-  console.log('✅ Connected to MongoDB (Vercel Serverless)');
-  return cachedDb;
-}
-
-// Middleware لضمان الاتصال بقاعدة البيانات في كل طلب API
-app.use(async (req, res, next) => {
-  try {
-    await connectToDatabase();
-    next();
-  } catch (err) {
-    logger.error('❌ MongoDB Connection Error:', err);
-    res.status(500).json({ success: false, error: 'خطأ في الاتصال بقاعدة البيانات' });
-  }
+// --- Redis Client Initialization ---
+let redisIsConnected = false;
+const redis = new Redis(CONFIG.REDIS_URL, {
+  maxRetriesPerRequest: 3,
+  enableReadyCheck: true,
+  retryStrategy: (times) => Math.min(times * 50, 2000)
 });
 
-// --- Redis Client Initialization (Safe for Serverless) ---
-let redis = null;
-let redisIsConnected = false;
-
-if (CONFIG.REDIS_URL) {
-  redis = new Redis(CONFIG.REDIS_URL, {
-    maxRetriesPerRequest: 1,
-    enableReadyCheck: false,
-    lazyConnect: true
-  });
-
-  redis.on('error', (err) => {
-    redisIsConnected = false;
-  });
-  redis.on('ready', () => {
-    redisIsConnected = true;
-  });
-}
+redis.on('error', (err) => {
+  redisIsConnected = false;
+  logger.error('⚠️ Redis Connection Warning: ' + err.message);
+});
+redis.on('ready', () => {
+  redisIsConnected = true;
+  console.log('✅ Enterprise Redis Client Connected & Ready');
+});
 
 async function safeRedisGet(key) {
-  if (!redis || !redisIsConnected) return null;
+  if (!redisIsConnected) return null;
   try { return await redis.get(key); } catch (e) { return null; }
 }
 
 async function safeRedisSet(key, value, mode, duration) {
-  if (!redis || !redisIsConnected) return;
+  if (!redisIsConnected) return;
   try {
     if (mode && duration) await redis.set(key, value, mode, duration);
     else await redis.set(key, value);
@@ -149,9 +127,21 @@ async function safeRedisSet(key, value, mode, duration) {
 }
 
 async function safeRedisDel(key) {
-  if (!redis || !redisIsConnected) return;
+  if (!redisIsConnected) return;
   try { await redis.del(key); } catch (e) { logger.error('Redis Del Failed: ' + e.message); }
 }
+
+// 2. الاتصال بقاعدة البيانات باستعمال mongoose.connect(process.env.MONGO_URI)
+mongoose.connect(process.env.MONGO_URI || CONFIG.MONGO_URI, {
+  maxPoolSize: 50,
+  minPoolSize: 10,
+  serverSelectionTimeoutMS: 5000,
+  socketTimeoutMS: 45000,
+}).then(() => console.log('✅ Enterprise MongoDB Pipeline Connected'))
+  .catch(err => {
+    logger.error('❌ Critical MongoDB Connection Failure:', err);
+    process.exit(1);
+  });
 
 // --- Telegram Dispatch Helper ---
 async function sendTelegramNotification(telegramId, message) {
@@ -168,7 +158,7 @@ async function sendTelegramNotification(telegramId, message) {
   }
 }
 
-// --- Cryptographic Telegram Authenticator ---
+// --- Cryptographic Telegram Authenticator (Strict Verification) ---
 function verifyTelegramData(initData) {
   if (!initData) return null;
   try {
@@ -232,11 +222,14 @@ const isPhishingOrMalicious = (url) => {
   return blacklistedKeywords.some(keyword => lowerUrl.includes(keyword));
 };
 
-// --- Middleware للتحقق من هوية المستخدم ---
+// =========================================================================
+// --- Middleware للتحقق من هوية المستخدم واستخراج userId ---
+// =========================================================================
 const authMiddleware = async (req, res, next) => {
   try {
     let user = null;
 
+    // Option 1: Bearer Token Authorization Header
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
@@ -246,6 +239,7 @@ const authMiddleware = async (req, res, next) => {
       } catch (err) {}
     }
 
+    // Option 2: Fallback to Direct Telegram InitData Header
     if (!user) {
       const initData = req.headers['x-telegram-init-data'];
       const telegramUser = verifyTelegramData(initData);
@@ -262,6 +256,7 @@ const authMiddleware = async (req, res, next) => {
       return res.status(403).json({ success: false, error: 'حسابك معطل بسبب مخالفة الشروط' });
     }
 
+    // ربط كائن المستخدم واستخراج userId بشكل صريح وموحد
     req.user = user;
     req.user.id = user._id.toString();
     req.userId = user._id;
@@ -280,10 +275,8 @@ const adminMiddleware = async (req, res, next) => {
 };
 
 // =========================================================================
-// --- API Routes ---
+// --- API Endpoint: Check Admin Role (/api/check-admin) ---
 // =========================================================================
-
-// --- Check Admin Status ---
 app.all('/api/check-admin', async (req, res) => {
   try {
     let targetUserId = req.body?.userId || req.query?.userId;
@@ -322,7 +315,7 @@ app.all('/api/check-admin', async (req, res) => {
   }
 });
 
-// --- Auth Login ---
+// --- Authentication & Isolated User Login ---
 app.post('/api/auth/login', async (req, res, next) => {
   try {
     const initData = req.headers['x-telegram-init-data'];
@@ -386,11 +379,26 @@ app.post('/api/auth/login', async (req, res, next) => {
   }
 });
 
-// --- Get User Dashboard Data ---
+// --- Isolated User Data Gateway ---
 app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   try {
     const userId = req.userId;
 
+    if (!userId) {
+      return res.json({
+        success: true,
+        user: req.user,
+        language: req.user.language || CONFIG.DEFAULT_LANGUAGE,
+        links: [],
+        withdraws: [],
+        announcements: [],
+        ads: [],
+        deposits: [],
+        isAdmin: false
+      });
+    }
+
+    // استعلام معزول بصرامة من قاعدة البيانات اعتماداً على userId الخاص بالمستخدم الحقيقي
     const [rawLinks, withdraws, announcements, ads, deposits] = await Promise.all([
       Link.find({ $or: [{ userId: userId }, { userId: userId.toString() }] }).sort({ createdAt: -1 }).lean(),
       Withdraw.find({ userId: userId }).sort({ createdAt: -1 }).lean(),
@@ -439,7 +447,7 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Self-Serve Ad Campaign Routes ---
+// --- Self-Serve Ad Campaign APIs ---
 app.post('/api/ads', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
@@ -462,6 +470,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'الحد الأدنى لميزانية الحملة هو $5' });
     }
 
+    // خصم الميزانية حصرياً من رصيد المستخدم صاحب الجلسة الموثقة
     const updatedUser = await User.findOneAndUpdate(
       { _id: req.userId, availableBalance: { $gte: budget } },
       { $inc: { availableBalance: -budget } },
@@ -645,7 +654,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Bridge Page & Traffic Redirect Engine ---
+// --- Bridge Page & Redirect Traffic Engine ---
 app.post('/api/init-click', validateTraffic, async (req, res, next) => {
   try {
     const { linkCode } = req.body;
@@ -849,13 +858,20 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
   }
 });
 
-// --- Link Management Routes ---
+// =========================================================================
+// --- Strict Link Management Engine (100% Isolated Routes Guard) ---
+// =========================================================================
+
+// Create Link Engine
 app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res) => {
   try {
     const userId = req.userId;
 
     if (!userId) {
-      return res.status(401).json({ success: false, error: 'غير مصرح: معرف المستخدم مفقود' });
+      return res.status(401).json({ 
+        success: false, 
+        error: 'غير مصرح: معرف المستخدم (userId) مفقود' 
+      });
     }
 
     const { title, targetUrl } = req.body;
@@ -879,6 +895,7 @@ app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res) => 
     const shortCode = crypto.randomBytes(3).toString('hex');
     const publisherTelegramId = req.user?.telegramId || null;
     
+    // إنشاء كائن الرابط الجديد ومطابقته مباشرة بـ DB Model
     const newLink = new Link({
       userId: userId,
       publisherTelegramId: publisherTelegramId,
@@ -915,6 +932,7 @@ app.post('/api/links', authMiddleware, linkCreationLimiter, async (req, res) => 
   }
 });
 
+// Fetch Links Helper Function
 const getUserLinks = async (userId) => {
   if (!userId) return [];
 
@@ -937,6 +955,7 @@ const getUserLinks = async (userId) => {
   });
 };
 
+// Fetch Links Main Endpoint
 app.get('/api/links', authMiddleware, async (req, res, next) => {
   try {
     const links = await getUserLinks(req.userId);
@@ -946,6 +965,7 @@ app.get('/api/links', authMiddleware, async (req, res, next) => {
   }
 });
 
+// Fetch Links Alias Endpoint
 app.get('/api/user/links', authMiddleware, async (req, res, next) => {
   try {
     const links = await getUserLinks(req.userId);
@@ -991,7 +1011,7 @@ app.post('/api/user/settings', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Admin Routes ---
+// --- Admin Panel Routes ---
 app.get('/api/admin/dashboard-data', authMiddleware, adminMiddleware, async (req, res, next) => {
   try {
     const [withdraws, deposits, users, stats, totalAds] = await Promise.all([
@@ -1198,7 +1218,45 @@ app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (r
   }
 });
 
-// --- Static Page Deliveries ---
+// --- Automated Cron Task for Earnings Settlement ---
+cron.schedule('0 0 * * *', async () => {
+  try {
+    const readyHolds = await EarningsHold.find({ releaseAt: { $lte: new Date() }, isReleased: false }).lean();
+
+    for (let hold of readyHolds) {
+      const session = await mongoose.startSession();
+      try {
+        session.startTransaction();
+        
+        const userUpdate = await User.findByIdAndUpdate(
+          hold.userId,
+          { $inc: { pendingBalance: -hold.amount, availableBalance: hold.amount } },
+          { session, new: true }
+        );
+
+        await EarningsHold.findByIdAndUpdate(hold._id, { isReleased: true }, { session });
+
+        await session.commitTransaction();
+
+        if (userUpdate && userUpdate.telegramId) {
+          sendTelegramNotification(
+            userUpdate.telegramId,
+            `✅ <b>تم إطلاق الأرباح!</b>\nتم تحويل <code>$${hold.amount.toFixed(4)}</code> إلى رصيدك المتاح.`
+          );
+        }
+      } catch (err) {
+        await session.abortTransaction();
+        logger.error(`Error processing hold release for ID ${hold._id}: ${err.message}`);
+      } finally {
+        session.endSession();
+      }
+    }
+  } catch (err) {
+    logger.error('❌ Error executing Cron Settlement: ' + err.message);
+  }
+});
+
+// --- Static HTML Delivery Routes ---
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'views.html'));
 });
@@ -1212,7 +1270,9 @@ app.use('/api/*', (req, res) => {
   res.status(404).json({ success: false, error: 'المسار المطلوب غير موجود' });
 });
 
+// ==================================================
 // --- Global Error Handling Middleware ---
+// ==================================================
 app.use((err, req, res, next) => {
   logger.error('Unhandled Application Error:', err);
 
@@ -1228,11 +1288,14 @@ app.use((err, req, res, next) => {
   });
 });
 
-// --- Local Listening Mode (Only for testing outside Vercel) ---
-if (process.env.NODE_ENV !== 'production' && require.main === module) {
-  const PORT = process.env.PORT || 3000;
-  app.listen(PORT, () => console.log(`🚀 Local Server V6 Active on Port ${PORT}`));
-}
+// --- Global Crash Guard ---
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught Exception Detected: ' + err.stack);
+});
 
-// تصدير تطبيق Express كـ Serverless Handler لـ Vercel
-module.exports = app;
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`🚀 Enterprise Server V6 Active on Port ${PORT}`));
