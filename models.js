@@ -415,7 +415,7 @@ const linkSchema = new mongoose.Schema({
 
 linkSchema.pre('validate', function(next) {
   if (this.telegramId && !this.publisherTelegramId) this.publisherTelegramId = this.telegramId;
-  if (this.publisherTelegramId && !this.telegramId) this.telegramId = this.publisherTelegramId;
+  if (this.publisherTelegramId && !this.telegramId) this.telegramId = this.telegramId;
   next();
 });
 
@@ -835,71 +835,6 @@ announcementSchema.statics.getForUserIsolated = function(userId, telegramId) {
   }).sort({ createdAt: -1 });
 };
 
-// --------------------------------------------------
-// 12. Dynamic System Settings Model (Dynamic Configs)
-// --------------------------------------------------
-const systemSettingsSchema = new mongoose.Schema({
-  key: { 
-    type: String, 
-    default: 'global_config', 
-    unique: true, 
-    trim: true 
-  },
-  cpmRate: { 
-    type: Number, 
-    default: 1.50, 
-    set: formatCurrency 
-  },
-  minWithdrawal: { 
-    type: Number, 
-    default: 30, 
-    set: formatCurrency 
-  },
-  minDeposit: { 
-    type: Number, 
-    default: 1, 
-    set: formatCurrency 
-  },
-  withdrawalFee: { 
-    type: Number, 
-    default: 3, 
-    set: formatCurrency 
-  },
-  referralBonusPercent: { 
-    type: Number, 
-    default: 5, 
-    min: 0, 
-    max: 100 
-  },
-  holdPeriodHours: { 
-    type: Number, 
-    default: 24, 
-    min: 0 
-  },
-  adsgramBlockId: { 
-    type: String, 
-    default: '', 
-    trim: true 
-  },
-  maintenanceMode: { 
-    type: Boolean, 
-    default: false 
-  },
-  customSettings: { 
-    type: mongoose.Schema.Types.Mixed, 
-    default: {} 
-  }
-}, globalSchemaOptions);
-
-// Helper Static Method to fetch or initialize dynamic settings reliably
-systemSettingsSchema.statics.getSettings = async function() {
-  let settings = await this.findOne({ key: 'global_config' });
-  if (!settings) {
-    settings = await this.create({ key: 'global_config' });
-  }
-  return settings;
-};
-
 // Exporting Optimized Safe Models
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Wallet = mongoose.models.Wallet || mongoose.model('Wallet', walletSchema);
@@ -912,7 +847,6 @@ const Withdraw = mongoose.models.Withdraw || mongoose.model('Withdraw', withdraw
 const EarningsHold = mongoose.models.EarningsHold || mongoose.model('EarningsHold', earningsHoldSchema);
 const Deposit = mongoose.models.Deposit || mongoose.model('Deposit', depositSchema);
 const Announcement = mongoose.models.Announcement || mongoose.model('Announcement', announcementSchema);
-const SystemSettings = mongoose.models.SystemSettings || mongoose.model('SystemSettings', systemSettingsSchema);
 
 module.exports = {
   User,
@@ -925,6 +859,5 @@ module.exports = {
   Withdraw,
   EarningsHold,
   Deposit,
-  Announcement,
-  SystemSettings
+  Announcement
 };
