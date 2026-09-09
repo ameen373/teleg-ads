@@ -18,6 +18,8 @@ const validUrl = require('valid-url');
 const axios = require('axios');
 const Redis = require('ioredis');
 const cors = require('cors');
+
+// استيراد جميع النماذج المحددة مباشرة من models.js
 const { User, Ad, Link, Impression, ClickSession, Withdraw, EarningsHold, Deposit, Announcement } = require('./models');
 
 const app = express();
@@ -63,9 +65,11 @@ app.use(morgan('combined', { stream: { write: (message) => logger.info(message.t
 // ==================================================
 // --- System Constants & Environment Variables ---
 // ==================================================
+const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/shortener';
+
 const CONFIG = Object.freeze({
   BOT_TOKEN: process.env.BOT_TOKEN,
-  MONGO_URI: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/shortener',
+  MONGO_URI: MONGODB_URI,
   ADMIN_ID: String(process.env.ADMIN_ID || '123456789').trim(),
   JWT_SECRET: process.env.JWT_SECRET || 'fallback_jwt_secret_key_32bytes_long!',
   ADSGRAM_BLOCK_ID: process.env.ADSGRAM_BLOCK_ID || '1234',
@@ -119,17 +123,35 @@ async function safeRedisDel(key) {
   try { await redis.del(key); } catch (e) { logger.error('Redis Del Failed: ' + e.message); }
 }
 
-// --- Database Connection Pipeline ---
-mongoose.connect(CONFIG.MONGO_URI, {
-  maxPoolSize: 50,
-  minPoolSize: 10,
-  serverSelectionTimeoutMS: 5000,
-  socketTimeoutMS: 45000,
-}).then(() => console.log('✅ Enterprise MongoDB Pipeline Connected'))
-  .catch(err => {
+// --- Database Connection Pipeline (Serverless Optimized) ---
+let isConnected = false;
+
+const connectDB = async () => {
+  if (isConnected && mongoose.connection.readyState === 1) {
+    return;
+  }
+  try {
+    const db = await mongoose.connect(CONFIG.MONGO_URI, {
+      maxPoolSize: 50,
+      minPoolSize: 5,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+    });
+    isConnected = db.connections[0].readyState === 1;
+    console.log('✅ Enterprise MongoDB Pipeline Connected via process.env.MONGODB_URI');
+  } catch (err) {
     logger.error('❌ Critical MongoDB Connection Failure:', err);
-    process.exit(1);
-  });
+  }
+};
+
+// تشغيل الاتصال المبدئي
+connectDB();
+
+// Middleware لضمان استقرار الاتصال بقاعدة البيانات مع كل طلب في استضافة Serverless
+app.use(async (req, res, next) => {
+  await connectDB();
+  next();
+});
 
 // --- Telegram Dispatch Helper ---
 async function sendTelegramNotification(telegramId, message) {
@@ -317,6 +339,7 @@ app.post('/api/auth/login', async (req, res, next) => {
     const currentUsername = telegramUser?.username || `User_${tgId.slice(-4)}`;
     const userLanguage = telegramUser?.language_code || CONFIG.DEFAULT_LANGUAGE;
 
+    // استعلام مباشر وتخزين دائم في MongoDB
     let user = await User.findOne({ telegramId: tgId });
     if (!user) {
       user = await User.create({
@@ -367,7 +390,7 @@ app.post('/api/auth/login', async (req, res, next) => {
   }
 });
 
-// --- Isolated User Data Gateway ---
+// --- Isolated User Data Gateway (استعلام مباشر ومستمر من MongoDB) ---
 app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   try {
     const userId = req.userId;
@@ -385,6 +408,9 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
         isAdmin: false
       });
     }
+
+    // جلب أحدث بيانات المستخدم مباشرة لمنع فقدان البيانات عند الخروج
+    const freshUser = await User.findById(userId).lean();
 
     const [rawLinks, withdraws, announcements, ads, deposits] = await Promise.all([
       Link.find({ $or: [{ userId: userId }, { userId: userId.toString() }] }).sort({ createdAt: -1 }).lean(),
@@ -411,8 +437,8 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
     const isAdmin = String(req.user.telegramId).trim() === CONFIG.ADMIN_ID;
     res.json({ 
       success: true,
-      user: req.user, 
-      language: req.user.language || CONFIG.DEFAULT_LANGUAGE,
+      user: freshUser || req.user, 
+      language: (freshUser && freshUser.language) || req.user.language || CONFIG.DEFAULT_LANGUAGE,
       links, 
       withdraws, 
       announcements, 
@@ -434,7 +460,7 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Self-Serve Ad Campaign APIs ---
+// --- Self-Serve Ad Campaign APIs (تحديث مباشر وتخزين دائم في MongoDB) ---
 app.post('/api/ads', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
@@ -457,6 +483,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'الحد الأدنى لميزانية الحملة هو $5' });
     }
 
+    // الخصم والتأكيد المباشر من قاعدة البيانات MongoDB
     const updatedUser = await User.findOneAndUpdate(
       { _id: req.userId, availableBalance: { $gte: budget } },
       { $inc: { availableBalance: -budget } },
@@ -523,7 +550,7 @@ app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Deposit & Withdraw Routes ---
+// --- Deposit & Withdraw Routes (تخزين واستعلام مباشر من MongoDB) ---
 app.post('/api/deposit', authMiddleware, async (req, res, next) => {
   try {
     const { amount, network, txid } = req.body;
@@ -543,6 +570,7 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'يرجى إدخال هاش المعاملة الصحيح (TxID)' });
     }
 
+    // التحقق المباشر في MongoDB لمنع تكرار المعاملات
     const existingDeposit = await Deposit.findOne({ txid: cleanTxid });
     if (existingDeposit) {
       return res.status(400).json({ success: false, error: 'تم تقديم رقم هذه المعاملة (TxID) من قبل' });
@@ -602,6 +630,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
 
     const netAmount = numAmt - FEE;
 
+    // الخصم المباشر والتحديث اللحظي للمحفظة في MongoDB
     const updatedUser = await User.findOneAndUpdate(
       { _id: req.userId, availableBalance: { $gte: numAmt } },
       { $inc: { availableBalance: -numAmt }, defaultWallet: cleanWallet },
@@ -845,10 +874,10 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 });
 
 // =========================================================================
-// --- Strict Link Management Engine (100% Isolated Routes Guard) ---
+// --- Strict Link Management Engine (تخزين دائم ومباشر في MongoDB) ---
 // =========================================================================
 
-// Shared Link Shortening Logic
+// Shared Link Shortening Logic (إنشاء وحفظ مباشر في MongoDB)
 const handleShortenLink = async (req, res) => {
   try {
     const userId = req.userId;
@@ -881,6 +910,7 @@ const handleShortenLink = async (req, res) => {
     const shortCode = crypto.randomBytes(3).toString('hex');
     const publisherTelegramId = req.user?.telegramId || null;
     
+    // إنشاء كائن Link وحفظه فورياً في MongoDB
     const newLink = new Link({
       userId: userId,
       publisherTelegramId: publisherTelegramId,
@@ -921,7 +951,7 @@ const handleShortenLink = async (req, res) => {
 app.post('/api/links/shorten', authMiddleware, linkCreationLimiter, handleShortenLink);
 app.post('/api/links', authMiddleware, linkCreationLimiter, handleShortenLink);
 
-// Fetch Links Helper Function
+// Fetch Links Helper Function (استعلام مباشر من MongoDB)
 const getUserLinks = async (userId) => {
   if (!userId) return [];
 
@@ -1286,5 +1316,10 @@ process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Enterprise Server V6 Active on Port ${PORT}`));
+// تصدير تطبيق Express لدعم Serverless على Vercel و Node.js المباشر
+module.exports = app;
+
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => console.log(`🚀 Enterprise Server V6 Active on Port ${PORT}`));
+}
