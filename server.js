@@ -978,8 +978,9 @@ const handleShortenLink = async (req, res) => {
   }
 };
 
-// Create Link Engines (Direct & Alias endpoints)
+// Create Link Engines (Explicitly defined endpoints)
 app.post('/api/links/shorten', authMiddleware, linkCreationLimiter, handleShortenLink);
+app.post('/api/shorten', authMiddleware, linkCreationLimiter, handleShortenLink);
 app.post('/api/links', authMiddleware, linkCreationLimiter, handleShortenLink);
 
 // Fetch Links Helper Function
