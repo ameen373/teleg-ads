@@ -849,15 +849,13 @@ const activityLogSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Action type is required'],
     trim: true,
-    uppercase: true,
-    index: true
+    uppercase: true
   },
   category: {
     type: String,
     enum: ['links', 'campaigns', 'wallet', 'auth', 'system'],
     default: 'system',
-    lowercase: true,
-    index: true
+    lowercase: true
   },
   details: {
     type: mongoose.Schema.Types.Mixed,
@@ -877,8 +875,7 @@ const activityLogSchema = new mongoose.Schema({
     type: String,
     enum: ['SUCCESS', 'FAILED', 'PENDING'],
     default: 'SUCCESS',
-    uppercase: true,
-    index: true
+    uppercase: true
   },
   createdAt: {
     type: Date,
