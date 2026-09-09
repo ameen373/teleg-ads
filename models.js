@@ -251,7 +251,7 @@ const adSchema = new mongoose.Schema({
   },
   telegramId: {
     type: String,
-    required: [true, 'Telegram ID is required for fast tenant lookup'],
+    required: [true, 'Telegram ID is required for tenant lookup'],
     index: true,
     trim: true
   },
@@ -797,7 +797,7 @@ depositSchema.pre('validate', function(next) {
   if (this.userId && !this.advertiserId) this.advertiserId = this.userId;
   if (this.advertiserId && !this.userId) this.userId = this.advertiserId;
   if (this.telegramId && !this.advertiserTelegramId) this.advertiserTelegramId = this.telegramId;
-  if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.advertiserTelegramId;
+  if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.telegramId;
   next();
 });
 
@@ -836,56 +836,55 @@ announcementSchema.statics.getForUserIsolated = function(userId, telegramId) {
 };
 
 // --------------------------------------------------
-// 12. User Activity Log Model (Audit & Monitoring)
+// 12. Activity Log Model (Audit & Activity Monitoring)
 // --------------------------------------------------
 const activityLogSchema = new mongoose.Schema({
   userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: [true, 'User ID is required for tenant isolation'],
+    type: mongoose.Schema.Types.Mixed, // يقبل ObjectId أو String (Telegram ID)
+    required: [true, 'User ID or Telegram ID is required'],
     index: true
   },
   action: {
     type: String,
-    required: [true, 'Action type is required'],
-    trim: true,
-    uppercase: true
+    required: [true, 'Action is required'],
+    trim: true
   },
   category: {
     type: String,
-    enum: ['links', 'campaigns', 'wallet', 'auth', 'system'],
-    default: 'system',
+    required: [true, 'Category is required'],
+    trim: true,
     lowercase: true
   },
   details: {
-    type: mongoose.Schema.Types.Mixed,
+    type: Object,
     default: {}
   },
   ipAddress: {
     type: String,
-    default: null,
+    default: '',
     trim: true
   },
   userAgent: {
     type: String,
-    default: null,
+    default: '',
     trim: true
   },
   status: {
     type: String,
     enum: ['SUCCESS', 'FAILED', 'PENDING'],
     default: 'SUCCESS',
-    uppercase: true
+    uppercase: true,
+    index: true
   },
   createdAt: {
     type: Date,
     default: Date.now,
-    index: true
+    index: true // Index لتسريع البحث والاستعلام بالتاريخ
   }
 }, globalSchemaOptions);
 
 // الفهارس المخصصة وسريعة للاستعلام
-activityLogSchema.index({ userId: 1, createdAt: -1 }); // Index مركّب بين userId و createdAt
+activityLogSchema.index({ userId: 1, createdAt: -1 });
 activityLogSchema.index({ category: 1, createdAt: -1 });
 
 activityLogSchema.statics.getUserLogsIsolated = function(userId, limit = 50) {
