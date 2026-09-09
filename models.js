@@ -415,7 +415,7 @@ const linkSchema = new mongoose.Schema({
 
 linkSchema.pre('validate', function(next) {
   if (this.telegramId && !this.publisherTelegramId) this.publisherTelegramId = this.telegramId;
-  if (this.publisherTelegramId && !this.telegramId) this.telegramId = this.publisherTelegramId;
+  if (this.publisherTelegramId && !this.telegramId) this.telegramId = this.telegramId;
   next();
 });
 
