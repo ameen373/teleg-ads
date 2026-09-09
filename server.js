@@ -22,33 +22,6 @@ const cors = require('cors');
 // --- استدعاء دالة تسجيل النشاطات ---
 const logActivity = require('./activityLog');
 
-/**
- * دالة مساعدة آمنة لاستدعاء logActivity
- * تضمن تمرير معرف المستخدم بكافة أشكاله المحتملة دون إيقاف السيرفر أو التسبب في crash
- */
-const safeLogActivity = (req, action, category = 'system', details = {}, status = 'SUCCESS') => {
-  try {
-    const resolvedUserId = 
-      req?.user?._id || 
-      req?.user?.id || 
-      req?.user?.telegramId || 
-      req?.userId || 
-      req?.body?.userId || 
-      'GUEST';
-
-    logActivity({
-      userId: resolvedUserId,
-      action,
-      category,
-      details,
-      req,
-      status
-    });
-  } catch (err) {
-    console.error('⚠️ [safeLogActivity Safe Guard Error]:', err.message || err);
-  }
-};
-
 const { User, Ad, Link, Impression, ClickSession, Withdraw, EarningsHold, Deposit, Announcement } = require('./models');
 
 const app = express();
@@ -381,13 +354,14 @@ app.post('/api/auth/login', async (req, res, next) => {
       { expiresIn: '7d', algorithm: 'HS256' }
     );
 
-    // --- تسجيل نشاط الدخول/التسجيل (Non-Blocking) ---
-    safeLogActivity(
-      req, 
-      isNewUser ? 'USER_REGISTER' : 'USER_LOGIN', 
-      'auth', 
-      { username: user.username, telegramId: user.telegramId, isNewUser }
-    );
+    // --- تسجيل نشاط الدخول/التسجيل المنتظر ---
+    await logActivity({
+      userId: req.user?._id || req.user?.telegramId || req.body?.userId,
+      action: isNewUser ? 'USER_REGISTER' : 'USER_LOGIN',
+      category: 'auth',
+      details: { username: user.username, telegramId: user.telegramId, isNewUser },
+      req
+    });
 
     res.json({ 
       success: true, 
@@ -453,13 +427,14 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
 
     const isAdmin = String(req.user.telegramId).trim() === CONFIG.ADMIN_ID;
 
-    // --- تسجيل نشاط جلب بيانات المستخدم (Non-Blocking) ---
-    safeLogActivity(
-      req, 
-      'FETCH_USER_DATA', 
-      'user', 
-      { linksCount: links.length, withdrawsCount: withdraws.length, adsCount: ads.length, depositsCount: deposits.length }
-    );
+    // --- تسجيل نشاط جلب بيانات المستخدم ---
+    await logActivity({
+      userId: req.user?._id || req.user?.telegramId || req.body?.userId,
+      action: 'FETCH_USER_DATA',
+      category: 'user',
+      details: { linksCount: links.length, withdrawsCount: withdraws.length, adsCount: ads.length, depositsCount: deposits.length },
+      req
+    });
 
     res.json({ 
       success: true,
@@ -538,13 +513,14 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
 
     await session.commitTransaction();
 
-    // --- تسجيل نشاط إنشاء حملة إعلانية (Non-Blocking) ---
-    safeLogActivity(
-      req, 
-      'CREATE_CAMPAIGN', 
-      'campaigns', 
-      { adId: ad[0]._id, title: ad[0].title, totalBudget: budget, targetUrl }
-    );
+    // --- تسجيل نشاط إنشاء حملة إعلانية المنتظر ---
+    await logActivity({
+      userId: req.user?._id || req.user?.telegramId || req.body?.userId,
+      action: 'CREATE_CAMPAIGN',
+      category: 'campaigns',
+      details: { adId: ad[0]._id, title: ad[0].title, totalBudget: budget, targetUrl },
+      req
+    });
 
     res.json({ success: true, ad: ad[0] });
   } catch (err) {
@@ -560,13 +536,14 @@ app.get('/api/user/ads', authMiddleware, async (req, res, next) => {
     const userId = req.userId || req.user?._id || req.user?.id;
     const ads = await Ad.find({ userId: userId }).sort({ createdAt: -1 }).lean();
 
-    // --- تسجيل نشاط جلب حملات المستخدم (Non-Blocking) ---
-    safeLogActivity(
-      req, 
-      'FETCH_CAMPAIGNS', 
-      'campaigns', 
-      { adsCount: ads.length }
-    );
+    // --- تسجيل نشاط جلب حملات المستخدم ---
+    await logActivity({
+      userId: req.user?._id || req.user?.telegramId || req.body?.userId,
+      action: 'FETCH_CAMPAIGNS',
+      category: 'campaigns',
+      details: { adsCount: ads.length },
+      req
+    });
 
     res.json({ success: true, ads });
   } catch (err) {
@@ -591,13 +568,14 @@ app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
     ad.status = ad.status === 'active' ? 'paused' : 'active';
     await ad.save();
 
-    // --- تسجيل نشاط تعديل حالة الحملة الإعلانية (Non-Blocking) ---
-    safeLogActivity(
-      req, 
-      'TOGGLE_CAMPAIGN', 
-      'campaigns', 
-      { adId: ad._id, title: ad.title, newStatus: ad.status }
-    );
+    // --- تسجيل نشاط تعديل حالة الحملة الإعلانية ---
+    await logActivity({
+      userId: req.user?._id || req.user?.telegramId || req.body?.userId,
+      action: 'TOGGLE_CAMPAIGN',
+      category: 'campaigns',
+      details: { adId: ad._id, title: ad.title, newStatus: ad.status },
+      req
+    });
 
     res.json({ success: true, status: ad.status });
   } catch (err) {
@@ -646,13 +624,14 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
       `💳 <b>طلب إيداع جديد!</b>\nالمستخدم: <code>${req.user.username}</code>\nالمبلغ: <code>$${numAmount}</code>\nالشبكة: <code>${cleanNetwork}</code>\nTxID: <code>${cleanTxid}</code>`
     );
 
-    // --- تسجيل نشاط طلب الإيداع (Non-Blocking) ---
-    safeLogActivity(
-      req, 
-      'REQUEST_DEPOSIT', 
-      'wallet', 
-      { depositId: deposit._id, amount: numAmount, network: cleanNetwork, txid: cleanTxid }
-    );
+    // --- تسجيل نشاط طلب الإيداع المنتظر ---
+    await logActivity({
+      userId: req.user?._id || req.user?.telegramId || req.body?.userId,
+      action: 'REQUEST_DEPOSIT',
+      category: 'wallet',
+      details: { depositId: deposit._id, amount: numAmount, network: cleanNetwork, txid: cleanTxid },
+      req
+    });
 
     res.json({ success: true, deposit });
   } catch (err) {
@@ -723,13 +702,14 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
       `🔔 <b>تم تقديم طلب السحب بنجاح!</b>\nالمبلغ: <code>$${numAmt}</code>\nالرسوم: <code>$${FEE}</code>\nالصافي: <code>$${netAmount}</code>\nالشبكة: <code>${cleanNetwork}</code>\nالمحفظة: <code>${cleanWallet}</code>\nالحالة: ⏳ قيد المراجعة\n\nالدعم: ${CONFIG.SUPPORT_USERNAME}`
     );
 
-    // --- تسجيل نشاط طلب السحب (Non-Blocking) ---
-    safeLogActivity(
-      req, 
-      'REQUEST_WITHDRAW', 
-      'wallet', 
-      { withdrawId: withdrawRequest[0]._id, amount: numAmt, netAmount, fee: FEE, network: cleanNetwork, walletAddress: cleanWallet }
-    );
+    // --- تسجيل نشاط طلب السحب المنتظر ---
+    await logActivity({
+      userId: req.user?._id || req.user?.telegramId || req.body?.userId,
+      action: 'REQUEST_WITHDRAW',
+      category: 'wallet',
+      details: { withdrawId: withdrawRequest[0]._id, amount: numAmt, netAmount, fee: FEE, network: cleanNetwork, walletAddress: cleanWallet },
+      req
+    });
 
     res.json({ success: true, withdraw: withdrawRequest[0] });
   } catch (err) {
@@ -798,13 +778,14 @@ app.post('/api/init-click', validateTraffic, async (req, res, next) => {
 
     await safeRedisSet(`bridge:token:${session._id}`, bridgeToken, 'EX', 300);
 
-    // --- تسجيل نشاط تحويل الرابط/بدء النقر (Non-Blocking) ---
-    safeLogActivity(
-      req, 
-      'INIT_CLICK', 
-      'links', 
-      { linkCode: cleanCode, linkId, adSource }
-    );
+    // --- تسجيل نشاط تحويل الرابط/بدء النقر ---
+    await logActivity({
+      userId: req.user?._id || req.user?.telegramId || req.body?.userId,
+      action: 'INIT_CLICK',
+      category: 'links',
+      details: { linkCode: cleanCode, linkId, adSource },
+      req
+    });
 
     res.json({ 
       success: true,
@@ -881,6 +862,15 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
     if (isDuplicate || dailyIpClicks > 20) {
       await Link.findByIdAndUpdate(link._id, { $inc: { views: 1, invalidImpressions: 1 } }, { session: sessionDb });
       await sessionDb.commitTransaction();
+
+      await logActivity({
+        userId: req.user?._id || req.user?.telegramId || req.body?.userId,
+        action: 'RECORD_IMPRESSION',
+        category: 'links',
+        details: { linkId: link._id, counted: false, reason: 'duplicate_or_limit_exceeded', adSource: clickSession.adSource },
+        req
+      });
+
       return res.json({ success: true, targetUrl: link.targetUrl, counted: false });
     }
 
@@ -944,13 +934,14 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 
     await sessionDb.commitTransaction();
 
-    // --- تسجيل نشاط احتساب الزيارة (Non-Blocking) ---
-    safeLogActivity(
-      req, 
-      'RECORD_IMPRESSION', 
-      'links', 
-      { linkId: link._id, counted: true, adSource: clickSession.adSource }
-    );
+    // --- تسجيل نشاط احتساب الزيارة ---
+    await logActivity({
+      userId: req.user?._id || req.user?.telegramId || req.body?.userId,
+      action: 'RECORD_IMPRESSION',
+      category: 'links',
+      details: { linkId: link._id, counted: true, adSource: clickSession.adSource },
+      req
+    });
 
     res.json({ success: true, targetUrl: link.targetUrl, counted: true });
   } catch (err) {
@@ -1017,13 +1008,14 @@ const handleShortenLink = async (req, res) => {
     const linkObj = newLink.toObject ? newLink.toObject() : newLink;
     const shortUrl = `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`;
 
-    // --- تسجيل نشاط إنشاء رابط مختصر (Safe Non-Blocking Call) ---
-    safeLogActivity(
-      req, 
-      'CREATE_LINK', 
-      'links', 
-      { linkId: newLink._id, shortCode, targetUrl: cleanUrl, title: newLink.title }
-    );
+    // --- تسجيل نشاط إنشاء رابط مختصر ---
+    await logActivity({
+      userId: req.user?._id || req.user?.telegramId || req.body?.userId,
+      action: 'CREATE_LINK',
+      category: 'links',
+      details: { linkId: newLink._id, shortCode, targetUrl: cleanUrl, title: newLink.title },
+      req
+    });
 
     return res.json({ 
       success: true, 
@@ -1076,13 +1068,14 @@ app.get('/api/links', authMiddleware, async (req, res, next) => {
     const userId = req.userId || req.user?._id || req.user?.id;
     const links = await getUserLinks(userId);
 
-    // --- تسجيل نشاط جلب الروابط (Non-Blocking) ---
-    safeLogActivity(
-      req, 
-      'FETCH_LINKS', 
-      'links', 
-      { count: links.length }
-    );
+    // --- تسجيل نشاط جلب الروابط ---
+    await logActivity({
+      userId: req.user?._id || req.user?.telegramId || req.body?.userId,
+      action: 'FETCH_LINKS',
+      category: 'links',
+      details: { count: links.length },
+      req
+    });
 
     res.json({ success: true, links });
   } catch (err) {
@@ -1096,13 +1089,14 @@ app.get('/api/user/links', authMiddleware, async (req, res, next) => {
     const userId = req.userId || req.user?._id || req.user?.id;
     const links = await getUserLinks(userId);
 
-    // --- تسجيل نشاط جلب الروابط عبر المسار البديل (Non-Blocking) ---
-    safeLogActivity(
-      req, 
-      'FETCH_USER_LINKS', 
-      'links', 
-      { count: links.length }
-    );
+    // --- تسجيل نشاط جلب الروابط عبر المسار البديل ---
+    await logActivity({
+      userId: req.user?._id || req.user?.telegramId || req.body?.userId,
+      action: 'FETCH_USER_LINKS',
+      category: 'links',
+      details: { count: links.length },
+      req
+    });
 
     res.json({ success: true, links });
   } catch (err) {
@@ -1125,13 +1119,14 @@ app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
     await link.save();
     await safeRedisDel(`link:data:${link.shortCode}`);
 
-    // --- تسجيل نشاط تغيير حالة الرابط (Non-Blocking) ---
-    safeLogActivity(
-      req, 
-      'TOGGLE_LINK', 
-      'links', 
-      { linkId: link._id, shortCode: link.shortCode, isActive: link.isActive }
-    );
+    // --- تسجيل نشاط تغيير حالة الرابط ---
+    await logActivity({
+      userId: req.user?._id || req.user?.telegramId || req.body?.userId,
+      action: 'TOGGLE_LINK',
+      category: 'links',
+      details: { linkId: link._id, shortCode: link.shortCode, isActive: link.isActive },
+      req
+    });
 
     res.json({ success: true, isActive: link.isActive });
   } catch (err) {
@@ -1150,13 +1145,14 @@ app.post('/api/user/settings', authMiddleware, async (req, res, next) => {
 
     await User.findByIdAndUpdate(userId, updateData);
 
-    // --- تسجيل نشاط تحديث الإعدادات والمحفظة (Non-Blocking) ---
-    safeLogActivity(
-      req, 
-      'UPDATE_SETTINGS', 
-      'user', 
-      { defaultWallet: updateData.defaultWallet, language: updateData.language }
-    );
+    // --- تسجيل نشاط تحديث الإعدادات والمحفظة ---
+    await logActivity({
+      userId: req.user?._id || req.user?.telegramId || req.body?.userId,
+      action: 'UPDATE_SETTINGS',
+      category: 'user',
+      details: { defaultWallet: updateData.defaultWallet, language: updateData.language },
+      req
+    });
 
     res.json({ success: true, message: 'تم تحديث الإعدادات بنجاح' });
   } catch (err) {
@@ -1177,13 +1173,14 @@ app.get('/api/admin/dashboard-data', authMiddleware, adminMiddleware, async (req
       Ad.countDocuments()
     ]);
 
-    // --- تسجيل نشاط دخول المشرف للوحة التحكم (Non-Blocking) ---
-    safeLogActivity(
-      req, 
-      'ADMIN_VIEW_DASHBOARD', 
-      'admin', 
-      { withdrawsCount: withdraws.length, depositsCount: deposits.length, usersCount: users.length }
-    );
+    // --- تسجيل نشاط دخول المشرف للوحة التحكم ---
+    await logActivity({
+      userId: req.user?._id || req.user?.telegramId || req.body?.userId,
+      action: 'ADMIN_VIEW_DASHBOARD',
+      category: 'admin',
+      details: { withdrawsCount: withdraws.length, depositsCount: deposits.length, usersCount: users.length },
+      req
+    });
 
     res.json({ success: true, withdraws, deposits, users, stats: { ...(stats[0] || {}), totalAds } });
   } catch (err) {
@@ -1238,13 +1235,14 @@ app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (re
 
     await session.commitTransaction();
 
-    // --- تسجيل نشاط الإدارة عند اتخاذ إجراء في الإيداع (Non-Blocking) ---
-    safeLogActivity(
-      req, 
-      `ADMIN_DEPOSIT_${action.toUpperCase()}`, 
-      'wallet', 
-      { depositId, targetUser: deposit.userId || deposit.advertiserId._id, amount: deposit.amount, action, reason }
-    );
+    // --- تسجيل نشاط الإدارة عند اتخاذ إجراء في الإيداع ---
+    await logActivity({
+      userId: req.user?._id || req.user?.telegramId || req.body?.userId,
+      action: `ADMIN_DEPOSIT_${action.toUpperCase()}`,
+      category: 'wallet',
+      details: { depositId, targetUser: deposit.userId || deposit.advertiserId._id, amount: deposit.amount, action, reason },
+      req
+    });
 
     res.json({ success: true, deposit });
   } catch (err) {
@@ -1301,13 +1299,14 @@ app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (r
 
     await session.commitTransaction();
 
-    // --- تسجيل نشاط الإدارة عند اتخاذ إجراء في السحب (Non-Blocking) ---
-    safeLogActivity(
-      req, 
-      `ADMIN_WITHDRAW_${action.toUpperCase()}`, 
-      'wallet', 
-      { withdrawId, targetUser: withdraw.userId._id, amount: withdraw.amount, action, reason }
-    );
+    // --- تسجيل نشاط الإدارة عند اتخاذ إجراء في السحب ---
+    await logActivity({
+      userId: req.user?._id || req.user?.telegramId || req.body?.userId,
+      action: `ADMIN_WITHDRAW_${action.toUpperCase()}`,
+      category: 'wallet',
+      details: { withdrawId, targetUser: withdraw.userId._id, amount: withdraw.amount, action, reason },
+      req
+    });
 
     res.json({ success: true, withdraw });
   } catch (err) {
@@ -1370,13 +1369,14 @@ app.post('/api/admin/distribute-revenue', authMiddleware, adminMiddleware, async
 
     await session.commitTransaction();
 
-    // --- تسجيل نشاط توزيع الأرباح بواسطة المشرف (Non-Blocking) ---
-    safeLogActivity(
-      req, 
-      'DISTRIBUTE_REVENUE', 
-      'campaigns', 
-      { revenue, processedLinksCount: links.length, totalImpressions: totalImp }
-    );
+    // --- تسجيل نشاط توزيع الأرباح بواسطة المشرف ---
+    await logActivity({
+      userId: req.user?._id || req.user?.telegramId || req.body?.userId,
+      action: 'DISTRIBUTE_REVENUE',
+      category: 'campaigns',
+      details: { revenue, processedLinksCount: links.length, totalImpressions: totalImp },
+      req
+    });
 
     res.json({ success: true, message: `تم توزيع $${revenue} بنجاح على ${links.length} رابطاً.` });
   } catch (err) {
@@ -1403,13 +1403,14 @@ app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (r
       sendTelegramNotification(user.telegramId, `🚫 <b>تنبيه من الإدارة:</b> تم حظر حسابك بسبب مخالفة الشروط.\nالدعم: ${CONFIG.SUPPORT_USERNAME}`);
     }
 
-    // --- تسجيل نشاط حظر/إلغاء حظر مستخدم (Non-Blocking) ---
-    safeLogActivity(
-      req, 
-      user.isBanned ? 'BAN_USER' : 'UNBAN_USER', 
-      'user', 
-      { targetUserId: user._id, targetTelegramId: user.telegramId, isBanned: user.isBanned }
-    );
+    // --- تسجيل نشاط حظر/إلغاء حظر مستخدم ---
+    await logActivity({
+      userId: req.user?._id || req.user?.telegramId || req.body?.userId,
+      action: user.isBanned ? 'BAN_USER' : 'UNBAN_USER',
+      category: 'user',
+      details: { targetUserId: user._id, targetTelegramId: user.telegramId, isBanned: user.isBanned },
+      req
+    });
 
     res.json({ success: true, isBanned: user.isBanned });
   } catch (err) {
