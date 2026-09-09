@@ -887,8 +887,8 @@ const activityLogSchema = new mongoose.Schema({
   }
 }, globalSchemaOptions);
 
-// الفهرسة المركبة السريعة لاستعلامات سجلات المستخدم بترتيب زمني فوري
-activityLogSchema.index({ userId: 1, createdAt: -1 });
+// الفهارس المخصصة وسريعة للاستعلام
+activityLogSchema.index({ userId: 1, createdAt: -1 }); // Index مركّب بين userId و createdAt
 activityLogSchema.index({ category: 1, createdAt: -1 });
 
 activityLogSchema.statics.getUserLogsIsolated = function(userId, limit = 50) {
