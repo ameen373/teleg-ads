@@ -1,78 +1,69 @@
-// activityLog.js - وحدات تسجيل الأنشطة لمشروع Telega.ads
-const { ActivityLog } = require('./models.js');
+/**
+ * Activity Logger Utility Module
+ * Platform: Telega.ads Advertising & Shortener Network
+ * Description: Asynchronously registers user activity logs to MongoDB without blocking API request lifecycle or leaking server errors.
+ */
+
+const { ActivityLog } = require('./models');
 
 /**
- * دالة استخراج عنوان الـ IP الحقيقي من الطلب
- * @param {Object} req - كائن الطلب من Express
- * @returns {string} - عنوان الـ IP
+ * Extracts client IP address safely considering proxies and load balancers
+ * @param {Object} req - Express Request Object
+ * @returns {String|null} Client IP Address
  */
-const extractIp = (req) => {
+const extractClientIp = (req) => {
   if (!req) return null;
-  
-  // التحقق من الهيدرز في حالة استخدام بروكسي أو Vercel/Cloudflare
-  const forwarded = req.headers['x-forwarded-for'];
+  const forwarded = req.headers && req.headers['x-forwarded-for'];
   if (forwarded) {
     return forwarded.split(',')[0].trim();
   }
-  
-  return (
-    req.headers['x-real-ip'] ||
-    req.socket?.remoteAddress ||
-    req.ip ||
-    null
-  );
+  return req.ip || (req.connection && req.connection.remoteAddress) || null;
 };
 
 /**
- * تسجيل نشاط المستخدم بدون إبطاء السيرفر (Non-blocking Async)
- * 
- * @param {Object} params - معلمات النشاط
- * @param {string|number} params.userId - معرف المستخدم
- * @param {string} params.action - اسم الإجراء (مثل: CREATE_LINK, WITHDRAW_REQUEST)
- * @param {string} [params.category='GENERAL'] - تصنيف الإجراء (LINKS, CAMPAIGN, WALLET, WITHDRAW, DEPOSIT)
- * @param {Object} [params.details={}] - تفاصيل إضافية عن الإجراء
- * @param {Object} [params.req=null] - كائن الطلب لاستخراج البيانات تلقائياً
- * @param {string} [params.status='SUCCESS'] - حالة الإجراء (SUCCESS, FAILED, PENDING)
+ * Extracts Client User-Agent string from request headers
+ * @param {Object} req - Express Request Object
+ * @returns {String|null} User-Agent String
  */
-const logActivity = ({
-  userId,
-  action,
-  category = 'GENERAL',
-  details = {},
-  req = null,
-  status = 'SUCCESS'
-}) => {
-  // استخدام setImmediate لضمان تنفيذ التسجيل في الخلفية وعدم تعطيل الدورة الأساسية للأحداث (Event Loop)
-  setImmediate(async () => {
-    try {
-      if (!userId || !action) {
-        return;
-      }
+const extractUserAgent = (req) => {
+  if (!req || !req.headers) return null;
+  return req.headers['user-agent'] || null;
+};
 
-      // استخراج الـ IP والـ User-Agent تلقائياً إذا تم تمرير req
-      const ipAddress = extractIp(req);
-      const userAgent = req?.headers ? req.headers['user-agent'] : null;
-
-      const logData = {
-        userId,
-        action,
-        category,
-        details,
-        status,
-        ipAddress,
-        userAgent,
-        createdAt: new Date()
-      };
-
-      // الحفظ في قاعدة البيانات
-      await ActivityLog.create(logData);
-    } catch (error) {
-      // التعامل مع الأخطاء داخلياً وتسجيلها في الكونسول دون إيقاف السيرفر
-      console.error('[ActivityLog Error]:', error.message);
+/**
+ * Logs user actions in background safely.
+ * 
+ * @param {Object} params
+ * @param {String|Object} params.userId - User Mongoose ObjectId or string representation
+ * @param {String} params.action - Action identifier (e.g., 'CREATE_LINK', 'WITHDRAW_REQUEST')
+ * @param {String} [params.category='system'] - Category ('links', 'campaigns', 'wallet', 'auth', 'system')
+ * @param {Object} [params.details={}] - Additional details object
+ * @param {Object} [params.req=null] - Express request object (optional)
+ * @param {String} [params.status='SUCCESS'] - Status ('SUCCESS', 'FAILED', 'PENDING')
+ */
+const logActivity = async ({ userId, action, category = 'system', details = {}, req = null, status = 'SUCCESS' }) => {
+  try {
+    if (!userId || !action) {
+      return;
     }
-  });
+
+    const ipAddress = extractClientIp(req);
+    const userAgent = extractUserAgent(req);
+
+    // Create log record directly in MongoDB asynchronously
+    await ActivityLog.create({
+      userId,
+      action: String(action).toUpperCase(),
+      category: String(category).toLowerCase(),
+      details: typeof details === 'object' && details !== null ? details : { raw: details },
+      ipAddress,
+      userAgent,
+      status: String(status).toUpperCase()
+    });
+  } catch (error) {
+    // Non-blocking fail-safe error handling to protect API response cycles
+    console.error('⚠️ [ActivityLog Non-Blocking Error]:', error.message || error);
+  }
 };
 
-module.exports = {
-  logActivity
-};
+module.exports = logActivity;
