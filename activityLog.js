@@ -1,7 +1,7 @@
 /**
  * Activity Logger Utility Module
  * Platform: Telega.ads Advertising & Shortener Network
- * Description: Asynchronously registers user activity logs to MongoDB without blocking API request lifecycle or leaking server errors.
+ * Description: Asynchronously registers user activity logs to MongoDB returning a Promise and logging debug statuses for Vercel.
  */
 
 const { ActivityLog } = require('./models');
@@ -31,68 +31,39 @@ const extractUserAgent = (req) => {
 };
 
 /**
- * Normalizes and extracts userId from multiple input structures or request contexts
- * @param {any} rawUserId - The direct userId parameter
- * @param {Object} req - Express Request Object
- * @returns {String|null} Extracted string or ObjectId representation
- */
-const resolveUserId = (rawUserId, req) => {
-  // Check direct parameter formats
-  if (rawUserId) {
-    if (typeof rawUserId === 'string' || typeof rawUserId === 'number') return String(rawUserId);
-    if (rawUserId._id) return String(rawUserId._id);
-    if (rawUserId.id) return String(rawUserId.id);
-    if (rawUserId.telegramId) return String(rawUserId.telegramId);
-  }
-
-  // Check req context fallback if req is supplied
-  if (req) {
-    if (req.user) {
-      if (req.user._id) return String(req.user._id);
-      if (req.user.id) return String(req.user.id);
-      if (req.user.telegramId) return String(req.user.telegramId);
-    }
-    if (req.telegramId) return String(req.telegramId);
-    if (req.headers && req.headers['x-telegram-id']) return String(req.headers['x-telegram-id']);
-  }
-
-  return null;
-};
-
-/**
- * Logs user actions in background safely.
+ * Logs user actions in MongoDB and returns a Promise.
  * 
  * @param {Object} params
- * @param {String|Object} params.userId - User Mongoose ObjectId, String or User Object
+ * @param {String|Object} [params.userId] - User ID, Telegram ID, or User Object
  * @param {String} params.action - Action identifier (e.g., 'CREATE_LINK', 'WITHDRAW_REQUEST')
  * @param {String} [params.category='system'] - Category ('links', 'campaigns', 'wallet', 'auth', 'system')
  * @param {Object} [params.details={}] - Additional details object
- * @param {Object} [params.req=null] - Express request object (optional)
+ * @param {Object} [params.req=null] - Express request object
  * @param {String} [params.status='SUCCESS'] - Status ('SUCCESS', 'FAILED', 'PENDING')
+ * @returns {Promise<Object|null>} Saved ActivityLog document or null
  */
 const logActivity = async ({ userId, action, category = 'system', details = {}, req = null, status = 'SUCCESS' }) => {
   try {
-    // Resolved safe userId
-    const resolvedUserId = resolveUserId(userId, req);
+    // Extract user ID safely across all possible structures
+    const finalUserId = userId || req?.user?._id || req?.user?.telegramId || req?.user?.id || req?.body?.userId;
 
-    console.log('📌 Logging Activity:', { userId: resolvedUserId, action, category });
-
-    if (!resolvedUserId) {
-      console.warn('⚠️ Skipped: Missing userId');
-      return;
+    if (!finalUserId) {
+      console.warn('⚠️ Skipped ActivityLog: Missing userId');
+      return null;
     }
 
     if (!action) {
-      console.warn('⚠️ Skipped: Missing action');
-      return;
+      console.warn('⚠️ Skipped ActivityLog: Missing action');
+      return null;
     }
 
+    // Extract IP address and User-Agent automatically from req
     const ipAddress = extractClientIp(req);
     const userAgent = extractUserAgent(req);
 
-    // Create log record directly in MongoDB asynchronously
-    await ActivityLog.create({
-      userId: resolvedUserId,
+    // Save log record directly to MongoDB
+    const newLog = await ActivityLog.create({
+      userId: finalUserId,
       action: String(action).toUpperCase(),
       category: String(category).toLowerCase(),
       details: typeof details === 'object' && details !== null ? details : { raw: details },
@@ -101,10 +72,11 @@ const logActivity = async ({ userId, action, category = 'system', details = {}, 
       status: String(status).toUpperCase()
     });
 
-    console.log('✅ Activity Saved Successfully');
+    console.log('✅ Activity Saved:', newLog._id);
+    return newLog;
   } catch (error) {
-    // Non-blocking fail-safe error handling to protect API response cycles
-    console.error('⚠️ [ActivityLog Non-Blocking Error]:', error.message || error);
+    console.error('❌ Error saving ActivityLog:', error.message || error);
+    return null;
   }
 };
 
