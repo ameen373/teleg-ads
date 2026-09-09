@@ -31,10 +31,39 @@ const extractUserAgent = (req) => {
 };
 
 /**
+ * Normalizes and extracts userId from multiple input structures or request contexts
+ * @param {any} rawUserId - The direct userId parameter
+ * @param {Object} req - Express Request Object
+ * @returns {String|null} Extracted string or ObjectId representation
+ */
+const resolveUserId = (rawUserId, req) => {
+  // Check direct parameter formats
+  if (rawUserId) {
+    if (typeof rawUserId === 'string' || typeof rawUserId === 'number') return String(rawUserId);
+    if (rawUserId._id) return String(rawUserId._id);
+    if (rawUserId.id) return String(rawUserId.id);
+    if (rawUserId.telegramId) return String(rawUserId.telegramId);
+  }
+
+  // Check req context fallback if req is supplied
+  if (req) {
+    if (req.user) {
+      if (req.user._id) return String(req.user._id);
+      if (req.user.id) return String(req.user.id);
+      if (req.user.telegramId) return String(req.user.telegramId);
+    }
+    if (req.telegramId) return String(req.telegramId);
+    if (req.headers && req.headers['x-telegram-id']) return String(req.headers['x-telegram-id']);
+  }
+
+  return null;
+};
+
+/**
  * Logs user actions in background safely.
  * 
  * @param {Object} params
- * @param {String|Object} params.userId - User Mongoose ObjectId or string representation
+ * @param {String|Object} params.userId - User Mongoose ObjectId, String or User Object
  * @param {String} params.action - Action identifier (e.g., 'CREATE_LINK', 'WITHDRAW_REQUEST')
  * @param {String} [params.category='system'] - Category ('links', 'campaigns', 'wallet', 'auth', 'system')
  * @param {Object} [params.details={}] - Additional details object
@@ -43,7 +72,18 @@ const extractUserAgent = (req) => {
  */
 const logActivity = async ({ userId, action, category = 'system', details = {}, req = null, status = 'SUCCESS' }) => {
   try {
-    if (!userId || !action) {
+    // Resolved safe userId
+    const resolvedUserId = resolveUserId(userId, req);
+
+    console.log('📌 Logging Activity:', { userId: resolvedUserId, action, category });
+
+    if (!resolvedUserId) {
+      console.warn('⚠️ Skipped: Missing userId');
+      return;
+    }
+
+    if (!action) {
+      console.warn('⚠️ Skipped: Missing action');
       return;
     }
 
@@ -52,7 +92,7 @@ const logActivity = async ({ userId, action, category = 'system', details = {}, 
 
     // Create log record directly in MongoDB asynchronously
     await ActivityLog.create({
-      userId,
+      userId: resolvedUserId,
       action: String(action).toUpperCase(),
       category: String(category).toLowerCase(),
       details: typeof details === 'object' && details !== null ? details : { raw: details },
@@ -60,6 +100,8 @@ const logActivity = async ({ userId, action, category = 'system', details = {}, 
       userAgent,
       status: String(status).toUpperCase()
     });
+
+    console.log('✅ Activity Saved Successfully');
   } catch (error) {
     // Non-blocking fail-safe error handling to protect API response cycles
     console.error('⚠️ [ActivityLog Non-Blocking Error]:', error.message || error);
