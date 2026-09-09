@@ -387,7 +387,7 @@ app.post('/api/auth/login', async (req, res, next) => {
 // --- Isolated User Data Gateway ---
 app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   try {
-    const userId = req.userId;
+    const userId = req.userId || req.user?._id || req.user?.id;
 
     if (!userId) {
       return res.json({
@@ -426,6 +426,18 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
     });
 
     const isAdmin = String(req.user.telegramId).trim() === CONFIG.ADMIN_ID;
+
+    // --- تسجيل نشاط جلب بيانات المستخدم (Non-Blocking) ---
+    try {
+      logActivity({
+        userId,
+        action: 'FETCH_USER_DATA',
+        category: 'user',
+        details: { linksCount: links.length, withdrawsCount: withdraws.length, adsCount: ads.length, depositsCount: deposits.length },
+        req
+      });
+    } catch (e) {}
+
     res.json({ 
       success: true,
       user: req.user, 
@@ -458,6 +470,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
     session.startTransaction();
     const { title, targetUrl, totalBudget } = req.body;
     const budget = Number(totalBudget);
+    const userId = req.userId || req.user?._id || req.user?.id;
 
     if (!title || String(title).trim().length === 0) {
       await session.abortTransaction();
@@ -475,7 +488,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
     }
 
     const updatedUser = await User.findOneAndUpdate(
-      { _id: req.userId, availableBalance: { $gte: budget } },
+      { _id: userId, availableBalance: { $gte: budget } },
       { $inc: { availableBalance: -budget } },
       { new: true, session }
     );
@@ -486,8 +499,8 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
     }
 
     const ad = await Ad.create([{
-      userId: req.userId,
-      advertiserId: req.userId,
+      userId: userId,
+      advertiserId: userId,
       advertiserTelegramId: req.user.telegramId,
       title: String(title).trim(),
       targetUrl: String(targetUrl).trim(),
@@ -505,7 +518,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
     // --- تسجيل نشاط إنشاء حملة إعلانية (Non-Blocking) ---
     try {
       logActivity({
-        userId: req.userId,
+        userId,
         action: 'CREATE_CAMPAIGN',
         category: 'campaigns',
         details: { adId: ad[0]._id, title: ad[0].title, totalBudget: budget, targetUrl },
@@ -524,7 +537,20 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
 
 app.get('/api/user/ads', authMiddleware, async (req, res, next) => {
   try {
-    const ads = await Ad.find({ userId: req.userId }).sort({ createdAt: -1 }).lean();
+    const userId = req.userId || req.user?._id || req.user?.id;
+    const ads = await Ad.find({ userId: userId }).sort({ createdAt: -1 }).lean();
+
+    // --- تسجيل نشاط جلب حملات المستخدم (Non-Blocking) ---
+    try {
+      logActivity({
+        userId,
+        action: 'FETCH_CAMPAIGNS',
+        category: 'campaigns',
+        details: { adsCount: ads.length },
+        req
+      });
+    } catch (e) {}
+
     res.json({ success: true, ads });
   } catch (err) {
     next(err);
@@ -534,9 +560,11 @@ app.get('/api/user/ads', authMiddleware, async (req, res, next) => {
 app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
   try {
     const { adId } = req.body;
+    const userId = req.userId || req.user?._id || req.user?.id;
+
     if (!mongoose.Types.ObjectId.isValid(adId)) return res.status(400).json({ success: false, error: 'معرف الإعلان غير صالح' });
 
-    const ad = await Ad.findOne({ _id: adId, userId: req.userId });
+    const ad = await Ad.findOne({ _id: adId, userId: userId });
     if (!ad) return res.status(404).json({ success: false, error: 'الإعلان غير موجود أو لا تملك صلاحية تعديله' });
 
     if (ad.status === 'completed') {
@@ -549,7 +577,7 @@ app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
     // --- تسجيل نشاط تعديل حالة الحملة الإعلانية (Non-Blocking) ---
     try {
       logActivity({
-        userId: req.userId,
+        userId,
         action: 'TOGGLE_CAMPAIGN',
         category: 'campaigns',
         details: { adId: ad._id, title: ad.title, newStatus: ad.status },
@@ -570,6 +598,7 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
     const numAmount = Number(amount);
     const cleanNetwork = String(network || '').toUpperCase();
     const cleanTxid = String(txid || '').trim();
+    const userId = req.userId || req.user?._id || req.user?.id;
 
     if (isNaN(numAmount) || numAmount < 1) {
       return res.status(400).json({ success: false, error: 'الحد الأدنى للإيداع هو $1' });
@@ -589,8 +618,8 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
     }
 
     const deposit = await Deposit.create({
-      userId: req.userId,
-      advertiserId: req.userId,
+      userId: userId,
+      advertiserId: userId,
       advertiserTelegramId: req.user.telegramId,
       amount: numAmount,
       network: cleanNetwork,
@@ -606,7 +635,7 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
     // --- تسجيل نشاط طلب الإيداع (Non-Blocking) ---
     try {
       logActivity({
-        userId: req.userId,
+        userId,
         action: 'REQUEST_DEPOSIT',
         category: 'wallet',
         details: { depositId: deposit._id, amount: numAmount, network: cleanNetwork, txid: cleanTxid },
@@ -629,6 +658,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
     const cleanNetwork = String(network || '').toUpperCase();
     const cleanWallet = String(walletAddress || '').trim();
     const FEE = 3;
+    const userId = req.userId || req.user?._id || req.user?.id;
 
     if (isNaN(numAmt) || numAmt < 30) {
       await session.abortTransaction();
@@ -645,7 +675,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'عنوان المحفظة غير صالح' });
     }
 
-    const activePending = await Withdraw.findOne({ userId: req.userId, status: 'pending' }).session(session);
+    const activePending = await Withdraw.findOne({ userId: userId, status: 'pending' }).session(session);
     if (activePending) {
       await session.abortTransaction();
       return res.status(400).json({ success: false, error: 'لديك طلب سحب قيد الانتظار حالياً، يرجى الانتظار حتى معالجته' });
@@ -654,7 +684,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
     const netAmount = numAmt - FEE;
 
     const updatedUser = await User.findOneAndUpdate(
-      { _id: req.userId, availableBalance: { $gte: numAmt } },
+      { _id: userId, availableBalance: { $gte: numAmt } },
       { $inc: { availableBalance: -numAmt }, defaultWallet: cleanWallet },
       { new: true, session }
     );
@@ -665,7 +695,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
     }
 
     const withdrawRequest = await Withdraw.create([{
-      userId: req.userId,
+      userId: userId,
       telegramId: req.user.telegramId,
       amount: numAmt,
       fee: FEE,
@@ -685,7 +715,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
     // --- تسجيل نشاط طلب السحب (Non-Blocking) ---
     try {
       logActivity({
-        userId: req.userId,
+        userId,
         action: 'REQUEST_WITHDRAW',
         category: 'wallet',
         details: { withdrawId: withdrawRequest[0]._id, amount: numAmt, netAmount, fee: FEE, network: cleanNetwork, walletAddress: cleanWallet },
@@ -913,7 +943,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 // Shared Link Shortening Logic
 const handleShortenLink = async (req, res) => {
   try {
-    const userId = req.userId;
+    const userId = req.userId || req.user?._id || req.user?.id;
 
     if (!userId) {
       return res.status(401).json({ 
@@ -1023,7 +1053,20 @@ const getUserLinks = async (userId) => {
 // Fetch Links Main Endpoint
 app.get('/api/links', authMiddleware, async (req, res, next) => {
   try {
-    const links = await getUserLinks(req.userId);
+    const userId = req.userId || req.user?._id || req.user?.id;
+    const links = await getUserLinks(userId);
+
+    // --- تسجيل نشاط جلب الروابط (Non-Blocking) ---
+    try {
+      logActivity({
+        userId,
+        action: 'FETCH_LINKS',
+        category: 'links',
+        details: { count: links.length },
+        req
+      });
+    } catch (e) {}
+
     res.json({ success: true, links });
   } catch (err) {
     next(err);
@@ -1033,7 +1076,20 @@ app.get('/api/links', authMiddleware, async (req, res, next) => {
 // Fetch Links Alias Endpoint
 app.get('/api/user/links', authMiddleware, async (req, res, next) => {
   try {
-    const links = await getUserLinks(req.userId);
+    const userId = req.userId || req.user?._id || req.user?.id;
+    const links = await getUserLinks(userId);
+
+    // --- تسجيل نشاط جلب الروابط عبر المسار البديل (Non-Blocking) ---
+    try {
+      logActivity({
+        userId,
+        action: 'FETCH_USER_LINKS',
+        category: 'links',
+        details: { count: links.length },
+        req
+      });
+    } catch (e) {}
+
     res.json({ success: true, links });
   } catch (err) {
     next(err);
@@ -1043,7 +1099,7 @@ app.get('/api/user/links', authMiddleware, async (req, res, next) => {
 app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
   try {
     const { linkId } = req.body;
-    const userId = req.userId;
+    const userId = req.userId || req.user?._id || req.user?.id;
 
     if (!userId) return res.status(401).json({ success: false, error: 'معرف المستخدم مفقود' });
     if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
@@ -1075,17 +1131,18 @@ app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
 app.post('/api/user/settings', authMiddleware, async (req, res, next) => {
   try {
     const { defaultWallet, language } = req.body;
+    const userId = req.userId || req.user?._id || req.user?.id;
     const updateData = {};
     
     if (defaultWallet !== undefined) updateData.defaultWallet = String(defaultWallet).trim();
     if (language !== undefined) updateData.language = String(language).trim().toLowerCase() || CONFIG.DEFAULT_LANGUAGE;
 
-    await User.findByIdAndUpdate(req.userId, updateData);
+    await User.findByIdAndUpdate(userId, updateData);
 
     // --- تسجيل نشاط تحديث الإعدادات والمحفظة (Non-Blocking) ---
     try {
       logActivity({
-        userId: req.userId,
+        userId,
         action: 'UPDATE_SETTINGS',
         category: 'user',
         details: { defaultWallet: updateData.defaultWallet, language: updateData.language },
@@ -1112,6 +1169,17 @@ app.get('/api/admin/dashboard-data', authMiddleware, adminMiddleware, async (req
       Ad.countDocuments()
     ]);
 
+    // --- تسجيل نشاط دخول المشرف للوحة التحكم (Non-Blocking) ---
+    try {
+      logActivity({
+        userId: req.userId || req.user?._id || req.user?.id,
+        action: 'ADMIN_VIEW_DASHBOARD',
+        category: 'admin',
+        details: { withdrawsCount: withdraws.length, depositsCount: deposits.length, usersCount: users.length },
+        req
+      });
+    } catch (e) {}
+
     res.json({ success: true, withdraws, deposits, users, stats: { ...(stats[0] || {}), totalAds } });
   } catch (err) {
     next(err);
@@ -1120,6 +1188,8 @@ app.get('/api/admin/dashboard-data', authMiddleware, adminMiddleware, async (req
 
 app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (req, res, next) => {
   const { depositId, action, reason } = req.body;
+  const adminUserId = req.userId || req.user?._id || req.user?.id;
+
   if (!mongoose.Types.ObjectId.isValid(depositId)) return res.status(400).json({ success: false, error: 'معرف الإيداع غير صالح' });
 
   const session = await mongoose.startSession();
@@ -1167,7 +1237,7 @@ app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (re
     // --- تسجيل نشاط الإدارة عند اتخاذ إجراء في الإيداع (Non-Blocking) ---
     try {
       logActivity({
-        userId: req.userId,
+        userId: adminUserId,
         action: `ADMIN_DEPOSIT_${action.toUpperCase()}`,
         category: 'wallet',
         details: { depositId, targetUser: deposit.userId || deposit.advertiserId._id, amount: deposit.amount, action, reason },
@@ -1186,6 +1256,8 @@ app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (re
 
 app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (req, res, next) => {
   const { withdrawId, action, reason } = req.body;
+  const adminUserId = req.userId || req.user?._id || req.user?.id;
+
   if (!mongoose.Types.ObjectId.isValid(withdrawId)) return res.status(400).json({ success: false, error: 'معرف السحب غير صالح' });
 
   const session = await mongoose.startSession();
@@ -1232,7 +1304,7 @@ app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (r
     // --- تسجيل نشاط الإدارة عند اتخاذ إجراء في السحب (Non-Blocking) ---
     try {
       logActivity({
-        userId: req.userId,
+        userId: adminUserId,
         action: `ADMIN_WITHDRAW_${action.toUpperCase()}`,
         category: 'wallet',
         details: { withdrawId, targetUser: withdraw.userId._id, amount: withdraw.amount, action, reason },
@@ -1255,6 +1327,7 @@ app.post('/api/admin/distribute-revenue', authMiddleware, adminMiddleware, async
     session.startTransaction();
     const { totalRevenue } = req.body;
     const revenue = Number(totalRevenue);
+    const adminUserId = req.userId || req.user?._id || req.user?.id;
 
     if (isNaN(revenue) || revenue <= 0) {
       await session.abortTransaction();
@@ -1304,7 +1377,7 @@ app.post('/api/admin/distribute-revenue', authMiddleware, adminMiddleware, async
     // --- تسجيل نشاط توزيع الأرباح بواسطة المشرف (Non-Blocking) ---
     try {
       logActivity({
-        userId: req.userId,
+        userId: adminUserId,
         action: 'DISTRIBUTE_REVENUE',
         category: 'campaigns',
         details: { revenue, processedLinksCount: links.length, totalImpressions: totalImp },
@@ -1323,6 +1396,8 @@ app.post('/api/admin/distribute-revenue', authMiddleware, adminMiddleware, async
 
 app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (req, res, next) => {
   const { userId } = req.body;
+  const adminUserId = req.userId || req.user?._id || req.user?.id;
+
   if (!mongoose.Types.ObjectId.isValid(userId)) return res.status(400).json({ success: false, error: 'معرف المستخدم غير صالح' });
 
   try {
@@ -1339,7 +1414,7 @@ app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (r
     // --- تسجيل نشاط حظر/إلغاء حظر مستخدم (Non-Blocking) ---
     try {
       logActivity({
-        userId: req.userId,
+        userId: adminUserId,
         action: user.isBanned ? 'BAN_USER' : 'UNBAN_USER',
         category: 'user',
         details: { targetUserId: user._id, targetTelegramId: user.telegramId, isBanned: user.isBanned },
