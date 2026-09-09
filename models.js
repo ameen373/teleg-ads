@@ -337,7 +337,7 @@ adSchema.pre('validate', function(next) {
   if (this.userId && !this.advertiserId) this.advertiserId = this.userId;
   if (this.advertiserId && !this.userId) this.userId = this.advertiserId;
   if (this.telegramId && !this.advertiserTelegramId) this.advertiserTelegramId = this.telegramId;
-  if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.advertiserTelegramId;
+  if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.telegramId;
   next();
 });
 
@@ -840,8 +840,8 @@ announcementSchema.statics.getForUserIsolated = function(userId, telegramId) {
 // --------------------------------------------------
 const activityLogSchema = new mongoose.Schema({
   userId: {
-    type: mongoose.Schema.Types.Mixed, // يقبل ObjectId أو String (Telegram ID)
-    required: [true, 'User ID or Telegram ID is required'],
+    type: mongoose.Schema.Types.Mixed, // Flexibly accepts Telegram ID (Number/String) or Mongo ObjectId
+    required: [true, 'User ID is required'],
     index: true
   },
   action: {
@@ -851,7 +851,7 @@ const activityLogSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    required: [true, 'Category is required'],
+    default: 'system',
     trim: true,
     lowercase: true
   },
@@ -861,17 +861,16 @@ const activityLogSchema = new mongoose.Schema({
   },
   ipAddress: {
     type: String,
-    default: '',
+    default: null,
     trim: true
   },
   userAgent: {
     type: String,
-    default: '',
+    default: null,
     trim: true
   },
   status: {
     type: String,
-    enum: ['SUCCESS', 'FAILED', 'PENDING'],
     default: 'SUCCESS',
     uppercase: true,
     index: true
@@ -879,11 +878,10 @@ const activityLogSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now,
-    index: true // Index لتسريع البحث والاستعلام بالتاريخ
+    index: true
   }
 }, globalSchemaOptions);
 
-// الفهارس المخصصة وسريعة للاستعلام
 activityLogSchema.index({ userId: 1, createdAt: -1 });
 activityLogSchema.index({ category: 1, createdAt: -1 });
 
