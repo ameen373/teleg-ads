@@ -518,7 +518,7 @@ impressionSchema.pre('validate', function(next) {
   if (this.publisherId && !this.userId) this.userId = this.publisherId;
   if (this.userId && !this.publisherId) this.publisherId = this.userId;
   if (this.telegramId && !this.publisherTelegramId) this.publisherTelegramId = this.telegramId;
-  if (this.publisherTelegramId && !this.telegramId) this.telegramId = this.publisherTelegramId;
+  if (this.publisherTelegramId && !this.telegramId) this.telegramId = this.telegramId;
   next();
 });
 
@@ -835,6 +835,67 @@ announcementSchema.statics.getForUserIsolated = function(userId, telegramId) {
   }).sort({ createdAt: -1 });
 };
 
+// --------------------------------------------------
+// 12. User Activity Log Model (Audit & Monitoring)
+// --------------------------------------------------
+const activityLogSchema = new mongoose.Schema({
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: [true, 'User ID is required for tenant isolation'],
+    index: true
+  },
+  action: {
+    type: String,
+    required: [true, 'Action type is required'],
+    trim: true,
+    uppercase: true,
+    index: true
+  },
+  category: {
+    type: String,
+    enum: ['links', 'campaigns', 'wallet', 'auth', 'system'],
+    default: 'system',
+    lowercase: true,
+    index: true
+  },
+  details: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  ipAddress: {
+    type: String,
+    default: null,
+    trim: true
+  },
+  userAgent: {
+    type: String,
+    default: null,
+    trim: true
+  },
+  status: {
+    type: String,
+    enum: ['SUCCESS', 'FAILED', 'PENDING'],
+    default: 'SUCCESS',
+    uppercase: true,
+    index: true
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+    index: true
+  }
+}, globalSchemaOptions);
+
+// الفهرسة المركبة السريعة لاستعلامات سجلات المستخدم بترتيب زمني فوري
+activityLogSchema.index({ userId: 1, createdAt: -1 });
+activityLogSchema.index({ category: 1, createdAt: -1 });
+
+activityLogSchema.statics.getUserLogsIsolated = function(userId, limit = 50) {
+  enforceTenantKey(userId, 'userId');
+  return this.find({ userId }).sort({ createdAt: -1 }).limit(limit);
+};
+
 // Exporting Optimized Safe Models
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Wallet = mongoose.models.Wallet || mongoose.model('Wallet', walletSchema);
@@ -847,6 +908,7 @@ const Withdraw = mongoose.models.Withdraw || mongoose.model('Withdraw', withdraw
 const EarningsHold = mongoose.models.EarningsHold || mongoose.model('EarningsHold', earningsHoldSchema);
 const Deposit = mongoose.models.Deposit || mongoose.model('Deposit', depositSchema);
 const Announcement = mongoose.models.Announcement || mongoose.model('Announcement', announcementSchema);
+const ActivityLog = mongoose.models.ActivityLog || mongoose.model('ActivityLog', activityLogSchema);
 
 module.exports = {
   User,
@@ -859,5 +921,6 @@ module.exports = {
   Withdraw,
   EarningsHold,
   Deposit,
-  Announcement
+  Announcement,
+  ActivityLog
 };
