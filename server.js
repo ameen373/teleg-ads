@@ -352,14 +352,16 @@ app.post('/api/auth/login', async (req, res, next) => {
       { expiresIn: '7d', algorithm: 'HS256' }
     );
 
-    // --- تسجيل نشاط الدخول/التسجيل ---
-    await logActivity(
-      user._id,
-      isNewUser ? 'USER_REGISTER' : 'USER_LOGIN',
-      'auth',
-      { username: user.username, telegramId: user.telegramId, isNewUser },
-      req
-    );
+    // --- تسجيل نشاط الدخول/التسجيل (Non-Blocking) ---
+    try {
+      logActivity({
+        userId: user._id,
+        action: isNewUser ? 'USER_REGISTER' : 'USER_LOGIN',
+        category: 'auth',
+        details: { username: user.username, telegramId: user.telegramId, isNewUser },
+        req
+      });
+    } catch (e) {}
 
     res.json({ 
       success: true, 
@@ -500,14 +502,16 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
 
     await session.commitTransaction();
 
-    // --- تسجيل نشاط إنشاء حملة إعلانية ---
-    await logActivity(
-      req.userId,
-      'CREATE_AD_CAMPAIGN',
-      'finance',
-      { adId: ad[0]._id, title: ad[0].title, totalBudget: budget, targetUrl },
-      req
-    );
+    // --- تسجيل نشاط إنشاء حملة إعلانية (Non-Blocking) ---
+    try {
+      logActivity({
+        userId: req.userId,
+        action: 'CREATE_CAMPAIGN',
+        category: 'campaigns',
+        details: { adId: ad[0]._id, title: ad[0].title, totalBudget: budget, targetUrl },
+        req
+      });
+    } catch (e) {}
 
     res.json({ success: true, ad: ad[0] });
   } catch (err) {
@@ -542,14 +546,16 @@ app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
     ad.status = ad.status === 'active' ? 'paused' : 'active';
     await ad.save();
 
-    // --- تسجيل نشاط تعديل حالة الحملة الإعلانية ---
-    await logActivity(
-      req.userId,
-      'TOGGLE_AD_CAMPAIGN',
-      'ad',
-      { adId: ad._id, title: ad.title, newStatus: ad.status },
-      req
-    );
+    // --- تسجيل نشاط تعديل حالة الحملة الإعلانية (Non-Blocking) ---
+    try {
+      logActivity({
+        userId: req.userId,
+        action: 'TOGGLE_CAMPAIGN',
+        category: 'campaigns',
+        details: { adId: ad._id, title: ad.title, newStatus: ad.status },
+        req
+      });
+    } catch (e) {}
 
     res.json({ success: true, status: ad.status });
   } catch (err) {
@@ -597,14 +603,16 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
       `💳 <b>طلب إيداع جديد!</b>\nالمستخدم: <code>${req.user.username}</code>\nالمبلغ: <code>$${numAmount}</code>\nالشبكة: <code>${cleanNetwork}</code>\nTxID: <code>${cleanTxid}</code>`
     );
 
-    // --- تسجيل نشاط طلب الإيداع ---
-    await logActivity(
-      req.userId,
-      'REQUEST_DEPOSIT',
-      'finance',
-      { depositId: deposit._id, amount: numAmount, network: cleanNetwork, txid: cleanTxid },
-      req
-    );
+    // --- تسجيل نشاط طلب الإيداع (Non-Blocking) ---
+    try {
+      logActivity({
+        userId: req.userId,
+        action: 'REQUEST_DEPOSIT',
+        category: 'wallet',
+        details: { depositId: deposit._id, amount: numAmount, network: cleanNetwork, txid: cleanTxid },
+        req
+      });
+    } catch (e) {}
 
     res.json({ success: true, deposit });
   } catch (err) {
@@ -674,14 +682,16 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
       `🔔 <b>تم تقديم طلب السحب بنجاح!</b>\nالمبلغ: <code>$${numAmt}</code>\nالرسوم: <code>$${FEE}</code>\nالصافي: <code>$${netAmount}</code>\nالشبكة: <code>${cleanNetwork}</code>\nالمحفظة: <code>${cleanWallet}</code>\nالحالة: ⏳ قيد المراجعة\n\nالدعم: ${CONFIG.SUPPORT_USERNAME}`
     );
 
-    // --- تسجيل نشاط طلب السحب ---
-    await logActivity(
-      req.userId,
-      'REQUEST_WITHDRAW',
-      'finance',
-      { withdrawId: withdrawRequest[0]._id, amount: numAmt, netAmount, fee: FEE, network: cleanNetwork, walletAddress: cleanWallet },
-      req
-    );
+    // --- تسجيل نشاط طلب السحب (Non-Blocking) ---
+    try {
+      logActivity({
+        userId: req.userId,
+        action: 'REQUEST_WITHDRAW',
+        category: 'wallet',
+        details: { withdrawId: withdrawRequest[0]._id, amount: numAmt, netAmount, fee: FEE, network: cleanNetwork, walletAddress: cleanWallet },
+        req
+      });
+    } catch (e) {}
 
     res.json({ success: true, withdraw: withdrawRequest[0] });
   } catch (err) {
@@ -952,14 +962,18 @@ const handleShortenLink = async (req, res) => {
     const linkObj = newLink.toObject ? newLink.toObject() : newLink;
     const shortUrl = `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`;
 
-    // --- تسجيل نشاط إنشاء رابط مختصر ---
-    await logActivity(
-      userId,
-      'CREATE_LINK',
-      'link',
-      { linkId: newLink._id, shortCode, targetUrl: cleanUrl, title: newLink.title },
-      req
-    );
+    // --- تسجيل نشاط إنشاء رابط مختصر (Safe Non-Blocking Call) ---
+    try {
+      logActivity({
+        userId,
+        action: 'CREATE_LINK',
+        category: 'links',
+        details: { linkId: newLink._id, shortCode, targetUrl: cleanUrl, title: newLink.title },
+        req
+      });
+    } catch (logErr) {
+      console.error('⚠️ [ActivityLog Call Failure]:', logErr.message || logErr);
+    }
 
     return res.json({ 
       success: true, 
@@ -1041,14 +1055,16 @@ app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
     await link.save();
     await safeRedisDel(`link:data:${link.shortCode}`);
 
-    // --- تسجيل نشاط تغيير حالة الرابط (تفعيل/تعطيل) ---
-    await logActivity(
-      userId,
-      'TOGGLE_LINK',
-      'link',
-      { linkId: link._id, shortCode: link.shortCode, isActive: link.isActive },
-      req
-    );
+    // --- تسجيل نشاط تغيير حالة الرابط (Non-Blocking) ---
+    try {
+      logActivity({
+        userId,
+        action: 'TOGGLE_LINK',
+        category: 'links',
+        details: { linkId: link._id, shortCode: link.shortCode, isActive: link.isActive },
+        req
+      });
+    } catch (e) {}
 
     res.json({ success: true, isActive: link.isActive });
   } catch (err) {
@@ -1066,14 +1082,16 @@ app.post('/api/user/settings', authMiddleware, async (req, res, next) => {
 
     await User.findByIdAndUpdate(req.userId, updateData);
 
-    // --- تسجيل نشاط تحديث الإعدادات والمحفظة ---
-    await logActivity(
-      req.userId,
-      'UPDATE_SETTINGS',
-      'user',
-      { defaultWallet: updateData.defaultWallet, language: updateData.language },
-      req
-    );
+    // --- تسجيل نشاط تحديث الإعدادات والمحفظة (Non-Blocking) ---
+    try {
+      logActivity({
+        userId: req.userId,
+        action: 'UPDATE_SETTINGS',
+        category: 'user',
+        details: { defaultWallet: updateData.defaultWallet, language: updateData.language },
+        req
+      });
+    } catch (e) {}
 
     res.json({ success: true, message: 'تم تحديث الإعدادات بنجاح' });
   } catch (err) {
@@ -1146,14 +1164,16 @@ app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (re
 
     await session.commitTransaction();
 
-    // --- تسجيل نشاط الإدارة عند اتخاذ إجراء في الإيداع ---
-    await logActivity(
-      req.userId,
-      `ADMIN_DEPOSIT_${action.toUpperCase()}`,
-      'admin',
-      { depositId, targetUser: deposit.userId || deposit.advertiserId._id, amount: deposit.amount, action, reason },
-      req
-    );
+    // --- تسجيل نشاط الإدارة عند اتخاذ إجراء في الإيداع (Non-Blocking) ---
+    try {
+      logActivity({
+        userId: req.userId,
+        action: `ADMIN_DEPOSIT_${action.toUpperCase()}`,
+        category: 'wallet',
+        details: { depositId, targetUser: deposit.userId || deposit.advertiserId._id, amount: deposit.amount, action, reason },
+        req
+      });
+    } catch (e) {}
 
     res.json({ success: true, deposit });
   } catch (err) {
@@ -1209,14 +1229,16 @@ app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (r
 
     await session.commitTransaction();
 
-    // --- تسجيل نشاط الإدارة عند اتخاذ إجراء في السحب ---
-    await logActivity(
-      req.userId,
-      `ADMIN_WITHDRAW_${action.toUpperCase()}`,
-      'admin',
-      { withdrawId, targetUser: withdraw.userId._id, amount: withdraw.amount, action, reason },
-      req
-    );
+    // --- تسجيل نشاط الإدارة عند اتخاذ إجراء في السحب (Non-Blocking) ---
+    try {
+      logActivity({
+        userId: req.userId,
+        action: `ADMIN_WITHDRAW_${action.toUpperCase()}`,
+        category: 'wallet',
+        details: { withdrawId, targetUser: withdraw.userId._id, amount: withdraw.amount, action, reason },
+        req
+      });
+    } catch (e) {}
 
     res.json({ success: true, withdraw });
   } catch (err) {
@@ -1279,14 +1301,16 @@ app.post('/api/admin/distribute-revenue', authMiddleware, adminMiddleware, async
 
     await session.commitTransaction();
 
-    // --- تسجيل نشاط توزيع الأرباح بواسطة المشرف ---
-    await logActivity(
-      req.userId,
-      'DISTRIBUTE_REVENUE',
-      'admin',
-      { revenue, processedLinksCount: links.length, totalImpressions: totalImp },
-      req
-    );
+    // --- تسجيل نشاط توزيع الأرباح بواسطة المشرف (Non-Blocking) ---
+    try {
+      logActivity({
+        userId: req.userId,
+        action: 'DISTRIBUTE_REVENUE',
+        category: 'campaigns',
+        details: { revenue, processedLinksCount: links.length, totalImpressions: totalImp },
+        req
+      });
+    } catch (e) {}
 
     res.json({ success: true, message: `تم توزيع $${revenue} بنجاح على ${links.length} رابطاً.` });
   } catch (err) {
@@ -1312,14 +1336,16 @@ app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (r
       sendTelegramNotification(user.telegramId, `🚫 <b>تنبيه من الإدارة:</b> تم حظر حسابك بسبب مخالفة الشروط.\nالدعم: ${CONFIG.SUPPORT_USERNAME}`);
     }
 
-    // --- تسجيل نشاط حظر/إلغاء حظر مستخدم ---
-    await logActivity(
-      req.userId,
-      user.isBanned ? 'BAN_USER' : 'UNBAN_USER',
-      'admin',
-      { targetUserId: user._id, targetTelegramId: user.telegramId, isBanned: user.isBanned },
-      req
-    );
+    // --- تسجيل نشاط حظر/إلغاء حظر مستخدم (Non-Blocking) ---
+    try {
+      logActivity({
+        userId: req.userId,
+        action: user.isBanned ? 'BAN_USER' : 'UNBAN_USER',
+        category: 'user',
+        details: { targetUserId: user._id, targetTelegramId: user.telegramId, isBanned: user.isBanned },
+        req
+      });
+    } catch (e) {}
 
     res.json({ success: true, isBanned: user.isBanned });
   } catch (err) {
