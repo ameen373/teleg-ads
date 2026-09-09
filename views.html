@@ -845,8 +845,29 @@
       }
     }
 
+    function switchTab(tabName) {
+      triggerHaptic('light');
+      const tabs = ['dashboard', 'wallet', 'ads', 'referral', 'settings', 'admin'];
+      tabs.forEach(t => {
+        const content = document.getElementById(`tab-content-${t}`);
+        const btn = document.getElementById(`tab-btn-${t}`);
+        if (content) content.classList.add('hidden');
+        if (btn) btn.classList.remove('active');
+      });
+
+      const activeContent = document.getElementById(`tab-content-${tabName}`);
+      const activeBtn = document.getElementById(`tab-btn-${tabName}`);
+      if (activeContent) activeContent.classList.remove('hidden');
+      if (activeBtn) activeBtn.classList.add('active');
+
+      if (tabName === 'admin' && isUserAdmin) {
+        loadAdminData();
+      }
+    }
+
     /**
      * UNIFIED SECURE FETCH WRAPPER
+     * يُرسل userId و telegramId و WebApp InitData بشكل مضمون إلى server.js
      */
     async function safeFetch(endpoint, options = {}) {
       options.headers = options.headers || {};
@@ -863,6 +884,7 @@
       }
       if (currentTgId) {
         options.headers['x-telegram-id'] = currentTgId;
+        options.headers['x-user-id'] = currentTgId;
       }
 
       if (options.body && typeof options.body === 'string') {
@@ -886,9 +908,9 @@
 
       try {
         const urlObj = new URL(targetUrl);
-        if (currentTgId && !urlObj.searchParams.has('telegramId')) {
-          urlObj.searchParams.set('telegramId', currentTgId);
-          urlObj.searchParams.set('userId', currentTgId);
+        if (currentTgId) {
+          if (!urlObj.searchParams.has('telegramId')) urlObj.searchParams.set('telegramId', currentTgId);
+          if (!urlObj.searchParams.has('userId')) urlObj.searchParams.set('userId', currentTgId);
         }
         if (initDataStr && !urlObj.searchParams.has('initData')) {
           urlObj.searchParams.set('initData', initDataStr);
@@ -905,7 +927,10 @@
           if (reAuth) {
             if (authToken) options.headers['Authorization'] = `Bearer ${authToken}`;
             if (initDataStr) options.headers['x-telegram-init-data'] = initDataStr;
-            if (currentTgId) options.headers['x-telegram-id'] = currentTgId;
+            if (currentTgId) {
+              options.headers['x-telegram-id'] = currentTgId;
+              options.headers['x-user-id'] = currentTgId;
+            }
             response = await fetch(targetUrl, options);
           }
         }
@@ -1061,6 +1086,36 @@
       }
     }
 
+    async function saveSettings() {
+      const wallet = document.getElementById('default-wallet').value;
+      if (!wallet || !wallet.trim()) {
+        return showToast(currentLang === 'ar' ? "يرجى إدخال عنوان المحفظة" : "Enter wallet address");
+      }
+      
+      triggerHaptic('medium');
+      setButtonLoading('save-wallet-btn', true);
+
+      try {
+        const res = await safeFetch('/api/user/settings', {
+          method: 'POST',
+          body: JSON.stringify({ defaultWallet: wallet.trim(), userId: currentUserTelegramId })
+        });
+        if (!res) return;
+        const data = await res.json();
+        if (data.error) {
+          showToast(data.error);
+        } else {
+          showToast(currentLang === 'ar' ? "تم حفظ المحفظة بنجاح" : "Wallet saved successfully");
+          toggleWalletEdit();
+          loadUserData();
+        }
+      } catch (e) {
+        showToast(currentLang === 'ar' ? "خطأ في حفظ البيانات" : "Error saving settings");
+      } finally {
+        setButtonLoading('save-wallet-btn', false, `<span data-i18n="btn_save_wallet">${i18n[currentLang].btn_save_wallet}</span>`);
+      }
+    }
+
     // Check Admin Privilege
     async function checkAdminStatus() {
       const userId = tg?.initDataUnsafe?.user?.id || currentUserTelegramId;
@@ -1118,6 +1173,19 @@
 
     async function initializeApp() {
       try {
+        renderTelegramUser();
+        if (tg) {
+          tg.ready();
+          tg.expand();
+        }
+        
+        if (window.location.pathname.includes('/r/')) {
+          document.getElementById('app-view').classList.add('hidden');
+          document.getElementById('bridge-view').classList.remove('hidden');
+          initBridge();
+          return;
+        }
+
         if (!authToken) await authLogin();
         await checkAdminStatus();
         await loadUserData();
@@ -1153,7 +1221,7 @@
         document.getElementById('save-wallet-btn').classList.add('hidden');
 
         const botUsername = window.Telegram?.WebApp?.initDataUnsafe?.bot?.username || 'Ads_telegabot';
-        document.getElementById('ref-link').value = `https://t.me/${botUsername}?start=${data.user._id}`;
+        document.getElementById('ref-link').value = `https://t.me/${botUsername}?start=${data.user._id || data.user.telegramId}`;
 
         if (data.announcements && data.announcements.length > 0) {
           document.getElementById('announcement-box').classList.remove('hidden');
@@ -1292,7 +1360,7 @@
       try {
         const res = await safeFetch('/api/links/toggle', {
           method: 'POST',
-          body: JSON.stringify({ linkId })
+          body: JSON.stringify({ linkId, userId: currentUserTelegramId })
         });
         if (!res) return;
         const data = await res.json();
@@ -1311,7 +1379,7 @@
       try {
         const res = await safeFetch('/api/ads/toggle', {
           method: 'POST',
-          body: JSON.stringify({ adId })
+          body: JSON.stringify({ adId, userId: currentUserTelegramId })
         });
         if (!res) return;
         const data = await res.json();
@@ -1389,6 +1457,37 @@
         showToast(currentLang === 'ar' ? "خطأ أثناء تقديم طلب الشحن" : "Error submitting deposit request");
       } finally {
         setButtonLoading('btn-request-deposit', false, `<span data-i18n="btn_submit_deposit">${i18n[currentLang].btn_submit_deposit}</span>`);
+      }
+    }
+
+    async function requestWithdrawal() {
+      const amount = document.getElementById('withdraw-amount').value;
+      const walletAddress = document.getElementById('default-wallet').value;
+
+      if (!walletAddress) return showToast(currentLang === 'ar' ? "يرجى تعيين عنوان المحفظة أولاً" : "Set withdrawal wallet first");
+      if (!amount || parseFloat(amount) < 30) return showToast(currentLang === 'ar' ? "الحد الأدنى للسحب هو 30$" : "Minimum withdrawal is $30");
+
+      triggerHaptic('medium');
+      setButtonLoading('btn-request-withdraw', true);
+
+      try {
+        const res = await safeFetch('/api/withdraw', {
+          method: 'POST',
+          body: JSON.stringify({ amount, walletAddress, userId: currentUserTelegramId })
+        });
+        if (!res) return;
+        const data = await res.json();
+        if (data.error) showToast(data.error);
+        else {
+          showToast(currentLang === 'ar' ? "تم إرسال طلب السحب بنجاح!" : "Withdrawal requested!");
+          document.getElementById('withdraw-amount').value = '';
+          updateWithdrawCalculations();
+          loadUserData();
+        }
+      } catch (e) {
+        showToast(currentLang === 'ar' ? "خطأ أثناء إرسال طلب السحب" : "Error requesting withdrawal");
+      } finally {
+        setButtonLoading('btn-request-withdraw', false, `<span data-i18n="btn_submit_withdraw">${i18n[currentLang].btn_submit_withdraw}</span>`);
       }
     }
 
@@ -1518,266 +1617,158 @@
               ownerTelegramId: currentUserTelegramId
             };
             prependLinkToDOM(newLinkObj);
-          } else {
-            loadUserData();
           }
+          loadUserData();
         }
       } catch (e) {
-        showToast(currentLang === 'ar' ? "حدث خطأ غير متوقع" : "An unexpected error occurred");
+        showToast(currentLang === 'ar' ? "خطأ أثناء اختصار الرابط" : "Error creating link");
       } finally {
         setButtonLoading('btn-create-link', false, `<span data-i18n="btn_shorten">${i18n[currentLang].btn_shorten}</span>`);
       }
     }
 
-    async function requestWithdrawal() {
-      const amount = parseFloat(document.getElementById('withdraw-amount').value);
-      const walletAddress = document.getElementById('default-wallet').value;
-
-      if (!walletAddress) return showToast(currentLang === 'ar' ? "يرجى إدخال عنوان محفظة السحب أولاً" : "Please enter a wallet address first");
-      if (!amount || amount < 30) return showToast(currentLang === 'ar' ? "الحد الأدنى للسحب هو 30$" : "Minimum withdrawal is $30");
-
-      triggerHaptic('medium');
-      setButtonLoading('btn-request-withdraw', true);
-
-      try {
-        const res = await safeFetch('/api/withdraw', {
-          method: 'POST',
-          body: JSON.stringify({ amount, walletAddress, userId: currentUserTelegramId })
-        });
-        if (!res) return;
-        const data = await res.json();
-        if (data.error) showToast(data.error);
-        else {
-          showToast(currentLang === 'ar' ? "تم تقديم طلب السحب بنجاح!" : "Withdrawal requested successfully!");
-          document.getElementById('withdraw-amount').value = '';
-          document.getElementById('withdraw-fee-box').classList.add('hidden');
-          loadUserData();
-        }
-      } catch (e) {
-        showToast(currentLang === 'ar' ? "خطأ أثناء معالجة الطلب" : "Error processing request");
-      } finally {
-        setButtonLoading('btn-request-withdraw', false, `<span data-i18n="btn_submit_withdraw">${i18n[currentLang].btn_submit_withdraw}</span>`);
-      }
-    }
-
-    async function saveSettings() {
-      const defaultWallet = document.getElementById('default-wallet').value;
-      if (!defaultWallet || defaultWallet.trim().length < 5) {
-        return showToast(currentLang === 'ar' ? "عنوان المحفظة غير صالح" : "Invalid wallet address");
-      }
-      triggerHaptic('light');
-      try {
-        const res = await safeFetch('/api/user/settings', {
-          method: 'POST',
-          body: JSON.stringify({ defaultWallet, userId: currentUserTelegramId })
-        });
-        if (!res) return;
-        const data = await res.json();
-        if (data.error) showToast(data.error);
-        else {
-          showToast(currentLang === 'ar' ? "تم حفظ المحفظة بنجاح" : "Wallet saved successfully");
-          loadUserData();
-        }
-      } catch (e) {
-        showToast(currentLang === 'ar' ? "خطأ أثناء حفظ الإعدادات" : "Error saving settings");
-      }
-    }
-
-    function switchTab(tabId) {
-      if (tabId === 'admin' && !isUserAdmin) return;
-      triggerHaptic('light');
-
-      document.querySelectorAll('.tg-nav-dock button').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('#app-view > div[id^="tab-content-"]').forEach(c => c.classList.add('hidden'));
-      
-      const targetBtn = document.getElementById(`tab-btn-${tabId}`);
-      if (targetBtn) targetBtn.classList.add('active');
-      
-      const tabContent = document.getElementById(`tab-content-${tabId}`);
-      if (tabContent) tabContent.classList.remove('hidden');
-
-      if (tabId === 'admin') {
-        loadAdminData();
-      }
-    }
-
-    // Admin Operations
+    // Admin Panel Functions
     async function loadAdminData() {
-      if (!isUserAdmin) return;
       try {
-        const res = await safeFetch('/api/admin/dashboard-data');
+        const res = await safeFetch('/api/admin/overview', {
+          method: 'POST',
+          body: JSON.stringify({ userId: currentUserTelegramId })
+        });
         if (!res) return;
         const data = await res.json();
         if (data.error) return showToast(data.error);
 
-        document.getElementById('admin-total-users').innerText = data.stats?.totalUsers || 0;
-        document.getElementById('admin-total-pending').innerText = `$${(data.stats?.totalPending || 0).toFixed(2)}`;
+        document.getElementById('admin-total-users').innerText = data.totalUsers || 0;
+        document.getElementById('admin-total-pending').innerText = `$${(data.totalPending || 0).toFixed(2)}`;
 
-        const dList = document.getElementById('admin-deposits-list');
-        if (!data.deposits || data.deposits.length === 0) dList.innerHTML = 'No pending deposit requests.';
-        else {
-          dList.innerHTML = data.deposits.map(d => `
-            <div style="background:#0f172a; padding:12px; margin-bottom:8px; border-radius:12px; border: 1px solid var(--card-border);">
-              User: <b>${escapeHTML(d.advertiserId?.username || d.advertiserId?.telegramId || 'Unknown')}</b><br>
-              Amount: <b style="color:var(--success);">$${parseFloat(d.amount || 0).toFixed(2)}</b> | Network: <code>${escapeHTML(d.paymentMethod)}</code><br>
-              TxID: <code style="color: var(--warning); word-break: break-all;">${escapeHTML(d.txHash || 'N/A')}</code><br>
-              <div style="margin-top: 10px; display: flex; gap: 8px;">
-                <button class="btn-small btn-success" onclick="handleAdminDeposit('${d._id}', 'Completed')">Approve</button>
-                <button class="btn-small btn-danger" onclick="handleAdminDeposit('${d._id}', 'Rejected')">Reject</button>
+        const depContainer = document.getElementById('admin-deposits-list');
+        if (depContainer) {
+          if (!data.pendingDeposits || data.pendingDeposits.length === 0) {
+            depContainer.innerHTML = 'No pending deposits.';
+          } else {
+            depContainer.innerHTML = data.pendingDeposits.map(d => `
+              <div style="background:#070a12; padding:10px; margin-bottom:8px; border-radius:10px; border:1px solid var(--card-border);">
+                <div>User ID: <b>${escapeHTML(d.telegramId || d.userId)}</b></div>
+                <div>Amount: <b style="color:var(--success);">$${parseFloat(d.amount).toFixed(2)}</b> (${escapeHTML(d.paymentMethod)})</div>
+                <div style="font-size:10px; color:var(--text-muted); word-break:break-all;">TxID: ${escapeHTML(d.txHash)}</div>
+                <div style="margin-top:8px;">
+                  <button class="btn-small btn-success" onclick="approveDeposit('${d._id}')">Approve</button>
+                  <button class="btn-small btn-danger" onclick="rejectDeposit('${d._id}')">Reject</button>
+                </div>
               </div>
-            </div>
-          `).join('');
+            `).join('');
+          }
         }
 
-        const wList = document.getElementById('admin-withdraws-list');
-        if (!data.withdraws || data.withdraws.length === 0) wList.innerHTML = 'No pending withdrawal requests.';
-        else {
-          wList.innerHTML = data.withdraws.map(w => `
-            <div style="background:#0f172a; padding:12px; margin-bottom:8px; border-radius:12px; border: 1px solid var(--card-border);">
-              User: <b>${escapeHTML(w.userId?.username || w.userId?.telegramId || 'Unknown')}</b><br>
-              Amount: <b style="color:var(--success);">$${parseFloat(w.amount || 0).toFixed(2)}</b><br>
-              Wallet: <code style="word-break: break-all;">${escapeHTML(w.walletAddress)}</code><br>
-              <div style="margin-top: 10px; display: flex; gap: 8px;">
-                <button class="btn-small btn-success" onclick="handleAdminWithdraw('${w._id}', 'Completed')">Approve</button>
-                <button class="btn-small btn-danger" onclick="handleAdminWithdraw('${w._id}', 'Rejected')">Reject</button>
+        const wdContainer = document.getElementById('admin-withdraws-list');
+        if (wdContainer) {
+          if (!data.pendingWithdrawals || data.pendingWithdrawals.length === 0) {
+            wdContainer.innerHTML = 'No pending withdrawals.';
+          } else {
+            wdContainer.innerHTML = data.pendingWithdrawals.map(w => `
+              <div style="background:#070a12; padding:10px; margin-bottom:8px; border-radius:10px; border:1px solid var(--card-border);">
+                <div>User ID: <b>${escapeHTML(w.telegramId || w.userId)}</b></div>
+                <div>Amount: <b style="color:var(--warning);">$${parseFloat(w.amount).toFixed(2)}</b></div>
+                <div style="font-size:10px; color:var(--text-muted); word-break:break-all;">Wallet: ${escapeHTML(w.walletAddress)}</div>
+                <div style="margin-top:8px;">
+                  <button class="btn-small btn-success" onclick="approveWithdrawal('${w._id}')">Approve</button>
+                  <button class="btn-small btn-danger" onclick="rejectWithdrawal('${w._id}')">Reject</button>
+                </div>
               </div>
-            </div>
-          `).join('');
-        }
-
-        const uList = document.getElementById('admin-users-list');
-        if (!data.users || data.users.length === 0) uList.innerHTML = 'No users found.';
-        else {
-          uList.innerHTML = data.users.map(u => `
-            <div style="background:#0f172a; padding:12px; margin-bottom:8px; border-radius:12px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid ${u.isBanned ? 'var(--danger)' : 'var(--success)'};">
-              <div>
-                <b>${escapeHTML(u.username || 'Unknown')}</b> (${escapeHTML(String(u.telegramId || ''))})<br>
-                <span style="color: var(--text-muted);">Available: $${(u.availableBalance || 0).toFixed(2)}</span>
-              </div>
-              <button class="btn-small ${u.isBanned ? 'btn-warning' : 'btn-danger'}" onclick="toggleUserBan('${u._id}')">
-                ${u.isBanned ? 'Unban' : 'Ban'}
-              </button>
-            </div>
-          `).join('');
+            `).join('');
+          }
         }
       } catch (e) {
-        showToast("Failed to load admin data");
-      }
-    }
-
-    async function handleAdminDeposit(depositId, action) {
-      triggerHaptic('medium');
-      try {
-        const res = await safeFetch('/api/admin/deposit/action', {
-          method: 'POST',
-          body: JSON.stringify({ depositId, action, userId: currentUserTelegramId })
-        });
-        if (!res) return;
-        const data = await res.json();
-        if (data.error) showToast(data.error);
-        else {
-          showToast("Deposit request updated");
-          loadAdminData();
-        }
-      } catch (e) {
-        showToast("Deposit action failed");
-      }
-    }
-
-    async function handleAdminWithdraw(withdrawId, action) {
-      let rejectReason = '';
-      if (action === 'Rejected') {
-        rejectReason = prompt("Rejection reason (shown to user):");
-        if (rejectReason === null) return;
-      }
-
-      triggerHaptic('medium');
-      try {
-        const res = await safeFetch('/api/admin/withdraw/action', {
-          method: 'POST',
-          body: JSON.stringify({ withdrawId, action, rejectReason, userId: currentUserTelegramId })
-        });
-        if (!res) return;
-        const data = await res.json();
-        if (data.error) showToast(data.error);
-        else {
-          showToast("Withdrawal request updated");
-          loadAdminData();
-        }
-      } catch (e) {
-        showToast("Action failed");
-      }
-    }
-
-    async function toggleUserBan(userId) {
-      triggerHaptic('medium');
-      try {
-        const res = await safeFetch('/api/admin/user/toggle-ban', {
-          method: 'POST',
-          body: JSON.stringify({ userId, adminId: currentUserTelegramId })
-        });
-        if (!res) return;
-        const data = await res.json();
-        if (data.error) showToast(data.error);
-        else {
-          showToast(data.isBanned ? "User banned" : "User unbanned");
-          loadAdminData();
-        }
-      } catch (e) {
-        showToast("Error changing ban state");
+        console.error("Error loading admin overview:", e);
       }
     }
 
     async function distributeRevenue() {
-      const totalRevenue = document.getElementById('revenue-amount').value;
-      if (!totalRevenue || totalRevenue <= 0) return showToast("Enter a valid amount");
+      const amount = document.getElementById('revenue-amount').value;
+      if (!amount || amount <= 0) return showToast("Enter valid revenue amount");
 
       triggerHaptic('medium');
       setButtonLoading('btn-distribute-rev', true);
 
       try {
-        const res = await safeFetch('/api/admin/distribute-revenue', {
+        const res = await safeFetch('/api/admin/distribute', {
           method: 'POST',
-          body: JSON.stringify({ totalRevenue, userId: currentUserTelegramId })
+          body: JSON.stringify({ amount, userId: currentUserTelegramId })
         });
         if (!res) return;
         const data = await res.json();
         if (data.error) showToast(data.error);
         else {
-          showToast(data.message || "Revenue distributed successfully");
+          showToast("Revenue distributed successfully!");
           document.getElementById('revenue-amount').value = '';
+          loadAdminData();
         }
       } catch (e) {
-        showToast("Error distributing revenue");
+        showToast("Distribution failed");
       } finally {
-        setButtonLoading('btn-distribute-rev', false, 'Distribute Revenue Pool');
+        setButtonLoading('btn-distribute-rev', false, "Distribute Revenue Pool");
       }
     }
 
-    // App Initialization Lifecycle
-    window.addEventListener('DOMContentLoaded', () => {
+    async function approveDeposit(id) {
+      if (!confirm("Approve this deposit request?")) return;
       try {
-        if (tg) {
-          tg.ready();
-          tg.expand();
-          if (tg.isVersionAtLeast && tg.isVersionAtLeast('6.1')) {
-            tg.enableClosingConfirmation();
-          }
-        }
-      } catch (e) {}
+        const res = await safeFetch('/api/admin/approve-deposit', {
+          method: 'POST',
+          body: JSON.stringify({ depositId: id, userId: currentUserTelegramId })
+        });
+        if (!res) return;
+        const data = await res.json();
+        showToast(data.message || data.error);
+        loadAdminData();
+      } catch (e) { showToast("Action failed"); }
+    }
 
-      renderTelegramUser();
+    async function rejectDeposit(id) {
+      if (!confirm("Reject this deposit request?")) return;
+      try {
+        const res = await safeFetch('/api/admin/reject-deposit', {
+          method: 'POST',
+          body: JSON.stringify({ depositId: id, userId: currentUserTelegramId })
+        });
+        if (!res) return;
+        const data = await res.json();
+        showToast(data.message || data.error);
+        loadAdminData();
+      } catch (e) { showToast("Action failed"); }
+    }
 
-      if (window.location.pathname.includes('/r/')) {
-        document.getElementById('bridge-view').classList.remove('hidden');
-        document.getElementById('app-view').classList.add('hidden');
-        initBridge();
-      } else {
-        document.getElementById('bridge-view').classList.add('hidden');
-        document.getElementById('app-view').classList.remove('hidden');
-        initializeApp();
-      }
-    });
+    async function approveWithdrawal(id) {
+      if (!confirm("Approve this withdrawal request?")) return;
+      try {
+        const res = await safeFetch('/api/admin/approve-withdrawal', {
+          method: 'POST',
+          body: JSON.stringify({ withdrawalId: id, userId: currentUserTelegramId })
+        });
+        if (!res) return;
+        const data = await res.json();
+        showToast(data.message || data.error);
+        loadAdminData();
+      } catch (e) { showToast("Action failed"); }
+    }
+
+    async function rejectWithdrawal(id) {
+      const reason = prompt("Enter rejection reason:");
+      if (!reason) return;
+      try {
+        const res = await safeFetch('/api/admin/reject-withdrawal', {
+          method: 'POST',
+          body: JSON.stringify({ withdrawalId: id, reason, userId: currentUserTelegramId })
+        });
+        if (!res) return;
+        const data = await res.json();
+        showToast(data.message || data.error);
+        loadAdminData();
+      } catch (e) { showToast("Action failed"); }
+    }
+
+    // Startup Initialization
+    window.addEventListener('DOMContentLoaded', initializeApp);
   </script>
 </body>
 </html>
