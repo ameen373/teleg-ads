@@ -1080,13 +1080,13 @@
 
     // Check Admin Privilege
     async function checkAdminStatus() {
-      const userId = tg?.initDataUnsafe?.user?.id || currentUserTelegramId;
+      const userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id || currentUserTelegramId;
       if (!userId) return;
 
       try {
         const res = await safeFetch('/api/check-admin', {
           method: 'POST',
-          body: JSON.stringify({ userId })
+          body: JSON.stringify({ userId, telegramId: userId })
         });
         if (res) {
           const data = await res.json();
@@ -1325,6 +1325,11 @@
       }
     }
 
+    /**
+     * Updated Create Link Function
+     * Extracts telegramId directly from window.Telegram.WebApp.initDataUnsafe.user.id
+     * and includes it in JSON.stringify body.
+     */
     async function handleShortenClick() {
       const titleInput = document.getElementById('link-title');
       const urlInput = document.getElementById('link-url');
@@ -1336,12 +1341,22 @@
         return;
       }
 
+      // Extract telegramId safely from window.Telegram.WebApp.initDataUnsafe.user.id
+      const telegramId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id 
+        ? String(window.Telegram.WebApp.initDataUnsafe.user.id) 
+        : (currentUserTelegramId || '');
+
       setButtonLoading('btn-create-link', true);
 
       try {
         const res = await safeFetch('/api/links/shorten', {
           method: 'POST',
-          body: JSON.stringify({ title, originalUrl })
+          body: JSON.stringify({ 
+            title, 
+            originalUrl, 
+            telegramId,
+            userId: telegramId 
+          })
         });
         if (res) {
           const data = await res.json();
@@ -1533,53 +1548,58 @@
     async function loadAdminData() {
       if (!isUserAdmin) return;
       try {
-        const res = await safeFetch('/api/admin/data');
+        const res = await safeFetch('/api/admin/stats');
         if (!res) return;
         const data = await res.json();
-        
-        document.getElementById('admin-total-users').innerText = data.totalUsers || 0;
-        document.getElementById('admin-total-pending').innerText = `$${(data.totalPending || 0).toFixed(2)}`;
-
-        const depositsContainer = document.getElementById('admin-deposits-list');
-        if (!data.pendingDeposits || data.pendingDeposits.length === 0) {
-          depositsContainer.innerHTML = 'No pending deposit requests.';
-        } else {
-          depositsContainer.innerHTML = data.pendingDeposits.map(d => `
-            <div style="background:#070a12; padding:10px; margin-bottom:8px; border-radius:10px; border:1px solid var(--card-border);">
-              <div>User ID: <b>${escapeHTML(d.telegramId)}</b> | Amount: <b style="color:var(--success);">$${parseFloat(d.amount).toFixed(2)}</b></div>
-              <div style="font-size:10px; color:var(--text-muted); word-break:break-all;">TxID: ${escapeHTML(d.txHash)}</div>
-              <div style="margin-top:6px; display:flex; gap:6px;">
-                <button class="btn-small btn-success" onclick="approveDeposit('${d._id}')">Approve</button>
-                <button class="btn-small btn-danger" onclick="rejectDeposit('${d._id}')">Reject</button>
+        if (data.success) {
+          document.getElementById('admin-total-users').innerText = data.stats.totalUsers || 0;
+          document.getElementById('admin-total-pending').innerText = `$${(data.stats.totalPending || 0).toFixed(2)}`;
+          
+          // Render pending deposits
+          const depositsContainer = document.getElementById('admin-deposits-list');
+          if (data.deposits && data.deposits.length > 0) {
+            depositsContainer.innerHTML = data.deposits.map(d => `
+              <div style="background:#070a12; padding:10px; margin-bottom:6px; border-radius:10px; border:1px solid var(--card-border);">
+                <div>User: <b>${escapeHTML(d.telegramId || d.userId)}</b> | Amount: <b style="color:var(--success);">$${d.amount}</b></div>
+                <div style="font-size:10px; color:var(--text-muted); word-break:break-all;">TxID: ${escapeHTML(d.txHash)}</div>
+                <div style="margin-top:6px;">
+                  <button class="btn-small btn-success" onclick="approveDeposit('${d._id}')">Approve</button>
+                  <button class="btn-small btn-danger" onclick="rejectDeposit('${d._id}')">Reject</button>
+                </div>
               </div>
-            </div>
-          `).join('');
-        }
+            `).join('');
+          } else {
+            depositsContainer.innerText = 'No pending deposit requests.';
+          }
 
-        const withdrawsContainer = document.getElementById('admin-withdraws-list');
-        if (!data.pendingWithdraws || data.pendingWithdraws.length === 0) {
-          withdrawsContainer.innerHTML = 'No pending withdrawal requests.';
-        } else {
-          withdrawsContainer.innerHTML = data.pendingWithdraws.map(w => `
-            <div style="background:#070a12; padding:10px; margin-bottom:8px; border-radius:10px; border:1px solid var(--card-border);">
-              <div>User ID: <b>${escapeHTML(w.telegramId)}</b> | Amount: <b style="color:var(--warning);">$${parseFloat(w.amount).toFixed(2)}</b></div>
-              <div style="font-size:10px; color:var(--text-muted); word-break:break-all;">Wallet: ${escapeHTML(w.walletAddress)}</div>
-              <div style="margin-top:6px; display:flex; gap:6px;">
-                <button class="btn-small btn-success" onclick="approveWithdrawal('${w._id}')">Approve</button>
-                <button class="btn-small btn-danger" onclick="rejectWithdrawal('${w._id}')">Reject</button>
+          // Render pending withdrawals
+          const withdrawsContainer = document.getElementById('admin-withdraws-list');
+          if (data.withdraws && data.withdraws.length > 0) {
+            withdrawsContainer.innerHTML = data.withdraws.map(w => `
+              <div style="background:#070a12; padding:10px; margin-bottom:6px; border-radius:10px; border:1px solid var(--card-border);">
+                <div>User: <b>${escapeHTML(w.telegramId || w.userId)}</b> | Amount: <b style="color:var(--warning);">$${w.amount}</b></div>
+                <div style="font-size:10px; color:var(--text-muted); word-break:break-all;">Wallet: ${escapeHTML(w.walletAddress)}</div>
+                <div style="margin-top:6px;">
+                  <button class="btn-small btn-success" onclick="approveWithdrawal('${w._id}')">Approve</button>
+                  <button class="btn-small btn-danger" onclick="rejectWithdrawal('${w._id}')">Reject</button>
+                </div>
               </div>
-            </div>
-          `).join('');
+            `).join('');
+          } else {
+            withdrawsContainer.innerText = 'No pending withdrawal requests.';
+          }
         }
       } catch (e) {
-        console.error("Admin data error:", e);
+        console.error("Admin load error:", e);
       }
     }
 
     async function distributeRevenue() {
       const amount = parseFloat(document.getElementById('revenue-amount').value);
-      if (!amount || amount <= 0) return;
-
+      if (!amount || amount <= 0) {
+        showToast("Enter a valid revenue pool amount");
+        return;
+      }
       setButtonLoading('btn-distribute-rev', true);
       try {
         const res = await safeFetch('/api/admin/distribute-revenue', {
@@ -1593,20 +1613,19 @@
             document.getElementById('revenue-amount').value = '';
             loadAdminData();
           } else {
-            showToast(data.message || "Distribution error");
+            showToast(data.message || "Distribution failed");
           }
         }
       } catch (e) {
-        console.error("Distribute revenue error:", e);
+        console.error("Distribute error:", e);
       } finally {
         setButtonLoading('btn-distribute-rev', false);
       }
     }
 
     async function approveDeposit(id) {
-      if (!confirm("Confirm approving this deposit?")) return;
       try {
-        const res = await safeFetch('/api/admin/approve-deposit', {
+        const res = await safeFetch('/api/admin/deposits/approve', {
           method: 'POST',
           body: JSON.stringify({ depositId: id })
         });
@@ -1614,15 +1633,12 @@
           showToast("Deposit approved");
           loadAdminData();
         }
-      } catch (e) {
-        console.error(e);
-      }
+      } catch (e) {}
     }
 
     async function rejectDeposit(id) {
-      if (!confirm("Confirm rejecting this deposit?")) return;
       try {
-        const res = await safeFetch('/api/admin/reject-deposit', {
+        const res = await safeFetch('/api/admin/deposits/reject', {
           method: 'POST',
           body: JSON.stringify({ depositId: id })
         });
@@ -1630,15 +1646,12 @@
           showToast("Deposit rejected");
           loadAdminData();
         }
-      } catch (e) {
-        console.error(e);
-      }
+      } catch (e) {}
     }
 
     async function approveWithdrawal(id) {
-      if (!confirm("Confirm approving this withdrawal?")) return;
       try {
-        const res = await safeFetch('/api/admin/approve-withdrawal', {
+        const res = await safeFetch('/api/admin/withdraws/approve', {
           method: 'POST',
           body: JSON.stringify({ withdrawId: id })
         });
@@ -1646,30 +1659,25 @@
           showToast("Withdrawal approved");
           loadAdminData();
         }
-      } catch (e) {
-        console.error(e);
-      }
+      } catch (e) {}
     }
 
     async function rejectWithdrawal(id) {
-      const reason = prompt("Enter rejection reason:") || "Request rejected by admin";
       try {
-        const res = await safeFetch('/api/admin/reject-withdrawal', {
+        const res = await safeFetch('/api/admin/withdraws/reject', {
           method: 'POST',
-          body: JSON.stringify({ withdrawId: id, reason })
+          body: JSON.stringify({ withdrawId: id })
         });
         if (res) {
           showToast("Withdrawal rejected");
           loadAdminData();
         }
-      } catch (e) {
-        console.error(e);
-      }
+      } catch (e) {}
     }
 
-    // App Initialization Lifecycle
-    window.addEventListener('DOMContentLoaded', () => {
-      if (tg && tg.ready) {
+    // Initialize WebApp Execution
+    document.addEventListener('DOMContentLoaded', () => {
+      if (tg) {
         tg.ready();
         tg.expand();
       }
