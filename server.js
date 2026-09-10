@@ -387,7 +387,7 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
     }
 
     const [rawLinks, withdraws, announcements, ads, deposits] = await Promise.all([
-      Link.find({ $or: [{ userId: userId }, { userId: userId.toString() }] }).sort({ createdAt: -1 }).lean(),
+      Link.find({ userId: userId }).sort({ createdAt: -1 }).lean(),
       Withdraw.find({ userId: userId }).sort({ createdAt: -1 }).lean(),
       Announcement.find({ $or: [{ isGlobal: true }, { targetUserId: userId }] }).sort({ createdAt: -1 }).lean(),
       Ad.find({ userId: userId }).sort({ createdAt: -1 }).lean(),
@@ -925,12 +925,7 @@ app.post('/api/links', authMiddleware, linkCreationLimiter, handleShortenLink);
 const getUserLinks = async (userId) => {
   if (!userId) return [];
 
-  const rawLinks = await Link.find({
-    $or: [
-      { userId: userId },
-      { userId: userId.toString() }
-    ]
-  }).sort({ createdAt: -1 }).lean();
+  const rawLinks = await Link.find({ userId: userId }).sort({ createdAt: -1 }).lean();
 
   return rawLinks.map(link => {
     const totalViews = link.views || 0;
@@ -972,7 +967,7 @@ app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
     if (!userId) return res.status(401).json({ success: false, error: 'معرف المستخدم مفقود' });
     if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
 
-    const link = await Link.findOne({ _id: linkId, $or: [{ userId: userId }, { userId: userId.toString() }] });
+    const link = await Link.findOne({ _id: linkId, userId: userId });
     if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات التعديل عليه' });
 
     link.isActive = !link.isActive;
