@@ -441,15 +441,16 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
     session.startTransaction();
     const { title, targetUrl, totalBudget } = req.body;
     const budget = Number(totalBudget);
+    const cleanTargetUrl = String(targetUrl || '').trim();
 
     if (!title || String(title).trim().length === 0) {
       await session.abortTransaction();
       return res.status(400).json({ success: false, error: 'عنوان الإعلان مطلوب' });
     }
 
-    if (!validUrl.isWebUri(targetUrl)) {
+    if (!cleanTargetUrl || !/^https?:\/\//i.test(cleanTargetUrl)) {
       await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
+      return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح (يجب أن يبدأ بـ http:// أو https://)' });
     }
 
     if (isNaN(budget) || budget < 5) {
@@ -473,7 +474,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       advertiserId: req.userId,
       advertiserTelegramId: req.user.telegramId,
       title: String(title).trim(),
-      targetUrl: String(targetUrl).trim(),
+      targetUrl: cleanTargetUrl,
       totalBudget: budget,
       remainingBudget: budget,
       cpmRate: 1.50,
@@ -862,8 +863,9 @@ const handleShortenLink = async (req, res) => {
     const { title, targetUrl, url } = req.body;
     const cleanUrl = String(targetUrl || url || '').trim();
 
-    if (!cleanUrl || !validUrl.isWebUri(cleanUrl)) {
-      return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
+    // التحقق المرن: يجب أن يبدأ الرابط بـ http:// أو https:// دون النظر للنطاق أو الصيغة
+    if (!cleanUrl || !/^https?:\/\//i.test(cleanUrl)) {
+      return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح (يجب أن يبدأ بـ http:// أو https://)' });
     }
 
     if (isPhishingOrMalicious(cleanUrl)) {
