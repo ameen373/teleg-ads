@@ -45,6 +45,12 @@ const enforceTenantKey = (tenantKey, keyName = 'userId') => {
 // 1. User Model (Isolated Profiles, Balances & Stats)
 // --------------------------------------------------
 const userSchema = new mongoose.Schema({
+  userId: { 
+    type: String, 
+    required: true,
+    default: function() { return this._id ? this._id.toString() : new mongoose.Types.ObjectId().toString(); },
+    index: true
+  },
   telegramId: { 
     type: String, 
     required: [true, 'Telegram ID is required'], 
@@ -134,10 +140,8 @@ userSchema.statics.findByTelegramIdIsolated = function(telegramId) {
 // --------------------------------------------------
 const walletSchema = new mongoose.Schema({
   userId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: [true, 'User ID is required for tenant isolation'], 
-    unique: true,
+    type: String, 
+    required: true, 
     index: true 
   },
   telegramId: { 
@@ -191,9 +195,8 @@ walletSchema.statics.getWalletIsolated = function(userId) {
 // --------------------------------------------------
 const transactionSchema = new mongoose.Schema({
   userId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: [true, 'User ID is required for tenant isolation'], 
+    type: String, 
+    required: true, 
     index: true 
   },
   telegramId: { 
@@ -244,9 +247,8 @@ transactionSchema.statics.getUserTransactionsIsolated = function(userId, filter 
 // --------------------------------------------------
 const adSchema = new mongoose.Schema({
   userId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: [true, 'User ID is required for tenant isolation'], 
+    type: String, 
+    required: true, 
     index: true 
   },
   telegramId: {
@@ -363,9 +365,8 @@ const linkSchema = new mongoose.Schema({
     trim: true 
   },
   userId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User',
-    required: [true, 'User ID is required for tenant isolation'], 
+    type: String, 
+    required: true, 
     index: true
   },
   telegramId: {
@@ -447,9 +448,8 @@ const impressionSchema = new mongoose.Schema({
     index: true 
   },
   userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: [true, 'User ID is required for tenant isolation'],
+    type: String,
+    required: true,
     index: true
   },
   telegramId: {
@@ -543,9 +543,8 @@ const clickSessionSchema = new mongoose.Schema({
     required: true 
   },
   userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: [true, 'User ID is required for tenant isolation'],
+    type: String,
+    required: true,
     index: true
   },
   telegramId: {
@@ -609,9 +608,8 @@ clickSessionSchema.index({ bridgeToken: 1 }, { unique: true });
 // --------------------------------------------------
 const withdrawSchema = new mongoose.Schema({
   userId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: [true, 'User ID is required for tenant isolation'], 
+    type: String, 
+    required: true, 
     index: true 
   },
   telegramId: {
@@ -694,9 +692,8 @@ withdrawSchema.statics.getUserWithdrawalsIsolated = function(userId, status = nu
 // --------------------------------------------------
 const earningsHoldSchema = new mongoose.Schema({
   userId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: [true, 'User ID is required for tenant isolation'], 
+    type: String, 
+    required: true, 
     index: true 
   },
   telegramId: {
@@ -737,9 +734,8 @@ earningsHoldSchema.statics.getUserHoldsIsolated = function(userId) {
 // --------------------------------------------------
 const depositSchema = new mongoose.Schema({
   userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: [true, 'User ID is required for tenant isolation'],
+    type: String,
+    required: true,
     index: true
   },
   telegramId: {
@@ -814,6 +810,12 @@ depositSchema.statics.getAdvertiserDepositsIsolated = function(userId) {
 // 11. Announcement Model
 // --------------------------------------------------
 const announcementSchema = new mongoose.Schema({
+  userId: { 
+    type: String, 
+    required: true, 
+    default: 'global',
+    index: true 
+  },
   title: { type: String, required: true, trim: true },
   content: { type: String, required: true, trim: true },
   isActive: { type: Boolean, default: true, index: true },
