@@ -93,6 +93,7 @@ mongoose.connect(CONFIG.MONGO_URI, {
 }).then(() => console.log('✅ Enterprise MongoDB Pipeline Connected Successfully'))
   .catch(err => {
     logger.error('❌ Critical MongoDB Connection Failure:', err);
+    console.error('❌ MongoDB Connection Error Details:', err);
     process.exit(1);
   });
 
@@ -458,10 +459,14 @@ const handleShortenLink = async (req, res) => {
 
     const shortCode = crypto.randomBytes(3).toString('hex');
     
+    // استخراج telegramId من الطلب أو من كائن المستخدم الممرر من authMiddleware
+    const telegramId = req.telegramId || req.user?.telegramId || req.body.telegramId;
+    const userId = req.userId || req.user?._id;
+
     const newLink = new Link({
-      userId: req.userId,
-      publisherTelegramId: req.telegramId,
-      telegramId: req.telegramId,
+      userId: userId,
+      publisherTelegramId: telegramId,
+      telegramId: telegramId,
       title: title ? String(title).trim() : 'رابط بدون عنوان',
       targetUrl: cleanUrl,
       shortCode,
@@ -470,7 +475,7 @@ const handleShortenLink = async (req, res) => {
 
     await newLink.save();
 
-    await User.findByIdAndUpdate(req.userId, { $inc: { 'statsSummary.totalLinksCreated': 1 } }).catch(() => {});
+    await User.findByIdAndUpdate(userId, { $inc: { 'statsSummary.totalLinksCreated': 1 } }).catch(() => {});
 
     const linkObj = newLink.toObject();
     const shortUrl = `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`;
@@ -484,6 +489,7 @@ const handleShortenLink = async (req, res) => {
       shortUrl
     });
   } catch (err) {
+    console.error('❌ Error in Link Shortening Route (Failed to save Link):', err);
     logger.error('❌ Error in Link Shortening Route:', err);
     return res.status(500).json({ 
       success: false, 
@@ -1190,12 +1196,14 @@ cron.schedule('0 0 * * *', async () => {
         }
       } catch (err) {
         await session.abortTransaction();
+        console.error(`❌ Error processing hold release for ID ${hold._id}:`, err);
         logger.error(`Error processing hold release for ID ${hold._id}: ${err.message}`);
       } finally {
         session.endSession();
       }
     }
   } catch (err) {
+    console.error('❌ Error executing Cron Settlement:', err);
     logger.error('❌ Error executing Cron Settlement: ' + err.message);
   }
 });
@@ -1216,6 +1224,7 @@ app.use('/api/*', (req, res) => {
 
 // --- Global Error Handling Middleware ---
 app.use((err, req, res, next) => {
+  console.error('❌ Unhandled Application Error Details:', err);
   logger.error('Unhandled Application Error:', err);
 
   const statusCode = err.status || err.statusCode || 500;
@@ -1232,10 +1241,12 @@ app.use((err, req, res, next) => {
 
 // --- Global Crash Guard ---
 process.on('uncaughtException', (err) => {
+  console.error('❌ Uncaught Exception Detected:', err);
   logger.error('Uncaught Exception Detected: ' + err.stack);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
   logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
