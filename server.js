@@ -1,7 +1,7 @@
 /**
  * Ultra-Enterprise Server Architecture (V6 - Absolute Multi-Tenant Security & High-Performance Core)
  * Telegram Link Shortener & Mini App Engine (Telega.ads)
- * Absolute Isolated Session System & Financial Security Core
+ * Direct MongoDB/Mongoose Queries Engine with Multi-Tenant userId Resolver
  */
 
 require('dotenv').config();
@@ -25,7 +25,7 @@ const app = express();
 // --- Setup Server Trust Proxy ---
 app.set('trust proxy', 1);
 
-// --- CORS Configuration (Strict Isolation & Security) ---
+// --- CORS Configuration ---
 app.use(cors({
   origin: true,
   credentials: true
@@ -146,7 +146,7 @@ async function sendTelegramNotification(telegramId, message) {
   }
 }
 
-// --- Cryptographic Telegram Authenticator (Strict Verification) ---
+// --- Cryptographic Telegram Authenticator ---
 function verifyTelegramData(initData) {
   if (!initData) return null;
   try {
@@ -211,23 +211,37 @@ const isPhishingOrMalicious = (url) => {
 };
 
 // =========================================================================
-// --- Middleware للتحقق من هوية المستخدم واستخراج userId ---
+// --- Unified Multi-Tenant userId Resolver & Auth Middleware ---
 // =========================================================================
 const authMiddleware = async (req, res, next) => {
   try {
     let user = null;
+    let targetUserId = req.body?.userId || req.query?.userId;
 
-    // Option 1: Bearer Token Authorization Header
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
-      try {
-        const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
-        user = await User.findById(decoded.userId).lean();
-      } catch (err) {}
+    // 1. Direct Resolution if explicit userId passed (MongoDB ObjectId or Telegram ID)
+    if (targetUserId) {
+      if (mongoose.Types.ObjectId.isValid(targetUserId)) {
+        user = await User.findById(targetUserId).lean();
+      } else {
+        user = await User.findOne({ telegramId: String(targetUserId).trim() }).lean();
+      }
     }
 
-    // Option 2: Fallback to Direct Telegram InitData Header
+    // 2. Fallback to Bearer Authorization Header
+    if (!user) {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        try {
+          const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
+          if (decoded.userId && mongoose.Types.ObjectId.isValid(decoded.userId)) {
+            user = await User.findById(decoded.userId).lean();
+          }
+        } catch (err) {}
+      }
+    }
+
+    // 3. Fallback to Telegram WebApp InitData Header
     if (!user) {
       const initData = req.headers['x-telegram-init-data'];
       const telegramUser = verifyTelegramData(initData);
@@ -237,21 +251,20 @@ const authMiddleware = async (req, res, next) => {
     }
 
     if (!user) {
-      return res.status(401).json({ success: false, error: 'جلسة غير صالحة، يرجى إعادة تحميل التطبيق' });
+      return res.status(401).json({ success: false, error: 'معرف المستخدم (userId) غير صالح أو الجلسة منتهية' });
     }
 
     if (user.isBanned) {
       return res.status(403).json({ success: false, error: 'حسابك معطل بسبب مخالفة الشروط' });
     }
 
-    // ربط كائن المستخدم واستخراج userId بشكل صريح وموحد
     req.user = user;
     req.user.id = user._id.toString();
     req.userId = user._id;
 
     next();
   } catch (err) {
-    res.status(401).json({ success: false, error: 'انتهت الجلسة، يرجى إعادة التسجيل' });
+    res.status(401).json({ success: false, error: 'تعذر التحقق من الهوية، يرجى إعادة محاولة الطلب' });
   }
 };
 
@@ -309,18 +322,19 @@ app.post('/api/auth/login', async (req, res, next) => {
     const initData = req.headers['x-telegram-init-data'];
     const telegramUser = verifyTelegramData(initData);
 
-    const tgId = telegramUser ? String(telegramUser.id) : (process.env.NODE_ENV !== 'production' ? String(req.headers['x-demo-user-id'] || '') : null);
+    const tgId = telegramUser ? String(telegramUser.id) : (req.body.userId || req.query.userId || (process.env.NODE_ENV !== 'production' ? String(req.headers['x-demo-user-id'] || '') : null));
     const { referrerId } = req.body;
 
-    if (!tgId) return res.status(401).json({ success: false, error: 'بيانات الاعتماد الخاصة بتليجرام غير صالحة' });
+    if (!tgId) return res.status(401).json({ success: false, error: 'بيانات الاعتماد الخاصة بتليجرام أو userId غير متاحة' });
 
-    const currentUsername = telegramUser?.username || `User_${tgId.slice(-4)}`;
+    const currentUsername = telegramUser?.username || `User_${String(tgId).slice(-4)}`;
     const userLanguage = telegramUser?.language_code || CONFIG.DEFAULT_LANGUAGE;
 
-    let user = await User.findOne({ telegramId: tgId });
+    let user = await User.findOne({ $or: [{ telegramId: String(tgId) }, { ...(mongoose.Types.ObjectId.isValid(tgId) && { _id: tgId }) }] });
+    
     if (!user) {
       user = await User.create({
-        telegramId: tgId,
+        telegramId: String(tgId),
         username: currentUsername,
         language: userLanguage,
         referredBy: mongoose.Types.ObjectId.isValid(referrerId) ? referrerId : null
@@ -367,24 +381,10 @@ app.post('/api/auth/login', async (req, res, next) => {
   }
 });
 
-// --- Isolated User Data Gateway ---
-app.get('/api/user/data', authMiddleware, async (req, res, next) => {
+// --- Direct MongoDB User Data Fetch Gateway ---
+app.all('/api/user/data', authMiddleware, async (req, res, next) => {
   try {
     const userId = req.userId;
-
-    if (!userId) {
-      return res.json({
-        success: true,
-        user: req.user,
-        language: req.user.language || CONFIG.DEFAULT_LANGUAGE,
-        links: [],
-        withdraws: [],
-        announcements: [],
-        ads: [],
-        deposits: [],
-        isAdmin: false
-      });
-    }
 
     const [rawLinks, withdraws, announcements, ads, deposits] = await Promise.all([
       Link.find({ userId: userId }).sort({ createdAt: -1 }).lean(),
@@ -845,10 +845,9 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 });
 
 // =========================================================================
-// --- Strict Link Management Engine (100% Isolated Routes Guard) ---
+// --- Link Management Engine (Direct MongoDB Connectivity) ---
 // =========================================================================
 
-// Shared Link Shortening Logic
 const handleShortenLink = async (req, res) => {
   try {
     const userId = req.userId;
@@ -917,11 +916,11 @@ const handleShortenLink = async (req, res) => {
   }
 };
 
-// Create Link Engines (Direct & Alias endpoints)
+// Create Link Engines
 app.post('/api/links/shorten', authMiddleware, linkCreationLimiter, handleShortenLink);
 app.post('/api/links', authMiddleware, linkCreationLimiter, handleShortenLink);
 
-// Fetch Links Helper Function
+// Fetch Links directly from MongoDB via Mongoose
 const getUserLinks = async (userId) => {
   if (!userId) return [];
 
@@ -939,8 +938,8 @@ const getUserLinks = async (userId) => {
   });
 };
 
-// Fetch Links Main Endpoint
-app.get('/api/links', authMiddleware, async (req, res, next) => {
+// Fetch Links Endpoints
+app.all('/api/links', authMiddleware, async (req, res, next) => {
   try {
     const links = await getUserLinks(req.userId);
     res.json({ success: true, links });
@@ -949,8 +948,7 @@ app.get('/api/links', authMiddleware, async (req, res, next) => {
   }
 });
 
-// Fetch Links Alias Endpoint
-app.get('/api/user/links', authMiddleware, async (req, res, next) => {
+app.all('/api/user/links', authMiddleware, async (req, res, next) => {
   try {
     const links = await getUserLinks(req.userId);
     res.json({ success: true, links });
@@ -995,8 +993,8 @@ app.post('/api/user/settings', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Admin Panel Routes (Protected strictly with authMiddleware & adminMiddleware) ---
-app.get('/api/admin/dashboard-data', authMiddleware, adminMiddleware, async (req, res, next) => {
+// --- Admin Panel Routes ---
+app.all('/api/admin/dashboard-data', authMiddleware, adminMiddleware, async (req, res, next) => {
   try {
     const [withdraws, deposits, users, stats, totalAds] = await Promise.all([
       Withdraw.find().populate('userId').sort({ createdAt: -1 }).lean(),
