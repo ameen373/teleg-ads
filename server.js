@@ -1235,7 +1235,7 @@ app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (r
     } else if (action === 'approved') {
       sendTelegramNotification(
         withdraw.telegramId || withdraw.userId?.telegramId,
-        `🎉 <b>تمت الموافقة على السحب!</b>\nإجمالي المبلغ: <code>$${withdraw.amount}</code>\nالصافي المحول: <code>$${withdraw.netAmount}</code>\nالشبكة: <code>${withdraw.network}</code>\nشكراً لاستخدامك منصتنا!`
+        `🎉 <b>تمت الموافقة على السحب!</b>\nإجمالي المبلغ: <code>$${withdraw.amount}</code>\nالصافي المحول: <code>$${withdraw.netAmount}</code>\nالشبكة: <code>$ {withdraw.network}</code>\nشكراً لاستخدامك منصتنا!`
       );
     }
 
@@ -1363,7 +1363,7 @@ cron.schedule('0 0 * * *', async () => {
         }
       } catch (err) {
         await session.abortTransaction();
-        logger.error(`Error processing hold release for ID ${hold._id}: ${err.message}`);
+        logger.error(`Error processing hold release for ID ${hold._ID}: ${err.message}`);
       } finally {
         session.endSession();
         await releaseLock(lockKey);
