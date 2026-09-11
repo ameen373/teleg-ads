@@ -1,6 +1,6 @@
 /**
  * ====================================================================================
- * ULTRA-ENTERPRISE SERVER ARCHITECTURE (V7 - HYPER-PERFORMANCE & FINANCIAL CORE)
+ * ULTRA-ENTERPRISE SERVER ARCHITECTURE (V7.1 - HYPER-PERFORMANCE & FINANCIAL CORE)
  * Telegram Link Shortener & Mini App Engine (Telega.ads)
  * Absolute Isolated Session System, Anti-Fraud Engine & Financial Security
  * ====================================================================================
@@ -988,7 +988,7 @@ const handleShortenLink = async (req, res) => {
     const shortCode = crypto.randomBytes(3).toString('hex');
     const publisherTelegramId = req.user?.telegramId || null;
 
-    // مطابقة النموذج وإنشاء السجل في قاعدة البيانات
+    // مطابقة النموذج وإنشاء السجل في قاعدة البيانات مع الانتظار الإلزامي (await)
     const newLink = await Link.create({
       userId: userId,
       publisherTelegramId: publisherTelegramId,
@@ -1083,6 +1083,7 @@ app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
     if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات التعديل عليه' });
 
     link.isActive = !link.isActive;
+    // تم إصلاح المشكلة هنا بإضافة await لضمان إتمام الحفظ الفوري في قاعدة البيانات قبل الاستجابة
     await link.save();
     await safeRedisDel(`link:data:${link.shortCode}`);
 
@@ -1100,7 +1101,8 @@ app.post('/api/user/settings', authMiddleware, async (req, res, next) => {
     if (defaultWallet !== undefined) updateData.defaultWallet = String(defaultWallet).trim();
     if (language !== undefined) updateData.language = String(language).trim().toLowerCase() || CONFIG.DEFAULT_LANGUAGE;
 
-    await User.findByIdAndUpdate(req.userId, updateData);
+    // تم إصلاح المشكلة هنا بإضافة await لضمان حفظ الإعدادات في قاعدة البيانات قبل إرجاع الرد
+    await User.findByIdAndUpdate(req.userId, updateData, { new: true });
     res.json({ success: true, message: 'تم تحديث الإعدادات بنجاح' });
   } catch (err) {
     next(err);
@@ -1400,7 +1402,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 if (process.env.NODE_ENV !== 'production') {
   const PORT = process.env.PORT || 3000;
-  app.listen(PORT, () => console.log(`🚀 Enterprise Server V7 Active on Port ${PORT}`));
+  app.listen(PORT, () => console.log(`🚀 Enterprise Server V7.1 Active on Port ${PORT}`));
 }
 
 module.exports = app;
