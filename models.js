@@ -1,5 +1,5 @@
 /**
- * Ultra-Enterprise Models Architecture (V5.3 - Dynamic Partial Updates & Atomic Operations)
+ * Ultra-Enterprise Models Architecture (V5.4 - Dynamic Partial Updates & Telegram Link Support)
  * Platform: Telega.ads Advertising & Shortener Network
  * Security: Zero-Data-Leakage Enforcement, Dynamic Context Scoping, Dual-ID Ownership Bindings
  */
@@ -14,6 +14,15 @@ const mongoose = require('mongoose');
 const formatCurrency = (val) => {
   if (typeof val !== 'number' || isNaN(val) || !isFinite(val)) return 0;
   return Math.round((val + Number.EPSILON) * 100000) / 100000;
+};
+
+// Comprehensive URL Validator accepting web protocols, t.me Telegram links, underscore (_), hyphens, and deep parameters
+const validateUrlOrTelegram = (v) => {
+  if (!v || typeof v !== 'string') return false;
+  // Validates http, https, tg:// or domain-less t.me links with special characters like _, -, ?, =, &, %
+  const pattern = /^(https?:\/\/|tg:\/\/)?(www\.)?([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(:\d+)?(\/[a-zA-Z0-9_.~:\/?#\[\]@!$&'()*+,;=-]*)?$/i;
+  const telegramDirectPattern = /^(https?:\/\/)?(www\.)?t\.me\/[a-zA-Z0-9_~?&=+-]+$/i;
+  return pattern.test(v) || telegramDirectPattern.test(v);
 };
 
 // Global Schema Options for strict data isolation and safe JSON serialization
@@ -43,9 +52,16 @@ const enforceTenantKey = (tenantKey, keyName = 'userId') => {
 
 // Helper to flatten nested objects for atomic standard $set partial updates
 const flattenObject = (obj, prefix = '') => {
+  if (!obj || typeof obj !== 'object') return {};
   return Object.keys(obj).reduce((acc, k) => {
     const pre = prefix.length ? prefix + '.' : '';
-    if (typeof obj[k] === 'object' && obj[k] !== null && !Array.isArray(obj[k]) && !(obj[k] instanceof Date) && !(obj[k] instanceof mongoose.Types.ObjectId)) {
+    if (
+      typeof obj[k] === 'object' &&
+      obj[k] !== null &&
+      !Array.isArray(obj[k]) &&
+      !(obj[k] instanceof Date) &&
+      !(obj[k] instanceof mongoose.Types.ObjectId)
+    ) {
       Object.assign(acc, flattenObject(obj[k], pre + k));
     } else if (obj[k] !== undefined) {
       acc[pre + k] = obj[k];
@@ -381,10 +397,8 @@ const adSchema = new mongoose.Schema({
     required: [true, 'Target URL is required'], 
     trim: true,
     validate: {
-      validator: function(v) {
-        return /^(https?:\/\/)?([\w.-]+)+[\w\-_~:/?#[\]@!$&'()*+,;=.]+$/i.test(v);
-      },
-      message: 'Please enter a valid target URL'
+      validator: validateUrlOrTelegram,
+      message: 'Please enter a valid target URL or Telegram link (e.g., https://t.me/...)'
     }
   },
   totalBudget: { 
@@ -440,7 +454,7 @@ adSchema.pre('validate', function(next) {
   if (this.userId && !this.advertiserId) this.advertiserId = this.userId;
   if (this.advertiserId && !this.userId) this.userId = this.advertiserId;
   if (this.telegramId && !this.advertiserTelegramId) this.advertiserTelegramId = this.telegramId;
-  if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.advertiserTelegramId;
+  if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.telegramId;
   next();
 });
 
@@ -523,7 +537,11 @@ const linkSchema = new mongoose.Schema({
   targetUrl: { 
     type: String, 
     required: [true, 'Target URL is required'], 
-    trim: true 
+    trim: true,
+    validate: {
+      validator: validateUrlOrTelegram,
+      message: 'Invalid target URL format (Must be valid HTTP/HTTPS or t.me Telegram link)'
+    }
   },
   isActive: { 
     type: Boolean, 
@@ -568,6 +586,29 @@ linkSchema.statics.getUserIsolatedLinks = function(userId, query = {}, options =
 linkSchema.statics.findOneIsolated = function(shortCode, userId) {
   enforceTenantKey(userId, 'userId');
   return this.findOne({ shortCode, userId });
+};
+
+// Save or Upsert Short Link with Telegram URL and Partial Update Support
+linkSchema.statics.upsertLink = function(userId, telegramId, linkData = {}) {
+  enforceTenantKey(userId, 'userId');
+  enforceTenantKey(telegramId, 'telegramId');
+  
+  const flatUpdate = flattenObject(linkData);
+  const filter = linkData.shortCode 
+    ? { shortCode: linkData.shortCode, userId }
+    : { _id: new mongoose.Types.ObjectId(), userId };
+
+  return this.findOneAndUpdate(
+    filter,
+    { 
+      $setOnInsert: { 
+        telegramId: String(telegramId).trim(),
+        publisherTelegramId: String(telegramId).trim()
+      },
+      $set: flatUpdate 
+    },
+    { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
+  );
 };
 
 // Rapid Partial Update for Link
@@ -676,7 +717,7 @@ impressionSchema.pre('validate', function(next) {
   if (this.publisherId && !this.userId) this.userId = this.publisherId;
   if (this.userId && !this.publisherId) this.publisherId = this.userId;
   if (this.telegramId && !this.publisherTelegramId) this.publisherTelegramId = this.telegramId;
-  if (this.publisherTelegramId && !this.telegramId) this.telegramId = this.publisherTelegramId;
+  if (this.publisherTelegramId && !this.telegramId) this.telegramId = this.telegramId;
   next();
 });
 
@@ -857,6 +898,19 @@ withdrawSchema.statics.createRequest = function(data) {
   });
 };
 
+withdrawSchema.statics.upsertWithdraw = function(withdrawId, userId, updateData = {}) {
+  enforceTenantKey(userId, 'userId');
+  const flatUpdate = flattenObject(updateData);
+  if (withdrawId) {
+    return this.findOneAndUpdate(
+      { _id: withdrawId, userId },
+      { $set: flatUpdate },
+      { new: true, runValidators: true }
+    );
+  }
+  return this.create({ ...updateData, userId });
+};
+
 withdrawSchema.statics.updateStatus = function(withdrawId, status, rejectReason = '') {
   return this.findByIdAndUpdate(
     withdrawId,
@@ -980,7 +1034,7 @@ depositSchema.pre('validate', function(next) {
   if (this.userId && !this.advertiserId) this.advertiserId = this.userId;
   if (this.advertiserId && !this.userId) this.userId = this.advertiserId;
   if (this.telegramId && !this.advertiserTelegramId) this.advertiserTelegramId = this.telegramId;
-  if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.advertiserTelegramId;
+  if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.telegramId;
   next();
 });
 
@@ -1000,6 +1054,19 @@ depositSchema.statics.createDeposit = function(data) {
     ...data,
     telegramId: String(data.telegramId || data.advertiserTelegramId).trim()
   });
+};
+
+depositSchema.statics.upsertDeposit = function(depositId, userId, updateData = {}) {
+  enforceTenantKey(userId, 'userId');
+  const flatUpdate = flattenObject(updateData);
+  if (depositId) {
+    return this.findOneAndUpdate(
+      { _id: depositId, $or: [{ userId }, { advertiserId: userId }] },
+      { $set: flatUpdate },
+      { new: true, runValidators: true }
+    );
+  }
+  return this.create({ ...updateData, userId, advertiserId: userId });
 };
 
 depositSchema.statics.updateStatus = function(depositId, status, rejectReason = '') {
