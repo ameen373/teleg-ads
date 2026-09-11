@@ -51,7 +51,7 @@ app.use('/api', (req, res, next) => {
 });
 
 // =========================================================================
-// --- Centralized Structured Logging Engine ---
+// --- Centralized Structured Logging Engine (Serverless Compatible) ---
 // =========================================================================
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
@@ -61,16 +61,14 @@ const logger = winston.createLogger({
     winston.format.json()
   ),
   transports: [
-    new winston.transports.File({ filename: 'logs/error.log', level: 'error', maxsize: 5242880, maxFiles: 5 }),
-    new winston.transports.File({ filename: 'logs/combined.log', maxsize: 10485760, maxFiles: 5 })
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.colorize(),
+        winston.format.simple()
+      )
+    })
   ]
 });
-
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(new winston.transports.Console({ 
-    format: winston.format.combine(winston.format.colorize(), winston.format.simple()) 
-  }));
-}
 
 app.use(morgan('combined', { stream: { write: (message) => logger.info(message.trim()) } }));
 
@@ -152,19 +150,29 @@ async function releaseLock(lockKey) {
 }
 
 // =========================================================================
-// --- MongoDB Optimized Connection Pipeline ---
+// --- MongoDB Optimized Connection Pipeline (Serverless Cache) ---
 // =========================================================================
-mongoose.connect(CONFIG.MONGO_URI, {
-  maxPoolSize: 100,
-  minPoolSize: 20,
-  serverSelectionTimeoutMS: 5000,
-  socketTimeoutMS: 45000,
-  autoIndex: process.env.NODE_ENV !== 'production'
-}).then(() => logger.info('✅ Enterprise MongoDB Pipeline Connected'))
-  .catch(err => {
+async function connectDB() {
+  if (mongoose.connection.readyState >= 1) return;
+  try {
+    await mongoose.connect(CONFIG.MONGO_URI, {
+      maxPoolSize: 100,
+      minPoolSize: 20,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      autoIndex: process.env.NODE_ENV !== 'production'
+    });
+    logger.info('✅ Enterprise MongoDB Pipeline Connected');
+  } catch (err) {
     logger.error('❌ Critical MongoDB Connection Failure:', err);
-    process.exit(1);
-  });
+  }
+}
+
+// Middleware لضمان اتصال قاعدة البيانات قبل كل طلب
+app.use(async (req, res, next) => {
+  await connectDB();
+  next();
+});
 
 // =========================================================================
 // --- Telegram Notification Dispatcher ---
@@ -1373,5 +1381,9 @@ process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Enterprise Server V7 Active on Port ${PORT}`));
+if (process.env.NODE_ENV !== 'production') {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => console.log(`🚀 Enterprise Server V7 Active on Port ${PORT}`));
+}
+
+module.exports = app;
