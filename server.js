@@ -135,7 +135,7 @@ async function safeRedisDel(key) {
 
 // Distributed Lock Mechanism for Financial & Atomic Operations
 async function acquireLock(lockKey, ttlSeconds = 5) {
-  if (!redisIsConnected) return true; // Fallback to DB isolation if Redis down
+  if (!redisIsConnected) return true;
   try {
     const result = await redis.set(`lock:${lockKey}`, 'LOCKED', 'NX', 'EX', ttlSeconds);
     return result === 'OK';
@@ -950,7 +950,7 @@ const handleShortenLink = async (req, res) => {
     if (!userId) {
       return res.status(401).json({ 
         success: false, 
-        error: 'غير مصرح: معرف المستخدم (userId) مفقود' 
+        error: 'غير مصرح: جلسة المستخدم غير متوفرة' 
       });
     }
 
@@ -958,24 +958,24 @@ const handleShortenLink = async (req, res) => {
     const cleanUrl = String(targetUrl || url || '').trim();
 
     if (!cleanUrl || !validUrl.isWebUri(cleanUrl)) {
-      return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
+      return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح، يرجى كتابة رابط يبدأ بـ http أو https' });
     }
 
     if (isPhishingOrMalicious(cleanUrl)) {
-      return res.status(400).json({ success: false, error: 'الرابط ينتهك معايير الأمان' });
+      return res.status(400).json({ success: false, error: 'الرابط ينتهك معايير الأمان والشروط العامة' });
     }
 
     try {
       const domainCheck = new URL(cleanUrl).hostname;
       if (domainCheck.includes(CONFIG.APP_DOMAIN)) {
-        return res.status(400).json({ success: false, error: 'لا يمكن اختصار روابط الموقع نفسه' });
+        return res.status(400).json({ success: false, error: 'لا يمكن اختصار روابط المنصة نفسها' });
       }
     } catch (e) {}
 
     const shortCode = crypto.randomBytes(3).toString('hex');
     const publisherTelegramId = req.user?.telegramId || null;
     
-    const newLink = new Link({
+    const newLink = await Link.create({
       userId: userId,
       publisherTelegramId: publisherTelegramId,
       telegramId: publisherTelegramId,
@@ -985,20 +985,22 @@ const handleShortenLink = async (req, res) => {
       isActive: true
     });
 
-    await newLink.save();
-
     if (mongoose.Types.ObjectId.isValid(userId)) {
       await User.findByIdAndUpdate(userId, { $inc: { 'statsSummary.totalLinksCreated': 1 } }).catch(() => {});
     }
 
-    const linkObj = newLink.toObject ? newLink.toObject() : newLink;
+    const linkObj = typeof newLink.toObject === 'function' ? newLink.toObject() : newLink;
     const shortUrl = `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`;
 
     return res.json({ 
       success: true, 
       link: {
         ...linkObj,
-        shortUrl
+        shortUrl,
+        ctr: "0.0",
+        validImpressions: 0,
+        invalidImpressions: 0,
+        views: 0
       },
       shortUrl
     });
