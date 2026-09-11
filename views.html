@@ -1816,9 +1816,7 @@
         if (tg) {
           tg.ready();
           tg.expand();
-          if (tg.isVersionAtLeast && tg.isVersionAtLeast('6.1')) {
-            tg.enableClosingConfirmation();
-          }
+          // إزالة كود تفعيل رسالة التحذير عند الإغلاق (disableClosingConfirmation) لضمان عدم ظهور أي تنبيه مزعج للمستخدم
         }
       } catch (e) {}
 
