@@ -195,7 +195,6 @@ walletSchema.statics.getWalletIsolated = function(userId) {
   return this.findOne({ userId });
 };
 
-// Atomic Credit Operation
 walletSchema.methods.atomicCredit = async function(amount, isPending = false) {
   const safeAmount = formatCurrency(amount);
   if (safeAmount <= 0) throw new Error("Credit amount must be greater than zero");
@@ -214,7 +213,6 @@ walletSchema.methods.atomicCredit = async function(amount, isPending = false) {
   return updatedWallet;
 };
 
-// Atomic Debit Operation
 walletSchema.methods.atomicDebit = async function(amount, isPending = false) {
   const safeAmount = formatCurrency(amount);
   if (safeAmount <= 0) throw new Error("Debit amount must be greater than zero");
