@@ -193,6 +193,29 @@ function verifyTelegramData(initData) {
   }
 }
 
+// --- URL Verification Helper (Flexible for HTTP, HTTPS, & Telegram Links) ---
+function isValidTargetUrl(urlStr) {
+  if (!urlStr || typeof urlStr !== 'string') return false;
+  const trimmed = urlStr.trim();
+
+  // قبول روابط تليجرام بمختلف الصيغ (t.me, telegram.me, tg://)
+  if (/^(https?:\/\/)?(www\.)?(t\.me|telegram\.me)\/[a-zA-Z0-9_+\/-]+/i.test(trimmed) || /^tg:\/\//i.test(trimmed)) {
+    return true;
+  }
+
+  // التحقق من باقي الروابط القياسية
+  if (validUrl.isWebUri(trimmed)) {
+    return true;
+  }
+
+  // تحسين للرابط في حال كان يفتقر إلى http/https
+  if (!/^https?:\/\//i.test(trimmed)) {
+    return Boolean(validUrl.isWebUri(`https://${trimmed}`));
+  }
+
+  return false;
+}
+
 // --- Middlewares & Security Limiters ---
 const linkCreationLimiter = rateLimit({
   windowMs: 24 * 60 * 60 * 1000,
@@ -303,12 +326,19 @@ app.post('/api/user/sync', authMiddleware, async (req, res) => {
     if (Array.isArray(links) && links.length > 0) {
       links.forEach(l => {
         if (l._id && mongoose.Types.ObjectId.isValid(l._id)) {
-          bulkOps.push(
-            Link.updateOne(
-              { _id: l._id, userId },
-              { $set: { title: l.title, isActive: l.isActive !== false } }
-            )
-          );
+          const updateData = {};
+          if (l.title !== undefined) updateData.title = String(l.title).trim();
+          if (l.isActive !== undefined) updateData.isActive = Boolean(l.isActive);
+          if (l.targetUrl !== undefined && isValidTargetUrl(l.targetUrl)) updateData.targetUrl = String(l.targetUrl).trim();
+
+          if (Object.keys(updateData).length > 0) {
+            bulkOps.push(
+              Link.updateOne(
+                { _id: l._id, $or: [{ userId: userId }, { userId: userId.toString() }] },
+                { $set: updateData }
+              )
+            );
+          }
         }
       });
     }
@@ -317,12 +347,19 @@ app.post('/api/user/sync', authMiddleware, async (req, res) => {
     if (Array.isArray(ads) && ads.length > 0) {
       ads.forEach(a => {
         if (a._id && mongoose.Types.ObjectId.isValid(a._id)) {
-          bulkOps.push(
-            Ad.updateOne(
-              { _id: a._id, userId },
-              { $set: { status: a.status, title: a.title } }
-            )
-          );
+          const updateData = {};
+          if (a.status !== undefined) updateData.status = String(a.status);
+          if (a.title !== undefined) updateData.title = String(a.title).trim();
+          if (a.targetUrl !== undefined && isValidTargetUrl(a.targetUrl)) updateData.targetUrl = String(a.targetUrl).trim();
+
+          if (Object.keys(updateData).length > 0) {
+            bulkOps.push(
+              Ad.updateOne(
+                { _id: a._id, userId },
+                { $set: updateData }
+              )
+            );
+          }
         }
       });
     }
@@ -330,12 +367,40 @@ app.post('/api/user/sync', authMiddleware, async (req, res) => {
     // 3. مزامنة المحفظة والإعدادات
     if (wallet && typeof wallet === 'object') {
       const updateObj = {};
-      if (wallet.defaultWallet) updateObj.defaultWallet = String(wallet.defaultWallet).trim();
-      if (wallet.language) updateObj.language = String(wallet.language).trim();
+      if (wallet.defaultWallet !== undefined) updateObj.defaultWallet = String(wallet.defaultWallet).trim();
+      if (wallet.language !== undefined) updateObj.language = String(wallet.language).trim();
 
       if (Object.keys(updateObj).length > 0) {
         bulkOps.push(User.updateOne({ _id: userId }, { $set: updateObj }));
       }
+    }
+
+    // 4. مزامنة عمليات الإيداع القادمة إن وجدت
+    if (Array.isArray(deposits) && deposits.length > 0) {
+      deposits.forEach(d => {
+        if (d._id && mongoose.Types.ObjectId.isValid(d._id) && d.txid) {
+          bulkOps.push(
+            Deposit.updateOne(
+              { _id: d._id, userId },
+              { $set: { txid: String(d.txid).trim() } }
+            )
+          );
+        }
+      });
+    }
+
+    // 5. مزامنة عمليات السحب القادمة إن وجدت
+    if (Array.isArray(withdraws) && withdraws.length > 0) {
+      withdraws.forEach(w => {
+        if (w._id && mongoose.Types.ObjectId.isValid(w._id) && w.walletAddress) {
+          bulkOps.push(
+            Withdraw.updateOne(
+              { _id: w._id, userId },
+              { $set: { walletAddress: String(w.walletAddress).trim() } }
+            )
+          );
+        }
+      });
     }
 
     if (bulkOps.length > 0) {
@@ -531,7 +596,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'عنوان الإعلان مطلوب' });
     }
 
-    if (!validUrl.isWebUri(targetUrl)) {
+    if (!isValidTargetUrl(targetUrl)) {
       await session.abortTransaction();
       return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
     }
@@ -552,12 +617,17 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'رصيدك المتاح غير كافي لإنشاء هذه الحملة (الحد الأدنى $5)' });
     }
 
+    let cleanTargetUrl = String(targetUrl).trim();
+    if (!/^https?:\/\//i.test(cleanTargetUrl) && !/^tg:\/\//i.test(cleanTargetUrl)) {
+      cleanTargetUrl = `https://${cleanTargetUrl}`;
+    }
+
     const ad = await Ad.create([{
       userId: req.userId,
       advertiserId: req.userId,
       advertiserTelegramId: req.user.telegramId,
       title: String(title).trim(),
-      targetUrl: String(targetUrl).trim(),
+      targetUrl: cleanTargetUrl,
       totalBudget: budget,
       remainingBudget: budget,
       cpmRate: 1.50,
@@ -945,14 +1015,19 @@ const handleShortenLink = async (req, res) => {
     }
 
     const { title, targetUrl, url } = req.body;
-    const cleanUrl = String(targetUrl || url || '').trim();
+    let cleanUrl = String(targetUrl || url || '').trim();
 
-    if (!cleanUrl || !validUrl.isWebUri(cleanUrl)) {
+    if (!cleanUrl || !isValidTargetUrl(cleanUrl)) {
       return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
     }
 
     if (isPhishingOrMalicious(cleanUrl)) {
       return res.status(400).json({ success: false, error: 'الرابط ينتهك معايير الأمان' });
+    }
+
+    // تجهيز الهيكل الموحد للرابط
+    if (!/^https?:\/\//i.test(cleanUrl) && !/^tg:\/\//i.test(cleanUrl)) {
+      cleanUrl = `https://${cleanUrl}`;
     }
 
     try {
