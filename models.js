@@ -1,7 +1,7 @@
 /**
- * Ultra-Enterprise Models Architecture (V6.0 - Autonomous Multi-Tenant & Zero-Leakage Architecture)
+ * Ultra-Enterprise Models Architecture (V6.1 - Autonomous Multi-Tenant & Partial Update Optimized)
  * Platform: Telega.ads Advertising & Shortener Network
- * Engine: Autonomous Data Scoping, Atomic Balance Locks & Enterprise Indexing
+ * Engine: Flexible Schema Validations, Safe Partial Patches & Atomic Financial Core
  */
 
 if (typeof window !== 'undefined') {
@@ -206,7 +206,7 @@ walletSchema.methods.atomicCredit = async function(amount, isPending = false) {
     ...(isPending ? {} : { $inc: { totalDeposited: safeAmount } })
   };
 
-  const updatedWallet = await this.constructor.findOneAndUpdate(query, update, { new: true });
+  const updatedWallet = await this.constructor.findOneAndUpdate(query, update, { new: true, runValidators: true, context: 'query' });
   if (!updatedWallet) {
     throw new Error("Concurrency Lock Collision: Financial state updated concurrently. Please retry.");
   }
@@ -232,7 +232,7 @@ walletSchema.methods.atomicDebit = async function(amount, isPending = false) {
     $inc: { [field]: -safeAmount, lockVersion: 1 }
   };
 
-  const updatedWallet = await this.constructor.findOneAndUpdate(query, update, { new: true });
+  const updatedWallet = await this.constructor.findOneAndUpdate(query, update, { new: true, runValidators: true, context: 'query' });
   if (!updatedWallet) {
     throw new Error("Financial Lock Exception: Concurrent debit operation failed or balance depleted.");
   }
@@ -321,16 +321,17 @@ const adSchema = new mongoose.Schema({
   },
   title: { 
     type: String, 
-    required: [true, 'Ad title is required'], 
+    required: function() { return this.isNew; }, 
     trim: true, 
     maxlength: [100, 'Ad title must not exceed 100 characters'] 
   },
   targetUrl: { 
     type: String, 
-    required: [true, 'Target URL is required'], 
+    required: function() { return this.isNew; }, 
     trim: true,
     validate: {
       validator: function(v) {
+        if (!v) return true;
         return /^(https?:\/\/)?([\w.-]+)+[\w\-_~:/?#[\]@!$&'()*+,;=.]+$/i.test(v);
       },
       message: 'Please enter a valid target URL'
@@ -338,13 +339,13 @@ const adSchema = new mongoose.Schema({
   },
   totalBudget: { 
     type: Number, 
-    required: [true, 'Total budget is required'], 
+    required: function() { return this.isNew; }, 
     min: [5, 'Minimum campaign budget is $5'], 
     set: formatCurrency 
   },
   remainingBudget: { 
     type: Number, 
-    required: true, 
+    required: function() { return this.isNew; }, 
     min: [0, 'Remaining budget cannot be negative'], 
     set: formatCurrency 
   },
@@ -408,7 +409,7 @@ adSchema.statics.findAdvertiserAdsIsolated = function(userId, filter = {}) {
 const linkSchema = new mongoose.Schema({
   shortCode: { 
     type: String, 
-    required: [true, 'Short code is required'], 
+    required: function() { return this.isNew; }, 
     unique: true, 
     index: true,
     trim: true 
@@ -439,7 +440,7 @@ const linkSchema = new mongoose.Schema({
   },
   targetUrl: { 
     type: String, 
-    required: [true, 'Target URL is required'], 
+    required: function() { return this.isNew; }, 
     trim: true 
   },
   isActive: { 
@@ -672,7 +673,7 @@ const withdrawSchema = new mongoose.Schema({
   },
   amount: { 
     type: Number, 
-    required: [true, 'Total withdrawal amount is required'], 
+    required: function() { return this.isNew; }, 
     min: [30, 'Minimum withdrawal limit is $30'],
     set: formatCurrency 
   },
@@ -683,19 +684,19 @@ const withdrawSchema = new mongoose.Schema({
   },
   netAmount: {
     type: Number,
-    required: true,
+    required: function() { return this.isNew; },
     set: formatCurrency
   },
   network: {
     type: String,
     enum: ['BEP20', 'TRC20', 'TON'],
-    required: [true, 'Please select network (BEP20, TRC20, or TON)'],
+    required: function() { return this.isNew; },
     trim: true,
     uppercase: true
   },
   walletAddress: { 
     type: String, 
-    required: [true, 'Wallet address is required'], 
+    required: function() { return this.isNew; }, 
     trim: true 
   },
   status: { 
@@ -811,20 +812,20 @@ const depositSchema = new mongoose.Schema({
   },
   amount: {
     type: Number,
-    required: [true, 'Deposit amount is required'],
+    required: function() { return this.isNew; },
     min: [1, 'Minimum deposit limit is $1'],
     set: formatCurrency
   },
   network: {
     type: String,
     enum: ['BEP20', 'TRC20', 'TON'],
-    required: [true, 'Please select network (BEP20, TRC20, TON)'],
+    required: function() { return this.isNew; },
     trim: true,
     uppercase: true
   },
   txid: {
     type: String,
-    required: [true, 'Transaction hash (TxID) is required'],
+    required: function() { return this.isNew; },
     trim: true,
     unique: true
   },
