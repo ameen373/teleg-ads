@@ -129,7 +129,6 @@ userSchema.statics.findByTelegramIdIsolated = function(telegramId) {
   return this.findOne({ telegramId: String(telegramId).trim() });
 };
 
-// UPSERT & UPDATE METHODS FOR USER
 userSchema.statics.upsertUser = function(userData) {
   enforceTenantKey(userData.telegramId, 'telegramId');
   const tId = String(userData.telegramId).trim();
@@ -197,7 +196,6 @@ walletSchema.statics.getWalletIsolated = function(userId) {
   return this.findOne({ userId });
 };
 
-// UPSERT & BALANCE UPDATES FOR WALLET
 walletSchema.statics.upsertWallet = function(userId, telegramId, walletData = {}) {
   enforceTenantKey(userId, 'userId');
   enforceTenantKey(telegramId, 'telegramId');
@@ -208,6 +206,7 @@ walletSchema.statics.upsertWallet = function(userId, telegramId, walletData = {}
   );
 };
 
+// [FIXED] تجنب إرسال استعلام $inc فارغ لـ MongoDB عند عدم وجود تغييرات
 walletSchema.statics.updateBalanceAtomic = function(userId, { available = 0, pending = 0, deposited = 0, withdrawn = 0 }) {
   enforceTenantKey(userId, 'userId');
   const updateQuery = {};
@@ -215,6 +214,10 @@ walletSchema.statics.updateBalanceAtomic = function(userId, { available = 0, pen
   if (pending !== 0) updateQuery.pendingBalance = pending;
   if (deposited !== 0) updateQuery.totalDeposited = deposited;
   if (withdrawn !== 0) updateQuery.totalWithdrawn = withdrawn;
+
+  if (Object.keys(updateQuery).length === 0) {
+    return this.findOne({ userId });
+  }
 
   return this.findOneAndUpdate(
     { userId },
@@ -275,7 +278,6 @@ transactionSchema.statics.getUserTransactionsIsolated = function(userId, filter 
   return this.find({ ...filter, userId }).sort({ createdAt: -1 });
 };
 
-// INSERT TRANSACTION
 transactionSchema.statics.recordTransaction = function(txData) {
   enforceTenantKey(txData.userId, 'userId');
   enforceTenantKey(txData.telegramId, 'telegramId');
@@ -392,14 +394,21 @@ adSchema.statics.findAdvertiserAdsIsolated = function(userId, filter = {}) {
   return this.find({ ...filter, $or: [{ userId }, { advertiserId: userId }] }).sort({ createdAt: -1 });
 };
 
-// INSERT & UPDATE CAMPAIGN METHODS
+// [FIXED] ضمان تعبئة كافة المراجع قبل الإنشاء لتجنب فشل Validation
 adSchema.statics.createCampaign = function(adData) {
-  enforceTenantKey(adData.userId, 'userId');
-  enforceTenantKey(adData.telegramId, 'telegramId');
-  if (adData.remainingBudget === undefined) {
-    adData.remainingBudget = adData.totalBudget;
+  enforceTenantKey(adData.userId || adData.advertiserId, 'userId');
+  enforceTenantKey(adData.telegramId || adData.advertiserTelegramId, 'telegramId');
+
+  const payload = { ...adData };
+  if (!payload.advertiserId) payload.advertiserId = payload.userId;
+  if (!payload.userId) payload.userId = payload.advertiserId;
+  if (!payload.advertiserTelegramId) payload.advertiserTelegramId = String(payload.telegramId).trim();
+  if (!payload.telegramId) payload.telegramId = String(payload.advertiserTelegramId).trim();
+
+  if (payload.remainingBudget === undefined) {
+    payload.remainingBudget = payload.totalBudget;
   }
-  return this.create(adData);
+  return this.create(payload);
 };
 
 adSchema.statics.updateCampaignStatus = function(adId, userId, status) {
@@ -484,11 +493,18 @@ linkSchema.statics.getUserIsolatedLinks = function(userId, query = {}, options =
   return this.find({ ...query, userId }, null, options).sort({ createdAt: -1 });
 };
 
-// INSERT / UPDATE LINK METHODS
+// [FIXED] ضمان تعبئة publisherTelegramId لتمرير الـ Required Validation مباشرة
 linkSchema.statics.createShortLink = function(linkData) {
   enforceTenantKey(linkData.userId, 'userId');
   enforceTenantKey(linkData.telegramId, 'telegramId');
-  return this.create(linkData);
+
+  const payload = { ...linkData };
+  payload.telegramId = String(payload.telegramId).trim();
+  if (!payload.publisherTelegramId) {
+    payload.publisherTelegramId = payload.telegramId;
+  }
+
+  return this.create(payload);
 };
 
 linkSchema.statics.incrementLinkViews = function(shortCode, isValid = true) {
@@ -590,8 +606,18 @@ impressionSchema.pre('validate', function(next) {
 });
 
 impressionSchema.statics.recordImpression = function(impData) {
-  enforceTenantKey(impData.userId || impData.publisherId, 'userId/publisherId');
-  return this.create(impData);
+  const userId = impData.userId || impData.publisherId;
+  const telegramId = impData.telegramId || impData.publisherTelegramId;
+  enforceTenantKey(userId, 'userId/publisherId');
+  enforceTenantKey(telegramId, 'telegramId/publisherTelegramId');
+
+  const payload = { ...impData };
+  if (!payload.userId) payload.userId = userId;
+  if (!payload.publisherId) payload.publisherId = userId;
+  if (!payload.telegramId) payload.telegramId = String(telegramId).trim();
+  if (!payload.publisherTelegramId) payload.publisherTelegramId = String(telegramId).trim();
+
+  return this.create(payload);
 };
 
 // --------------------------------------------------
@@ -661,8 +687,16 @@ clickSessionSchema.pre('validate', function(next) {
 });
 
 clickSessionSchema.statics.createSession = function(sessionData) {
-  enforceTenantKey(sessionData.userId || sessionData.publisherId, 'userId');
-  return this.create(sessionData);
+  const userId = sessionData.userId || sessionData.publisherId;
+  enforceTenantKey(userId, 'userId');
+  enforceTenantKey(sessionData.telegramId, 'telegramId');
+
+  const payload = { ...sessionData };
+  if (!payload.userId) payload.userId = userId;
+  if (!payload.publisherId) payload.publisherId = userId;
+  payload.telegramId = String(payload.telegramId).trim();
+
+  return this.create(payload);
 };
 
 // --------------------------------------------------
@@ -738,7 +772,11 @@ withdrawSchema.pre('validate', function(next) {
 withdrawSchema.statics.createWithdrawal = function(withdrawData) {
   enforceTenantKey(withdrawData.userId, 'userId');
   enforceTenantKey(withdrawData.telegramId, 'telegramId');
-  return this.create(withdrawData);
+  
+  const payload = { ...withdrawData };
+  payload.telegramId = String(payload.telegramId).trim();
+
+  return this.create(payload);
 };
 
 withdrawSchema.statics.updateWithdrawalStatus = function(withdrawId, status, rejectReason = '') {
@@ -860,10 +898,18 @@ depositSchema.pre('validate', function(next) {
   next();
 });
 
+// [FIXED] تجهيز البيانات والمراجع قبل الحفظ
 depositSchema.statics.createDeposit = function(depositData) {
-  enforceTenantKey(depositData.userId, 'userId');
-  enforceTenantKey(depositData.telegramId, 'telegramId');
-  return this.create(depositData);
+  enforceTenantKey(depositData.userId || depositData.advertiserId, 'userId');
+  enforceTenantKey(depositData.telegramId || depositData.advertiserTelegramId, 'telegramId');
+
+  const payload = { ...depositData };
+  if (!payload.advertiserId) payload.advertiserId = payload.userId;
+  if (!payload.userId) payload.userId = payload.advertiserId;
+  if (!payload.advertiserTelegramId) payload.advertiserTelegramId = String(payload.telegramId).trim();
+  if (!payload.telegramId) payload.telegramId = String(payload.advertiserTelegramId).trim();
+
+  return this.create(payload);
 };
 
 depositSchema.statics.updateDepositStatus = function(depositId, status, rejectReason = '') {
