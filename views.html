@@ -354,7 +354,7 @@
         <div class="card">
           <h3 style="font-size: 16px; margin-top:0;" data-i18n="create_link_title">Shorten New Link</h3>
           <input type="text" id="link-title" data-i18n-ph="ph_link_title" placeholder="Title (Optional)">
-          <input type="url" id="link-url" data-i18n-ph="ph_link_url" placeholder="Original URL (https://...)">
+          <input type="text" id="link-url" data-i18n-ph="ph_link_url" placeholder="Original URL (https://... or t.me/...)">
           <button id="btn-create-link" onclick="handleShortenClick()">
             <span data-i18n="btn_shorten">Shorten Link Now</span>
           </button>
@@ -462,7 +462,7 @@
           <p style="font-size: 11px; color: var(--text-muted); margin-top:-4px;" data-i18n="ad_rate_desc">Ad Rate: $1.50 per 1,000 real impressions (CPM)</p>
           
           <input type="text" id="ad-title" data-i18n-ph="ph_ad_title" placeholder="Ad Title">
-          <input type="url" id="ad-target-url" data-i18n-ph="ph_ad_target_url" placeholder="Target URL (https://...)">
+          <input type="text" id="ad-target-url" data-i18n-ph="ph_ad_target_url" placeholder="Target URL (https://... or t.me/...)">
           <input type="number" id="ad-budget" data-i18n-ph="ph_ad_budget" placeholder="Total Budget (Min. $5)" min="5" step="any">
           
           <button id="btn-create-ad" onclick="createAdCampaign()">
@@ -622,6 +622,40 @@
       } catch (e) {}
     }
 
+    // Comprehensive URL Validator that accepts http, https, t.me, and custom protocol links
+    function isValidURL(string) {
+      if (!string || typeof string !== 'string') return false;
+      let cleanStr = string.trim();
+      
+      // Auto prepend https:// if missing on t.me or telegram links
+      if (cleanStr.startsWith('t.me/') || cleanStr.startsWith('telegram.me/')) {
+        cleanStr = 'https://' + cleanStr;
+      }
+
+      // Check standard URLs and telegram scheme
+      try {
+        const parsedUrl = new URL(cleanStr);
+        return ['http:', 'https:', 'tg:'].includes(parsedUrl.protocol);
+      } catch (_) {
+        // Fallback RegEx matching common domain / t.me patterns
+        const urlPattern = /^(https?:\/\/)?([\w\d\-_]+\.)+[\w\d\-_]+(\/.*)?$/i;
+        return urlPattern.test(cleanStr);
+      }
+    }
+
+    // Format URL to proper absolute URL for backend sending
+    function normalizeURL(urlStr) {
+      if (!urlStr) return '';
+      let trimmed = urlStr.trim();
+      if (trimmed.startsWith('t.me/') || trimmed.startsWith('telegram.me/')) {
+        return 'https://' + trimmed;
+      }
+      if (!/^https?:\/\//i.test(trimmed) && !/^tg:\/\//i.test(trimmed)) {
+        return 'https://' + trimmed;
+      }
+      return trimmed;
+    }
+
     // Translation Dictionary
     const i18n = {
       en: {
@@ -634,7 +668,7 @@
         avail_bal: "Available Balance",
         create_link_title: "Shorten New Link",
         ph_link_title: "Title (Optional)",
-        ph_link_url: "Original URL (https://...)",
+        ph_link_url: "Original URL (https://... or t.me/...)",
         btn_shorten: "Shorten Link Now",
         my_links_title: "Your Links",
         withdraw_request_title: "Withdraw Earnings",
@@ -648,7 +682,7 @@
         create_ad_title: "Create New Ad Campaign",
         ad_rate_desc: "Ad Rate: $1.50 per 1,000 real impressions (CPM)",
         ph_ad_title: "Ad Title",
-        ph_ad_target_url: "Target URL (https://...)",
+        ph_ad_target_url: "Target URL (https://... or t.me/...)",
         ph_ad_budget: "Total Budget (Min. $5)",
         btn_launch_ad: "Launch Ad Campaign",
         my_ads_title: "Your Ad Campaigns",
@@ -715,7 +749,7 @@
         avail_bal: "متاح للسحب (Available)",
         create_link_title: "اختصار رابط جديد",
         ph_link_title: "عنوان المعاينة (اختياري)",
-        ph_link_url: "الرابط الأصلي (https://...)",
+        ph_link_url: "الرابط الأصلي (https://... أو t.me/...)",
         btn_shorten: "اختصار الرابط الآن",
         my_links_title: "الروابط الخاصة بك",
         withdraw_request_title: "طلب سحب الأرباح",
@@ -729,7 +763,7 @@
         create_ad_title: "إنشاء حملة إعلانية جديدة",
         ad_rate_desc: "تكلفة الإعلان: $1.50 لكل 1,000 مشاهدة حقيقية (CPM)",
         ph_ad_title: "عنوان الإعلان",
-        ph_ad_target_url: "رابط التوجيه (https://...)",
+        ph_ad_target_url: "رابط التوجيه (https://... أو t.me/...)",
         ph_ad_budget: "الميزانية الإجمالية (الحد الأدنى 5$)",
         btn_launch_ad: "إطلاق الحملة الإعلانية",
         my_ads_title: "حملاتك الإعلانية",
@@ -1388,9 +1422,12 @@
 
     async function handleShortenClick() {
       const title = document.getElementById('link-title').value;
-      const originalUrl = document.getElementById('link-url').value;
+      const rawUrl = document.getElementById('link-url').value;
 
-      if (!originalUrl) return showToast(currentLang === 'ar' ? "يرجى إدخال الرابط الأصلي" : "Enter target URL");
+      if (!rawUrl) return showToast(currentLang === 'ar' ? "يرجى إدخال الرابط الأصلي" : "Enter target URL");
+      if (!isValidURL(rawUrl)) return showToast(currentLang === 'ar' ? "الرابط الأصلي غير صالح، يرجى إدخال رابط صحيح" : "Invalid target URL");
+
+      const originalUrl = normalizeURL(rawUrl);
 
       triggerHaptic('medium');
       setButtonLoading('btn-create-link', true);
@@ -1457,10 +1494,13 @@
 
     async function createAdCampaign() {
       const title = document.getElementById('ad-title').value;
-      const targetUrl = document.getElementById('ad-target-url').value;
+      const rawTargetUrl = document.getElementById('ad-target-url').value;
       const totalBudget = document.getElementById('ad-budget').value;
 
-      if (!title || !targetUrl || !totalBudget) return showToast(currentLang === 'ar' ? "يرجى ملء جميع البيانات المطلوب الإعلان عنها" : "Please fill in all ad details");
+      if (!title || !rawTargetUrl || !totalBudget) return showToast(currentLang === 'ar' ? "يرجى ملء جميع البيانات المطلوب الإعلان عنها" : "Please fill in all ad details");
+      if (!isValidURL(rawTargetUrl)) return showToast(currentLang === 'ar' ? "رابط الإعلان غير صالح" : "Invalid ad target URL");
+
+      const targetUrl = normalizeURL(rawTargetUrl);
 
       triggerHaptic('medium');
       setButtonLoading('btn-create-ad', true);
@@ -1474,7 +1514,7 @@
         const data = await res.json();
         if (data.error) showToast(data.error);
         else {
-          showToast(currentLang === 'ar' ? "تم إنشاء الحملة الإعلانية وإطلاقها بنجاح!" : "Ad campaign launched successfully!");
+          showToast(currentLang === 'ar' ? "تم إنشاء الحملة الإعلانية بنجاح" : "Ad campaign created successfully");
           document.getElementById('ad-title').value = '';
           document.getElementById('ad-target-url').value = '';
           document.getElementById('ad-budget').value = '';
@@ -1482,43 +1522,40 @@
           loadUserData();
         }
       } catch (e) {
-        showToast(currentLang === 'ar' ? "حدث خطأ غير متوقع أثناء إطلاق الحملة" : "Unexpected error launching campaign");
+        showToast(currentLang === 'ar' ? "خطأ أثناء إنشاء الإعلان" : "Error creating ad campaign");
       } finally {
         setButtonLoading('btn-create-ad', false, `<span data-i18n="btn_launch_ad">${i18n[currentLang].btn_launch_ad}</span>`);
       }
     }
 
     async function requestDeposit() {
+      const network = document.getElementById('deposit-network').value;
       const amount = document.getElementById('deposit-amount').value;
-      const paymentMethod = document.getElementById('deposit-network').value;
       const txHash = document.getElementById('deposit-txhash').value;
 
-      if (!paymentMethod) return showToast(currentLang === 'ar' ? "يرجى تحديد نوع الشبكة أولاً" : "Select deposit network first");
-      if (!amount || amount <= 0) return showToast(currentLang === 'ar' ? "يرجى إدخال مبلغ الشحن الصحيح" : "Enter a valid deposit amount");
-      if (!txHash || txHash.trim().length < 8) return showToast(currentLang === 'ar' ? "يرجى إدخال رمز العملية TxID الخاص بالمعاملة" : "Enter valid TxID");
+      if (!network) return showToast(currentLang === 'ar' ? "يرجى تحديد شبكة الدفع" : "Select network");
+      if (!amount || parseFloat(amount) <= 0) return showToast(currentLang === 'ar' ? "أدخل مبلغاً صحيحاً" : "Enter valid amount");
+      if (!txHash) return showToast(currentLang === 'ar' ? "أدخل رمز المعاملة TxID" : "Enter TxID");
 
       triggerHaptic('medium');
       setButtonLoading('btn-request-deposit', true);
 
       try {
-        const res = await safeFetch('/api/deposit', {
+        const res = await safeFetch('/api/wallet/deposit', {
           method: 'POST',
-          body: JSON.stringify({ amount, paymentMethod, txHash, userId: currentUserTelegramId })
+          body: JSON.stringify({ network, amount, txHash, userId: currentUserTelegramId })
         });
         if (!res) return;
         const data = await res.json();
         if (data.error) showToast(data.error);
         else {
-          showToast(currentLang === 'ar' ? "تم إرسال طلب الشحن بنجاح!" : "Deposit request submitted!");
+          showToast(currentLang === 'ar' ? "تم إرسال طلب الشحن بنجاح وهو قيد المراجعة" : "Deposit request submitted successfully");
           document.getElementById('deposit-amount').value = '';
           document.getElementById('deposit-txhash').value = '';
-          document.getElementById('deposit-network').value = '';
-          handleNetworkChange('');
           autoSaveData();
-          loadUserData();
         }
       } catch (e) {
-        showToast(currentLang === 'ar' ? "خطأ أثناء تقديم طلب الشحن" : "Error submitting deposit request");
+        showToast(currentLang === 'ar' ? "حدث خطأ أثناء إرسال طلب الشحن" : "Error submitting deposit request");
       } finally {
         setButtonLoading('btn-request-deposit', false, `<span data-i18n="btn_submit_deposit">${i18n[currentLang].btn_submit_deposit}</span>`);
       }
@@ -1528,14 +1565,14 @@
       const walletAddress = document.getElementById('default-wallet').value;
       const amount = document.getElementById('withdraw-amount').value;
 
-      if (!walletAddress) return showToast(currentLang === 'ar' ? "يرجى إدخال عنوان المحفظة" : "Please enter wallet address");
-      if (!amount || amount < 30) return showToast(currentLang === 'ar' ? "الحد الأدنى للسحب هو 30$" : "Minimum withdrawal is $30");
+      if (!walletAddress) return showToast(currentLang === 'ar' ? "يرجى إدخال عنوان المحفظة" : "Enter wallet address");
+      if (!amount || parseFloat(amount) < 30) return showToast(currentLang === 'ar' ? "الحد الأدنى للسحب هو 30$" : "Minimum withdrawal is $30");
 
       triggerHaptic('medium');
       setButtonLoading('btn-request-withdraw', true);
 
       try {
-        const res = await safeFetch('/api/withdraw', {
+        const res = await safeFetch('/api/wallet/withdraw', {
           method: 'POST',
           body: JSON.stringify({ walletAddress, amount, userId: currentUserTelegramId })
         });
@@ -1543,116 +1580,21 @@
         const data = await res.json();
         if (data.error) showToast(data.error);
         else {
-          showToast(currentLang === 'ar' ? "تم طلب السحب بنجاح!" : "Withdrawal requested successfully!");
+          showToast(currentLang === 'ar' ? "تم إرسال طلب السحب بنجاح" : "Withdrawal request submitted successfully");
           document.getElementById('withdraw-amount').value = '';
           updateWithdrawCalculations();
           autoSaveData();
           loadUserData();
         }
-      } catch(e) {
+      } catch (e) {
         showToast(currentLang === 'ar' ? "حدث خطأ أثناء إرسال طلب السحب" : "Error submitting withdrawal request");
       } finally {
         setButtonLoading('btn-request-withdraw', false, `<span data-i18n="btn_submit_withdraw">${i18n[currentLang].btn_submit_withdraw}</span>`);
       }
     }
 
-    // Bridge Page Processing
-    async function initBridge() {
-      const pathParts = window.location.pathname.split('/r/');
-      const shortCode = pathParts[1];
-      bridgeStartTime = Date.now();
-
-      try {
-        const res = await safeFetch('/api/init-click', {
-          method: 'POST',
-          body: JSON.stringify({ linkCode: shortCode, userId: currentUserTelegramId })
-        });
-        if (res) {
-          const data = await res.json();
-          if (data.error) showToast(data.error);
-          else {
-            currentSessionId = data.sessionId;
-
-            if (data.adSource === 'internal' && data.adData) {
-              renderInternalAd(data.adData);
-            } else if (window.Adsgram && data.blockId) {
-              window.Adsgram.init({ blockId: data.blockId }).show().catch(() => renderFallbackAd());
-            } else {
-              renderFallbackAd();
-            }
-          }
-        } else {
-          renderFallbackAd();
-        }
-      } catch (err) {
-        renderFallbackAd();
-      }
-
-      let timeLeft = 5;
-      const timerElem = document.getElementById('timer');
-      const interval = setInterval(() => {
-        timeLeft--;
-        if (timerElem) timerElem.innerText = timeLeft;
-        if (timeLeft <= 0) {
-          clearInterval(interval);
-          document.getElementById('go-btn').disabled = false;
-        }
-      }, 1000);
-    }
-
-    function renderInternalAd(adData) {
-      document.getElementById('ad-container').innerHTML = `
-        <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid var(--accent); border-radius: 14px; padding: 20px; width: 100%; text-align: center;">
-          <span style="font-size: 10px; color: var(--accent); background: rgba(59,130,246,0.2); padding: 3px 10px; border-radius: 8px; font-weight: bold;">Sponsored Ad</span>
-          <h3 style="margin: 10px 0 6px 0; color: var(--text); font-size: 16px;">${escapeHTML(adData.title)}</h3>
-          <a href="${escapeHTML(adData.targetUrl)}" target="_blank" rel="noopener" style="display: inline-block; margin-top: 10px; color: #fff; background: var(--accent); padding: 8px 18px; border-radius: 10px; text-decoration: none; font-size: 12px; font-weight: bold;">Visit Sponsor</a>
-        </div>`;
-    }
-
-    function renderFallbackAd() {
-      document.getElementById('ad-container').innerHTML = `
-        <div style="text-align: center; color: var(--text-muted); font-size: 13px;">
-          <b>Telega.ads Enterprise Network</b><br>
-          <span style="font-size: 11px;">High CPM Shortener & Monetization System</span>
-        </div>`;
-    }
-
-    async function completeImpression() {
-      if (!currentSessionId) return;
-      triggerHaptic('medium');
-      setButtonLoading('go-btn', true);
-
-      try {
-        const duration = Math.floor((Date.now() - bridgeStartTime) / 1000);
-        const res = await safeFetch('/api/complete-click', {
-          method: 'POST',
-          body: JSON.stringify({ sessionId: currentSessionId, duration })
-        });
-        if (res) {
-          const data = await res.json();
-          if (data && data.destinationUrl) {
-            window.location.href = data.destinationUrl;
-          } else {
-            showToast("Destination URL not found.");
-          }
-        }
-      } catch (err) {
-        showToast("Error completing redirection.");
-      } finally {
-        setButtonLoading('go-btn', false);
-      }
-    }
-
-    // Startup Router
-    document.addEventListener('DOMContentLoaded', () => {
-      if (window.location.pathname.includes('/r/')) {
-        document.getElementById('app-view').classList.add('hidden');
-        document.getElementById('bridge-view').classList.remove('hidden');
-        initBridge();
-      } else {
-        initializeApp();
-      }
-    });
+    // Initialize App On DOM Ready
+    document.addEventListener('DOMContentLoaded', initializeApp);
   </script>
 </body>
 </html>
