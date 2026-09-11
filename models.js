@@ -195,7 +195,7 @@ walletSchema.statics.getWalletIsolated = function(userId) {
   return this.findOne({ userId });
 };
 
-// Atomic Credit Operation (Prevents Race Condition Flaws)
+// Atomic Credit Operation
 walletSchema.methods.atomicCredit = async function(amount, isPending = false) {
   const safeAmount = formatCurrency(amount);
   if (safeAmount <= 0) throw new Error("Credit amount must be greater than zero");
@@ -214,7 +214,7 @@ walletSchema.methods.atomicCredit = async function(amount, isPending = false) {
   return updatedWallet;
 };
 
-// Atomic Debit Operation (Strict Prevention of Double Spending)
+// Atomic Debit Operation
 walletSchema.methods.atomicDebit = async function(amount, isPending = false) {
   const safeAmount = formatCurrency(amount);
   if (safeAmount <= 0) throw new Error("Debit amount must be greater than zero");
@@ -306,19 +306,18 @@ const adSchema = new mongoose.Schema({
   },
   telegramId: {
     type: String,
-    required: [true, 'Telegram ID is required for fast tenant lookup'],
+    default: '',
     index: true,
     trim: true
   },
   advertiserId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    required: [true, 'Advertiser User ID is required'], 
     index: true 
   },
   advertiserTelegramId: {
     type: String,
-    required: [true, 'Advertiser Telegram ID is required for fast tenant lookup'],
+    default: '',
     index: true,
     trim: true
   },
@@ -398,7 +397,6 @@ adSchema.pre('validate', function(next) {
 
 adSchema.index({ userId: 1, status: 1, createdAt: -1 });
 adSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
-adSchema.index({ advertiserTelegramId: 1, status: 1, createdAt: -1 });
 adSchema.index({ status: 1, remainingBudget: 1, createdAt: -1 });
 
 adSchema.statics.findAdvertiserAdsIsolated = function(userId, filter = {}) {
@@ -407,7 +405,7 @@ adSchema.statics.findAdvertiserAdsIsolated = function(userId, filter = {}) {
 };
 
 // --------------------------------------------------
-// 5. Shortened Link Model (Zero-Leakage Multi-Tenant)
+// 5. Shortened Link Model (Optimized Multi-Tenant)
 // --------------------------------------------------
 const linkSchema = new mongoose.Schema({
   shortCode: { 
@@ -425,13 +423,13 @@ const linkSchema = new mongoose.Schema({
   },
   telegramId: {
     type: String,
-    required: [true, 'Telegram ID is required for zero-leakage queries'],
+    default: '',
     index: true,
     trim: true
   },
   publisherTelegramId: {
     type: String,
-    required: [true, 'Publisher Telegram ID is required for zero-leakage queries'],
+    default: '',
     index: true,
     trim: true
   },
@@ -480,7 +478,6 @@ linkSchema.index({ publisherTelegramId: 1, createdAt: -1 });
 linkSchema.index({ userId: 1, isActive: 1, createdAt: -1 });
 linkSchema.index({ userId: 1, shortCode: 1 });
 
-// Crypto-grade Autonomous ShortCode Generator
 linkSchema.statics.generateSmartCode = function(length = 6) {
   return crypto.randomBytes(length).toString('hex').substring(0, length);
 };
@@ -513,19 +510,18 @@ const impressionSchema = new mongoose.Schema({
   },
   telegramId: {
     type: String,
-    required: [true, 'Telegram ID is required for tenant isolation'],
+    default: '',
     trim: true,
     index: true
   },
   publisherId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
     index: true
   },
   publisherTelegramId: {
     type: String,
-    required: true,
+    default: '',
     trim: true,
     index: true
   },
@@ -583,7 +579,6 @@ impressionSchema.pre('validate', function(next) {
 
 impressionSchema.index({ userId: 1, createdAt: -1 });
 impressionSchema.index({ telegramId: 1, createdAt: -1 });
-impressionSchema.index({ publisherTelegramId: 1, createdAt: -1 });
 impressionSchema.index({ linkId: 1, userId: 1, createdAt: -1 });
 impressionSchema.index({ ip: 1, linkId: 1, createdAt: -1 });
 
@@ -609,14 +604,13 @@ const clickSessionSchema = new mongoose.Schema({
   },
   telegramId: {
     type: String,
-    required: [true, 'Telegram ID is required for tenant isolation'],
+    default: '',
     trim: true,
     index: true
   },
   publisherId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
     index: true
   },
   visitorTelegramId: { 
@@ -660,7 +654,6 @@ clickSessionSchema.pre('validate', function(next) {
 
 clickSessionSchema.index({ linkId: 1, ip: 1 });
 clickSessionSchema.index({ userId: 1, createdAt: -1 });
-clickSessionSchema.index({ telegramId: 1, createdAt: -1 });
 clickSessionSchema.index({ bridgeToken: 1 }, { unique: true });
 
 // --------------------------------------------------
@@ -675,7 +668,7 @@ const withdrawSchema = new mongoose.Schema({
   },
   telegramId: {
     type: String,
-    required: [true, 'Telegram ID is required for tenant isolation'],
+    default: '',
     trim: true,
     index: true
   },
@@ -736,7 +729,6 @@ withdrawSchema.pre('validate', function(next) {
 withdrawSchema.index({ userId: 1, status: 1, createdAt: -1 });
 withdrawSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
 
-// Partial Index: Enforces maximum of ONE pending withdrawal request per user
 withdrawSchema.index(
   { userId: 1, status: 'pending' }, 
   { unique: true, partialFilterExpression: { status: 'pending' } }
@@ -761,7 +753,7 @@ const earningsHoldSchema = new mongoose.Schema({
   },
   telegramId: {
     type: String,
-    required: [true, 'Telegram ID is required for tenant isolation'],
+    default: '',
     trim: true,
     index: true
   },
@@ -804,19 +796,18 @@ const depositSchema = new mongoose.Schema({
   },
   telegramId: {
     type: String,
-    required: [true, 'Telegram ID is required for fast tenant lookup'],
+    default: '',
     trim: true,
     index: true
   },
   advertiserId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: [true, 'Advertiser User ID is required'],
     index: true
   },
   advertiserTelegramId: {
     type: String,
-    required: [true, 'Advertiser Telegram ID is required'],
+    default: '',
     trim: true,
     index: true
   },
@@ -863,7 +854,6 @@ depositSchema.pre('validate', function(next) {
 
 depositSchema.index({ userId: 1, status: 1, createdAt: -1 });
 depositSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
-depositSchema.index({ advertiserTelegramId: 1, status: 1, createdAt: -1 });
 
 depositSchema.statics.getAdvertiserDepositsIsolated = function(userId) {
   enforceTenantKey(userId, 'userId');
