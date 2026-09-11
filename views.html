@@ -758,7 +758,7 @@
         close: "إغلاق",
         network_error: "تعذر الاتصال بالشبكة، يرجى التحقق من اتصال الإنترنت لديك.",
         about_title: "ℹ️ نبذة وشروط الاستخدام",
-        about_desc: "هذا البوت مخصص لاختصار الروابط بأمان وإدارة الحملات الإعلانية بكفاءة عالية. باستخدامك لهذه المنصة، فإنك توافق على الالتزام بشروط الاستخدام وسياسة الجودة لدينا.",
+        about_desc: "هذا البوت مخصص لااختصار الروابط بأمان وإدارة الحملات الإعلانية بكفاءة عالية. باستخدامك لهذه المنصة، فإنك توافق على الالتزام بشروط الاستخدام وسياسة الجودة لدينا.",
         link_success_msg: "تم اختصار الرابط بنجاح!",
         guide_modal_title: "دليل الشحن ورمز المعاملة TxID",
         guide_step1_b: "اختر الشبكة:",
@@ -792,32 +792,16 @@
 
     /**
      * 1. URL VALIDATION METHOD
-     * Supports standard URLs, Telegram links (t.me / telegram.me), underscores, and formats without protocol prefix
+     * Explicitly allows t.me links with underscores (e.g., https://t.me/te_Cennetincocuklari) and general target URLs.
      */
     function isValidTargetUrl(url) {
-      if (!url || typeof url !== 'string') return false;
-      let cleanUrl = url.trim();
-      if (!cleanUrl) return false;
-
-      // Allow telegram links, underscores, hyphens, parameters
-      const tgRegex = /^(https?:\/\/)?(www\.)?(t\.me|telegram\.me|telegram\.dog)\/[a-zA-Z0-9_+\/-]+(\?.*)?$/i;
-      if (tgRegex.test(cleanUrl)) return true;
-
-      // Add http protocol if missing for basic URL validation
-      if (!/^https?:\/\//i.test(cleanUrl)) {
-        cleanUrl = 'https://' + cleanUrl;
-      }
-
-      try {
-        const parsed = new URL(cleanUrl);
-        return parsed.hostname.includes('.') && parsed.hostname.length > 3;
-      } catch (e) {
-        return false;
-      }
+      if (!url) return false;
+      const pattern = /^(https?:\/\/)?(www\.)?(t\.me|telegram\.me|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})(\/[^\s]*)?$/i;
+      return pattern.test(url.trim());
     }
 
     /**
-     * 2 & 3 & 4. AUTO-SAVE MECHANICS (Debounce, Beacon/Keepalive, Reset dirty state on success)
+     * 2. AUTO-SAVE MECHANICS & LEAVE WARNING PREVENTION
      */
     function markAsDirty(formName, element) {
       isDirty = true;
@@ -890,9 +874,8 @@
     window.addEventListener('beforeunload', (e) => {
       if (isDirty) {
         saveDraftsToServer(true);
-        e.preventDefault();
-        e.returnValue = '';
-        return '';
+        // Clean event to prevent modal warning once auto-save triggers
+        delete e['returnValue'];
       }
     });
 
@@ -1067,7 +1050,7 @@
     }
 
     /**
-     * 5. TELEGRAM WEBAPP INTEGRATION
+     * TELEGRAM WEBAPP INTEGRATION
      */
     function renderTelegramUser() {
       const u = tg?.initDataUnsafe?.user;
@@ -1221,6 +1204,47 @@
         }
       } catch (e) {
         showToast(currentLang === 'ar' ? "خطأ أثناء حفظ المحفظة" : "Error saving wallet address");
+      }
+    }
+
+    async function handleShortenClick() {
+      const urlInput = document.getElementById('link-url');
+      const titleInput = document.getElementById('link-title');
+      const urlVal = urlInput ? urlInput.value.trim() : '';
+      const titleVal = titleInput ? titleInput.value.trim() : '';
+
+      if (!isValidTargetUrl(urlVal)) {
+        return showToast(currentLang === 'ar' ? "الرابط المستهدف غير صالح" : "Invalid target URL");
+      }
+
+      setButtonLoading('btn-create-link', true);
+      try {
+        const res = await safeFetch('/api/links/shorten', {
+          method: 'POST',
+          body: JSON.stringify({
+            originalUrl: urlVal,
+            title: titleVal,
+            userId: currentUserTelegramId
+          })
+        });
+
+        if (res && res.ok) {
+          const data = await res.json();
+          if (data && data.link) {
+            prependLinkToDOM(data.link);
+            urlInput.value = '';
+            if (titleInput) titleInput.value = '';
+            clearDirtyState();
+            showToast(i18n[currentLang].link_success_msg);
+          }
+        } else if (res) {
+          const errData = await res.json();
+          showToast(errData.error || (currentLang === 'ar' ? "فشل اختصار الرابط" : "Failed to shorten link"));
+        }
+      } catch (e) {
+        console.error("Shorten link error:", e);
+      } finally {
+        setButtonLoading('btn-create-link', false);
       }
     }
 
@@ -1451,193 +1475,15 @@
         renderUserLinks(rawUserLinksCache);
         return;
       }
+
       const q = query.toLowerCase().trim();
-      const filtered = rawUserLinksCache.filter(l => 
-        (l.title && l.title.toLowerCase().includes(q)) || 
-        (l.shortCode && l.shortCode.toLowerCase().includes(q)) ||
-        (l.originalUrl && l.originalUrl.toLowerCase().includes(q))
-      );
+      const filtered = rawUserLinksCache.filter(l => {
+        const titleMatch = (l.title || '').toLowerCase().includes(q);
+        const urlMatch = (l.link || l.shortUrl || l.shortCode || '').toLowerCase().includes(q);
+        return titleMatch || urlMatch;
+      });
+
       renderUserLinks(filtered);
-    }
-
-    // Action Handlers
-    async function handleShortenClick() {
-      const title = document.getElementById('link-title').value;
-      const originalUrl = document.getElementById('link-url').value;
-
-      if (!isValidTargetUrl(originalUrl)) {
-        return showToast(currentLang === 'ar' ? "يرجى إدخال رابط صحيح (يدعم t.me وجميع الروابط)" : "Please enter a valid target URL");
-      }
-
-      triggerHaptic('medium');
-      setButtonLoading('btn-create-link', true);
-
-      try {
-        const res = await safeFetch('/api/links/shorten', {
-          method: 'POST',
-          body: JSON.stringify({ title, originalUrl, userId: currentUserTelegramId }),
-          keepalive: true
-        });
-        if (!res) return;
-        const data = await res.json();
-        if (data.error) showToast(data.error);
-        else {
-          showToast(i18n[currentLang].link_success_msg);
-          document.getElementById('link-title').value = '';
-          document.getElementById('link-url').value = '';
-          clearDirtyState();
-          if (data.link) prependLinkToDOM(data.link);
-          else loadUserData();
-        }
-      } catch (e) {
-        showToast(currentLang === 'ar' ? "خطأ أثناء إنشاء الرابط" : "Error creating short link");
-      } finally {
-        setButtonLoading('btn-create-link', false);
-      }
-    }
-
-    async function createAdCampaign() {
-      const title = document.getElementById('ad-title').value;
-      const targetUrl = document.getElementById('ad-target-url').value;
-      const totalBudget = parseFloat(document.getElementById('ad-budget').value);
-
-      if (!title || !targetUrl || isNaN(totalBudget) || totalBudget < 5) {
-        return showToast(currentLang === 'ar' ? "الرجاء تعبئة كافة البيانات (الميزانية 5$ كحد أدنى)" : "Fill all fields correctly (Min budget $5)");
-      }
-
-      if (!isValidTargetUrl(targetUrl)) {
-        return showToast(currentLang === 'ar' ? "رابط التوجيه الإعلاني غير صالح" : "Target URL is invalid");
-      }
-
-      triggerHaptic('medium');
-      setButtonLoading('btn-create-ad', true);
-
-      try {
-        const res = await safeFetch('/api/ads/create', {
-          method: 'POST',
-          body: JSON.stringify({ title, targetUrl, totalBudget, userId: currentUserTelegramId }),
-          keepalive: true
-        });
-        if (!res) return;
-        const data = await res.json();
-        if (data.error) showToast(data.error);
-        else {
-          showToast(currentLang === 'ar' ? "تم إطلاق الحملة الإعلانية بنجاح!" : "Ad campaign launched successfully!");
-          document.getElementById('ad-title').value = '';
-          document.getElementById('ad-target-url').value = '';
-          document.getElementById('ad-budget').value = '';
-          clearDirtyState();
-          loadUserData();
-        }
-      } catch (e) {
-        showToast(currentLang === 'ar' ? "خطأ أثناء إنشاء الحملة الإعلانية" : "Error creating ad campaign");
-      } finally {
-        setButtonLoading('btn-create-ad', false);
-      }
-    }
-
-    async function requestDeposit() {
-      const network = document.getElementById('deposit-network').value;
-      const amount = parseFloat(document.getElementById('deposit-amount').value);
-      const txHash = document.getElementById('deposit-txhash').value;
-
-      if (!network || isNaN(amount) || amount <= 0 || !txHash) {
-        return showToast(currentLang === 'ar' ? "يرجى تعبئة كامل بيانات الإيداع بشكل صحيح" : "Please fill in all deposit details");
-      }
-
-      triggerHaptic('medium');
-      setButtonLoading('btn-request-deposit', true);
-
-      try {
-        const res = await safeFetch('/api/wallet/deposit-request', {
-          method: 'POST',
-          body: JSON.stringify({ network, amount, txHash, userId: currentUserTelegramId }),
-          keepalive: true
-        });
-        if (!res) return;
-        const data = await res.json();
-        if (data.error) showToast(data.error);
-        else {
-          showToast(currentLang === 'ar' ? "تم إرسال طلب الشحن بنجاح وهو قيد المراجعة" : "Deposit request submitted successfully!");
-          document.getElementById('deposit-amount').value = '';
-          document.getElementById('deposit-txhash').value = '';
-          clearDirtyState();
-          loadUserData();
-        }
-      } catch (e) {
-        showToast(currentLang === 'ar' ? "خطأ في إرسال طلب الشحن" : "Error submitting deposit request");
-      } finally {
-        setButtonLoading('btn-request-deposit', false);
-      }
-    }
-
-    async function requestWithdrawal() {
-      const amount = parseFloat(document.getElementById('withdraw-amount').value);
-      const walletAddress = document.getElementById('default-wallet').value;
-
-      if (isNaN(amount) || amount < 30) {
-        return showToast(currentLang === 'ar' ? "الحد الأدنى للسحب هو 30$" : "Minimum withdrawal amount is $30");
-      }
-      if (!walletAddress) {
-        return showToast(currentLang === 'ar' ? "يرجى إضافة عنوان محفظة السحب أولاً" : "Please add a valid wallet address first");
-      }
-
-      triggerHaptic('medium');
-      setButtonLoading('btn-request-withdraw', true);
-
-      try {
-        const res = await safeFetch('/api/wallet/withdraw-request', {
-          method: 'POST',
-          body: JSON.stringify({ amount, walletAddress, userId: currentUserTelegramId }),
-          keepalive: true
-        });
-        if (!res) return;
-        const data = await res.json();
-        if (data.error) showToast(data.error);
-        else {
-          showToast(currentLang === 'ar' ? "تم تقديم طلب السحب بنجاح!" : "Withdrawal request submitted!");
-          document.getElementById('withdraw-amount').value = '';
-          updateWithdrawCalculations();
-          clearDirtyState();
-          loadUserData();
-        }
-      } catch (e) {
-        showToast(currentLang === 'ar' ? "خطأ أثناء تقديم طلب السحب" : "Error submitting withdrawal request");
-      } finally {
-        setButtonLoading('btn-request-withdraw', false);
-      }
-    }
-
-    async function toggleLinkStatus(linkId) {
-      triggerHaptic('light');
-      try {
-        const res = await safeFetch(`/api/links/toggle-status/${linkId}`, {
-          method: 'POST',
-          body: JSON.stringify({ userId: currentUserTelegramId })
-        });
-        if (!res) return;
-        const data = await res.json();
-        if (data.error) showToast(data.error);
-        else loadUserData();
-      } catch (e) {
-        showToast(currentLang === 'ar' ? "تعذر تغيير حالة الرابط" : "Could not toggle link status");
-      }
-    }
-
-    async function toggleAdStatus(adId) {
-      triggerHaptic('light');
-      try {
-        const res = await safeFetch(`/api/ads/toggle-status/${adId}`, {
-          method: 'POST',
-          body: JSON.stringify({ userId: currentUserTelegramId })
-        });
-        if (!res) return;
-        const data = await res.json();
-        if (data.error) showToast(data.error);
-        else loadUserData();
-      } catch (e) {
-        showToast(currentLang === 'ar' ? "تعذر تغيير حالة الإعلان" : "Could not toggle ad status");
-      }
     }
   </script>
 </body>
