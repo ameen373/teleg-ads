@@ -14,7 +14,6 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const morgan = require('morgan');
 const winston = require('winston');
-const validUrl = require('valid-url');
 const axios = require('axios');
 const Redis = require('ioredis');
 const cors = require('cors');
@@ -193,29 +192,6 @@ function verifyTelegramData(initData) {
   }
 }
 
-// --- URL Verification Helper (Flexible for HTTP, HTTPS, & Telegram Links) ---
-function isValidTargetUrl(urlStr) {
-  if (!urlStr || typeof urlStr !== 'string') return false;
-  const trimmed = urlStr.trim();
-
-  // قبول روابط تليجرام بمختلف الصيغ (t.me, telegram.me, tg://)
-  if (/^(https?:\/\/)?(www\.)?(t\.me|telegram\.me)\/[a-zA-Z0-9_+\/-]+/i.test(trimmed) || /^tg:\/\//i.test(trimmed)) {
-    return true;
-  }
-
-  // التحقق من باقي الروابط القياسية
-  if (validUrl.isWebUri(trimmed)) {
-    return true;
-  }
-
-  // تحسين للرابط في حال كان يفتقر إلى http/https
-  if (!/^https?:\/\//i.test(trimmed)) {
-    return Boolean(validUrl.isWebUri(`https://${trimmed}`));
-  }
-
-  return false;
-}
-
 // --- Middlewares & Security Limiters ---
 const linkCreationLimiter = rateLimit({
   windowMs: 24 * 60 * 60 * 1000,
@@ -329,7 +305,7 @@ app.post('/api/user/sync', authMiddleware, async (req, res) => {
           const updateData = {};
           if (l.title !== undefined) updateData.title = String(l.title).trim();
           if (l.isActive !== undefined) updateData.isActive = Boolean(l.isActive);
-          if (l.targetUrl !== undefined && isValidTargetUrl(l.targetUrl)) updateData.targetUrl = String(l.targetUrl).trim();
+          if (l.targetUrl !== undefined && l.targetUrl.startsWith('http')) updateData.targetUrl = String(l.targetUrl).trim();
 
           if (Object.keys(updateData).length > 0) {
             bulkOps.push(
@@ -350,7 +326,7 @@ app.post('/api/user/sync', authMiddleware, async (req, res) => {
           const updateData = {};
           if (a.status !== undefined) updateData.status = String(a.status);
           if (a.title !== undefined) updateData.title = String(a.title).trim();
-          if (a.targetUrl !== undefined && isValidTargetUrl(a.targetUrl)) updateData.targetUrl = String(a.targetUrl).trim();
+          if (a.targetUrl !== undefined && a.targetUrl.startsWith('http')) updateData.targetUrl = String(a.targetUrl).trim();
 
           if (Object.keys(updateData).length > 0) {
             bulkOps.push(
@@ -596,7 +572,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'عنوان الإعلان مطلوب' });
     }
 
-    if (!isValidTargetUrl(targetUrl)) {
+    if (!targetUrl || !targetUrl.startsWith('http')) {
       await session.abortTransaction();
       return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
     }
@@ -618,9 +594,6 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
     }
 
     let cleanTargetUrl = String(targetUrl).trim();
-    if (!/^https?:\/\//i.test(cleanTargetUrl) && !/^tg:\/\//i.test(cleanTargetUrl)) {
-      cleanTargetUrl = `https://${cleanTargetUrl}`;
-    }
 
     const ad = await Ad.create([{
       userId: req.userId,
@@ -1017,17 +990,12 @@ const handleShortenLink = async (req, res) => {
     const { title, targetUrl, url } = req.body;
     let cleanUrl = String(targetUrl || url || '').trim();
 
-    if (!cleanUrl || !isValidTargetUrl(cleanUrl)) {
-      return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
+    if (!cleanUrl || !cleanUrl.startsWith('http')) {
+      return res.status(400).json({ error: 'الرابط المستهدف غير صالح' });
     }
 
     if (isPhishingOrMalicious(cleanUrl)) {
       return res.status(400).json({ success: false, error: 'الرابط ينتهك معايير الأمان' });
-    }
-
-    // تجهيز الهيكل الموحد للرابط
-    if (!/^https?:\/\//i.test(cleanUrl) && !/^tg:\/\//i.test(cleanUrl)) {
-      cleanUrl = `https://${cleanUrl}`;
     }
 
     try {
