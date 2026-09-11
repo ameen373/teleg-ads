@@ -1027,6 +1027,7 @@ const handleShortenLink = async (req, res) => {
   }
 };
 
+// مسارات إنشاء واختصار الروابط
 app.post('/api/links/shorten', authMiddleware, linkCreationLimiter, handleShortenLink);
 app.post('/api/links', authMiddleware, linkCreationLimiter, handleShortenLink);
 
