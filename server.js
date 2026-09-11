@@ -152,26 +152,44 @@ async function releaseLock(lockKey) {
 // =========================================================================
 // --- MongoDB Optimized Connection Pipeline (Serverless Cache) ---
 // =========================================================================
+let cachedDb = null;
+
 async function connectDB() {
-  if (mongoose.connection.readyState >= 1) return;
+  if (mongoose.connection.readyState >= 1) {
+    return mongoose.connection;
+  }
+
+  if (cachedDb) {
+    return cachedDb;
+  }
+
   try {
-    await mongoose.connect(CONFIG.MONGO_URI, {
-      maxPoolSize: 100,
-      minPoolSize: 20,
+    const opts = {
+      maxPoolSize: 10,
+      minPoolSize: 2,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
-      autoIndex: process.env.NODE_ENV !== 'production'
-    });
-    logger.info('✅ Enterprise MongoDB Pipeline Connected');
+      autoIndex: process.env.NODE_ENV !== 'production',
+      bufferCommands: false
+    };
+
+    cachedDb = await mongoose.connect(CONFIG.MONGO_URI, opts);
+    logger.info('✅ Enterprise MongoDB Pipeline Connected & Cached for Serverless');
+    return cachedDb;
   } catch (err) {
     logger.error('❌ Critical MongoDB Connection Failure:', err);
+    throw err;
   }
 }
 
-// Middleware لضمان اتصال قاعدة البيانات قبل كل طلب
+// Middleware لضمان اتصال قاعدة البيانات قبل كل طلب (مع انتظار الـ Promise)
 app.use(async (req, res, next) => {
-  await connectDB();
-  next();
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    next(err);
+  }
 });
 
 // =========================================================================
@@ -943,7 +961,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 // =========================================================================
 // --- Link Shortening & Isolation Infrastructure ---
 // =========================================================================
-const handleShortenLink = async (req, res) => {
+const handleShortenLink = async (req, res, next) => {
   try {
     const userId = req.userId;
 
@@ -961,7 +979,6 @@ const handleShortenLink = async (req, res) => {
       return res.status(400).json({ success: false, error: 'يرجى إدخال الرابط المراد اختصاره' });
     }
 
-    // التحقق من صحة وصياغة الرابط مع دعم إلحاق البروتوكول تلقائياً إذا سقط
     let cleanUrl = rawUrl;
     if (!/^https?:\/\//i.test(cleanUrl)) {
       cleanUrl = `https://${cleanUrl}`;
@@ -984,11 +1001,9 @@ const handleShortenLink = async (req, res) => {
       return res.status(400).json({ success: false, error: 'تعذر تحليل صيغة الرابط المدخل' });
     }
 
-    // توليد كود اختصار فريد
     const shortCode = crypto.randomBytes(3).toString('hex');
     const publisherTelegramId = req.user?.telegramId || null;
 
-    // مطابقة النموذج وإنشاء السجل في قاعدة البيانات مع الانتظار الإلزامي (await)
     const newLink = await Link.create({
       userId: userId,
       publisherTelegramId: publisherTelegramId,
@@ -1027,7 +1042,6 @@ const handleShortenLink = async (req, res) => {
   }
 };
 
-// مسارات إنشاء واختصار الروابط
 app.post('/api/links/shorten', authMiddleware, linkCreationLimiter, handleShortenLink);
 app.post('/api/links', authMiddleware, linkCreationLimiter, handleShortenLink);
 
@@ -1083,7 +1097,6 @@ app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
     if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات التعديل عليه' });
 
     link.isActive = !link.isActive;
-    // تم إصلاح المشكلة هنا بإضافة await لضمان إتمام الحفظ الفوري في قاعدة البيانات قبل الاستجابة
     await link.save();
     await safeRedisDel(`link:data:${link.shortCode}`);
 
@@ -1101,7 +1114,6 @@ app.post('/api/user/settings', authMiddleware, async (req, res, next) => {
     if (defaultWallet !== undefined) updateData.defaultWallet = String(defaultWallet).trim();
     if (language !== undefined) updateData.language = String(language).trim().toLowerCase() || CONFIG.DEFAULT_LANGUAGE;
 
-    // تم إصلاح المشكلة هنا بإضافة await لضمان حفظ الإعدادات في قاعدة البيانات قبل إرجاع الرد
     await User.findByIdAndUpdate(req.userId, updateData, { new: true });
     res.json({ success: true, message: 'تم تحديث الإعدادات بنجاح' });
   } catch (err) {
