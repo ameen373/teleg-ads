@@ -107,17 +107,7 @@ const userSchema = new mongoose.Schema({
   defaultWallet: { 
     type: String, 
     default: '', 
-    trim: true,
-    validate: {
-      validator: function(v) {
-        if (!v || v === '') return true;
-        const isTron = /^T[A-Za-z1-9]{33}$/.test(v);
-        const isEvm = /^0x[a-fA-F0-9]{40}$/.test(v);
-        const isTon = /^[a-zA-Z0-9_-]{48}$/.test(v) || /^0:[a-fA-F0-9]{64}$/.test(v);
-        return isTron || isEvm || isTon;
-      },
-      message: 'Invalid wallet address format (Must be TRC20, BEP20/ERC20, or TON)'
-    }
+    trim: true
   },
   statsSummary: {
     totalLinksCreated: { type: Number, default: 0, min: 0 },
