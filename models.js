@@ -1,5 +1,5 @@
 /**
- * Ultra-Enterprise Models Architecture (V5.4 - Dynamic Partial Updates & Telegram Link Support)
+ * Ultra-Enterprise Models Architecture (V5.2 - Absolute Multi-Tenant Isolation & Zero Data-Leakage)
  * Platform: Telega.ads Advertising & Shortener Network
  * Security: Zero-Data-Leakage Enforcement, Dynamic Context Scoping, Dual-ID Ownership Bindings
  */
@@ -14,24 +14,6 @@ const mongoose = require('mongoose');
 const formatCurrency = (val) => {
   if (typeof val !== 'number' || isNaN(val) || !isFinite(val)) return 0;
   return Math.round((val + Number.EPSILON) * 100000) / 100000;
-};
-
-/**
- * Universal Target URL & Telegram Link Validator
- * Fully supports:
- * - Long HTTP / HTTPS URLs with deep query parameters, fragments, and subdomains
- * - Standard t.me links (e.g. t.me/username, t.me/c/12345/678)
- * - Telegram bot start parameters (e.g. t.me/bot?start=ref123)
- * - Deep-link protocols (tg://resolve?domain=...)
- * - Telegram private join links (t.me/+AbCdEfGhIjK)
- */
-const validateUrlOrTelegram = (v) => {
-  if (!v || typeof v !== 'string') return false;
-  const trimmed = v.trim();
-  
-  // High-flexibility Regex for HTTP/HTTPS, TG Protocols, and t.me / telegram.me links
-  const pattern = /^(https?:\/\/|tg:\/\/)?(www\.)?(t\.me|telegram\.me|[a-zA-Z0-9-]+\.[a-zA-Z]{2,})(:\d+)?(\/[a-zA-Z0-9_.~:\/?#\[\]@!$&'()*+,;=%\-\+]*)?$/i;
-  return pattern.test(trimmed);
 };
 
 // Global Schema Options for strict data isolation and safe JSON serialization
@@ -57,26 +39,6 @@ const enforceTenantKey = (tenantKey, keyName = 'userId') => {
   if (!tenantKey) {
     throw new Error(`Security Violation [Tenant Isolation]: Access denied. Missing strictly required parameter: ${keyName}`);
   }
-};
-
-// Helper to flatten nested objects for atomic standard $set partial updates
-const flattenObject = (obj, prefix = '') => {
-  if (!obj || typeof obj !== 'object') return {};
-  return Object.keys(obj).reduce((acc, k) => {
-    const pre = prefix.length ? prefix + '.' : '';
-    if (
-      typeof obj[k] === 'object' &&
-      obj[k] !== null &&
-      !Array.isArray(obj[k]) &&
-      !(obj[k] instanceof Date) &&
-      !(obj[k] instanceof mongoose.Types.ObjectId)
-    ) {
-      Object.assign(acc, flattenObject(obj[k], pre + k));
-    } else if (obj[k] !== undefined) {
-      acc[pre + k] = obj[k];
-    }
-    return acc;
-  }, {});
 };
 
 // --------------------------------------------------
@@ -167,28 +129,14 @@ userSchema.statics.findByTelegramIdIsolated = function(telegramId) {
   return this.findOne({ telegramId: String(telegramId).trim() });
 };
 
-// Rapid Upsert / Partial Update for User Data
-userSchema.statics.upsertUser = function(telegramId, updateData = {}) {
-  enforceTenantKey(telegramId, 'telegramId');
-  const flatUpdate = flattenObject(updateData);
+// UPSERT & UPDATE METHODS FOR USER
+userSchema.statics.upsertUser = function(userData) {
+  enforceTenantKey(userData.telegramId, 'telegramId');
+  const tId = String(userData.telegramId).trim();
   return this.findOneAndUpdate(
-    { telegramId: String(telegramId).trim() },
-    { $set: flatUpdate },
-    { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
-  );
-};
-
-// Atomic Balance & Stats Updates
-userSchema.statics.atomicBalanceUpdate = function(telegramId, incFields = {}, setFields = {}) {
-  enforceTenantKey(telegramId, 'telegramId');
-  const updateQuery = {};
-  if (Object.keys(incFields).length > 0) updateQuery.$inc = incFields;
-  if (Object.keys(setFields).length > 0) updateQuery.$set = flattenObject(setFields);
-
-  return this.findOneAndUpdate(
-    { telegramId: String(telegramId).trim() },
-    updateQuery,
-    { new: true, runValidators: true }
+    { telegramId: tId },
+    { $set: { ...userData, telegramId: tId } },
+    { new: true, upsert: true, runValidators: true }
   );
 };
 
@@ -249,59 +197,29 @@ walletSchema.statics.getWalletIsolated = function(userId) {
   return this.findOne({ userId });
 };
 
-// Rapid Upsert / Partial Update for Wallet
-walletSchema.statics.upsertWallet = function(userId, telegramId, updateData = {}) {
+// UPSERT & BALANCE UPDATES FOR WALLET
+walletSchema.statics.upsertWallet = function(userId, telegramId, walletData = {}) {
   enforceTenantKey(userId, 'userId');
   enforceTenantKey(telegramId, 'telegramId');
-  const flatUpdate = flattenObject(updateData);
   return this.findOneAndUpdate(
     { userId },
-    { 
-      $setOnInsert: { telegramId: String(telegramId).trim() },
-      $set: flatUpdate 
-    },
-    { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
+    { $setOnInsert: { userId, telegramId: String(telegramId).trim(), ...walletData } },
+    { new: true, upsert: true, runValidators: true }
   );
 };
 
-// Atomic Financial Operations
-walletSchema.statics.atomicDeposit = function(userId, amount) {
+walletSchema.statics.updateBalanceAtomic = function(userId, { available = 0, pending = 0, deposited = 0, withdrawn = 0 }) {
   enforceTenantKey(userId, 'userId');
-  const formattedAmt = formatCurrency(amount);
+  const updateQuery = {};
+  if (available !== 0) updateQuery.availableBalance = available;
+  if (pending !== 0) updateQuery.pendingBalance = pending;
+  if (deposited !== 0) updateQuery.totalDeposited = deposited;
+  if (withdrawn !== 0) updateQuery.totalWithdrawn = withdrawn;
+
   return this.findOneAndUpdate(
     { userId },
-    { 
-      $inc: { 
-        availableBalance: formattedAmt, 
-        totalDeposited: formattedAmt 
-      } 
-    },
-    { new: true, upsert: true }
-  );
-};
-
-walletSchema.statics.atomicWithdraw = function(userId, amount) {
-  enforceTenantKey(userId, 'userId');
-  const formattedAmt = formatCurrency(amount);
-  return this.findOneAndUpdate(
-    { userId, availableBalance: { $gte: formattedAmt } },
-    { 
-      $inc: { 
-        availableBalance: -formattedAmt, 
-        totalWithdrawn: formattedAmt 
-      } 
-    },
-    { new: true }
-  );
-};
-
-walletSchema.statics.atomicSpend = function(userId, amount) {
-  enforceTenantKey(userId, 'userId');
-  const formattedAmt = formatCurrency(amount);
-  return this.findOneAndUpdate(
-    { userId, availableBalance: { $gte: formattedAmt } },
-    { $inc: { availableBalance: -formattedAmt } },
-    { new: true }
+    { $inc: updateQuery },
+    { new: true, runValidators: true }
   );
 };
 
@@ -351,19 +269,19 @@ const transactionSchema = new mongoose.Schema({
 
 transactionSchema.index({ userId: 1, createdAt: -1 });
 transactionSchema.index({ telegramId: 1, createdAt: -1 });
-transactionSchema.index({ userId: 1, type: 1, createdAt: -1 });
 
 transactionSchema.statics.getUserTransactionsIsolated = function(userId, filter = {}) {
   enforceTenantKey(userId, 'userId');
   return this.find({ ...filter, userId }).sort({ createdAt: -1 });
 };
 
-transactionSchema.statics.recordTransaction = function(data) {
-  enforceTenantKey(data.userId, 'userId');
-  enforceTenantKey(data.telegramId, 'telegramId');
+// INSERT TRANSACTION
+transactionSchema.statics.recordTransaction = function(txData) {
+  enforceTenantKey(txData.userId, 'userId');
+  enforceTenantKey(txData.telegramId, 'telegramId');
   return this.create({
-    ...data,
-    telegramId: String(data.telegramId).trim()
+    ...txData,
+    telegramId: String(txData.telegramId).trim()
   });
 };
 
@@ -401,27 +319,15 @@ const adSchema = new mongoose.Schema({
     trim: true, 
     maxlength: [100, 'Ad title must not exceed 100 characters'] 
   },
-  originalUrl: {
-    type: String,
-    required: false,
-    trim: true,
-    maxlength: [4096, 'Original URL is too long'],
-    validate: {
-      validator: function(v) {
-        if (!v || v === '') return true;
-        return validateUrlOrTelegram(v);
-      },
-      message: 'Invalid original URL or Telegram link format'
-    }
-  },
   targetUrl: { 
     type: String, 
     required: [true, 'Target URL is required'], 
     trim: true,
-    maxlength: [4096, 'Target URL is too long'],
     validate: {
-      validator: validateUrlOrTelegram,
-      message: 'Please enter a valid target URL or Telegram link (e.g., https://t.me/...)'
+      validator: function(v) {
+        return /^(https?:\/\/)?([\w.-]+)+[\w\-_~:/?#[\]@!$&'()*+,;=.]+$/i.test(v);
+      },
+      message: 'Please enter a valid target URL'
     }
   },
   totalBudget: { 
@@ -477,70 +383,36 @@ adSchema.pre('validate', function(next) {
   if (this.userId && !this.advertiserId) this.advertiserId = this.userId;
   if (this.advertiserId && !this.userId) this.userId = this.advertiserId;
   if (this.telegramId && !this.advertiserTelegramId) this.advertiserTelegramId = this.telegramId;
-  if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.telegramId;
-  
-  if (this.originalUrl && !this.targetUrl) {
-    this.targetUrl = this.originalUrl;
-  } else if (this.targetUrl && !this.originalUrl) {
-    this.originalUrl = this.targetUrl;
-  }
-  
+  if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.advertiserTelegramId;
   next();
 });
-
-adSchema.index({ userId: 1, status: 1, createdAt: -1 });
-adSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
-adSchema.index({ advertiserTelegramId: 1, status: 1, createdAt: -1 });
-adSchema.index({ status: 1, remainingBudget: 1, createdAt: -1 });
 
 adSchema.statics.findAdvertiserAdsIsolated = function(userId, filter = {}) {
   enforceTenantKey(userId, 'userId');
   return this.find({ ...filter, $or: [{ userId }, { advertiserId: userId }] }).sort({ createdAt: -1 });
 };
 
-// Dynamic Upsert & Partial Update for Ads with Remaining Budget Auto-sync
-adSchema.statics.upsertAd = function(adId, userId, updateData = {}) {
-  enforceTenantKey(userId, 'userId');
-  const flatUpdate = flattenObject(updateData);
-  
-  if (flatUpdate.originalUrl && !flatUpdate.targetUrl) {
-    flatUpdate.targetUrl = flatUpdate.originalUrl;
-  } else if (flatUpdate.targetUrl && !flatUpdate.originalUrl) {
-    flatUpdate.originalUrl = flatUpdate.targetUrl;
+// INSERT & UPDATE CAMPAIGN METHODS
+adSchema.statics.createCampaign = function(adData) {
+  enforceTenantKey(adData.userId, 'userId');
+  enforceTenantKey(adData.telegramId, 'telegramId');
+  if (adData.remainingBudget === undefined) {
+    adData.remainingBudget = adData.totalBudget;
   }
-
-  if (adId) {
-    return this.findOneAndUpdate(
-      { _id: adId, $or: [{ userId }, { advertiserId: userId }] },
-      { $set: flatUpdate },
-      { new: true, runValidators: true }
-    );
-  }
-  
-  const mergedData = { ...updateData, userId, advertiserId: userId };
-  if (!mergedData.remainingBudget && mergedData.totalBudget) {
-    mergedData.remainingBudget = mergedData.totalBudget;
-  }
-  return this.create(mergedData);
+  return this.create(adData);
 };
 
-// Atomic Impression & Budget Consumption
-adSchema.statics.recordImpressionAndDeduct = function(adId, costPerImpression) {
-  const cost = formatCurrency(costPerImpression);
+adSchema.statics.updateCampaignStatus = function(adId, userId, status) {
+  enforceTenantKey(userId, 'userId');
   return this.findOneAndUpdate(
-    { _id: adId, remainingBudget: { $gte: cost }, status: 'active' },
-    { 
-      $inc: { 
-        impressionsCount: 1, 
-        remainingBudget: -cost 
-      } 
-    },
-    { new: true }
+    { _id: adId, $or: [{ userId }, { advertiserId: userId }] },
+    { $set: { status } },
+    { new: true, runValidators: true }
   );
 };
 
 // --------------------------------------------------
-// 5. Shortened Link Model (Links - Isolated Multi-Tenant)
+// 5. Shortened Link Model (Links)
 // --------------------------------------------------
 const linkSchema = new mongoose.Schema({
   shortCode: { 
@@ -574,28 +446,10 @@ const linkSchema = new mongoose.Schema({
     trim: true,
     maxlength: 150 
   },
-  originalUrl: {
-    type: String,
-    required: false,
-    trim: true,
-    maxlength: [4096, 'Original URL is too long'],
-    validate: {
-      validator: function(v) {
-        if (!v || v === '') return true;
-        return validateUrlOrTelegram(v);
-      },
-      message: 'Invalid original URL or Telegram link format'
-    }
-  },
   targetUrl: { 
     type: String, 
     required: [true, 'Target URL is required'], 
-    trim: true,
-    maxlength: [4096, 'Target URL is too long'],
-    validate: {
-      validator: validateUrlOrTelegram,
-      message: 'Invalid target URL format (Must be valid HTTP/HTTPS or t.me Telegram link)'
-    }
+    trim: true 
   },
   isActive: { 
     type: Boolean, 
@@ -622,91 +476,24 @@ const linkSchema = new mongoose.Schema({
 linkSchema.pre('validate', function(next) {
   if (this.telegramId && !this.publisherTelegramId) this.publisherTelegramId = this.telegramId;
   if (this.publisherTelegramId && !this.telegramId) this.telegramId = this.publisherTelegramId;
-  
-  if (this.originalUrl && !this.targetUrl) {
-    this.targetUrl = this.originalUrl;
-  } else if (this.targetUrl && !this.originalUrl) {
-    this.originalUrl = this.targetUrl;
-  }
-  
   next();
 });
 
-linkSchema.index({ userId: 1, createdAt: -1 });
-linkSchema.index({ telegramId: 1, createdAt: -1 });
-linkSchema.index({ publisherTelegramId: 1, createdAt: -1 });
-linkSchema.index({ userId: 1, isActive: 1, createdAt: -1 });
-linkSchema.index({ userId: 1, shortCode: 1 });
-
 linkSchema.statics.getUserIsolatedLinks = function(userId, query = {}, options = {}) {
   enforceTenantKey(userId, 'userId');
-  const safeQuery = { ...query, userId };
-  return this.find(safeQuery, null, options).sort({ createdAt: -1 });
+  return this.find({ ...query, userId }, null, options).sort({ createdAt: -1 });
 };
 
-linkSchema.statics.findOneIsolated = function(shortCode, userId) {
-  enforceTenantKey(userId, 'userId');
-  return this.findOne({ shortCode, userId });
+// INSERT / UPDATE LINK METHODS
+linkSchema.statics.createShortLink = function(linkData) {
+  enforceTenantKey(linkData.userId, 'userId');
+  enforceTenantKey(linkData.telegramId, 'telegramId');
+  return this.create(linkData);
 };
 
-// Save or Dynamic Upsert Short Link supporting partial fields & long Telegram URLs
-linkSchema.statics.upsertLink = function(userId, telegramId, linkData = {}) {
-  enforceTenantKey(userId, 'userId');
-  enforceTenantKey(telegramId, 'telegramId');
-  
-  const flatUpdate = flattenObject(linkData);
-  if (flatUpdate.originalUrl && !flatUpdate.targetUrl) {
-    flatUpdate.targetUrl = flatUpdate.originalUrl;
-  } else if (flatUpdate.targetUrl && !flatUpdate.originalUrl) {
-    flatUpdate.originalUrl = flatUpdate.targetUrl;
-  }
-
-  const queryFilter = linkData.shortCode 
-    ? { shortCode: linkData.shortCode, userId }
-    : (linkData._id ? { _id: linkData._id, userId } : null);
-
-  if (queryFilter) {
-    return this.findOneAndUpdate(
-      queryFilter,
-      { 
-        $setOnInsert: { 
-          telegramId: String(telegramId).trim(),
-          publisherTelegramId: String(telegramId).trim()
-        },
-        $set: flatUpdate 
-      },
-      { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
-    );
-  }
-
-  return this.create({
-    ...linkData,
-    userId,
-    telegramId: String(telegramId).trim(),
-    publisherTelegramId: String(telegramId).trim()
-  });
-};
-
-// Rapid Partial Update for Link
-linkSchema.statics.updatePartial = function(shortCode, userId, updateData = {}) {
-  enforceTenantKey(userId, 'userId');
-  const flatUpdate = flattenObject(updateData);
-  if (flatUpdate.originalUrl && !flatUpdate.targetUrl) {
-    flatUpdate.targetUrl = flatUpdate.originalUrl;
-  } else if (flatUpdate.targetUrl && !flatUpdate.originalUrl) {
-    flatUpdate.originalUrl = flatUpdate.targetUrl;
-  }
-  return this.findOneAndUpdate(
-    { shortCode, userId },
-    { $set: flatUpdate },
-    { new: true, runValidators: true }
-  );
-};
-
-// Atomic View Counters Inc
-linkSchema.statics.incrementStats = function(shortCode, valid = true) {
+linkSchema.statics.incrementLinkViews = function(shortCode, isValid = true) {
   const incQuery = { views: 1 };
-  if (valid) incQuery.validImpressions = 1;
+  if (isValid) incQuery.validImpressions = 1;
   else incQuery.invalidImpressions = 1;
 
   return this.findOneAndUpdate(
@@ -798,19 +585,13 @@ impressionSchema.pre('validate', function(next) {
   if (this.publisherId && !this.userId) this.userId = this.publisherId;
   if (this.userId && !this.publisherId) this.publisherId = this.userId;
   if (this.telegramId && !this.publisherTelegramId) this.publisherTelegramId = this.telegramId;
-  if (this.publisherTelegramId && !this.telegramId) this.telegramId = this.telegramId;
+  if (this.publisherTelegramId && !this.telegramId) this.telegramId = this.publisherTelegramId;
   next();
 });
 
-impressionSchema.index({ userId: 1, createdAt: -1 });
-impressionSchema.index({ telegramId: 1, createdAt: -1 });
-impressionSchema.index({ publisherTelegramId: 1, createdAt: -1 });
-impressionSchema.index({ linkId: 1, userId: 1, createdAt: -1 });
-impressionSchema.index({ ip: 1, linkId: 1, createdAt: -1 });
-
-impressionSchema.statics.getPublisherImpressionsIsolated = function(userId, extraFilter = {}) {
-  enforceTenantKey(userId, 'userId');
-  return this.find({ ...extraFilter, $or: [{ userId }, { publisherId: userId }] }).sort({ createdAt: -1 });
+impressionSchema.statics.recordImpression = function(impData) {
+  enforceTenantKey(impData.userId || impData.publisherId, 'userId/publisherId');
+  return this.create(impData);
 };
 
 // --------------------------------------------------
@@ -879,10 +660,10 @@ clickSessionSchema.pre('validate', function(next) {
   next();
 });
 
-clickSessionSchema.index({ linkId: 1, ip: 1 });
-clickSessionSchema.index({ userId: 1, createdAt: -1 });
-clickSessionSchema.index({ telegramId: 1, createdAt: -1 });
-clickSessionSchema.index({ bridgeToken: 1 }, { unique: true });
+clickSessionSchema.statics.createSession = function(sessionData) {
+  enforceTenantKey(sessionData.userId || sessionData.publisherId, 'userId');
+  return this.create(sessionData);
+};
 
 // --------------------------------------------------
 // 8. Withdraw Request Model (Withdrawals)
@@ -954,45 +735,13 @@ withdrawSchema.pre('validate', function(next) {
   next();
 });
 
-withdrawSchema.index({ userId: 1, status: 1, createdAt: -1 });
-withdrawSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
-
-withdrawSchema.index(
-  { userId: 1, status: 'pending' }, 
-  { unique: true, partialFilterExpression: { status: 'pending' } }
-);
-
-withdrawSchema.statics.getUserWithdrawalsIsolated = function(userId, status = null) {
-  enforceTenantKey(userId, 'userId');
-  const query = { userId };
-  if (status) query.status = status;
-  return this.find(query).sort({ createdAt: -1 });
+withdrawSchema.statics.createWithdrawal = function(withdrawData) {
+  enforceTenantKey(withdrawData.userId, 'userId');
+  enforceTenantKey(withdrawData.telegramId, 'telegramId');
+  return this.create(withdrawData);
 };
 
-// Create Request / Dynamic Partial Update for Withdrawals
-withdrawSchema.statics.createRequest = function(data) {
-  enforceTenantKey(data.userId, 'userId');
-  enforceTenantKey(data.telegramId, 'telegramId');
-  return this.create({
-    ...data,
-    telegramId: String(data.telegramId).trim()
-  });
-};
-
-withdrawSchema.statics.upsertWithdraw = function(withdrawId, userId, updateData = {}) {
-  enforceTenantKey(userId, 'userId');
-  const flatUpdate = flattenObject(updateData);
-  if (withdrawId) {
-    return this.findOneAndUpdate(
-      { _id: withdrawId, userId },
-      { $set: flatUpdate },
-      { new: true, runValidators: true }
-    );
-  }
-  return this.create({ ...updateData, userId });
-};
-
-withdrawSchema.statics.updateStatus = function(withdrawId, status, rejectReason = '') {
+withdrawSchema.statics.updateWithdrawalStatus = function(withdrawId, status, rejectReason = '') {
   return this.findByIdAndUpdate(
     withdrawId,
     { $set: { status, rejectReason } },
@@ -1035,19 +784,11 @@ const earningsHoldSchema = new mongoose.Schema({
   }
 }, globalSchemaOptions);
 
-earningsHoldSchema.index({ userId: 1, isReleased: 1, releaseAt: 1 });
-earningsHoldSchema.index({ telegramId: 1, isReleased: 1, releaseAt: 1 });
-
-earningsHoldSchema.statics.getUserHoldsIsolated = function(userId) {
+earningsHoldSchema.statics.addEarningsHold = function(userId, telegramId, amount, hours = 24) {
   enforceTenantKey(userId, 'userId');
-  return this.find({ userId, isReleased: false }).sort({ releaseAt: 1 });
-};
-
-earningsHoldSchema.statics.markReleased = function(holdIds = []) {
-  return this.updateMany(
-    { _id: { $in: holdIds } },
-    { $set: { isReleased: true } }
-  );
+  enforceTenantKey(telegramId, 'telegramId');
+  const releaseAt = new Date(Date.now() + hours * 60 * 60 * 1000);
+  return this.create({ userId, telegramId: String(telegramId).trim(), amount, releaseAt });
 };
 
 // --------------------------------------------------
@@ -1115,42 +856,17 @@ depositSchema.pre('validate', function(next) {
   if (this.userId && !this.advertiserId) this.advertiserId = this.userId;
   if (this.advertiserId && !this.userId) this.userId = this.advertiserId;
   if (this.telegramId && !this.advertiserTelegramId) this.advertiserTelegramId = this.telegramId;
-  if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.telegramId;
+  if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.advertiserTelegramId;
   next();
 });
 
-depositSchema.index({ userId: 1, status: 1, createdAt: -1 });
-depositSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
-depositSchema.index({ advertiserTelegramId: 1, status: 1, createdAt: -1 });
-
-depositSchema.statics.getAdvertiserDepositsIsolated = function(userId) {
-  enforceTenantKey(userId, 'userId');
-  return this.find({ $or: [{ userId }, { advertiserId: userId }] }).sort({ createdAt: -1 });
+depositSchema.statics.createDeposit = function(depositData) {
+  enforceTenantKey(depositData.userId, 'userId');
+  enforceTenantKey(depositData.telegramId, 'telegramId');
+  return this.create(depositData);
 };
 
-// Create / Dynamic Partial Update for Deposits
-depositSchema.statics.createDeposit = function(data) {
-  enforceTenantKey(data.userId || data.advertiserId, 'userId');
-  return this.create({
-    ...data,
-    telegramId: String(data.telegramId || data.advertiserTelegramId).trim()
-  });
-};
-
-depositSchema.statics.upsertDeposit = function(depositId, userId, updateData = {}) {
-  enforceTenantKey(userId, 'userId');
-  const flatUpdate = flattenObject(updateData);
-  if (depositId) {
-    return this.findOneAndUpdate(
-      { _id: depositId, $or: [{ userId }, { advertiserId: userId }] },
-      { $set: flatUpdate },
-      { new: true, runValidators: true }
-    );
-  }
-  return this.create({ ...updateData, userId, advertiserId: userId });
-};
-
-depositSchema.statics.updateStatus = function(depositId, status, rejectReason = '') {
+depositSchema.statics.updateDepositStatus = function(depositId, status, rejectReason = '') {
   return this.findByIdAndUpdate(
     depositId,
     { $set: { status, rejectReason } },
@@ -1169,25 +885,7 @@ const announcementSchema = new mongoose.Schema({
   targetTelegramId: { type: String, default: null, trim: true, index: true }
 }, globalSchemaOptions);
 
-announcementSchema.index({ isActive: 1, targetUser: 1, createdAt: -1 });
-announcementSchema.index({ isActive: 1, targetTelegramId: 1, createdAt: -1 });
-
-announcementSchema.statics.getForUserIsolated = function(userId, telegramId) {
-  return this.find({
-    isActive: true,
-    $or: [
-      { targetUser: null, targetTelegramId: null },
-      { targetUser: userId },
-      { targetTelegramId: String(telegramId) }
-    ]
-  }).sort({ createdAt: -1 });
-};
-
-announcementSchema.statics.upsertAnnouncement = function(id, data = {}) {
-  const flatUpdate = flattenObject(data);
-  if (id) {
-    return this.findByIdAndUpdate(id, { $set: flatUpdate }, { new: true, runValidators: true });
-  }
+announcementSchema.statics.createAnnouncement = function(data) {
   return this.create(data);
 };
 
