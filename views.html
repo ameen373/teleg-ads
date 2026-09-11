@@ -353,8 +353,8 @@
 
         <div class="card">
           <h3 style="font-size: 16px; margin-top:0;" data-i18n="create_link_title">Shorten New Link</h3>
-          <input type="text" id="link-title" data-i18n-ph="ph_link_title" placeholder="Title (Optional)" oninput="markFormDirty()">
-          <input type="url" id="link-url" data-i18n-ph="ph_link_url" placeholder="Original URL (https://...)" oninput="markFormDirty()">
+          <input type="text" id="link-title" data-i18n-ph="ph_link_title" placeholder="Title (Optional)">
+          <input type="url" id="link-url" data-i18n-ph="ph_link_url" placeholder="Original URL (https://...)">
           <button id="btn-create-link" onclick="handleShortenClick()">
             <span data-i18n="btn_shorten">Shorten Link Now</span>
           </button>
@@ -396,7 +396,7 @@
           </div>
           
           <h4 style="font-size: 13px; margin: 12px 0 4px 0;" data-i18n="select_network_label">Select Network:</h4>
-          <select id="deposit-network" onchange="handleNetworkChange(this.value); markFormDirty();">
+          <select id="deposit-network" onchange="handleNetworkChange(this.value)">
             <option value="" data-i18n="opt_select_network">-- Select Payment Network --</option>
             <option value="USDT_TRC20">USDT (TRC20 Network)</option>
             <option value="USDT_BEP20">USDT (BEP20 Network)</option>
@@ -419,8 +419,8 @@
           </div>
 
           <h4 style="font-size: 13px; margin: 16px 0 6px 0;" data-i18n="submit_proof_label">Submit Deposit Proof:</h4>
-          <input type="number" id="deposit-amount" data-i18n-ph="ph_deposit_amount" placeholder="Amount ($)" min="1" step="any" oninput="markFormDirty()">
-          <input type="text" id="deposit-txhash" data-i18n-ph="ph_deposit_txid" placeholder="Transaction TxID / Hash" oninput="markFormDirty()">
+          <input type="number" id="deposit-amount" data-i18n-ph="ph_deposit_amount" placeholder="Amount ($)" min="1" step="any">
+          <input type="text" id="deposit-txhash" data-i18n-ph="ph_deposit_txid" placeholder="Transaction TxID / Hash">
           
           <button id="btn-request-deposit" class="btn-success" style="margin-top: 14px;" onclick="requestDeposit()">
             <span data-i18n="btn_submit_deposit">Submit Deposit Request</span>
@@ -434,13 +434,13 @@
           <div style="margin-bottom: 12px;">
             <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;" data-i18n="wallet_addr_label">Withdrawal Wallet (USDT TRC20)</label>
             <div style="display: flex; gap: 6px;">
-              <input type="text" id="default-wallet" data-i18n-ph="ph_wallet_addr" placeholder="Enter wallet address" readonly style="margin-top: 0;" oninput="markFormDirty()">
+              <input type="text" id="default-wallet" data-i18n-ph="ph_wallet_addr" placeholder="Enter wallet address" readonly style="margin-top: 0;">
               <button class="btn-small btn-warning" id="edit-wallet-btn" onclick="toggleWalletEdit()" style="margin-top: 0; width: auto;" data-i18n="btn_edit">Edit</button>
             </div>
             <button id="save-wallet-btn" class="hidden btn-small" onclick="saveSettings()" style="margin-top: 8px; width: 100%;" data-i18n="btn_save_wallet">Save New Address</button>
           </div>
 
-          <input type="number" id="withdraw-amount" data-i18n-ph="ph_withdraw_amount" placeholder="Amount (Min. $30)" min="30" step="any" oninput="updateWithdrawCalculations(); markFormDirty();">
+          <input type="number" id="withdraw-amount" data-i18n-ph="ph_withdraw_amount" placeholder="Amount (Min. $30)" min="30" step="any" oninput="updateWithdrawCalculations()">
           
           <div class="fee-breakdown hidden" id="withdraw-fee-box">
             <span><span data-i18n="lbl_amount">Amount</span>: <b id="calc-req">$0.00</b></span>
@@ -463,9 +463,9 @@
           <h3 style="font-size: 16px; margin-top:0;" data-i18n="create_ad_title">Create New Ad Campaign</h3>
           <p style="font-size: 11px; color: var(--text-muted); margin-top:-4px;" data-i18n="ad_rate_desc">Ad Rate: $1.50 per 1,000 real impressions (CPM)</p>
           
-          <input type="text" id="ad-title" data-i18n-ph="ph_ad_title" placeholder="Ad Title" oninput="markFormDirty()">
-          <input type="url" id="ad-target-url" data-i18n-ph="ph_ad_target_url" placeholder="Target URL (https://...)" oninput="markFormDirty()">
-          <input type="number" id="ad-budget" data-i18n-ph="ph_ad_budget" placeholder="Total Budget (Min. $5)" min="5" step="any" oninput="markFormDirty()">
+          <input type="text" id="ad-title" data-i18n-ph="ph_ad_title" placeholder="Ad Title">
+          <input type="url" id="ad-target-url" data-i18n-ph="ph_ad_target_url" placeholder="Target URL (https://...)">
+          <input type="number" id="ad-budget" data-i18n-ph="ph_ad_budget" placeholder="Total Budget (Min. $5)" min="5" step="any">
           
           <button id="btn-create-ad" onclick="createAdCampaign()">
             <span data-i18n="btn_launch_ad">Launch Ad Campaign</span>
@@ -541,7 +541,7 @@
 
         <div class="card">
           <h4 style="margin-top:0;">Revenue Pool Distribution</h4>
-          <input type="number" id="revenue-amount" placeholder="Total Revenue Amount ($)" step="any" oninput="markFormDirty()">
+          <input type="number" id="revenue-amount" placeholder="Total Revenue Amount ($)" step="any">
           <button id="btn-distribute-rev" onclick="distributeRevenue()" style="margin-top: 12px;">Distribute Revenue Pool</button>
         </div>
 
@@ -613,55 +613,57 @@
     let rawUserLinksCache = [];
     const tg = window.Telegram?.WebApp;
 
-    // Form Dirty Tracking State for Auto-Save / Unload Warning
-    let isFormDirty = false;
+    // Auto-Save Management Variables
+    let autoSaveTimer = null;
+    let isDataDirty = false;
 
-    function markFormDirty() {
-      isFormDirty = true;
+    // Trigger auto-save immediately via debounce or background sync
+    function triggerAutoSave() {
+      isDataDirty = true;
+      clearTimeout(autoSaveTimer);
+      autoSaveTimer = setTimeout(() => {
+        executeAutoSave(false);
+      }, 1000); // 1-second debounce after typing stops
     }
 
-    function collectCurrentFormData() {
-      return {
-        linkTitle: document.getElementById('link-title')?.value || '',
-        linkUrL: document.getElementById('link-url')?.value || '',
-        depositNetwork: document.getElementById('deposit-network')?.value || '',
-        depositAmount: document.getElementById('deposit-amount')?.value || '',
-        depositTxHash: document.getElementById('deposit-txhash')?.value || '',
-        defaultWallet: document.getElementById('default-wallet')?.value || '',
-        withdrawAmount: document.getElementById('withdraw-amount')?.value || '',
-        adTitle: document.getElementById('ad-title')?.value || '',
-        adTargetUrl: document.getElementById('ad-target-url')?.value || '',
-        adBudget: document.getElementById('ad-budget')?.value || ''
-      };
-    }
+    async function executeAutoSave(isBeacon = false) {
+      if (!isDataDirty && !isBeacon) return;
 
-    // Auto-Save background sync using navigator.sendBeacon or safeFetch
-    function saveFormChangesAutomatically(isSync = false) {
-      if (!isFormDirty) return;
-      
-      const formData = collectCurrentFormData();
-      const payload = JSON.stringify({
+      const formData = {
         userId: currentUserTelegramId,
         telegramId: currentUserTelegramId,
-        draftSettings: formData,
+        linkTitle: document.getElementById('link-title')?.value || '',
+        linkUrl: document.getElementById('link-url')?.value || '',
+        depositAmount: document.getElementById('deposit-amount')?.value || '',
+        depositTxHash: document.getElementById('deposit-txhash')?.value || '',
+        depositNetwork: document.getElementById('deposit-network')?.value || '',
+        withdrawAmount: document.getElementById('withdraw-amount')?.value || '',
+        defaultWallet: document.getElementById('default-wallet')?.value || '',
+        adTitle: document.getElementById('ad-title')?.value || '',
+        adTargetUrl: document.getElementById('ad-target-url')?.value || '',
+        adBudget: document.getElementById('ad-budget')?.value || '',
         timestamp: Date.now()
-      });
+      };
 
       const endpoint = `${API_BASE}/api/user/autosave`;
+      const payload = JSON.stringify(formData);
 
-      if (isSync && navigator.sendBeacon) {
+      if (isBeacon && navigator.sendBeacon) {
         const blob = new Blob([payload], { type: 'application/json' });
         navigator.sendBeacon(endpoint, blob);
-        isFormDirty = false;
+        isDataDirty = false;
       } else {
-        safeFetch('/api/user/autosave', {
-          method: 'POST',
-          body: payload
-        }).then(() => {
-          isFormDirty = false;
-        }).catch(err => {
+        try {
+          const res = await safeFetch('/api/user/autosave', {
+            method: 'POST',
+            body: payload
+          });
+          if (res && res.ok) {
+            isDataDirty = false;
+          }
+        } catch (err) {
           console.error("Auto-save sync error:", err);
-        });
+        }
       }
     }
 
@@ -852,6 +854,7 @@
 
     function handleNetworkChange(networkVal) {
       triggerHaptic('light');
+      triggerAutoSave();
       const trcCard = document.getElementById('card-addr-trc20');
       const bepCard = document.getElementById('card-addr-bep20');
 
@@ -880,6 +883,7 @@
     }
 
     function updateWithdrawCalculations() {
+      triggerAutoSave();
       const amtInput = document.getElementById('withdraw-amount');
       const feeBox = document.getElementById('withdraw-fee-box');
       const val = parseFloat(amtInput.value) || 0;
@@ -1400,7 +1404,6 @@
           document.getElementById('ad-title').value = '';
           document.getElementById('ad-target-url').value = '';
           document.getElementById('ad-budget').value = '';
-          isFormDirty = false;
           loadUserData();
         }
       } catch (e) {
@@ -1436,7 +1439,6 @@
           document.getElementById('deposit-txhash').value = '';
           document.getElementById('deposit-network').value = '';
           handleNetworkChange('');
-          isFormDirty = false;
           loadUserData();
         }
       } catch (e) {
@@ -1559,7 +1561,6 @@
           showToast(i18n[currentLang].link_success_msg || "Link created successfully!");
           document.getElementById('link-title').value = '';
           document.getElementById('link-url').value = '';
-          isFormDirty = false;
           
           if (data.link || data.newLink || data.shortCode) {
             const newLinkObj = data.link || data.newLink || {
@@ -1606,7 +1607,6 @@
           showToast(currentLang === 'ar' ? "تم تقديم طلب السحب بنجاح!" : "Withdrawal requested successfully!");
           document.getElementById('withdraw-amount').value = '';
           document.getElementById('withdraw-fee-box').classList.add('hidden');
-          isFormDirty = false;
           loadUserData();
         }
       } catch (e) {
@@ -1632,7 +1632,6 @@
         if (data.error) showToast(data.error);
         else {
           showToast(currentLang === 'ar' ? "تم حفظ المحفظة بنجاح" : "Wallet saved successfully");
-          isFormDirty = false;
           loadUserData();
         }
       } catch (e) {
@@ -1803,7 +1802,6 @@
         else {
           showToast(data.message || "Revenue distributed successfully");
           document.getElementById('revenue-amount').value = '';
-          isFormDirty = false;
         }
       } catch (e) {
         showToast("Error distributing revenue");
@@ -1826,6 +1824,12 @@
 
       renderTelegramUser();
 
+      // Attach Auto-Save listeners globally to all inputs and selects
+      document.querySelectorAll('input, select').forEach(element => {
+        element.addEventListener('input', triggerAutoSave);
+        element.addEventListener('change', triggerAutoSave);
+      });
+
       if (window.location.pathname.includes('/r/')) {
         document.getElementById('bridge-view').classList.remove('hidden');
         document.getElementById('app-view').classList.add('hidden');
@@ -1837,21 +1841,16 @@
       }
     });
 
-    // Event listeners to handle automatic background saving on visibility loss, page unload, or periodic triggers
+    // Capture app exit or visibility switch to flush final pending changes immediately via sendBeacon
     window.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') {
-        saveFormChangesAutomatically(true);
+        executeAutoSave(true);
       }
     });
 
     window.addEventListener('beforeunload', () => {
-      saveFormChangesAutomatically(true);
+      executeAutoSave(true);
     });
-
-    // Periodic background auto-save every 30 seconds if changes exist
-    setInterval(() => {
-      saveFormChangesAutomatically(false);
-    }, 30000);
   </script>
 </body>
 </html>
