@@ -32,24 +32,25 @@ app.use(cors({
 }));
 app.options('*', cors());
 
-// رفع حد البيانات لاستقبال طلبات المزامنة الفورية والحفظ
-app.use(express.json({ limit: '500kb' }));
-app.use(express.urlencoded({ extended: true, limit: '500kb' }));
-// قراءة نص الخام للطلبات القادمة من sendBeacon (text/plain)
-app.use(express.text({ type: ['text/plain', 'text/html'], limit: '500kb' }));
+// --- Body Parsing Middleware Supporting Standard Requests & sendBeacon Payloads ---
+app.use(express.json({ limit: '100kb' }));
+app.use(express.urlencoded({ extended: true, limit: '100kb' }));
+app.use(express.text({ type: '*/*', limit: '100kb' })); // لدعم navigator.sendBeacon
 app.use(express.static(__dirname));
 
-// --- Middleware للتعامل مع طلبات sendBeacon (تحويل النص إلى JSON إذا لزم الأمر) ---
-app.use((req, res, next) => {
-  if (typeof req.body === 'string' && req.body.trim().startsWith('{')) {
+// --- Helper to parse payload regardless of content-type (Beacon support) ---
+const parseBeaconPayload = (req, res, next) => {
+  if (typeof req.body === 'string') {
     try {
       req.body = JSON.parse(req.body);
     } catch (e) {
-      // التجاهل في حال لم يكن النص ذو تنسيق JSON صحيح
+      // Ignored if non-JSON string
     }
   }
   next();
-});
+};
+
+app.use(parseBeaconPayload);
 
 // --- Force UTF-8 JSON Response Headers & No-Cache Privacy Guard ---
 app.use('/api', (req, res, next) => {
@@ -192,26 +193,10 @@ function verifyTelegramData(initData) {
   }
 }
 
-// --- Dynamic URL Validator Helper (Supports Telegram t.me, tg:// & Custom Protocols) ---
-const isValidTargetUrl = (urlStr) => {
-  if (!urlStr || typeof urlStr !== 'string') return false;
-  const originalUrl = urlStr.trim();
-
-  try {
-    const parsedUrl = new URL(originalUrl.startsWith('http') ? originalUrl : `https://${originalUrl}`);
-    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-      return false;
-    }
-    return true;
-  } catch (e) {
-    return false;
-  }
-};
-
 // --- Middlewares & Security Limiters ---
 const linkCreationLimiter = rateLimit({
   windowMs: 24 * 60 * 60 * 1000,
-  max: 200,
+  max: 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, error: 'تم تجاوز الحد اليومي لإنشاء الروابط' }
@@ -219,7 +204,7 @@ const linkCreationLimiter = rateLimit({
 
 const clickLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 30,
+  max: 20,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => req.ip,
@@ -248,37 +233,31 @@ const authMiddleware = async (req, res, next) => {
   try {
     let user = null;
 
-    // Option 1: Bearer Token Authorization Header
+    // Option 1: Bearer Token Authorization Header or Query Parameter (for sendBeacon support)
+    let token = null;
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
+      token = authHeader.split(' ')[1];
+    } else if (req.query && req.query.token) {
+      token = req.query.token;
+    } else if (req.body && req.body.token) {
+      token = req.body.token;
+    }
+
+    if (token) {
       try {
         const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
         user = await User.findById(decoded.userId).lean();
       } catch (err) {}
     }
 
-    // Option 2: Fallback to Body/Query Token or userId (For sendBeacon & fetch compatibility)
-    if (!user && req.body && req.body.token) {
-      try {
-        const decoded = jwt.verify(req.body.token, CONFIG.JWT_SECRET);
-        user = await User.findById(decoded.userId).lean();
-      } catch (err) {}
-    }
-
-    // Option 3: Direct Telegram InitData Header / Body
+    // Option 2: Fallback to Direct Telegram InitData Header / Body
     if (!user) {
-      const initData = req.headers['x-telegram-init-data'] || (req.body && req.body.initData);
+      const initData = req.headers['x-telegram-init-data'] || req.body?.initData;
       const telegramUser = verifyTelegramData(initData);
       if (telegramUser) {
         user = await User.findOne({ telegramId: String(telegramUser.id) }).lean();
       }
-    }
-
-    // Option 4: Direct fallback by userId inside body or query
-    const targetUserId = req.body?.userId || req.query?.userId;
-    if (!user && targetUserId && mongoose.Types.ObjectId.isValid(targetUserId)) {
-      user = await User.findById(targetUserId).lean();
     }
 
     if (!user) {
@@ -305,6 +284,67 @@ const adminMiddleware = async (req, res, next) => {
   }
   next();
 };
+
+// =========================================================================
+// --- API Endpoint: Auto-Sync & Background Beacon Payload Handler ---
+// =========================================================================
+app.post('/api/user/sync', authMiddleware, async (req, res) => {
+  // الرد الفوري للعميل لمنع بطء/تجميد الواجهة (Fast Response Pattern)
+  res.status(200).json({ success: true, message: 'تم استلام بيانات الحفظ التلقائي وسيتم معالجتها' });
+
+  // معالجة التغييرات تلقائياً في الخلفية وتحديث models.js
+  const userId = req.userId;
+  const { links, ads, wallet, deposits, withdraws } = req.body || {};
+
+  try {
+    const bulkOps = [];
+
+    // 1. مزامنة الروابط
+    if (Array.isArray(links) && links.length > 0) {
+      links.forEach(l => {
+        if (l._id && mongoose.Types.ObjectId.isValid(l._id)) {
+          bulkOps.push(
+            Link.updateOne(
+              { _id: l._id, userId },
+              { $set: { title: l.title, isActive: l.isActive !== false } }
+            )
+          );
+        }
+      });
+    }
+
+    // 2. مزامنة الحملات الإعلانية
+    if (Array.isArray(ads) && ads.length > 0) {
+      ads.forEach(a => {
+        if (a._id && mongoose.Types.ObjectId.isValid(a._id)) {
+          bulkOps.push(
+            Ad.updateOne(
+              { _id: a._id, userId },
+              { $set: { status: a.status, title: a.title } }
+            )
+          );
+        }
+      });
+    }
+
+    // 3. مزامنة المحفظة والإعدادات
+    if (wallet && typeof wallet === 'object') {
+      const updateObj = {};
+      if (wallet.defaultWallet) updateObj.defaultWallet = String(wallet.defaultWallet).trim();
+      if (wallet.language) updateObj.language = String(wallet.language).trim();
+
+      if (Object.keys(updateObj).length > 0) {
+        bulkOps.push(User.updateOne({ _id: userId }, { $set: updateObj }));
+      }
+    }
+
+    if (bulkOps.length > 0) {
+      await Promise.all(bulkOps);
+    }
+  } catch (err) {
+    logger.error('Auto-Sync processing error in background:', err);
+  }
+});
 
 // =========================================================================
 // --- API Endpoint: Check Admin Role (/api/check-admin) ---
@@ -350,11 +390,11 @@ app.all('/api/check-admin', async (req, res) => {
 // --- Authentication & Isolated User Login ---
 app.post('/api/auth/login', async (req, res, next) => {
   try {
-    const initData = req.headers['x-telegram-init-data'] || req.body?.initData;
+    const initData = req.headers['x-telegram-init-data'];
     const telegramUser = verifyTelegramData(initData);
 
-    const tgId = telegramUser ? String(telegramUser.id) : (process.env.NODE_ENV !== 'production' ? String(req.headers['x-demo-user-id'] || req.body?.demoUserId || '') : null);
-    const { referrerId } = req.body || {};
+    const tgId = telegramUser ? String(telegramUser.id) : (process.env.NODE_ENV !== 'production' ? String(req.headers['x-demo-user-id'] || '') : null);
+    const { referrerId } = req.body;
 
     if (!tgId) return res.status(401).json({ success: false, error: 'بيانات الاعتماد الخاصة بتليجرام غير صالحة' });
 
@@ -478,165 +518,6 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   }
 });
 
-// =========================================================================
-// --- REAL-TIME SAVE / AUTO-SYNC ENDPOINTS (دعم الحفظ والتحديث المباشر) ---
-// =========================================================================
-
-/**
- * 1. Sync All User Data / Drafts / Wallet
- * يستقبل تحديثات البيانات الشاملة من الفرونت إند عبر fetch أو sendBeacon ويحدثها فوراً
- */
-app.post('/api/user/sync', authMiddleware, async (req, res, next) => {
-  try {
-    const { defaultWallet, language, draftAd, draftLink, campaign, link, wallet } = req.body;
-    const user = await User.findById(req.userId);
-
-    if (!user) {
-      return res.status(404).json({ success: false, error: 'المستخدم غير موجود' });
-    }
-
-    const targetWallet = defaultWallet || wallet;
-    if (targetWallet !== undefined) user.defaultWallet = String(targetWallet).trim();
-    if (language !== undefined) user.language = String(language).trim().toLowerCase() || CONFIG.DEFAULT_LANGUAGE;
-
-    await user.save();
-
-    // تحديث أو حفظ الحملة الإعلانية مباشرة إذا أُرسلت في جسم طلب المزامنة
-    const adPayload = draftAd || campaign;
-    if (adPayload && adPayload.id && mongoose.Types.ObjectId.isValid(adPayload.id)) {
-      await Ad.findOneAndUpdate(
-        { _id: adPayload.id, userId: req.userId },
-        { $set: adPayload },
-        { new: true }
-      );
-    }
-
-    // تحديث أو حفظ الرابط مباشرة إذا أُرسل في جسم طلب المزامنة
-    const linkPayload = draftLink || link;
-    if (linkPayload && linkPayload.id && mongoose.Types.ObjectId.isValid(linkPayload.id)) {
-      await Link.findOneAndUpdate(
-        { _id: linkPayload.id, $or: [{ userId: req.userId }, { userId: req.userId.toString() }] },
-        { $set: linkPayload },
-        { new: true }
-      );
-    }
-
-    return res.json({ success: true, message: 'تم مزامنة وحفظ البيانات بنجاح' });
-  } catch (err) {
-    next(err);
-  }
-});
-
-/**
- * 2. Update Ad Campaign Real-Time
- * تحديث أو حفظ تعديلات الحملة الإعلانية مباشرة
- */
-app.put('/api/ads/:id', authMiddleware, async (req, res, next) => {
-  try {
-    const adId = req.params.id;
-    if (!mongoose.Types.ObjectId.isValid(adId)) {
-      return res.status(400).json({ success: false, error: 'معرف الإعلان غير صالح' });
-    }
-
-    const { title, targetUrl, status, totalBudget, cpmRate } = req.body;
-    const updateData = {};
-
-    if (title !== undefined) updateData.title = String(title).trim();
-    if (targetUrl !== undefined) {
-      const cleanUrl = String(targetUrl).trim();
-      if (!isValidTargetUrl(cleanUrl)) {
-        return res.status(400).json({ success: false, error: 'رابط الحملة غير صالح' });
-      }
-      updateData.targetUrl = cleanUrl;
-    }
-    if (status !== undefined && ['active', 'paused', 'completed'].includes(status)) updateData.status = status;
-    if (totalBudget !== undefined && !isNaN(Number(totalBudget))) updateData.totalBudget = Number(totalBudget);
-    if (cpmRate !== undefined && !isNaN(Number(cpmRate))) updateData.cpmRate = Number(cpmRate);
-
-    const ad = await Ad.findOneAndUpdate(
-      { _id: adId, userId: req.userId },
-      { $set: updateData },
-      { new: true }
-    );
-
-    if (!ad) {
-      return res.status(404).json({ success: false, error: 'الحملة الإعلانية غير موجودة أو لا تملك صلاحية التعديل' });
-    }
-
-    return res.json({ success: true, ad });
-  } catch (err) {
-    next(err);
-  }
-});
-
-/**
- * 3. Update Link Real-Time
- * تحديث عنوان أو رابط الوجهة بشكل مباشر
- */
-app.put('/api/links/:id', authMiddleware, async (req, res, next) => {
-  try {
-    const linkId = req.params.id;
-    if (!mongoose.Types.ObjectId.isValid(linkId)) {
-      return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
-    }
-
-    const { title, targetUrl, isActive, url } = req.body;
-    const updateData = {};
-
-    if (title !== undefined) updateData.title = String(title).trim();
-    const rawTarget = targetUrl || url;
-    if (rawTarget !== undefined) {
-      const cleanUrl = String(rawTarget).trim();
-      if (!isValidTargetUrl(cleanUrl) || isPhishingOrMalicious(cleanUrl)) {
-        return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح أو غير آمن' });
-      }
-      updateData.targetUrl = cleanUrl;
-    }
-    if (isActive !== undefined) updateData.isActive = Boolean(isActive);
-
-    const link = await Link.findOneAndUpdate(
-      { _id: linkId, $or: [{ userId: req.userId }, { userId: req.userId.toString() }] },
-      { $set: updateData },
-      { new: true }
-    );
-
-    if (!link) {
-      return res.status(404).json({ success: false, error: 'الرابط غير موجود أو غير مصرح بتعديله' });
-    }
-
-    await safeRedisDel(`link:data:${link.shortCode}`);
-
-    return res.json({ success: true, link });
-  } catch (err) {
-    next(err);
-  }
-});
-
-/**
- * 4. Update Wallet / Default Wallet Real-Time
- * حفظ عنوان المحفظة للمستخدم فوراً
- */
-app.post('/api/wallet/update', authMiddleware, async (req, res, next) => {
-  try {
-    const { defaultWallet, walletAddress, wallet } = req.body;
-    const targetWallet = String(defaultWallet || walletAddress || wallet || '').trim();
-
-    if (!targetWallet || targetWallet.length < 8) {
-      return res.status(400).json({ success: false, error: 'عنوان المحفظة غير صالح' });
-    }
-
-    const user = await User.findByIdAndUpdate(
-      req.userId,
-      { $set: { defaultWallet: targetWallet } },
-      { new: true }
-    );
-
-    return res.json({ success: true, defaultWallet: user.defaultWallet });
-  } catch (err) {
-    next(err);
-  }
-});
-
 // --- Self-Serve Ad Campaign APIs ---
 app.post('/api/ads', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
@@ -650,8 +531,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'عنوان الإعلان مطلوب' });
     }
 
-    const cleanTargetUrl = String(targetUrl || '').trim();
-    if (!isValidTargetUrl(cleanTargetUrl)) {
+    if (!validUrl.isWebUri(targetUrl)) {
       await session.abortTransaction();
       return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
     }
@@ -677,7 +557,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       advertiserId: req.userId,
       advertiserTelegramId: req.user.telegramId,
       title: String(title).trim(),
-      targetUrl: cleanTargetUrl,
+      targetUrl: String(targetUrl).trim(),
       totalBudget: budget,
       remainingBudget: budget,
       cpmRate: 1.50,
@@ -1052,7 +932,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 // --- Strict Link Management Engine (100% Isolated Routes Guard) ---
 // =========================================================================
 
-// Shared Link Shortening Logic (Supports Web & Telegram links perfectly)
+// Shared Link Shortening Logic
 const handleShortenLink = async (req, res) => {
   try {
     const userId = req.userId;
@@ -1064,31 +944,20 @@ const handleShortenLink = async (req, res) => {
       });
     }
 
-    const { title, targetUrl, url, originalUrl: inputOriginalUrl } = req.body;
-    let originalUrl = String(targetUrl || url || inputOriginalUrl || '').trim();
+    const { title, targetUrl, url } = req.body;
+    const cleanUrl = String(targetUrl || url || '').trim();
 
-    if (!originalUrl) {
+    if (!cleanUrl || !validUrl.isWebUri(cleanUrl)) {
       return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
     }
-
-    // التحقق المرن لدعم روابط t.me، الشرطة السفلى _ وكافة المسارات المخصصة
-    try {
-      const parsedUrl = new URL(originalUrl.startsWith('http') ? originalUrl : `https://${originalUrl}`);
-      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-        return res.status(400).json({ error: 'الرابط المستهدف غير صالح' });
-      }
-    } catch (e) {
-      return res.status(400).json({ error: 'الرابط المستهدف غير صالح' });
-    }
-
-    let cleanUrl = originalUrl.startsWith('http') ? originalUrl : `https://${originalUrl}`;
 
     if (isPhishingOrMalicious(cleanUrl)) {
       return res.status(400).json({ success: false, error: 'الرابط ينتهك معايير الأمان' });
     }
 
     try {
-      if (cleanUrl.includes(CONFIG.APP_DOMAIN)) {
+      const domainCheck = new URL(cleanUrl).hostname;
+      if (domainCheck.includes(CONFIG.APP_DOMAIN)) {
         return res.status(400).json({ success: false, error: 'لا يمكن اختصار روابط الموقع نفسه' });
       }
     } catch (e) {}
