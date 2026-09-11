@@ -955,10 +955,20 @@ const handleShortenLink = async (req, res) => {
     }
 
     const { title, targetUrl, url } = req.body;
-    const cleanUrl = String(targetUrl || url || '').trim();
+    const rawUrl = String(targetUrl || url || '').trim();
 
-    if (!cleanUrl || !validUrl.isWebUri(cleanUrl)) {
-      return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح، يرجى كتابة رابط يبدأ بـ http أو https' });
+    if (!rawUrl) {
+      return res.status(400).json({ success: false, error: 'يرجى إدخال الرابط المراد اختصاره' });
+    }
+
+    // التحقق من صحة وصياغة الرابط مع دعم إلحاق البروتوكول تلقائياً إذا سقط
+    let cleanUrl = rawUrl;
+    if (!/^https?:\/\//i.test(cleanUrl)) {
+      cleanUrl = `https://${cleanUrl}`;
+    }
+
+    if (!validUrl.isWebUri(cleanUrl)) {
+      return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح، يرجى التأكد من كتابة رابط ويب صحيح' });
     }
 
     if (isPhishingOrMalicious(cleanUrl)) {
@@ -966,22 +976,26 @@ const handleShortenLink = async (req, res) => {
     }
 
     try {
-      const domainCheck = new URL(cleanUrl).hostname;
-      if (domainCheck.includes(CONFIG.APP_DOMAIN)) {
+      const parsedUrl = new URL(cleanUrl);
+      if (parsedUrl.hostname.includes(CONFIG.APP_DOMAIN)) {
         return res.status(400).json({ success: false, error: 'لا يمكن اختصار روابط المنصة نفسها' });
       }
-    } catch (e) {}
+    } catch (e) {
+      return res.status(400).json({ success: false, error: 'تعذر تحليل صيغة الرابط المدخل' });
+    }
 
+    // توليد كود اختصار فريد
     const shortCode = crypto.randomBytes(3).toString('hex');
     const publisherTelegramId = req.user?.telegramId || null;
-    
+
+    // مطابقة النموذج وإنشاء السجل في قاعدة البيانات
     const newLink = await Link.create({
       userId: userId,
       publisherTelegramId: publisherTelegramId,
       telegramId: publisherTelegramId,
       title: title ? String(title).trim() : 'رابط بدون عنوان',
       targetUrl: cleanUrl,
-      shortCode,
+      shortCode: shortCode,
       isActive: true
     });
 
@@ -1008,7 +1022,7 @@ const handleShortenLink = async (req, res) => {
     logger.error('❌ Error in Link Shortening Route:', err);
     return res.status(500).json({ 
       success: false, 
-      error: 'حدث خطأ أثناء اختصار الرابط، يرجى المحاولة لاحقاً' 
+      error: `حدث خطأ أثناء اختصار الرابط: ${err.message || 'خطأ غير معروف في الخادم'}` 
     });
   }
 };
