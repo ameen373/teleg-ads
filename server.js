@@ -195,19 +195,17 @@ function verifyTelegramData(initData) {
 // --- Dynamic URL Validator Helper (Supports Telegram t.me, tg:// & Custom Protocols) ---
 const isValidTargetUrl = (urlStr) => {
   if (!urlStr || typeof urlStr !== 'string') return false;
-  const trimmed = urlStr.trim();
-  
-  // قبول الروابط التي تبدأ بـ http/https أو tg://
-  if (/^(https?:\/\/|tg:\/\/)/i.test(trimmed)) {
-    try {
-      // التأكد من إمكانية تحليله كرابط
-      new URL(trimmed.replace(/^tg:\/\//i, 'https://'));
-      return true;
-    } catch (e) {
+  const originalUrl = urlStr.trim();
+
+  try {
+    const parsedUrl = new URL(originalUrl.startsWith('http') ? originalUrl : `https://${originalUrl}`);
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
       return false;
     }
+    return true;
+  } catch (e) {
+    return false;
   }
-  return false;
 };
 
 // --- Middlewares & Security Limiters ---
@@ -1066,17 +1064,24 @@ const handleShortenLink = async (req, res) => {
       });
     }
 
-    const { title, targetUrl, url } = req.body;
-    let cleanUrl = String(targetUrl || url || '').trim();
+    const { title, targetUrl, url, originalUrl: inputOriginalUrl } = req.body;
+    let originalUrl = String(targetUrl || url || inputOriginalUrl || '').trim();
 
-    // دعم إضافة البروتوكول في حال إدخال روابط مثل t.me/username مباشرة
-    if (cleanUrl.startsWith('t.me/')) {
-      cleanUrl = 'https://' + cleanUrl;
-    }
-
-    if (!cleanUrl || !isValidTargetUrl(cleanUrl)) {
+    if (!originalUrl) {
       return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
     }
+
+    // التحقق المرن لدعم روابط t.me، الشرطة السفلى _ وكافة المسارات المخصصة
+    try {
+      const parsedUrl = new URL(originalUrl.startsWith('http') ? originalUrl : `https://${originalUrl}`);
+      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+        return res.status(400).json({ error: 'الرابط المستهدف غير صالح' });
+      }
+    } catch (e) {
+      return res.status(400).json({ error: 'الرابط المستهدف غير صالح' });
+    }
+
+    let cleanUrl = originalUrl.startsWith('http') ? originalUrl : `https://${originalUrl}`;
 
     if (isPhishingOrMalicious(cleanUrl)) {
       return res.status(400).json({ success: false, error: 'الرابط ينتهك معايير الأمان' });
