@@ -754,7 +754,7 @@ app.post('/api/init-click', validateTraffic, async (req, res, next) => {
       await safeRedisSet(`link:data:${cleanCode}`, JSON.stringify({ id: linkId, userId: linkOwnerId, publisherTelegramId: linkOwnerTelegramId }), 'EX', 3600);
     }
 
-    await ClickSession.deleteMany({ linkId, ip: req.ip });
+    await ClickSession.deleteMany({ linkId: linkId, ip: req.ip });
 
     const activeAds = await Ad.aggregate([
       { 
@@ -895,7 +895,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
         let publisherShare = ad.publisherEarningsPerImpression || 0.00135;
         
         ad.remainingBudget = Math.max(0, ad.remainingBudget - costPerImpression);
-        ad.impressionsCount += 1;
+        ad.impressionsCount = (ad.impressionsCount || 0) + 1;
         if (ad.remainingBudget < costPerImpression) {
           ad.status = 'completed';
         }
@@ -1147,12 +1147,12 @@ app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (re
       );
 
       sendTelegramNotification(
-        deposit.advertiserTelegramId || deposit.advertiserId.telegramId,
+        deposit.advertiserTelegramId || deposit.advertiserId?.telegramId,
         `🎉 <b>تم تأكيد الإيداع!</b>\nتمت إضافة <code>$${deposit.amount}</code> إلى رصيدك المتاح.`
       );
     } else {
       sendTelegramNotification(
-        deposit.advertiserTelegramId || deposit.advertiserId.telegramId,
+        deposit.advertiserTelegramId || deposit.advertiserId?.telegramId,
         `❌ <b>تم رفض طلب الإيداع</b>\nالمبلغ: <code>$${deposit.amount}</code>\n⚠️ <b>السبب:</b> ${deposit.rejectReason}\n\nالدعم: ${CONFIG.SUPPORT_USERNAME}`
       );
     }
@@ -1200,12 +1200,12 @@ app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (r
       );
 
       sendTelegramNotification(
-        withdraw.telegramId || withdraw.userId.telegramId,
+        withdraw.telegramId || withdraw.userId?.telegramId,
         `❌ <b>تم رفض طلب السحب</b>\nإجمالي المبلغ: <code>$${withdraw.amount}</code>\n⚠️ <b>السبب:</b> ${withdraw.rejectReason}\nتم إعادة المبلغ لرصيدك المتاح.\nالدعم: ${CONFIG.SUPPORT_USERNAME}`
       );
     } else if (action === 'approved') {
       sendTelegramNotification(
-        withdraw.telegramId || withdraw.userId.telegramId,
+        withdraw.telegramId || withdraw.userId?.telegramId,
         `🎉 <b>تمت الموافقة على السحب!</b>\nإجمالي المبلغ: <code>$${withdraw.amount}</code>\nالصافي المحول: <code>$${withdraw.netAmount}</code>\nالشبكة: <code>${withdraw.network}</code>\nشكراً لاستخدامك منصتنا!`
       );
     }
