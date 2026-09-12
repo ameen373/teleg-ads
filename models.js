@@ -1,7 +1,7 @@
 /**
- * Ultra-Enterprise Models Architecture (V5.3 - Production-Ready & Zero-Leakage Safe)
+ * Ultra-Enterprise Models Architecture (V5.3 - Dynamic Isolation & Robust Data Persistence)
  * Platform: Telega.ads Advertising & Shortener Network
- * Security: Zero-Data-Leakage Enforcement, Dynamic Context Scoping, Dual-ID Ownership Bindings
+ * Security: Zero-Data-Leakage Enforcement, Safe Persist Enforcers & Custom Validations
  */
 
 if (typeof window !== 'undefined') {
@@ -10,20 +10,25 @@ if (typeof window !== 'undefined') {
 
 const mongoose = require('mongoose');
 
-// Precision currency formatter up to 5 decimal places (Prevents JS Floating-point flaws)
+// Precision currency formatter up to 5 decimal places (Prevents JS Floating-point flaws & converts strings gracefully)
 const formatCurrency = (val) => {
-  if (typeof val !== 'number' || isNaN(val) || !isFinite(val)) return 0;
-  return Math.round((val + Number.EPSILON) * 100000) / 100000;
+  const num = Number(val);
+  if (isNaN(num) || !isFinite(num)) return 0;
+  return Math.round((num + Number.EPSILON) * 100000) / 100000;
 };
 
-// Helper validator to test wallet addresses (USDT TRC20, BEP20/ERC20, TON)
-const isValidWalletAddress = (v) => {
-  if (!v || typeof v !== 'string' || v.trim() === '') return false;
-  const val = v.trim();
-  const isTron = /^T[A-Za-z1-9]{33}$/.test(val);
-  const isEvm = /^0x[a-fA-F0-9]{40}$/.test(val);
-  const isTon = /^[a-zA-Z0-9_-]{48}$/.test(val) || /^0:[a-fA-F0-9]{64}$/.test(val);
-  return isTron || isEvm || isTon;
+// Robust URL Validator to prevent save failures on complex query params
+const isValidUrl = (val) => {
+  if (!val || typeof val !== 'string') return false;
+  const trimmed = val.trim();
+  if (trimmed.length === 0) return false;
+  try {
+    const urlToTest = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    new URL(urlToTest);
+    return true;
+  } catch (err) {
+    return false;
+  }
 };
 
 // Global Schema Options for strict data isolation and safe JSON serialization
@@ -115,8 +120,12 @@ const userSchema = new mongoose.Schema({
     trim: true,
     validate: {
       validator: function(v) {
-        if (!v || v === '') return true;
-        return isValidWalletAddress(v);
+        if (!v || v.trim() === '') return true;
+        const val = v.trim();
+        const isTron = /^T[A-Za-z1-9]{33}$/.test(val);
+        const isEvm = /^0x[a-fA-F0-9]{40}$/.test(val);
+        const isTon = /^[a-zA-Z0-9_-]{48}$/.test(val) || /^0:[a-fA-F0-9]{64}$/.test(val);
+        return isTron || isEvm || isTon;
       },
       message: 'Invalid wallet address format (Must be USDT TRC20, BEP20/ERC20, or TON)'
     }
@@ -278,16 +287,14 @@ const adSchema = new mongoose.Schema({
     type: String, 
     required: [true, 'Ad title is required'], 
     trim: true, 
-    maxlength: [100, 'Ad title must not exceed 100 characters'] 
+    maxlength: [150, 'Ad title must not exceed 150 characters'] 
   },
   targetUrl: { 
     type: String, 
     required: [true, 'Target URL is required'], 
     trim: true,
     validate: {
-      validator: function(v) {
-        return /^(https?:\/\/)?([\w.-]+)+[\w\-_~:/?#[\]@!$&'()*+,;=.]+$/i.test(v);
-      },
+      validator: isValidUrl,
       message: 'Please enter a valid target URL'
     }
   },
@@ -343,11 +350,18 @@ const adSchema = new mongoose.Schema({
 adSchema.pre('validate', function(next) {
   if (this.userId && !this.advertiserId) this.advertiserId = this.userId;
   if (this.advertiserId && !this.userId) this.userId = this.advertiserId;
-  if (this.telegramId && !this.advertiserTelegramId) this.advertiserTelegramId = this.telegramId;
-  if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.advertiserTelegramId;
-
-  if (this.remainingBudget === undefined && this.totalBudget !== undefined) {
+  if (this.telegramId && !this.advertiserTelegramId) this.advertiserTelegramId = String(this.telegramId);
+  if (this.advertiserTelegramId && !this.telegramId) this.telegramId = String(this.advertiserTelegramId);
+  
+  if (typeof this.remainingBudget === 'undefined' && typeof this.totalBudget === 'number') {
     this.remainingBudget = this.totalBudget;
+  }
+  
+  if (this.targetUrl && typeof this.targetUrl === 'string') {
+    this.targetUrl = this.targetUrl.trim();
+    if (!/^https?:\/\//i.test(this.targetUrl)) {
+      this.targetUrl = `https://${this.targetUrl}`;
+    }
   }
   next();
 });
@@ -395,12 +409,16 @@ const linkSchema = new mongoose.Schema({
     type: String, 
     default: 'Untitled Link', 
     trim: true,
-    maxlength: 150 
+    maxlength: 250 
   },
   targetUrl: { 
     type: String, 
     required: [true, 'Target URL is required'], 
-    trim: true 
+    trim: true,
+    validate: {
+      validator: isValidUrl,
+      message: 'Please enter a valid target URL'
+    }
   },
   isActive: { 
     type: Boolean, 
@@ -425,8 +443,19 @@ const linkSchema = new mongoose.Schema({
 }, globalSchemaOptions);
 
 linkSchema.pre('validate', function(next) {
-  if (this.telegramId && !this.publisherTelegramId) this.publisherTelegramId = this.telegramId;
-  if (this.publisherTelegramId && !this.telegramId) this.telegramId = this.publisherTelegramId;
+  if (this.telegramId && !this.publisherTelegramId) this.publisherTelegramId = String(this.telegramId);
+  if (this.publisherTelegramId && !this.telegramId) this.telegramId = String(this.publisherTelegramId);
+  
+  if (this.targetUrl && typeof this.targetUrl === 'string') {
+    this.targetUrl = this.targetUrl.trim();
+    if (!/^https?:\/\//i.test(this.targetUrl)) {
+      this.targetUrl = `https://${this.targetUrl}`;
+    }
+  }
+  
+  if (!this.title || this.title.trim() === '') {
+    this.title = 'Untitled Link';
+  }
   next();
 });
 
@@ -528,8 +557,8 @@ const impressionSchema = new mongoose.Schema({
 impressionSchema.pre('validate', function(next) {
   if (this.publisherId && !this.userId) this.userId = this.publisherId;
   if (this.userId && !this.publisherId) this.publisherId = this.userId;
-  if (this.telegramId && !this.publisherTelegramId) this.publisherTelegramId = this.telegramId;
-  if (this.publisherTelegramId && !this.telegramId) this.telegramId = this.publisherTelegramId;
+  if (this.telegramId && !this.publisherTelegramId) this.publisherTelegramId = String(this.telegramId);
+  if (this.publisherTelegramId && !this.telegramId) this.telegramId = String(this.publisherTelegramId);
   next();
 });
 
@@ -634,17 +663,17 @@ const withdrawSchema = new mongoose.Schema({
   amount: { 
     type: Number, 
     required: [true, 'Total withdrawal amount is required'], 
-    min: [5, 'Minimum withdrawal limit is $5'],
+    min: [1, 'Minimum withdrawal limit is $1'],
     set: formatCurrency 
   },
   fee: {
     type: Number,
-    default: 3,
+    default: 0,
     set: formatCurrency
   },
   netAmount: {
     type: Number,
-    required: [true, 'Net amount is required'],
+    required: true,
     set: formatCurrency
   },
   network: {
@@ -657,11 +686,7 @@ const withdrawSchema = new mongoose.Schema({
   walletAddress: { 
     type: String, 
     required: [true, 'Wallet address is required'], 
-    trim: true,
-    validate: {
-      validator: isValidWalletAddress,
-      message: 'Invalid withdrawal wallet address format'
-    }
+    trim: true 
   },
   status: { 
     type: String, 
@@ -683,8 +708,8 @@ const withdrawSchema = new mongoose.Schema({
 }, globalSchemaOptions);
 
 withdrawSchema.pre('validate', function(next) {
-  const amount = typeof this.amount === 'number' ? this.amount : 0;
-  const fee = typeof this.fee === 'number' ? this.fee : 3;
+  const amount = typeof this.amount === 'number' ? this.amount : Number(this.amount) || 0;
+  const fee = typeof this.fee === 'number' ? this.fee : Number(this.fee) || 0;
   this.netAmount = formatCurrency(Math.max(0, amount - fee));
   next();
 });
@@ -693,7 +718,7 @@ withdrawSchema.index({ userId: 1, status: 1, createdAt: -1 });
 withdrawSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
 
 withdrawSchema.index(
-  { userId: 1, status: 1 }, 
+  { userId: 1, status: 'pending' }, 
   { unique: true, partialFilterExpression: { status: 'pending' } }
 );
 
@@ -778,7 +803,7 @@ const depositSchema = new mongoose.Schema({
   amount: {
     type: Number,
     required: [true, 'Deposit amount is required'],
-    min: [1, 'Minimum deposit limit is $1'],
+    min: [0.1, 'Minimum deposit limit is $0.1'],
     set: formatCurrency
   },
   network: {
@@ -811,8 +836,8 @@ const depositSchema = new mongoose.Schema({
 depositSchema.pre('validate', function(next) {
   if (this.userId && !this.advertiserId) this.advertiserId = this.userId;
   if (this.advertiserId && !this.userId) this.userId = this.advertiserId;
-  if (this.telegramId && !this.advertiserTelegramId) this.advertiserTelegramId = this.telegramId;
-  if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.advertiserTelegramId;
+  if (this.telegramId && !this.advertiserTelegramId) this.advertiserTelegramId = String(this.telegramId);
+  if (this.advertiserTelegramId && !this.telegramId) this.telegramId = String(this.advertiserTelegramId);
   next();
 });
 
