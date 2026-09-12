@@ -14,7 +14,6 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const morgan = require('morgan');
 const winston = require('winston');
-const validUrl = require('valid-url');
 const axios = require('axios');
 const Redis = require('ioredis');
 const cors = require('cors');
@@ -84,26 +83,29 @@ const CONFIG = Object.freeze({
   SUPPORT_USERNAME: '@' + (process.env.TELEGRAM_SUPPORT_URL || 'https://t.me/Te_AdsNs_bot').split('/').pop()
 });
 
-// --- Helper: Flexible URL Validation & Normalization ---
+// --- Helper: Flexible URL Validation & Normalization (No Fetch/Ping - Native new URL()) ---
 function normalizeAndValidateUrl(inputUrl) {
   if (!inputUrl || typeof inputUrl !== 'string') return null;
   let url = inputUrl.trim();
 
-  // Support direct tg:// protocol links
+  // Support direct tg:// protocol links (e.g. tg://resolve?domain=...)
   if (url.startsWith('tg://')) {
     return url;
   }
 
-  // Prepend https:// if protocol is missing (including t.me or standard domains)
+  // Prepend https:// if protocol is missing (supports t.me/xxx, telegram.me/xxx, etc.)
   if (!/^https?:\/\//i.test(url)) {
     url = 'https://' + url;
   }
 
   try {
     const parsed = new URL(url);
-    // Accept standard http and https web URLs (including t.me, telegram.me, etc.)
+    // Accept standard http and https web URLs (including t.me, telegram.me, and all domains)
     if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
-      return parsed.href;
+      // Ensure hostname exists and is non-empty
+      if (parsed.hostname && parsed.hostname.length > 0) {
+        return parsed.href;
+      }
     }
   } catch (err) {
     return null;
