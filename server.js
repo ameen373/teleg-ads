@@ -89,23 +89,24 @@ function normalizeAndValidateUrl(inputUrl) {
   if (!inputUrl || typeof inputUrl !== 'string') return null;
   let url = inputUrl.trim();
 
-  // Handle Telegram deep links / custom protocols
-  if (url.startsWith('tg://') || url.startsWith('t.me/')) {
-    if (url.startsWith('t.me/')) {
-      url = 'https://' + url;
-    } else {
-      return url; // Valid tg:// protocol link
-    }
+  // Support direct tg:// protocol links
+  if (url.startsWith('tg://')) {
+    return url;
   }
 
-  // Prepend https:// if protocol is missing
-  if (!/^https?:\/\//i.test(url) && !url.startsWith('tg://')) {
+  // Prepend https:// if protocol is missing (including short t.me/ links)
+  if (!/^https?:\/\//i.test(url)) {
     url = 'https://' + url;
   }
 
-  // Standard web URI validation or Telegram domain check
-  if (validUrl.isWebUri(url) || /^https?:\/\/(www\.)?t\.me\/.+/i.test(url)) {
-    return url;
+  try {
+    const parsed = new URL(url);
+    // Accept standard http and https web URLs (including t.me)
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return parsed.href;
+    }
+  } catch (err) {
+    return null;
   }
 
   return null;
@@ -238,7 +239,7 @@ const isPhishingOrMalicious = (url) => {
 };
 
 // =========================================================================
-// --- Middleware للتحقق من هوية المستخدم واستخراج userId ---
+// --- Middleware للتحقق من هوية المستخدم واستخرج userId ---
 // =========================================================================
 const authMiddleware = async (req, res, next) => {
   try {
