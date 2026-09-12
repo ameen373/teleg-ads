@@ -354,7 +354,7 @@
         <div class="card">
           <h3 style="font-size: 16px; margin-top:0;" data-i18n="create_link_title">Shorten New Link</h3>
           <input type="text" id="link-title" data-i18n-ph="ph_link_title" placeholder="Title (Optional)">
-          <input type="url" id="link-url" data-i18n-ph="ph_link_url" placeholder="Original URL (https://...)">
+          <input type="text" id="link-url" data-i18n-ph="ph_link_url" placeholder="Original URL or Telegram Link">
           <button id="btn-create-link" onclick="handleShortenClick()">
             <span data-i18n="btn_shorten">Shorten Link Now</span>
           </button>
@@ -464,7 +464,7 @@
           <p style="font-size: 11px; color: var(--text-muted); margin-top:-4px;" data-i18n="ad_rate_desc">Ad Rate: $1.50 per 1,000 real impressions (CPM)</p>
           
           <input type="text" id="ad-title" data-i18n-ph="ph_ad_title" placeholder="Ad Title">
-          <input type="url" id="ad-target-url" data-i18n-ph="ph_ad_target_url" placeholder="Target URL (https://...)">
+          <input type="text" id="ad-target-url" data-i18n-ph="ph_ad_target_url" placeholder="Target URL or Telegram Link">
           <input type="number" id="ad-budget" data-i18n-ph="ph_ad_budget" placeholder="Total Budget (Min. $5)" min="5" step="any">
           
           <button id="btn-create-ad" onclick="createAdCampaign()">
@@ -638,7 +638,7 @@
         avail_bal: "Available Balance",
         create_link_title: "Shorten New Link",
         ph_link_title: "Title (Optional)",
-        ph_link_url: "Original URL (https://...)",
+        ph_link_url: "Original URL or Telegram Link",
         btn_shorten: "Shorten Link Now",
         my_links_title: "Your Links",
         withdraw_request_title: "Withdraw Earnings",
@@ -652,7 +652,7 @@
         create_ad_title: "Create New Ad Campaign",
         ad_rate_desc: "Ad Rate: $1.50 per 1,000 real impressions (CPM)",
         ph_ad_title: "Ad Title",
-        ph_ad_target_url: "Target URL (https://...)",
+        ph_ad_target_url: "Target URL or Telegram Link",
         ph_ad_budget: "Total Budget (Min. $5)",
         btn_launch_ad: "Launch Ad Campaign",
         my_ads_title: "Your Ad Campaigns",
@@ -719,7 +719,7 @@
         avail_bal: "متاح للسحب (Available)",
         create_link_title: "اختصار رابط جديد",
         ph_link_title: "عنوان المعاينة (اختياري)",
-        ph_link_url: "الرابط الأصلي (https://...)",
+        ph_link_url: "الرابط الأصلي أو رابط تليجرام",
         btn_shorten: "اختصار الرابط الآن",
         my_links_title: "الروابط الخاصة بك",
         withdraw_request_title: "طلب سحب الأرباح",
@@ -733,7 +733,7 @@
         create_ad_title: "إنشاء حملة إعلانية جديدة",
         ad_rate_desc: "تكلفة الإعلان: $1.50 لكل 1,000 مشاهدة حقيقية (CPM)",
         ph_ad_title: "عنوان الإعلان",
-        ph_ad_target_url: "رابط التوجيه (https://...)",
+        ph_ad_target_url: "رابط التوجيه أو رابط تليجرام",
         ph_ad_budget: "الميزانية الإجمالية (الحد الأدنى 5$)",
         btn_launch_ad: "إطلاق الحملة الإعلانية",
         my_ads_title: "حملاتك الإعلانية",
@@ -811,26 +811,17 @@
       } catch (e) {}
     }
 
-    // 2. ENHANCED URL VALIDATION & FORMATTING (FIXED TELEGRAM & SHORT LINK ISSUES)
+    // 2. UNRESTRICTED URL FORMATTING & PASS-THROUGH (REMOVED FRONTEND VALIDATION RESTRICTIONS)
     function cleanAndValidateUrl(inputUrl) {
       if (!inputUrl) return null;
       let url = inputUrl.trim();
       
       // Automatic HTTP/HTTPS protocol prepending if missing
-      if (!/^https?:\/\//i.test(url)) {
+      if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//i.test(url)) {
         url = 'https://' + url;
       }
 
-      try {
-        const parsedUrl = new URL(url);
-        // Ensure hostname has a domain extension or is a valid telegram short-link host
-        if (parsedUrl.hostname && parsedUrl.hostname.includes('.')) {
-          return parsedUrl.href;
-        }
-      } catch (e) {
-        return null;
-      }
-      return null;
+      return url;
     }
 
     // 3. REAL-TIME DYNAMIC DATA PERSISTENCE
@@ -1399,7 +1390,7 @@
 
       const validUrl = cleanAndValidateUrl(rawUrl);
       if (!validUrl) {
-        return showToast(currentLang === 'ar' ? "الرابط المستهدف غير صالح، يرجى كتابة رابط صحيح" : "Invalid target URL");
+        return showToast(currentLang === 'ar' ? "يرجى إدخال الرابط المراد اختصاره" : "Please enter a valid URL");
       }
 
       triggerHaptic('medium');
@@ -1513,7 +1504,7 @@
       setButtonLoading('btn-request-deposit', true);
 
       try {
-        const res = await safeFetch('/api/deposits/request', {
+        const res = await safeFetch('/api/wallet/deposit', {
           method: 'POST',
           body: JSON.stringify({ amount, paymentMethod, txHash })
         });
@@ -1525,7 +1516,7 @@
           clearDraftStorage(['deposit-amount', 'deposit-txhash']);
         }
       } catch (e) {
-        showToast(currentLang === 'ar' ? "حدث خطأ أثناء تقديم طلب الشحن" : "Error submitting deposit request");
+        showToast(currentLang === 'ar' ? "حدث خطأ أثناء إرسال طلب الشحن" : "Error submitting deposit");
       } finally {
         setButtonLoading('btn-request-deposit', false, `<span data-i18n="btn_submit_deposit">${i18n[currentLang].btn_submit_deposit}</span>`);
       }
@@ -1535,18 +1526,18 @@
       const amount = document.getElementById('withdraw-amount').value;
       const walletAddress = document.getElementById('default-wallet').value;
 
-      if (!walletAddress) {
-        return showToast(currentLang === 'ar' ? "يرجى إضافة عنوان محفظة السحب أولاً" : "Please add withdrawal wallet address first");
+      if (!amount || amount < 30) {
+        return showToast(currentLang === 'ar' ? "الحد الأدنى للسحب هو 30$" : "Minimum withdrawal is $30");
       }
-      if (!amount || parseFloat(amount) < 30) {
-        return showToast(currentLang === 'ar' ? "الحد الأدنى للسحب هو 30$" : "Minimum withdrawal amount is $30");
+      if (!walletAddress) {
+        return showToast(currentLang === 'ar' ? "يرجى إضافة عنوان المحفظة أولاً" : "Please set a withdrawal wallet");
       }
 
       triggerHaptic('medium');
       setButtonLoading('btn-request-withdraw', true);
 
       try {
-        const res = await safeFetch('/api/withdrawals/request', {
+        const res = await safeFetch('/api/wallet/withdraw', {
           method: 'POST',
           body: JSON.stringify({ amount, walletAddress })
         });
@@ -1559,7 +1550,7 @@
           loadUserData();
         }
       } catch (e) {
-        showToast(currentLang === 'ar' ? "حدث خطأ أثناء تقديم طلب السحب" : "Error submitting withdrawal request");
+        showToast(currentLang === 'ar' ? "حدث خطأ أثناء إرسال طلب السحب" : "Error submitting withdrawal");
       } finally {
         setButtonLoading('btn-request-withdraw', false, `<span data-i18n="btn_submit_withdraw">${i18n[currentLang].btn_submit_withdraw}</span>`);
       }
@@ -1578,38 +1569,38 @@
         const data = await res.json();
         if (data.error) showToast(data.error);
         else {
-          showToast(currentLang === 'ar' ? "تم حفظ عنوان المحفظة بنجاح" : "Wallet address saved");
+          showToast(currentLang === 'ar' ? "تم حفظ العنوان بنجاح!" : "Wallet saved successfully!");
           toggleWalletEdit();
         }
       } catch (e) {
-        showToast(currentLang === 'ar' ? "خطأ أثناء حفظ البيانات" : "Error saving settings");
+        showToast(currentLang === 'ar' ? "حدث خطأ أثناء حفظ الإعدادات" : "Error saving settings");
       }
     }
 
-    // Bridge View Controller
+    // Bridge Page Processing
     async function initBridge() {
-      const pathParts = window.location.pathname.split('/');
-      const shortCode = pathParts[pathParts.length - 1];
-
+      const shortCode = window.location.pathname.split('/').pop();
       try {
-        const res = await safeFetch(`/api/bridge/init/${shortCode}`, { method: 'POST' });
+        const res = await safeFetch(`/api/links/bridge/${shortCode}`);
         if (!res) return;
         const data = await res.json();
-
+        
         if (data.error) {
           document.getElementById('bridge-view').innerHTML = `<h3 style="color:var(--danger); text-align:center;">${escapeHTML(data.error)}</h3>`;
           return;
         }
 
         currentSessionId = data.sessionId;
-        let timerVal = data.timer || 5;
+        
+        // Timer countdown
+        let secondsLeft = 5;
         const timerElem = document.getElementById('timer');
         const goBtn = document.getElementById('go-btn');
 
         const interval = setInterval(() => {
-          timerVal--;
-          if (timerElem) timerElem.innerText = timerVal;
-          if (timerVal <= 0) {
+          secondsLeft--;
+          if (timerElem) timerElem.innerText = secondsLeft;
+          if (secondsLeft <= 0) {
             clearInterval(interval);
             if (goBtn) goBtn.disabled = false;
           }
@@ -1626,101 +1617,26 @@
       setButtonLoading('go-btn', true);
 
       try {
-        const res = await safeFetch('/api/bridge/complete', {
+        const res = await safeFetch('/api/links/complete', {
           method: 'POST',
-          body: JSON.stringify({ sessionId: currentSessionId, duration: Math.floor((Date.now() - bridgeStartTime) / 1000) })
+          body: JSON.stringify({ sessionId: currentSessionId })
         });
         if (!res) return;
         const data = await res.json();
-
         if (data.targetUrl) {
           window.location.href = data.targetUrl;
         } else if (data.error) {
           showToast(data.error);
         }
       } catch (e) {
-        showToast(currentLang === 'ar' ? "حدث خطأ أثناء التوجيه" : "Error completing redirection");
+        showToast(currentLang === 'ar' ? "تعذر إكمال التوجيه" : "Failed to complete redirection");
       } finally {
         setButtonLoading('go-btn', false);
       }
     }
 
-    // Admin Functions
-    async function loadAdminData() {
-      try {
-        const res = await safeFetch('/api/admin/dashboard');
-        if (!res) return;
-        const data = await res.json();
-
-        document.getElementById('admin-total-users').innerText = data.totalUsers || 0;
-        document.getElementById('admin-total-pending').innerText = `$${(data.totalPending || 0).toFixed(2)}`;
-
-        const depositsContainer = document.getElementById('admin-deposits-list');
-        if (data.pendingDeposits && data.pendingDeposits.length > 0) {
-          depositsContainer.innerHTML = data.pendingDeposits.map(d => `
-            <div style="background:#070a12; padding:10px; margin-bottom:8px; border-radius:10px; border:1px solid var(--card-border);">
-              <div>User ID: <b>${escapeHTML(d.userId)}</b> | Amount: <b style="color:var(--success);">$${parseFloat(d.amount).toFixed(2)}</b></div>
-              <div style="font-size:10px; color:var(--text-muted); word-break:break-all; margin:4px 0;">TxID: ${escapeHTML(d.txHash)}</div>
-              <button class="btn-small btn-success" onclick="approveDeposit('${d._id}')">Approve</button>
-              <button class="btn-small btn-danger" onclick="rejectDeposit('${d._id}')">Reject</button>
-            </div>
-          `).join('');
-        } else {
-          depositsContainer.innerHTML = 'No pending deposits.';
-        }
-
-        const withdrawsContainer = document.getElementById('admin-withdraws-list');
-        if (data.pendingWithdrawals && data.pendingWithdrawals.length > 0) {
-          withdrawsContainer.innerHTML = data.pendingWithdrawals.map(w => `
-            <div style="background:#070a12; padding:10px; margin-bottom:8px; border-radius:10px; border:1px solid var(--card-border);">
-              <div>User ID: <b>${escapeHTML(w.userId)}</b> | Amount: <b style="color:var(--warning);">$${parseFloat(w.amount).toFixed(2)}</b></div>
-              <div style="font-size:10px; color:var(--text-muted); word-break:break-all; margin:4px 0;">Wallet: ${escapeHTML(w.walletAddress)}</div>
-              <button class="btn-small btn-success" onclick="approveWithdrawal('${w._id}')">Approve</button>
-              <button class="btn-small btn-danger" onclick="rejectWithdrawal('${w._id}')">Reject</button>
-            </div>
-          `).join('');
-        } else {
-          withdrawsContainer.innerHTML = 'No pending withdrawals.';
-        }
-
-      } catch (e) {
-        console.error("Admin load error:", e);
-      }
-    }
-
-    async function approveDeposit(id) {
-      await safeFetch('/api/admin/deposits/approve', { method: 'POST', body: JSON.stringify({ depositId: id }) });
-      loadAdminData();
-    }
-
-    async function rejectDeposit(id) {
-      await safeFetch('/api/admin/deposits/reject', { method: 'POST', body: JSON.stringify({ depositId: id }) });
-      loadAdminData();
-    }
-
-    async function approveWithdrawal(id) {
-      await safeFetch('/api/admin/withdrawals/approve', { method: 'POST', body: JSON.stringify({ withdrawalId: id }) });
-      loadAdminData();
-    }
-
-    async function rejectWithdrawal(id) {
-      await safeFetch('/api/admin/withdrawals/reject', { method: 'POST', body: JSON.stringify({ withdrawalId: id }) });
-      loadAdminData();
-    }
-
-    async function distributeRevenue() {
-      const amount = document.getElementById('revenue-amount').value;
-      if (!amount || amount <= 0) return showToast("Enter valid revenue amount");
-
-      const res = await safeFetch('/api/admin/distribute-revenue', { method: 'POST', body: JSON.stringify({ amount }) });
-      if (res) {
-        showToast("Revenue distributed successfully!");
-        loadAdminData();
-      }
-    }
-
-    // Launch Application
-    window.addEventListener('DOMContentLoaded', initializeApp);
+    // Initialize application on DOM content load
+    document.addEventListener('DOMContentLoaded', initializeApp);
   </script>
 </body>
 </html>
