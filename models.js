@@ -17,17 +17,23 @@ const formatCurrency = (val) => {
   return Math.round((num + Number.EPSILON) * 100000) / 100000;
 };
 
-// Robust URL Validator updated to explicitly permit Telegram links (t.me, telegram.me, tg://) and standard HTTP/HTTPS URLs
+// Robust URL Validator explicitly supporting standard URLs, Telegram domains (t.me, telegram.me), and Telegram protocols (tg://, telegram://)
 const isValidUrl = (val) => {
   if (!val || typeof val !== 'string') return false;
   const trimmed = val.trim();
   if (trimmed.length === 0) return false;
+  
+  // Direct protocol match for Telegram deep links (e.g. tg://resolve?domain=...)
+  if (/^(tg|telegram):\/\//i.test(trimmed)) {
+    return true;
+  }
+
   try {
-    const urlToTest = /^https?:\/\//i.test(trimmed) || /^tg:\/\//i.test(trimmed) 
+    const urlToTest = /^https?:\/\//i.test(trimmed) 
       ? trimmed 
       : `https://${trimmed}`;
     const parsed = new URL(urlToTest);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:' || parsed.protocol === 'tg:';
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
   } catch (err) {
     return false;
   }
@@ -361,7 +367,7 @@ adSchema.pre('validate', function(next) {
   
   if (this.targetUrl && typeof this.targetUrl === 'string') {
     this.targetUrl = this.targetUrl.trim();
-    if (!/^https?:\/\//i.test(this.targetUrl) && !/^tg:\/\//i.test(this.targetUrl)) {
+    if (!/^https?:\/\//i.test(this.targetUrl) && !/^(tg|telegram):\/\//i.test(this.targetUrl)) {
       this.targetUrl = `https://${this.targetUrl}`;
     }
   }
@@ -450,7 +456,7 @@ linkSchema.pre('validate', function(next) {
   
   if (this.targetUrl && typeof this.targetUrl === 'string') {
     this.targetUrl = this.targetUrl.trim();
-    if (!/^https?:\/\//i.test(this.targetUrl) && !/^tg:\/\//i.test(this.targetUrl)) {
+    if (!/^https?:\/\//i.test(this.targetUrl) && !/^(tg|telegram):\/\//i.test(this.targetUrl)) {
       this.targetUrl = `https://${this.targetUrl}`;
     }
   }
