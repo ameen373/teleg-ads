@@ -14,7 +14,6 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const morgan = require('morgan');
 const winston = require('winston');
-const validUrl = require('valid-url');
 const axios = require('axios');
 const Redis = require('ioredis');
 const cors = require('cors');
@@ -43,6 +42,17 @@ app.use('/api', (req, res, next) => {
   res.setHeader('Pragma', 'no-cache');
   next();
 });
+
+// --- Dynamic Universal URL Validator Helper ---
+function isValidHttpUrl(string) {
+  if (!string || typeof string !== 'string') return false;
+  try {
+    const parsedUrl = new URL(string.trim());
+    return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
+  } catch (_) {
+    return false;
+  }
+}
 
 // --- Centralized Logging Engine ---
 const logger = winston.createLogger({
@@ -479,7 +489,7 @@ app.post('/api/ads', authMiddleware, asyncHandler(async (req, res) => {
       return res.status(400).json({ success: false, error: 'عنوان الإعلان مطلوب' });
     }
 
-    if (!validUrl.isWebUri(targetUrl)) {
+    if (!isValidHttpUrl(targetUrl)) {
       await session.abortTransaction();
       return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
     }
@@ -865,7 +875,7 @@ const handleShortenLink = async (req, res) => {
   const { title, targetUrl, url } = req.body;
   const cleanUrl = String(targetUrl || url || '').trim();
 
-  if (!cleanUrl || !validUrl.isWebUri(cleanUrl)) {
+  if (!cleanUrl || !isValidHttpUrl(cleanUrl)) {
     return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
   }
 
