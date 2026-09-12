@@ -17,15 +17,17 @@ const formatCurrency = (val) => {
   return Math.round((num + Number.EPSILON) * 100000) / 100000;
 };
 
-// Robust URL Validator to prevent save failures on complex query params
+// Robust URL Validator updated to explicitly permit Telegram links (t.me, telegram.me, tg://) and standard HTTP/HTTPS URLs
 const isValidUrl = (val) => {
   if (!val || typeof val !== 'string') return false;
   const trimmed = val.trim();
   if (trimmed.length === 0) return false;
   try {
-    const urlToTest = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-    new URL(urlToTest);
-    return true;
+    const urlToTest = /^https?:\/\//i.test(trimmed) || /^tg:\/\//i.test(trimmed) 
+      ? trimmed 
+      : `https://${trimmed}`;
+    const parsed = new URL(urlToTest);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' || parsed.protocol === 'tg:';
   } catch (err) {
     return false;
   }
@@ -359,7 +361,7 @@ adSchema.pre('validate', function(next) {
   
   if (this.targetUrl && typeof this.targetUrl === 'string') {
     this.targetUrl = this.targetUrl.trim();
-    if (!/^https?:\/\//i.test(this.targetUrl)) {
+    if (!/^https?:\/\//i.test(this.targetUrl) && !/^tg:\/\//i.test(this.targetUrl)) {
       this.targetUrl = `https://${this.targetUrl}`;
     }
   }
@@ -448,7 +450,7 @@ linkSchema.pre('validate', function(next) {
   
   if (this.targetUrl && typeof this.targetUrl === 'string') {
     this.targetUrl = this.targetUrl.trim();
-    if (!/^https?:\/\//i.test(this.targetUrl)) {
+    if (!/^https?:\/\//i.test(this.targetUrl) && !/^tg:\/\//i.test(this.targetUrl)) {
       this.targetUrl = `https://${this.targetUrl}`;
     }
   }
