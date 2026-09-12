@@ -43,12 +43,21 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-// --- Dynamic Universal URL Validator Helper ---
+// --- Dynamic Universal URL Validator Helper (Updated to properly handle t.me & all valid URLs) ---
 function isValidHttpUrl(string) {
   if (!string || typeof string !== 'string') return false;
+  let cleanStr = string.trim();
+  
+  // إضافة البروتوكول تلقائياً إذا كان الرابط يبدأ بـ t.me أو telegram.me بدونه
+  if (/^(t\.me|telegram\.me)\//i.test(cleanStr)) {
+    cleanStr = 'https://' + cleanStr;
+  }
+
   try {
-    const parsedUrl = new URL(string.trim());
-    return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
+    const parsedUrl = new URL(cleanStr);
+    const validProtocol = parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
+    const validHost = parsedUrl.hostname && parsedUrl.hostname.includes('.');
+    return Boolean(validProtocol && validHost);
   } catch (_) {
     return false;
   }
@@ -489,7 +498,12 @@ app.post('/api/ads', authMiddleware, asyncHandler(async (req, res) => {
       return res.status(400).json({ success: false, error: 'عنوان الإعلان مطلوب' });
     }
 
-    if (!isValidHttpUrl(targetUrl)) {
+    let cleanTargetUrl = String(targetUrl || '').trim();
+    if (/^(t\.me|telegram\.me)\//i.test(cleanTargetUrl)) {
+      cleanTargetUrl = 'https://' + cleanTargetUrl;
+    }
+
+    if (!isValidHttpUrl(cleanTargetUrl)) {
       await session.abortTransaction();
       return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
     }
@@ -515,7 +529,7 @@ app.post('/api/ads', authMiddleware, asyncHandler(async (req, res) => {
       advertiserId: req.userId,
       advertiserTelegramId: req.user.telegramId,
       title: String(title).trim(),
-      targetUrl: String(targetUrl).trim(),
+      targetUrl: cleanTargetUrl,
       totalBudget: budget,
       remainingBudget: budget,
       cpmRate: 1.50,
@@ -873,7 +887,12 @@ const handleShortenLink = async (req, res) => {
   }
 
   const { title, targetUrl, url } = req.body;
-  const cleanUrl = String(targetUrl || url || '').trim();
+  let cleanUrl = String(targetUrl || url || '').trim();
+
+  // إلحاق البروتوكول تلقائياً لروابط تلجرام القادمة بدون https://
+  if (/^(t\.me|telegram\.me)\//i.test(cleanUrl)) {
+    cleanUrl = 'https://' + cleanUrl;
+  }
 
   if (!cleanUrl || !isValidHttpUrl(cleanUrl)) {
     return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
@@ -885,7 +904,7 @@ const handleShortenLink = async (req, res) => {
 
   try {
     const domainCheck = new URL(cleanUrl).hostname;
-    if (domainCheck.includes(CONFIG.APP_DOMAIN)) {
+    if (CONFIG.APP_DOMAIN && domainCheck.includes(CONFIG.APP_DOMAIN)) {
       return res.status(400).json({ success: false, error: 'لا يمكن اختصار روابط الموقع نفسه' });
     }
   } catch (e) {}
