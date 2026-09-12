@@ -1,5 +1,5 @@
 /**
- * Ultra-Enterprise Server Architecture (V6 - High-Performance Core)
+ * Ultra-Enterprise Server Architecture (V6 - Absolute Multi-Tenant Security & High-Performance Core)
  * Telegram Link Shortener & Mini App Engine (Telega.ads)
  * Absolute Isolated Session System & Financial Security Core
  */
@@ -17,7 +17,19 @@ const winston = require('winston');
 const axios = require('axios');
 const Redis = require('ioredis');
 const cors = require('cors');
-const { User, Ad, Link, Impression, ClickSession, Withdraw, EarningsHold, Deposit, Announcement } = require('./models');
+
+// استدعاء جميع الموديلات الموحدة
+const { 
+  User, 
+  Ad, 
+  Link, 
+  Impression, 
+  ClickSession, 
+  Withdraw, 
+  EarningsHold, 
+  Deposit, 
+  Announcement 
+} = require('./models');
 
 const app = express();
 
@@ -145,25 +157,7 @@ async function sendTelegramNotification(telegramId, message) {
   }
 }
 
-// --- Robust URL Validation Engine ---
-function isValidHttpUrl(string) {
-  if (!string || typeof string !== 'string') return false;
-  let url;
-  try {
-    url = new URL(string.trim());
-  } catch (_) {
-    return false;  
-  }
-  return url.protocol === "http:" || url.protocol === "https:";
-}
-
-const isPhishingOrMalicious = (url) => {
-  const blacklistedKeywords = ['phish', 'login-verify', 'free-telegram-premium', 'grabber', 'stealer', 'iplogger'];
-  const lowerUrl = url.toLowerCase();
-  return blacklistedKeywords.some(keyword => lowerUrl.includes(keyword));
-};
-
-// --- Cryptographic Telegram Authenticator ---
+// --- Cryptographic Telegram Authenticator (Strict Verification) ---
 function verifyTelegramData(initData) {
   if (!initData) return null;
   try {
@@ -194,6 +188,32 @@ function verifyTelegramData(initData) {
   }
 }
 
+// =========================================================================
+// --- Universal Backend URL Validation Helper ---
+// =========================================================================
+function isValidTargetUrl(urlStr) {
+  if (!urlStr || typeof urlStr !== 'string') return false;
+  const str = urlStr.trim();
+  if (str.length === 0 || str.length > 2048) return false;
+
+  // إمكانية معالجة بروتوكولات تليجرام المباشرة أو الروابط المبتدئة بشرطة أو بـ t.me
+  let formattedUrl = str;
+  if (str.startsWith('tg://') || str.startsWith('t.me/')) {
+    formattedUrl = str.startsWith('t.me/') ? `https://${str}` : str;
+  } else if (!/^https?:\/\//i.test(str)) {
+    formattedUrl = `https://${str}`;
+  }
+
+  try {
+    const parsed = new URL(formattedUrl);
+    return ['http:', 'https:', 'tg:'].includes(parsed.protocol);
+  } catch (e) {
+    // التعبير النمطي المرن كحل احتياطي لجميع أنواع الروابط والصيغ
+    const pattern = /^(https?:\/\/)?([\w.-]+)+(:[0-9]+)?(\/.*)?$/i;
+    return pattern.test(str);
+  }
+}
+
 // --- Middlewares & Security Limiters ---
 const linkCreationLimiter = rateLimit({
   windowMs: 24 * 60 * 60 * 1000,
@@ -221,6 +241,12 @@ const validateTraffic = (req, res, next) => {
   next();
 };
 
+const isPhishingOrMalicious = (url) => {
+  const blacklistedKeywords = ['phish', 'login-verify', 'free-telegram-premium', 'grabber', 'stealer', 'iplogger'];
+  const lowerUrl = url.toLowerCase();
+  return blacklistedKeywords.some(keyword => lowerUrl.includes(keyword));
+};
+
 // =========================================================================
 // --- Middleware للتحقق من هوية المستخدم واستخراج userId ---
 // =========================================================================
@@ -240,7 +266,7 @@ const authMiddleware = async (req, res, next) => {
 
     // Option 2: Fallback to Direct Telegram InitData Header
     if (!user) {
-      const initData = req.headers['x-telegram-init-data'];
+      const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'];
       const telegramUser = verifyTelegramData(initData);
       if (telegramUser) {
         user = await User.findOne({ telegramId: String(telegramUser.id) }).lean();
@@ -255,6 +281,7 @@ const authMiddleware = async (req, res, next) => {
       return res.status(403).json({ success: false, error: 'حسابك معطل بسبب مخالفة الشروط' });
     }
 
+    // ربط كائن المستخدم واستخراج userId بشكل صريح وموحد
     req.user = user;
     req.user.id = user._id.toString();
     req.userId = user._id;
@@ -273,7 +300,7 @@ const adminMiddleware = async (req, res, next) => {
 };
 
 // =========================================================================
-// --- Check Admin Role (/api/check-admin) ---
+// --- API Endpoint: Check Admin Role (/api/check-admin) ---
 // =========================================================================
 app.all('/api/check-admin', async (req, res) => {
   try {
@@ -299,7 +326,7 @@ app.all('/api/check-admin', async (req, res) => {
     }
 
     if (!telegramIdToCheck) {
-      const initData = req.headers['x-telegram-init-data'];
+      const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'];
       const telegramUser = verifyTelegramData(initData);
       if (telegramUser) {
         telegramIdToCheck = String(telegramUser.id).trim();
@@ -316,10 +343,10 @@ app.all('/api/check-admin', async (req, res) => {
 // --- Authentication & Isolated User Login ---
 app.post('/api/auth/login', async (req, res, next) => {
   try {
-    const initData = req.headers['x-telegram-init-data'];
+    const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.body.initData;
     const telegramUser = verifyTelegramData(initData);
 
-    const tgId = telegramUser ? String(telegramUser.id) : (process.env.NODE_ENV !== 'production' ? String(req.headers['x-demo-user-id'] || '') : null);
+    const tgId = telegramUser ? String(telegramUser.id) : (process.env.NODE_ENV !== 'production' ? String(req.headers['x-demo-user-id'] || req.body.telegramId || '') : null);
     const { referrerId } = req.body;
 
     if (!tgId) return res.status(401).json({ success: false, error: 'بيانات الاعتماد الخاصة بتليجرام غير صالحة' });
@@ -444,25 +471,22 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   }
 });
 
-// =========================================================================
-// --- Instant Campaign & Ads Management APIs ---
-// =========================================================================
+// --- Self-Serve Ad Campaign APIs ---
 app.post('/api/ads', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
     const { title, targetUrl, totalBudget } = req.body;
     const budget = Number(totalBudget);
-    const cleanUrl = String(targetUrl || '').trim();
 
     if (!title || String(title).trim().length === 0) {
       await session.abortTransaction();
       return res.status(400).json({ success: false, error: 'عنوان الإعلان مطلوب' });
     }
 
-    if (!isValidHttpUrl(cleanUrl)) {
+    if (!isValidTargetUrl(targetUrl)) {
       await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح، يرجى التأكد من إدخال رابط يبدأ بـ http:// أو https://' });
+      return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
     }
 
     if (isNaN(budget) || budget < 5) {
@@ -486,7 +510,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       advertiserId: req.userId,
       advertiserTelegramId: req.user.telegramId,
       title: String(title).trim(),
-      targetUrl: cleanUrl,
+      targetUrl: String(targetUrl).trim(),
       totalBudget: budget,
       remainingBudget: budget,
       cpmRate: 1.50,
@@ -536,9 +560,7 @@ app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
   }
 });
 
-// =========================================================================
-// --- Instant Deposit & Withdraw APIs ---
-// =========================================================================
+// --- Deposit & Withdraw Routes ---
 app.post('/api/deposit', authMiddleware, async (req, res, next) => {
   try {
     const { amount, network, txid } = req.body;
@@ -860,9 +882,10 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 });
 
 // =========================================================================
-// --- Link Management Engine (Instant Save & Robust Validation) ---
+// --- Strict Link Management Engine (100% Isolated Routes Guard) ---
 // =========================================================================
 
+// Shared Link Shortening Logic
 const handleShortenLink = async (req, res) => {
   try {
     const userId = req.userId;
@@ -875,23 +898,25 @@ const handleShortenLink = async (req, res) => {
     }
 
     const { title, targetUrl, url } = req.body;
-    const cleanUrl = String(targetUrl || url || '').trim();
+    let cleanUrl = String(targetUrl || url || '').trim();
 
-    if (!isValidHttpUrl(cleanUrl)) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'الرابط المستهدف غير صالح، يرجى كتابة الرابط بالشكل الصحيح (مثال: https://example.com)' 
-      });
+    if (!cleanUrl || !isValidTargetUrl(cleanUrl)) {
+      return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
+    }
+
+    // إضافة البروتوكول افتراضياً في حال غيابه لضمان التخزين السليم
+    if (!/^https?:\/\//i.test(cleanUrl) && !cleanUrl.startsWith('tg://')) {
+      cleanUrl = `https://${cleanUrl}`;
     }
 
     if (isPhishingOrMalicious(cleanUrl)) {
-      return res.status(400).json({ success: false, error: 'الرابط ينتهك معايير الأمان والمعايير المتبعة' });
+      return res.status(400).json({ success: false, error: 'الرابط ينتهك معايير الأمان' });
     }
 
     try {
       const domainCheck = new URL(cleanUrl).hostname;
       if (domainCheck.includes(CONFIG.APP_DOMAIN)) {
-        return res.status(400).json({ success: false, error: 'لا يمكن اختصار روابط المنصة نفسها' });
+        return res.status(400).json({ success: false, error: 'لا يمكن اختصار روابط الموقع نفسه' });
       }
     } catch (e) {}
 
@@ -926,7 +951,7 @@ const handleShortenLink = async (req, res) => {
       shortUrl
     });
   } catch (err) {
-    logger.error('❌ Error in Link Shortening Route:', err);
+    console.error('❌ Error in Link Shortening Route:', err);
     return res.status(500).json({ 
       success: false, 
       error: 'حدث خطأ أثناء اختصار الرابط، يرجى المحاولة لاحقاً' 
@@ -934,7 +959,7 @@ const handleShortenLink = async (req, res) => {
   }
 };
 
-// Endpoints for Shortening Links
+// Create Link Engines (Direct & Alias endpoints)
 app.post('/api/links/shorten', authMiddleware, linkCreationLimiter, handleShortenLink);
 app.post('/api/links', authMiddleware, linkCreationLimiter, handleShortenLink);
 
@@ -961,6 +986,7 @@ const getUserLinks = async (userId) => {
   });
 };
 
+// Fetch Links Main Endpoint
 app.get('/api/links', authMiddleware, async (req, res, next) => {
   try {
     const links = await getUserLinks(req.userId);
@@ -970,6 +996,7 @@ app.get('/api/links', authMiddleware, async (req, res, next) => {
   }
 });
 
+// Fetch Links Alias Endpoint
 app.get('/api/user/links', authMiddleware, async (req, res, next) => {
   try {
     const links = await getUserLinks(req.userId);
@@ -1000,23 +1027,23 @@ app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
   }
 });
 
-// Save Wallet & User Settings Route
 app.post('/api/user/settings', authMiddleware, async (req, res, next) => {
   try {
-    const { defaultWallet, language } = req.body;
+    const { defaultWallet, walletAddress, language } = req.body;
     const updateData = {};
     
-    if (defaultWallet !== undefined) updateData.defaultWallet = String(defaultWallet).trim();
+    const walletToSave = defaultWallet !== undefined ? defaultWallet : walletAddress;
+    if (walletToSave !== undefined) updateData.defaultWallet = String(walletToSave).trim();
     if (language !== undefined) updateData.language = String(language).trim().toLowerCase() || CONFIG.DEFAULT_LANGUAGE;
 
-    await User.findByIdAndUpdate(req.userId, updateData);
-    res.json({ success: true, message: 'تم حفظ التغييرات بنجاح' });
+    const updatedUser = await User.findByIdAndUpdate(req.userId, updateData, { new: true });
+    res.json({ success: true, message: 'تم تحديث الإعدادات بنجاح', user: updatedUser });
   } catch (err) {
     next(err);
   }
 });
 
-// --- Admin Panel Routes ---
+// --- Admin Panel Routes (Protected strictly with authMiddleware & adminMiddleware) ---
 app.get('/api/admin/dashboard-data', authMiddleware, adminMiddleware, async (req, res, next) => {
   try {
     const [withdraws, deposits, users, stats, totalAds] = await Promise.all([
