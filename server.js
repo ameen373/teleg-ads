@@ -1,7 +1,7 @@
 /**
- * Ultra-Enterprise Server Architecture (V6 - Absolute Multi-Tenant Security & High-Performance Core)
+ * Ultra-Enterprise Server Architecture (V8 - Dynamic Multi-Tenant Security & High-Performance Core)
  * Telegram Link Shortener & Mini App Engine (Telega.ads)
- * Absolute Isolated Session System & Financial Security Core
+ * Engine Standard: Production Grade / Serverless & Scalable Core
  */
 
 require('dotenv').config();
@@ -14,59 +14,36 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const morgan = require('morgan');
 const winston = require('winston');
+const validUrl = require('valid-url');
 const axios = require('axios');
 const Redis = require('ioredis');
 const cors = require('cors');
-const { User, Ad, Link, Impression, ClickSession, Withdraw, EarningsHold, Deposit, Announcement } = require('./models');
+
+// استدعاء النماذج البرمجية
+const { 
+  User, 
+  Ad, 
+  Link, 
+  Impression, 
+  ClickSession, 
+  Withdraw, 
+  EarningsHold, 
+  Deposit, 
+  Announcement 
+} = require('./models');
 
 const app = express();
 
-// --- Setup Server Trust Proxy ---
-app.set('trust proxy', 1);
-
-// --- CORS Configuration (Strict Isolation & Security) ---
-app.use(cors({
-  origin: true,
-  credentials: true
-}));
-app.options('*', cors());
-
-app.use(express.json({ limit: '10kb' }));
-app.use(express.urlencoded({ extended: true, limit: '10kb' }));
-app.use(express.static(__dirname));
-
-// --- Force UTF-8 JSON Response Headers & No-Cache Privacy Guard ---
-app.use('/api', (req, res, next) => {
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-  res.setHeader('Pragma', 'no-cache');
-  next();
-});
-
-// --- Centralized Logging Engine ---
-const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  format: winston.format.combine(winston.format.timestamp(), winston.format.json()),
-  transports: [
-    new winston.transports.File({ filename: 'error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'combined.log' })
-  ]
-});
-
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(new winston.transports.Console({ format: winston.format.simple() }));
-}
-
-app.use(morgan('combined', { stream: { write: (message) => logger.info(message.trim()) } }));
-
 // ==================================================
-// --- System Constants & Environment Variables ---
+// --- 1. System Constants & Immutable Environment Config ---
 // ==================================================
 const CONFIG = Object.freeze({
-  BOT_TOKEN: process.env.BOT_TOKEN,
+  ENV: process.env.NODE_ENV || 'development',
+  PORT: parseInt(process.env.PORT, 10) || 3000,
+  BOT_TOKEN: (process.env.BOT_TOKEN || '').trim(),
   MONGO_URI: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/shortener',
   ADMIN_ID: String(process.env.ADMIN_ID || '123456789').trim(),
-  JWT_SECRET: process.env.JWT_SECRET || 'fallback_jwt_secret_key_32bytes_long!',
+  JWT_SECRET: process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex'),
   ADSGRAM_BLOCK_ID: process.env.ADSGRAM_BLOCK_ID || '1234',
   APP_DOMAIN: process.env.APP_DOMAIN || 'teleg-ads.vercel.app',
   REDIS_URL: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
@@ -83,85 +60,188 @@ const CONFIG = Object.freeze({
   SUPPORT_USERNAME: '@' + (process.env.TELEGRAM_SUPPORT_URL || 'https://t.me/Te_AdsNs_bot').split('/').pop()
 });
 
-// --- Helper: Flexible URL Validation & Normalization (No Fetch/Ping - Native new URL()) ---
-function normalizeAndValidateUrl(inputUrl) {
-  if (!inputUrl || typeof inputUrl !== 'string') return null;
-  let url = inputUrl.trim();
+// --- Trust Proxy Configuration ---
+app.set('trust proxy', 1);
 
-  // Support direct tg:// protocol links (e.g. tg://resolve?domain=...)
-  if (url.startsWith('tg://')) {
-    return url;
-  }
+// --- CORS Protection Layer ---
+app.use(cors({
+  origin: true,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data', 'x-demo-user-id']
+}));
+app.options('*', cors());
 
-  // Prepend https:// if protocol is missing (supports t.me/xxx, telegram.me/xxx, etc.)
-  if (!/^https?:\/\//i.test(url)) {
-    url = 'https://' + url;
-  }
+// --- Body Parsing with Strict Controls ---
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+app.use(express.static(__dirname));
 
-  try {
-    const parsed = new URL(url);
-    // Accept standard http and https web URLs (including t.me, telegram.me, and all domains)
-    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
-      // Ensure hostname exists and is non-empty
-      if (parsed.hostname && parsed.hostname.length > 0) {
-        return parsed.href;
-      }
-    }
-  } catch (err) {
-    return null;
-  }
+// --- Security & Privacy Response Headers ---
+app.use('/api', (req, res, next) => {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
 
-  return null;
+// ==================================================
+// --- 2. High-Performance Enterprise Logging Engine ---
+// ==================================================
+const logger = winston.createLogger({
+  level: CONFIG.ENV === 'production' ? 'info' : 'debug',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.json()
+  ),
+  defaultMeta: { service: 'telega-core-engine' },
+  transports: [
+    new winston.transports.File({ filename: 'logs/error.log', level: 'error', maxsize: 5242880, maxFiles: 5 }),
+    new winston.transports.File({ filename: 'logs/combined.log', maxsize: 10485760, maxFiles: 5 })
+  ]
+});
+
+if (CONFIG.ENV !== 'production') {
+  logger.add(new winston.transports.Console({
+    format: winston.format.combine(winston.format.colorize(), winston.format.simple())
+  }));
 }
 
-// --- Redis Client Initialization ---
+app.use(morgan('combined', { stream: { write: (message) => logger.info(message.trim()) } }));
+
+// ==================================================
+// --- 3. Database & Memory Caching Architecture ---
+// ==================================================
+let cachedMongoConn = null;
+async function connectToDatabase() {
+  if (cachedMongoConn && mongoose.connection.readyState === 1) {
+    return cachedMongoConn;
+  }
+  
+  mongoose.set('strictQuery', true);
+  cachedMongoConn = await mongoose.connect(CONFIG.MONGO_URI, {
+    maxPoolSize: 50,
+    minPoolSize: 5,
+    serverSelectionTimeoutMS: 5000,
+    socketTimeoutMS: 45000,
+    bufferCommands: false
+  });
+  
+  logger.info('✅ Enterprise MongoDB Pipeline Connected Successfully');
+  return cachedMongoConn;
+}
+
+// Middleware لضمان الاتصال المباشر بقاعدة البيانات عند استخدام Serverless / Vercel
+app.use(async (req, res, next) => {
+  try {
+    await connectToDatabase();
+    next();
+  } catch (err) {
+    logger.error('❌ Database Gate Connection Error:', err);
+    res.status(500).json({ success: false, error: 'تعذر الاتصال بقاعدة البيانات' });
+  }
+});
+
+// --- Enterprise Hybrid Cache System (Redis + In-Memory Fallback) ---
 let redisIsConnected = false;
+const inMemoryCache = new Map();
+
 const redis = new Redis(CONFIG.REDIS_URL, {
   maxRetriesPerRequest: 3,
   enableReadyCheck: true,
-  retryStrategy: (times) => Math.min(times * 50, 2000)
+  lazyConnect: true,
+  retryStrategy: (times) => Math.min(times * 100, 3000)
+});
+
+redis.connect().catch((err) => {
+  logger.warn(`⚠️ Redis Connection Notice: ${err.message} (Fallback System Active)`);
 });
 
 redis.on('error', (err) => {
   redisIsConnected = false;
-  logger.error('⚠️ Redis Connection Warning: ' + err.message);
-});
-redis.on('ready', () => {
-  redisIsConnected = true;
-  console.log('✅ Enterprise Redis Client Connected & Ready');
 });
 
+redis.on('ready', () => {
+  redisIsConnected = true;
+  logger.info('✅ Enterprise Redis Client Connected & Ready');
+});
+
+// Cache Abstraction Helpers
 async function safeRedisGet(key) {
-  if (!redisIsConnected) return null;
-  try { return await redis.get(key); } catch (e) { return null; }
+  if (redisIsConnected) {
+    try { return await redis.get(key); } catch (e) { logger.error('Redis Get Error:', e); }
+  }
+  const item = inMemoryCache.get(key);
+  if (item && item.expiry > Date.now()) return item.value;
+  if (item) inMemoryCache.delete(key);
+  return null;
 }
 
 async function safeRedisSet(key, value, mode, duration) {
-  if (!redisIsConnected) return;
-  try {
-    if (mode && duration) await redis.set(key, value, mode, duration);
-    else await redis.set(key, value);
-  } catch (e) { logger.error('Redis Set Failed: ' + e.message); }
+  if (redisIsConnected) {
+    try {
+      if (mode && duration) await redis.set(key, value, mode, duration);
+      else await redis.set(key, value);
+      return;
+    } catch (e) { logger.error('Redis Set Error:', e); }
+  }
+  let expiry = Number.MAX_SAFE_INTEGER;
+  if (mode === 'EX' && duration) expiry = Date.now() + (duration * 1000);
+  inMemoryCache.set(key, { value, expiry });
 }
 
 async function safeRedisDel(key) {
-  if (!redisIsConnected) return;
-  try { await redis.del(key); } catch (e) { logger.error('Redis Del Failed: ' + e.message); }
+  if (redisIsConnected) {
+    try { await redis.del(key); } catch (e) { logger.error('Redis Del Error:', e); }
+  }
+  inMemoryCache.delete(key);
 }
 
-// --- Database Connection Pipeline ---
-mongoose.connect(CONFIG.MONGO_URI, {
-  maxPoolSize: 50,
-  minPoolSize: 10,
-  serverSelectionTimeoutMS: 5000,
-  socketTimeoutMS: 45000,
-}).then(() => console.log('✅ Enterprise MongoDB Pipeline Connected'))
-  .catch(err => {
-    logger.error('❌ Critical MongoDB Connection Failure:', err);
-    process.exit(1);
-  });
+// Atomic Distributed Lock Engine
+async function acquireLock(lockKey, ttlMs = 5000) {
+  const lockToken = crypto.randomBytes(16).toString('hex');
+  if (redisIsConnected) {
+    try {
+      const result = await redis.set(`lock:${lockKey}`, lockToken, 'PX', ttlMs, 'NX');
+      return result === 'OK' ? lockToken : null;
+    } catch (e) { return null; }
+  }
+  if (!inMemoryCache.has(`lock:${lockKey}`)) {
+    inMemoryCache.set(`lock:${lockKey}`, { value: lockToken, expiry: Date.now() + ttlMs });
+    return lockToken;
+  }
+  return null;
+}
 
-// --- Telegram Dispatch Helper ---
+async function releaseLock(lockKey, lockToken) {
+  if (redisIsConnected) {
+    try {
+      const luaScript = `
+        if redis.call("get", KEYS[1]) == ARGV[1] then
+            return redis.call("del", KEYS[1])
+        else
+            return 0
+        end
+      `;
+      await redis.eval(luaScript, 1, `lock:${lockKey}`, lockToken);
+      return;
+    } catch (e) {}
+  }
+  const item = inMemoryCache.get(`lock:${lockKey}`);
+  if (item && item.value === lockToken) {
+    inMemoryCache.delete(`lock:${lockKey}`);
+  }
+}
+
+// ==================================================
+// --- 4. Security & Utility Core Helpers ---
+// ==================================================
+
 async function sendTelegramNotification(telegramId, message) {
   if (!CONFIG.BOT_TOKEN || !telegramId) return;
   try {
@@ -176,7 +256,6 @@ async function sendTelegramNotification(telegramId, message) {
   }
 }
 
-// --- Cryptographic Telegram Authenticator (Strict Verification) ---
 function verifyTelegramData(initData) {
   if (!initData) return null;
   try {
@@ -207,7 +286,18 @@ function verifyTelegramData(initData) {
   }
 }
 
-// --- Middlewares & Security Limiters ---
+const isPhishingOrMalicious = (url) => {
+  const blacklistedKeywords = [
+    'phish', 'login-verify', 'free-telegram-premium', 'grabber', 
+    'stealer', 'iplogger', 'bit.ly', 'tinyurl.com', 'hack'
+  ];
+  const lowerUrl = url.toLowerCase();
+  return blacklistedKeywords.some(keyword => lowerUrl.includes(keyword));
+};
+
+// ==================================================
+// --- 5. Traffic Filtering & Rate Limiting ---
+// ==================================================
 const linkCreationLimiter = rateLimit({
   windowMs: 24 * 60 * 60 * 1000,
   max: 100,
@@ -218,7 +308,7 @@ const linkCreationLimiter = rateLimit({
 
 const clickLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 20,
+  max: 30,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => req.ip,
@@ -234,20 +324,13 @@ const validateTraffic = (req, res, next) => {
   next();
 };
 
-const isPhishingOrMalicious = (url) => {
-  const blacklistedKeywords = ['phish', 'login-verify', 'free-telegram-premium', 'grabber', 'stealer', 'iplogger'];
-  const lowerUrl = url.toLowerCase();
-  return blacklistedKeywords.some(keyword => lowerUrl.includes(keyword));
-};
-
-// =========================================================================
-// --- Middleware للتحقق من هوية المستخدم واستخرج userId ---
-// =========================================================================
+// ==================================================
+// --- 6. Security Authentication Middlewares ---
+// ==================================================
 const authMiddleware = async (req, res, next) => {
   try {
     let user = null;
 
-    // Option 1: Bearer Token Authorization Header
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
@@ -257,7 +340,6 @@ const authMiddleware = async (req, res, next) => {
       } catch (err) {}
     }
 
-    // Option 2: Fallback to Direct Telegram InitData Header
     if (!user) {
       const initData = req.headers['x-telegram-init-data'];
       const telegramUser = verifyTelegramData(initData);
@@ -291,9 +373,10 @@ const adminMiddleware = async (req, res, next) => {
   next();
 };
 
-// =========================================================================
-// --- API Endpoint: Check Admin Role (/api/check-admin) ---
-// =========================================================================
+// ==================================================
+// --- 7. Core Production API Routes ---
+// ==================================================
+
 app.all('/api/check-admin', async (req, res) => {
   try {
     let targetUserId = req.body?.userId || req.query?.userId;
@@ -332,13 +415,12 @@ app.all('/api/check-admin', async (req, res) => {
   }
 });
 
-// --- Authentication & Isolated User Login ---
 app.post('/api/auth/login', async (req, res, next) => {
   try {
     const initData = req.headers['x-telegram-init-data'];
     const telegramUser = verifyTelegramData(initData);
 
-    const tgId = telegramUser ? String(telegramUser.id) : (process.env.NODE_ENV !== 'production' ? String(req.headers['x-demo-user-id'] || '') : null);
+    const tgId = telegramUser ? String(telegramUser.id) : (CONFIG.ENV !== 'production' ? String(req.headers['x-demo-user-id'] || '') : null);
     const { referrerId } = req.body;
 
     if (!tgId) return res.status(401).json({ success: false, error: 'بيانات الاعتماد الخاصة بتليجرام غير صالحة' });
@@ -396,7 +478,6 @@ app.post('/api/auth/login', async (req, res, next) => {
   }
 });
 
-// --- Isolated User Data Gateway ---
 app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   try {
     const userId = req.userId;
@@ -463,7 +544,6 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Self-Serve Ad Campaign APIs ---
 app.post('/api/ads', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
@@ -476,8 +556,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'عنوان الإعلان مطلوب' });
     }
 
-    const validTargetUrl = normalizeAndValidateUrl(targetUrl);
-    if (!validTargetUrl) {
+    if (!validUrl.isWebUri(targetUrl)) {
       await session.abortTransaction();
       return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
     }
@@ -503,7 +582,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       advertiserId: req.userId,
       advertiserTelegramId: req.user.telegramId,
       title: String(title).trim(),
-      targetUrl: validTargetUrl,
+      targetUrl: String(targetUrl).trim(),
       totalBudget: budget,
       remainingBudget: budget,
       cpmRate: 1.50,
@@ -553,7 +632,6 @@ app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Deposit & Withdraw Routes ---
 app.post('/api/deposit', authMiddleware, async (req, res, next) => {
   try {
     const { amount, network, txid } = req.body;
@@ -670,7 +748,6 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Bridge Page & Redirect Traffic Engine ---
 app.post('/api/init-click', validateTraffic, async (req, res, next) => {
   try {
     const { linkCode } = req.body;
@@ -752,30 +829,39 @@ app.post('/api/init-click', validateTraffic, async (req, res, next) => {
 });
 
 app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next) => {
+  const { sessionId, bridgeToken, duration } = req.body;
+  if (!sessionId || !bridgeToken) {
+    return res.status(400).json({ success: false, error: 'رمز حماية الجلسة مفقود' });
+  }
+
+  const lockKey = `proc_imp:${sessionId}`;
+  const lockToken = await acquireLock(lockKey, 10000);
+  if (!lockToken) {
+    return res.status(429).json({ success: false, error: 'جاري معالجة الطلب بالفعل، يرجى الانتظار' });
+  }
+
   const sessionDb = await mongoose.startSession();
   try {
     sessionDb.startTransaction();
-    const { sessionId, bridgeToken, duration } = req.body;
-    if (!sessionId || !bridgeToken) {
-      await sessionDb.abortTransaction();
-      return res.status(400).json({ success: false, error: 'رمز حماية الجلسة مفقود' });
-    }
 
     const cachedToken = await safeRedisGet(`bridge:token:${sessionId}`);
     if (cachedToken && cachedToken !== bridgeToken) {
       await sessionDb.abortTransaction();
+      await releaseLock(lockKey, lockToken);
       return res.status(403).json({ success: false, error: 'تم اكتشاف محاولة تخطي غير مشروعة' });
     }
 
     const clickSession = await ClickSession.findById(sessionId).session(sessionDb);
     if (!clickSession || clickSession.ip !== req.ip) {
       await sessionDb.abortTransaction();
+      await releaseLock(lockKey, lockToken);
       return res.status(403).json({ success: false, error: 'الجلسة غير صالحة' });
     }
 
     const dwellTime = Date.now() - new Date(clickSession.createdAt).getTime();
     if (dwellTime < 4800 && (Number(duration) || 0) < 5) {
       await sessionDb.abortTransaction();
+      await releaseLock(lockKey, lockToken);
       return res.status(400).json({ success: false, error: 'لم يتم استيفاء وقت المكوث المطلوب (5 ثوانٍ)' });
     }
 
@@ -788,8 +874,8 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
       }
     }
 
-    const lockKey = `imp:${clickSession.linkId}:${req.ip}`;
-    const isDuplicate = await safeRedisGet(lockKey);
+    const impLockKey = `imp:${clickSession.linkId}:${req.ip}`;
+    const isDuplicate = await safeRedisGet(impLockKey);
 
     const link = await Link.findById(clickSession.linkId).populate('userId').session(sessionDb);
     await ClickSession.findByIdAndDelete(sessionId).session(sessionDb);
@@ -797,16 +883,18 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 
     if (!link) {
       await sessionDb.abortTransaction();
+      await releaseLock(lockKey, lockToken);
       return res.status(404).json({ success: false, error: 'الرابط غير موجود' });
     }
 
     if (isDuplicate || dailyIpClicks > 20) {
       await Link.findByIdAndUpdate(link._id, { $inc: { views: 1, invalidImpressions: 1 } }, { session: sessionDb });
       await sessionDb.commitTransaction();
+      await releaseLock(lockKey, lockToken);
       return res.json({ success: true, targetUrl: link.targetUrl, counted: false });
     }
 
-    await safeRedisSet(lockKey, '1', 'EX', 86400);
+    await safeRedisSet(impLockKey, '1', 'EX', 86400);
 
     await Impression.create([{
       linkId: link._id,
@@ -865,20 +953,17 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
     }
 
     await sessionDb.commitTransaction();
+    await releaseLock(lockKey, lockToken);
     res.json({ success: true, targetUrl: link.targetUrl, counted: true });
   } catch (err) {
     await sessionDb.abortTransaction();
+    await releaseLock(lockKey, lockToken);
     next(err);
   } finally {
     sessionDb.endSession();
   }
 });
 
-// =========================================================================
-// --- Strict Link Management Engine (100% Isolated Routes Guard) ---
-// =========================================================================
-
-// Shared Link Shortening Logic with Flexible Validation
 const handleShortenLink = async (req, res) => {
   try {
     const userId = req.userId;
@@ -891,10 +976,9 @@ const handleShortenLink = async (req, res) => {
     }
 
     const { title, targetUrl, url } = req.body;
-    const rawUrl = targetUrl || url || '';
-    const cleanUrl = normalizeAndValidateUrl(rawUrl);
+    const cleanUrl = String(targetUrl || url || '').trim();
 
-    if (!cleanUrl) {
+    if (!cleanUrl || !validUrl.isWebUri(cleanUrl)) {
       return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
     }
 
@@ -903,11 +987,9 @@ const handleShortenLink = async (req, res) => {
     }
 
     try {
-      if (cleanUrl.startsWith('http')) {
-        const domainCheck = new URL(cleanUrl).hostname;
-        if (domainCheck.includes(CONFIG.APP_DOMAIN)) {
-          return res.status(400).json({ success: false, error: 'لا يمكن اختصار روابط الموقع نفسه' });
-        }
+      const domainCheck = new URL(cleanUrl).hostname;
+      if (domainCheck.includes(CONFIG.APP_DOMAIN)) {
+        return res.status(400).json({ success: false, error: 'لا يمكن اختصار روابط الموقع نفسه' });
       }
     } catch (e) {}
 
@@ -942,7 +1024,7 @@ const handleShortenLink = async (req, res) => {
       shortUrl
     });
   } catch (err) {
-    console.error('❌ Error in Link Shortening Route:', err);
+    logger.error('❌ Error in Link Shortening Route:', err);
     return res.status(500).json({ 
       success: false, 
       error: 'حدث خطأ أثناء اختصار الرابط، يرجى المحاولة لاحقاً' 
@@ -950,11 +1032,9 @@ const handleShortenLink = async (req, res) => {
   }
 };
 
-// Create Link Engines (Direct & Alias endpoints)
 app.post('/api/links/shorten', authMiddleware, linkCreationLimiter, handleShortenLink);
 app.post('/api/links', authMiddleware, linkCreationLimiter, handleShortenLink);
 
-// Fetch Links Helper Function
 const getUserLinks = async (userId) => {
   if (!userId) return [];
 
@@ -977,7 +1057,6 @@ const getUserLinks = async (userId) => {
   });
 };
 
-// Fetch Links Main Endpoint
 app.get('/api/links', authMiddleware, async (req, res, next) => {
   try {
     const links = await getUserLinks(req.userId);
@@ -987,7 +1066,6 @@ app.get('/api/links', authMiddleware, async (req, res, next) => {
   }
 });
 
-// Fetch Links Alias Endpoint
 app.get('/api/user/links', authMiddleware, async (req, res, next) => {
   try {
     const links = await getUserLinks(req.userId);
@@ -1033,7 +1111,9 @@ app.post('/api/user/settings', authMiddleware, async (req, res, next) => {
   }
 });
 
-// --- Admin Panel Routes (Protected strictly with authMiddleware & adminMiddleware) ---
+// ==================================================
+// --- 8. Admin Control Panel Gateway ---
+// ==================================================
 app.get('/api/admin/dashboard-data', authMiddleware, adminMiddleware, async (req, res, next) => {
   try {
     const [withdraws, deposits, users, stats, totalAds] = await Promise.all([
@@ -1240,78 +1320,78 @@ app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (r
   }
 });
 
-// --- Automated Cron Task for Earnings Settlement ---
-cron.schedule('0 0 * * *', async () => {
-  try {
-    const readyHolds = await EarningsHold.find({ releaseAt: { $lte: new Date() }, isReleased: false }).lean();
+// ==================================================
+// --- 9. Cron Job System & Automation ---
+// ==================================================
+if (!process.env.VERCEL) {
+  cron.schedule('0 0 * * *', async () => {
+    try {
+      const readyHolds = await EarningsHold.find({ releaseAt: { $lte: new Date() }, isReleased: false }).lean();
 
-    for (let hold of readyHolds) {
-      const session = await mongoose.startSession();
-      try {
-        session.startTransaction();
-        
-        const userUpdate = await User.findByIdAndUpdate(
-          hold.userId,
-          { $inc: { pendingBalance: -hold.amount, availableBalance: hold.amount } },
-          { session, new: true }
-        );
-
-        await EarningsHold.findByIdAndUpdate(hold._id, { isReleased: true }, { session });
-
-        await session.commitTransaction();
-
-        if (userUpdate && userUpdate.telegramId) {
-          sendTelegramNotification(
-            userUpdate.telegramId,
-            `✅ <b>تم إطلاق الأرباح!</b>\nتم تحويل <code>$${hold.amount.toFixed(4)}</code> إلى رصيدك المتاح.`
+      for (let hold of readyHolds) {
+        const session = await mongoose.startSession();
+        try {
+          session.startTransaction();
+          
+          const userUpdate = await User.findByIdAndUpdate(
+            hold.userId,
+            { $inc: { pendingBalance: -hold.amount, availableBalance: hold.amount } },
+            { session, new: true }
           );
-        }
-      } catch (err) {
-        await session.abortTransaction();
-        logger.error(`Error processing hold release for ID ${hold._id}: ${err.message}`);
-      } finally {
-        session.endSession();
-      }
-    }
-  } catch (err) {
-    logger.error('❌ Error executing Cron Settlement: ' + err.message);
-  }
-});
 
-// --- Static HTML & Catch-All Client Routing Engine (Prevents 404 on App Routes) ---
-app.get('*', (req, res, next) => {
-  // If the request is targeted to API, pass it to API handlers/404
-  if (req.path.startsWith('/api')) {
-    return next();
-  }
-  // Deliver Single Page Application entrypoint for all non-API routes
+          await EarningsHold.findByIdAndUpdate(hold._id, { isReleased: true }, { session });
+
+          await session.commitTransaction();
+
+          if (userUpdate && userUpdate.telegramId) {
+            sendTelegramNotification(
+              userUpdate.telegramId,
+              `✅ <b>تم إطلاق الأرباح!</b>\nتم تحويل <code>$${hold.amount.toFixed(4)}</code> إلى رصيدك المتاح.`
+            );
+          }
+        } catch (err) {
+          await session.abortTransaction();
+          logger.error(`Error processing hold release for ID ${hold._id}: ${err.message}`);
+        } finally {
+          session.endSession();
+        }
+      }
+    } catch (err) {
+      logger.error('❌ Error executing Cron Settlement: ' + err.message);
+    }
+  });
+}
+
+// ==================================================
+// --- 10. Static Routing & Error Handling Boundary ---
+// ==================================================
+app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'views.html'));
 });
 
-// --- Catch-all API 404 Handler ---
+app.get(['/app', '/admin', '/r/:code'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'views.html'));
+});
+
 app.use('/api/*', (req, res) => {
   res.status(404).json({ success: false, error: 'المسار المطلوب غير موجود' });
 });
 
-// ==================================================
-// --- Global Error Handling Middleware ---
-// ==================================================
 app.use((err, req, res, next) => {
   logger.error('Unhandled Application Error:', err);
 
   const statusCode = err.status || err.statusCode || 500;
-  const message = process.env.NODE_ENV === 'production' 
+  const message = CONFIG.ENV === 'production' 
     ? 'حدث خطأ غير متوقع في الخادم' 
     : (err.message || 'خطأ داخلي');
 
   res.status(statusCode).json({
     success: false,
     error: message,
-    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+    ...(CONFIG.ENV !== 'production' && { stack: err.stack })
   });
 });
 
-// --- Global Crash Guard ---
 process.on('uncaughtException', (err) => {
   logger.error('Uncaught Exception Detected: ' + err.stack);
 });
@@ -1320,5 +1400,11 @@ process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Enterprise Server V6 Active on Port ${PORT}`));
+// ==================================================
+// --- 11. Export / Boot Initialization ---
+// ==================================================
+if (process.env.VERCEL) {
+  module.exports = app;
+} else {
+  app.listen(CONFIG.PORT, () => console.log(`🚀 Ultra-Enterprise Server V8 Active on Port ${CONFIG.PORT}`));
+}
