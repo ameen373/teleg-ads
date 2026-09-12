@@ -48,8 +48,8 @@ function isValidHttpUrl(string) {
   if (!string || typeof string !== 'string') return false;
   let cleanStr = string.trim();
   
-  // إضافة البروتوكول تلقائياً إذا كان الرابط يبدأ بـ t.me أو telegram.me
-  if (/^(t\.me|telegram\.me)\//i.test(cleanStr)) {
+  // إضافة البروتوكول تلقائياً إذا كان الرابط يبدأ بـ t.me أو telegram.me أو www.
+  if (/^(t\.me|telegram\.me|www\.)/i.test(cleanStr)) {
     cleanStr = 'https://' + cleanStr;
   }
 
@@ -507,7 +507,7 @@ app.post('/api/ads', authMiddleware, asyncHandler(async (req, res) => {
     }
 
     let cleanTargetUrl = String(targetUrl || '').trim();
-    if (/^(t\.me|telegram\.me)\//i.test(cleanTargetUrl)) {
+    if (/^(t\.me|telegram\.me|www\.)/i.test(cleanTargetUrl)) {
       cleanTargetUrl = 'https://' + cleanTargetUrl;
     }
 
@@ -897,8 +897,8 @@ const handleShortenLink = async (req, res) => {
   const { title, targetUrl, url } = req.body;
   let cleanUrl = String(targetUrl || url || '').trim();
 
-  // إلحاق البروتوكول تلقائياً لروابط تلجرام القادمة بدون https://
-  if (/^(t\.me|telegram\.me)\//i.test(cleanUrl)) {
+  // إلحاق البروتوكول تلقائياً لروابط تليجرام أو روابط النطاقات القادمة بدون https://
+  if (/^(t\.me|telegram\.me|www\.)/i.test(cleanUrl)) {
     cleanUrl = 'https://' + cleanUrl;
   }
 
