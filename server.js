@@ -43,23 +43,31 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-// --- Dynamic Universal URL Validator Helper (Updated to properly handle t.me & all valid URLs) ---
+// --- Dynamic Universal URL Validator Helper (Enhanced for t.me & All Standard URLs) ---
 function isValidHttpUrl(string) {
   if (!string || typeof string !== 'string') return false;
   let cleanStr = string.trim();
   
-  // إضافة البروتوكول تلقائياً إذا كان الرابط يبدأ بـ t.me أو telegram.me بدونه
+  // إضافة البروتوكول تلقائياً إذا كان الرابط يبدأ بـ t.me أو telegram.me
   if (/^(t\.me|telegram\.me)\//i.test(cleanStr)) {
     cleanStr = 'https://' + cleanStr;
+  }
+
+  // دعم مباشر وشامل لكافة روابط تليجرام (t.me / telegram.me)
+  if (/^https?:\/\/(www\.)?(t\.me|telegram\.me)(\/.*)?$/i.test(cleanStr)) {
+    return true;
   }
 
   try {
     const parsedUrl = new URL(cleanStr);
     const validProtocol = parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
-    const validHost = parsedUrl.hostname && parsedUrl.hostname.includes('.');
+    // التأكد من وجود النطاق بشكل صحيح
+    const validHost = Boolean(parsedUrl.hostname);
     return Boolean(validProtocol && validHost);
   } catch (_) {
-    return false;
+    // Regex احتياطي مرن جداً للروابط العامة في حال إخفاق new URL()
+    const urlPattern = /^(https?:\/\/)?([\w.-]+)+[\w\-_~:/?#[\]@!$&'()*+,;=.]+$/i;
+    return urlPattern.test(cleanStr);
   }
 }
 
