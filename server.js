@@ -94,14 +94,14 @@ function normalizeAndValidateUrl(inputUrl) {
     return url;
   }
 
-  // Prepend https:// if protocol is missing (including short t.me/ links)
+  // Prepend https:// if protocol is missing (including t.me or standard domains)
   if (!/^https?:\/\//i.test(url)) {
     url = 'https://' + url;
   }
 
   try {
     const parsed = new URL(url);
-    // Accept standard http and https web URLs (including t.me)
+    // Accept standard http and https web URLs (including t.me, telegram.me, etc.)
     if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
       return parsed.href;
     }
