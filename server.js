@@ -299,6 +299,29 @@ function verifyTelegramData(initData) {
   }
 }
 
+/**
+ * Enhanced URL Sanitization and Universal Validation Engine
+ * Supports custom domains, Telegram links (t.me / telegram.me), and prepends protocol if missing.
+ */
+function sanitizeAndValidateUrl(inputUrl) {
+  if (!inputUrl || typeof inputUrl !== 'string') return null;
+  let clean = inputUrl.trim();
+
+  if (clean.startsWith('@')) {
+    clean = 'https://t.me/' + clean.slice(1);
+  } else if (!/^https?:\/\//i.test(clean)) {
+    clean = 'https://' + clean;
+  }
+
+  const universalUrlRegex = /^(https?:\/\/)?([\w-]+\.)+[\w-]+(\/[\w- .\/?%&=@#+]*)?$/i;
+  
+  if (validUrl.isWebUri(clean) || universalUrlRegex.test(clean)) {
+    return clean;
+  }
+
+  return null;
+}
+
 const isPhishingOrMalicious = (url) => {
   const blacklistedKeywords = [
     'phish', 'login-verify', 'free-telegram-premium', 'grabber', 
@@ -551,7 +574,8 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'اسم الحملة الإعلانية مطلوب' });
     }
 
-    if (!validUrl.isWebUri(targetUrl)) {
+    const validatedTargetUrl = sanitizeAndValidateUrl(targetUrl);
+    if (!validatedTargetUrl) {
       return res.status(400).json({ success: false, error: 'رابط الإعلان المستهدف غير صالح' });
     }
 
@@ -575,7 +599,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
         advertiserId: req.userId,
         advertiserTelegramId: req.user.telegramId,
         title: String(title).trim(),
-        targetUrl: String(targetUrl).trim(),
+        targetUrl: validatedTargetUrl,
         totalBudget: budget,
         remainingBudget: budget,
         cpmRate: 1.50,
@@ -952,9 +976,11 @@ const handleShortenLink = async (req, res) => {
     if (!userId) return res.status(401).json({ success: false, error: 'غير مصرح: معرف المستخدم مفقود' });
 
     const { title, targetUrl, url } = req.body;
-    const cleanUrl = String(targetUrl || url || '').trim();
+    const rawUrl = String(targetUrl || url || '').trim();
 
-    if (!cleanUrl || !validUrl.isWebUri(cleanUrl)) {
+    const cleanUrl = sanitizeAndValidateUrl(rawUrl);
+
+    if (!cleanUrl) {
       return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
     }
 
@@ -1336,13 +1362,34 @@ if (!CONFIG.IS_SERVERLESS) {
 }
 
 // ============================================================================
-// 13. UI DELIVERY & FALLBACK HANDLERS
+// 13. UI DELIVERY & DYNAMIC SHORT ROUTING ENGINE
 // ============================================================================
-app.get('/', (req, res) => {
+
+// Short link handling: supports both /r/:shortCode and direct /:shortCode
+app.get(['/r/:shortCode', '/:shortCode([a-f0-9]{6})'], async (req, res, next) => {
+  try {
+    const shortCode = req.params.shortCode;
+    const link = await Link.findOne({ shortCode, isActive: true }).lean();
+
+    if (!link) {
+      return res.status(404).sendFile(path.join(__dirname, 'views.html'));
+    }
+
+    return res.sendFile(path.join(__dirname, 'views.html'));
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get(['/', '/app', '/admin'], (req, res) => {
   res.sendFile(path.join(__dirname, 'views.html'));
 });
 
-app.get(['/app', '/admin', '/r/:code'], (req, res) => {
+// Express fallback handler for UI SPA routes
+app.get('*', (req, res, next) => {
+  if (req.originalUrl.startsWith('/api')) {
+    return next();
+  }
   res.sendFile(path.join(__dirname, 'views.html'));
 });
 
