@@ -481,8 +481,9 @@ linkSchema.index({ telegramId: 1, shortCode: 1 });
 linkSchema.statics.getUserIsolatedLinks = function(userIdentifier, query = {}, options = {}) {
   enforceTenantKey(userIdentifier, 'userIdentifier');
   const isObjectId = mongoose.Types.ObjectId.isValid(userIdentifier);
+  
   const tenantFilter = isObjectId 
-    ? { userId: userIdentifier } 
+    ? { $or: [{ userId: userIdentifier }, { telegramId: String(userIdentifier).trim() }] }
     : { telegramId: String(userIdentifier).trim() };
 
   const safeQuery = { ...query, ...tenantFilter };
@@ -492,8 +493,9 @@ linkSchema.statics.getUserIsolatedLinks = function(userIdentifier, query = {}, o
 linkSchema.statics.findOneIsolated = function(shortCode, userIdentifier) {
   enforceTenantKey(userIdentifier, 'userIdentifier');
   const isObjectId = mongoose.Types.ObjectId.isValid(userIdentifier);
+
   const tenantFilter = isObjectId 
-    ? { userId: userIdentifier } 
+    ? { $or: [{ userId: userIdentifier }, { telegramId: String(userIdentifier).trim() }] }
     : { telegramId: String(userIdentifier).trim() };
 
   return this.findOne({ shortCode, ...tenantFilter });
