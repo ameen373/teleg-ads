@@ -987,9 +987,26 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 
 const handleShortenLink = async (req, res) => {
   try {
-    const userId = req.userId;
-    if (!userId) return res.status(401).json({ success: false, error: 'غير مصرح: معرف المستخدم مفقود' });
+    // 1. التأكد من الاتصال بقاعدة البيانات قبل تنفيذ العملية
+    if (mongoose.connection.readyState !== 1) {
+      await connectDB();
+    }
 
+    // 2. استخراج وتأكيد بيانات المستخدم (userId و telegramId)
+    let userId = req.userId || req.user?._id || req.body?.userId;
+    let telegramId = req.user?.telegramId || req.body?.telegramId || null;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'غير مصرح: معرف المستخدم مفقود' });
+    }
+
+    // محاولة إيجاد telegramId إن لم يكن متوفراً
+    if (!telegramId && mongoose.Types.ObjectId.isValid(userId)) {
+      const u = await User.findById(userId).lean();
+      if (u) telegramId = u.telegramId;
+    }
+
+    // 3. التحقق من الرابط المرسل ومعالجته
     const { title, targetUrl, url } = req.body;
     const rawUrl = String(targetUrl || url || '').trim();
 
@@ -1009,13 +1026,31 @@ const handleShortenLink = async (req, res) => {
       }
     } catch (e) {}
 
-    const shortCode = crypto.randomBytes(3).toString('hex');
-    const publisherTelegramId = req.user?.telegramId || null;
-    
+    // 4. توليد كود فريد وضمان عدم حدوث تضارب في قاعدة البيانات (Unique ShortCode Handling)
+    let shortCode = '';
+    let isUnique = false;
+    let attempts = 0;
+
+    while (!isUnique && attempts < 10) {
+      shortCode = crypto.randomBytes(3).toString('hex'); // ينشئ كود مكون من 6 خانات
+      const existingLink = await Link.findOne({ shortCode }).lean();
+      if (!existingLink) {
+        isUnique = true;
+      }
+      attempts++;
+    }
+
+    if (!isUnique) {
+      return res.status(500).json({ success: false, error: 'فشل في توليد كود فريد، يرجى إعادة المحاولة' });
+    }
+
+    // 5. إنشاء وحفظ الرابط في قاعدة البيانات
+    const validUserId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : userId;
+
     const newLink = new Link({
-      userId: userId,
-      publisherTelegramId: publisherTelegramId,
-      telegramId: publisherTelegramId,
+      userId: validUserId,
+      publisherTelegramId: telegramId ? String(telegramId) : null,
+      telegramId: telegramId ? String(telegramId) : null,
       title: title ? String(title).trim() : 'رابط بدون عنوان',
       targetUrl: cleanUrl,
       shortCode,
@@ -1024,8 +1059,9 @@ const handleShortenLink = async (req, res) => {
 
     await newLink.save();
 
-    if (mongoose.Types.ObjectId.isValid(userId)) {
-      await User.findByIdAndUpdate(userId, { $inc: { 'statsSummary.totalLinksCreated': 1 } }).catch(() => {});
+    // تحديث إحصائيات المستخدم
+    if (mongoose.Types.ObjectId.isValid(validUserId)) {
+      await User.findByIdAndUpdate(validUserId, { $inc: { 'statsSummary.totalLinksCreated': 1 } }).catch(() => {});
     }
 
     const linkObj = newLink.toObject ? newLink.toObject() : newLink;
@@ -1036,9 +1072,17 @@ const handleShortenLink = async (req, res) => {
       link: { ...linkObj, shortUrl },
       shortUrl
     });
+
   } catch (err) {
-    logger.error('❌ Error in Shorten Router:', err);
-    return res.status(500).json({ success: false, error: 'حدث خطأ أثناء اختصار الرابط، حاول مجدداً' });
+    // طباعة تفاصيل الخطأ الدقيقة في الكونسول لمعرفة سبب الفشل بالتحديد
+    console.error('❌ Error in Link Creation Engine (Shorten API):', err);
+    logger.error('❌ Error in Link Creation Engine (Shorten API):', err);
+
+    return res.status(500).json({ 
+      success: false, 
+      error: 'فشل إنشاء الرابط المختصر',
+      details: CONFIG.NODE_ENV !== 'production' ? err.message : undefined
+    });
   }
 };
 
@@ -1395,6 +1439,10 @@ app.get('/:shortCode', async (req, res, next) => {
 
     if (reservedRoutes.includes(shortCode.toLowerCase())) {
       return next();
+    }
+
+    if (mongoose.connection.readyState !== 1) {
+      await connectDB();
     }
 
     const link = await Link.findOneAndUpdate(
