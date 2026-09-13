@@ -81,6 +81,33 @@ app.use('/api', (req, res, next) => {
 });
 
 // ============================================================================
+// HELPER: URL NORMALIZATION & VALIDATION
+// ============================================================================
+function normalizeAndValidateUrl(inputUrl) {
+  if (!inputUrl || typeof inputUrl !== 'string') return null;
+  let clean = inputUrl.trim();
+  if (!clean) return null;
+
+  // إضافة https:// تلقائياً للروابط التي لا تحتوي على بروتوكول
+  if (!/^https?:\/\//i.test(clean)) {
+    clean = 'https://' + clean;
+  }
+
+  try {
+    const parsed = new URL(clean);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return null;
+    }
+    if (!parsed.hostname || !parsed.hostname.includes('.')) {
+      return null;
+    }
+    return parsed.toString();
+  } catch (err) {
+    return null;
+  }
+}
+
+// ============================================================================
 // 2. CENTRALIZED ENTERPRISE LOGGING ENGINE (SERVERLESS / VERCEL SAFE)
 // ============================================================================
 const logger = winston.createLogger({
@@ -297,29 +324,6 @@ function verifyTelegramData(initData) {
   } catch (err) {
     return null;
   }
-}
-
-/**
- * Enhanced URL Sanitization and Universal Validation Engine
- * Supports custom domains, Telegram links (t.me / telegram.me), and prepends protocol if missing.
- */
-function sanitizeAndValidateUrl(inputUrl) {
-  if (!inputUrl || typeof inputUrl !== 'string') return null;
-  let clean = inputUrl.trim();
-
-  if (clean.startsWith('@')) {
-    clean = 'https://t.me/' + clean.slice(1);
-  } else if (!/^https?:\/\//i.test(clean)) {
-    clean = 'https://' + clean;
-  }
-
-  const universalUrlRegex = /^(https?:\/\/)?([\w-]+\.)+[\w-]+(\/[\w- .\/?%&=@#+]*)?$/i;
-  
-  if (validUrl.isWebUri(clean) || universalUrlRegex.test(clean)) {
-    return clean;
-  }
-
-  return null;
 }
 
 const isPhishingOrMalicious = (url) => {
@@ -574,8 +578,8 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'اسم الحملة الإعلانية مطلوب' });
     }
 
-    const validatedTargetUrl = sanitizeAndValidateUrl(targetUrl);
-    if (!validatedTargetUrl) {
+    const validatedUrl = normalizeAndValidateUrl(targetUrl);
+    if (!validatedUrl) {
       return res.status(400).json({ success: false, error: 'رابط الإعلان المستهدف غير صالح' });
     }
 
@@ -599,7 +603,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
         advertiserId: req.userId,
         advertiserTelegramId: req.user.telegramId,
         title: String(title).trim(),
-        targetUrl: validatedTargetUrl,
+        targetUrl: validatedUrl,
         totalBudget: budget,
         remainingBudget: budget,
         cpmRate: 1.50,
@@ -978,8 +982,7 @@ const handleShortenLink = async (req, res) => {
     const { title, targetUrl, url } = req.body;
     const rawUrl = String(targetUrl || url || '').trim();
 
-    const cleanUrl = sanitizeAndValidateUrl(rawUrl);
-
+    const cleanUrl = normalizeAndValidateUrl(rawUrl);
     if (!cleanUrl) {
       return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
     }
@@ -1362,35 +1365,41 @@ if (!CONFIG.IS_SERVERLESS) {
 }
 
 // ============================================================================
-// 13. UI DELIVERY & DYNAMIC SHORT ROUTING ENGINE
+// 13. UI DELIVERY, SHORT LINK REDIRECT & FALLBACK HANDLERS
 // ============================================================================
 
-// Short link handling: supports both /r/:shortCode and direct /:shortCode
-app.get(['/r/:shortCode', '/:shortCode([a-f0-9]{6})'], async (req, res, next) => {
-  try {
-    const shortCode = req.params.shortCode;
-    const link = await Link.findOne({ shortCode, isActive: true }).lean();
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'views.html'));
+});
 
-    if (!link) {
-      return res.status(404).sendFile(path.join(__dirname, 'views.html'));
+app.get(['/app', '/admin', '/r/:code'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'views.html'));
+});
+
+// مسار إعادة التوجيه المباشر للرابط المختصر مع زيادة الضغطات
+app.get('/:shortCode', async (req, res, next) => {
+  try {
+    const { shortCode } = req.params;
+    const reservedRoutes = ['app', 'admin', 'r', 'api', 'views.html', 'favicon.ico'];
+
+    if (reservedRoutes.includes(shortCode.toLowerCase())) {
+      return next();
     }
 
-    return res.sendFile(path.join(__dirname, 'views.html'));
+    const link = await Link.findOneAndUpdate(
+      { shortCode, isActive: true },
+      { $inc: { views: 1 } },
+      { new: true }
+    );
+
+    if (!link) {
+      return res.status(404).send('الرابط غير موجود أو تم تعطيله');
+    }
+
+    return res.redirect(302, link.targetUrl);
   } catch (err) {
     next(err);
   }
-});
-
-app.get(['/', '/app', '/admin'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'views.html'));
-});
-
-// Express fallback handler for UI SPA routes
-app.get('*', (req, res, next) => {
-  if (req.originalUrl.startsWith('/api')) {
-    return next();
-  }
-  res.sendFile(path.join(__dirname, 'views.html'));
 });
 
 app.use('/api/*', (req, res) => {
