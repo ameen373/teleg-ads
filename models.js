@@ -403,13 +403,11 @@ const linkSchema = new mongoose.Schema({
   },
   telegramId: {
     type: String,
-    required: [true, 'Telegram ID is required for zero-leakage index queries'],
     index: true,
     trim: true
   },
   publisherTelegramId: {
     type: String,
-    required: [true, 'Publisher Telegram ID is required for zero-leakage index queries'],
     index: true,
     trim: true
   },
