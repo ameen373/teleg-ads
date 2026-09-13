@@ -298,9 +298,6 @@ async function sendTelegramNotification(telegramId, message) {
   }
 }
 
-/**
- * التحقق من توقيع Telegram WebApp initData
- */
 function verifyTelegramData(initData) {
   if (!initData) return null;
   try {
@@ -326,7 +323,7 @@ function verifyTelegramData(initData) {
       const authDate = parseInt(urlParams.get('auth_date') || '0', 10);
       
       if (authDate && (Math.floor(Date.now() / 1000) - authDate > 86400)) {
-        return null; // صلاحية البيانات 24 ساعة
+        return null;
       }
       return parsedUser;
     }
@@ -375,16 +372,12 @@ const validateTraffic = (req, res, next) => {
   next();
 };
 
-/**
- * Middleware للتحقق من التوثيق وهادئ للتحقق من initData القادم من تليجرام واستخراج userId
- */
 const telegramAuthMiddleware = async (req, res, next) => {
   try {
     let user = null;
     const initData = req.headers['x-telegram-init-data'] || req.body?.initData || req.query?.initData;
     const authHeader = req.headers.authorization;
 
-    // 1. التوثيق من خلال Telegram initData
     if (initData) {
       const telegramUser = verifyTelegramData(initData);
       if (telegramUser && telegramUser.id) {
@@ -407,7 +400,6 @@ const telegramAuthMiddleware = async (req, res, next) => {
       }
     }
 
-    // 2. التوثيق الاحتياطي عن طريق JWT Token
     if (!user && authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
       try {
@@ -416,7 +408,6 @@ const telegramAuthMiddleware = async (req, res, next) => {
       } catch (err) {}
     }
 
-    // 3. التوثيق الاحتياطي عن طريق userId/telegramId صريح
     if (!user) {
       const fallbackUserId = req.body?.userId || req.query?.userId;
       const fallbackTelegramId = req.body?.telegramId || req.query?.telegramId;
@@ -439,7 +430,6 @@ const telegramAuthMiddleware = async (req, res, next) => {
       return res.status(403).json({ success: false, error: `حسابك معطل حالياً بسبب مخالفة السياسات. الدعم: ${CONFIG.SUPPORT_USERNAME}` });
     }
 
-    // إرفاق بيانات المستخدم بالطلب
     req.user = user;
     req.userId = user._id;
     req.telegramId = user.telegramId;
@@ -845,11 +835,11 @@ app.post('/api/init-click', validateTraffic, async (req, res, next) => {
       linkOwnerId = parsed.userId;
       linkOwnerTelegramId = parsed.publisherTelegramId;
     } else {
-      const link = await Link.findOne({ shortCode: cleanCode, isActive: true }).select('_id userId publisherTelegramId').lean();
+      const link = await Link.findOne({ shortCode: cleanCode, isActive: true }).select('_id userId publisherTelegramId telegramId').lean();
       if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود أو تم تعطيله' });
       linkId = link._id.toString();
       linkOwnerId = link.userId.toString();
-      linkOwnerTelegramId = link.publisherTelegramId;
+      linkOwnerTelegramId = link.publisherTelegramId || link.telegramId;
       await safeRedisSet(`link:data:${cleanCode}`, JSON.stringify({ id: linkId, userId: linkOwnerId, publisherTelegramId: linkOwnerTelegramId }), 'EX', 3600);
     }
 
@@ -1033,7 +1023,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 // ============================================================================
 
 /**
- * معالج إنشاء واختصار الرابط مع ضمان أخذ userId وحفظ البيانات
+ * معالج إنشاء واختصار الرابط المحسّن بالكامل
  */
 const handleShortenLink = async (req, res) => {
   try {
@@ -1041,7 +1031,6 @@ const handleShortenLink = async (req, res) => {
       await connectDB();
     }
 
-    // استخراج userId من التوثيق
     const userId = req.userId;
     const telegramId = req.telegramId || req.user?.telegramId;
 
@@ -1072,8 +1061,10 @@ const handleShortenLink = async (req, res) => {
     let isUnique = false;
     let attempts = 0;
 
+    // توليد كود فريد مع تفعيل آلية تعاقب عند زيادة التضارب
     while (!isUnique && attempts < 10) {
-      shortCode = crypto.randomBytes(3).toString('hex');
+      const bytesCount = attempts > 5 ? 4 : 3;
+      shortCode = crypto.randomBytes(bytesCount).toString('hex');
       const existingLink = await Link.findOne({ shortCode }).lean();
       if (!existingLink) {
         isUnique = true;
@@ -1085,18 +1076,19 @@ const handleShortenLink = async (req, res) => {
       return res.status(500).json({ success: false, error: 'فشل في توليد كود فريد، يرجى إعادة المحاولة' });
     }
 
-    // حفظ الرابط مع ربطه صراحةً بالـ userId الموثوق
-    const newLink = new Link({
+    // إنشاء الرابط داخل قاعدة البيانات وتحديث الحقول الموحدة
+    const newLink = await Link.create({
       userId: userId,
       publisherTelegramId: telegramId ? String(telegramId) : null,
       telegramId: telegramId ? String(telegramId) : null,
       title: title ? String(title).trim() : 'رابط بدون عنوان',
       targetUrl: cleanUrl,
-      shortCode,
-      isActive: true
+      shortCode: shortCode,
+      isActive: true,
+      views: 0,
+      validImpressions: 0,
+      invalidImpressions: 0
     });
-
-    await newLink.save();
 
     await User.findByIdAndUpdate(userId, { $inc: { 'statsSummary.totalLinksCreated': 1 } }).catch(() => {});
 
@@ -1138,9 +1130,6 @@ app.post('/api/shorten', telegramAuthMiddleware, linkCreationLimiter, handleShor
 app.post('/api/links/shorten', telegramAuthMiddleware, linkCreationLimiter, handleShortenLink);
 app.post('/api/links', telegramAuthMiddleware, linkCreationLimiter, handleShortenLink);
 
-/**
- * دالة جلب الروابط المعزولة للمستخدم الحالي فقط
- */
 const getUserLinks = async (userId) => {
   if (!userId) return [];
 
@@ -1171,7 +1160,6 @@ const getUserLinks = async (userId) => {
   });
 };
 
-// مسارات جلب روابط المستخدم الخاص بالطلب الحالي فقط
 app.get('/api/my-links', telegramAuthMiddleware, async (req, res, next) => {
   try {
     const links = await getUserLinks(req.userId);
