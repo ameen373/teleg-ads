@@ -1583,210 +1583,112 @@
         return;
       }
 
-      setButtonLoading('btn-create-ad', true);
+         setButtonLoading('btn-create-ad', true);
 
       try {
         const res = await safeFetch('/api/ads/create', {
           method: 'POST',
-          body: JSON.stringify({ 
-            title, 
-            targetUrl, 
-            totalBudget: budget,
+          body: JSON.stringify({
+            title,
+            targetUrl,
+            budget,
             initData: tg?.initData || '',
-            telegramId: currentUserTelegramId 
+            telegramId: currentUserTelegramId
           })
         });
 
         if (res) {
           const data = await res.json();
           if (res.ok && data.success) {
-            showToast(currentLang === 'ar' ? 'تم إنشاء الحملة الإعلانية بنجاح!' : 'Ad campaign launched!');
+            showToast(currentLang === 'ar' ? 'تم إنشاء الحملة الإعلانية بنجاح!' : 'Ad campaign created successfully!');
             clearDraftStorage(['ad-title', 'ad-target-url', 'ad-budget']);
             await loadUserData();
           } else {
-            showToast(data.message || (currentLang === 'ar' ? 'حدث خطأ أثناء إطلاق الحملة' : 'Failed to launch ad campaign'));
+            showToast(data.message || (currentLang === 'ar' ? 'حدث خطأ أثناء إنشاء الحملة' : 'Failed to create campaign'));
           }
         }
       } catch (e) {
-        console.error("Ad creation error:", e);
+        console.error("Create Ad Error:", e);
       } finally {
         setButtonLoading('btn-create-ad', false);
       }
     }
 
-    // Bridge Page Handler & Timer System
-    let bridgeTimerInterval = null;
-    let bridgeSecondsLeft = 5;
-
-    async function initBridge() {
-      const shortCode = window.location.pathname.split('/r/')[1];
-      if (!shortCode) return;
-
-      try {
-        const res = await safeFetch(`/api/bridge/init/${shortCode}`);
-        if (!res) return;
-        const data = await res.json();
-
-        if (data && data.sessionId) {
-          currentSessionId = data.sessionId;
-          
-          // Render Ad Unit if present
-          const adContainer = document.getElementById('ad-container');
-          if (data.ad && adContainer) {
-            adContainer.innerHTML = `
-              <div style="width: 100%;">
-                <h4 style="margin: 0 0 8px 0; color: var(--accent); font-size: 15px;">${escapeHTML(data.ad.title)}</h4>
-                <p style="font-size: 12px; color: var(--text-muted); margin: 0 0 12px 0;">Sponsor Announcement</p>
-                <a href="${escapeHTML(data.ad.targetUrl)}" target="_blank" rel="noopener" style="display: inline-block;">
-                  <button class="btn-small btn-warning">Visit Sponsor Link</button>
-                </a>
-              </div>
-            `;
-          }
-
-          startBridgeTimer();
-        } else {
-          showToast(data.message || 'Invalid link or expired');
-        }
-      } catch (err) {
-        console.error("Bridge Init Error:", err);
-      }
-    }
-
-    function startBridgeTimer() {
-      const timerDisplay = document.getElementById('timer');
-      const goBtn = document.getElementById('go-btn');
-      bridgeSecondsLeft = 5;
-
-      if (bridgeTimerInterval) clearInterval(bridgeTimerInterval);
-
-      bridgeTimerInterval = setInterval(() => {
-        bridgeSecondsLeft--;
-        if (timerDisplay) timerDisplay.innerText = bridgeSecondsLeft;
-
-        if (bridgeSecondsLeft <= 0) {
-          clearInterval(bridgeTimerInterval);
-          if (goBtn) {
-            goBtn.disabled = false;
-            goBtn.style.background = 'var(--success)';
-          }
-        }
-      }, 1000);
-    }
-
-    async function completeImpression() {
-      if (!currentSessionId) return;
-      
-      const goBtn = document.getElementById('go-btn');
-      setButtonLoading('go-btn', true);
-
-      try {
-        const res = await safeFetch('/api/bridge/complete', {
-          method: 'POST',
-          body: JSON.stringify({
-            sessionId: currentSessionId,
-            timeSpent: Math.floor((Date.now() - bridgeStartTime) / 1000)
-          })
-        });
-
-        if (res) {
-          const data = await res.json();
-          if (res.ok && data.targetUrl) {
-            window.location.href = data.targetUrl;
-          } else {
-            showToast(data.message || 'Error processing request');
-          }
-        }
-      } catch (err) {
-        console.error("Completion Error:", err);
-      } finally {
-        setButtonLoading('go-btn', false);
-      }
-    }
-
-    // Admin Dashboard System Functions
+    // Admin Panel Logic
     async function loadAdminData() {
       if (!isUserAdmin) return;
+
       try {
-        const res = await safeFetch('/api/admin/dashboard');
+        const res = await safeFetch('/api/admin/data');
         if (!res) return;
         const data = await res.json();
-        if (!data) return;
 
         document.getElementById('admin-total-users').innerText = data.totalUsers || 0;
         document.getElementById('admin-total-pending').innerText = `$${(data.totalPendingBalance || 0).toFixed(2)}`;
 
         // Render Pending Deposits
-        const depositsList = document.getElementById('admin-deposits-list');
-        if (depositsList) {
-          if (!data.pendingDeposits || data.pendingDeposits.length === 0) {
-            depositsList.innerHTML = 'No pending deposits.';
-          } else {
-            depositsList.innerHTML = data.pendingDeposits.map(d => `
-              <div style="background: #0f172a; padding: 10px; margin-bottom: 8px; border-radius: 10px; border: 1px solid var(--card-border);">
-                <div>User: <b>${escapeHTML(d.user?.username || d.user?.telegramId || 'Unknown')}</b></div>
-                <div>Amount: <b style="color:var(--success);">$${parseFloat(d.amount || 0).toFixed(2)}</b> (${escapeHTML(d.network)})</div>
-                <div style="font-size:10px; color:var(--text-muted); word-break:break-all;">TxID: ${escapeHTML(d.txHash)}</div>
-                <div style="margin-top: 8px;">
-                  <button class="btn-small btn-success" onclick="approveDeposit('${d._id}')">Approve</button>
-                  <button class="btn-small btn-danger" onclick="rejectDeposit('${d._id}')">Reject</button>
-                </div>
+        const depContainer = document.getElementById('admin-deposits-list');
+        if (!data.deposits || data.deposits.length === 0) {
+          depContainer.innerHTML = '<p style="color:var(--text-muted);">No pending deposit requests.</p>';
+        } else {
+          depContainer.innerHTML = data.deposits.map(d => `
+            <div style="background:#0f172a; padding:12px; border-radius:12px; margin-bottom:8px; border:1px solid var(--card-border);">
+              <div>User: <b>${escapeHTML(d.telegramId)}</b> | Amt: <b style="color:var(--success);">$${parseFloat(d.amount).toFixed(2)}</b></div>
+              <div style="font-size:11px; color:var(--text-muted); word-break:break-all; margin:4px 0;">TxID: ${escapeHTML(d.txHash)} (${escapeHTML(d.network)})</div>
+              <div style="display:flex; gap:8px; margin-top:8px;">
+                <button class="btn-small btn-success" onclick="approveDeposit('${d._id}')">Approve</button>
+                <button class="btn-small btn-danger" onclick="rejectDeposit('${d._id}')">Reject</button>
               </div>
-            `).join('');
-          }
+            </div>
+          `).join('');
         }
 
         // Render Pending Withdrawals
-        const withdrawsList = document.getElementById('admin-withdraws-list');
-        if (withdrawsList) {
-          if (!data.pendingWithdrawals || data.pendingWithdrawals.length === 0) {
-            withdrawsList.innerHTML = 'No pending withdrawals.';
-          } else {
-            withdrawsList.innerHTML = data.pendingWithdrawals.map(w => `
-              <div style="background: #0f172a; padding: 10px; margin-bottom: 8px; border-radius: 10px; border: 1px solid var(--card-border);">
-                <div>User: <b>${escapeHTML(w.user?.username || w.user?.telegramId || 'Unknown')}</b></div>
-                <div>Amount: <b style="color:var(--warning);">$${parseFloat(w.amount || 0).toFixed(2)}</b></div>
-                <div style="font-size:10px; color:var(--text-muted); word-break:break-all;">Wallet: ${escapeHTML(w.walletAddress)}</div>
-                <div style="margin-top: 8px;">
-                  <button class="btn-small btn-success" onclick="approveWithdrawal('${w._id}')">Approve</button>
-                  <button class="btn-small btn-danger" onclick="rejectWithdrawal('${w._id}')">Reject</button>
-                </div>
+        const withContainer = document.getElementById('admin-withdraws-list');
+        if (!data.withdraws || data.withdraws.length === 0) {
+          withContainer.innerHTML = '<p style="color:var(--text-muted);">No pending withdrawal requests.</p>';
+        } else {
+          withContainer.innerHTML = data.withdraws.map(w => `
+            <div style="background:#0f172a; padding:12px; border-radius:12px; margin-bottom:8px; border:1px solid var(--card-border);">
+              <div>User: <b>${escapeHTML(w.telegramId)}</b> | Amt: <b style="color:var(--warning);">$${parseFloat(w.amount).toFixed(2)}</b></div>
+              <div style="font-size:11px; color:var(--text-muted); word-break:break-all; margin:4px 0;">Wallet: ${escapeHTML(w.walletAddress)}</div>
+              <div style="display:flex; gap:8px; margin-top:8px;">
+                <button class="btn-small btn-success" onclick="approveWithdrawal('${w._id}')">Complete</button>
+                <button class="btn-small btn-danger" onclick="rejectWithdrawal('${w._id}')">Reject</button>
               </div>
-            `).join('');
-          }
+            </div>
+          `).join('');
         }
 
-        // Render System Users
-        const usersList = document.getElementById('admin-users-list');
-        if (usersList) {
-          if (!data.users || data.users.length === 0) {
-            usersList.innerHTML = 'No users registered.';
-          } else {
-            usersList.innerHTML = data.users.map(u => `
-              <div style="background: #0f172a; padding: 10px; margin-bottom: 8px; border-radius: 10px; border: 1px solid var(--card-border); font-size:11px;">
-                <div>User: <b>${escapeHTML(u.username || u.first_name || u.telegramId)}</b> (ID: ${u.telegramId})</div>
-                <div>Pending: <span style="color:var(--warning);">$${(u.pendingBalance || 0).toFixed(2)}</span> | Avail: <span style="color:var(--success);">$${(u.availableBalance || 0).toFixed(2)}</span></div>
-              </div>
-            `).join('');
-          }
+        // Render Users List
+        const usersContainer = document.getElementById('admin-users-list');
+        if (!data.users || data.users.length === 0) {
+          usersContainer.innerHTML = '<p style="color:var(--text-muted);">No users registered.</p>';
+        } else {
+          usersContainer.innerHTML = data.users.map(u => `
+            <div style="background:#0f172a; padding:10px; border-radius:10px; margin-bottom:6px; border:1px solid var(--card-border); font-size:11px;">
+              <div>ID: <b>${escapeHTML(u.telegramId)}</b> | Name: ${escapeHTML(u.fullName || 'N/A')}</div>
+              <div>Pending: <b style="color:var(--warning);">$${(u.pendingBalance || 0).toFixed(2)}</b> | Avail: <b style="color:var(--success);">$${(u.availableBalance || 0).toFixed(2)}</b></div>
+            </div>
+          `).join('');
         }
-
       } catch (e) {
-        console.error("Failed to load admin data:", e);
+        console.error("Error loading admin data:", e);
       }
     }
 
     async function distributeRevenue() {
       const amount = parseFloat(document.getElementById('revenue-amount').value) || 0;
       if (amount <= 0) {
-        showToast("Enter a valid revenue amount");
+        showToast("Enter a valid revenue pool amount");
         return;
       }
+
       setButtonLoading('btn-distribute-rev', true);
       try {
         const res = await safeFetch('/api/admin/distribute-revenue', {
           method: 'POST',
-          body: JSON.stringify({ amount })
+          body: JSON.stringify({ amount, initData: tg?.initData || '' })
         });
         if (res && res.ok) {
           showToast("Revenue pool distributed successfully!");
@@ -1794,58 +1696,140 @@
           await loadAdminData();
         }
       } catch (e) {
-        console.error("Distribution error:", e);
+        console.error("Distribute revenue error:", e);
       } finally {
         setButtonLoading('btn-distribute-rev', false);
       }
     }
 
-    async function approveDeposit(depositId) {
+    async function approveDeposit(id) {
       try {
-        const res = await safeFetch(`/api/admin/deposit/approve/${depositId}`, { method: 'POST' });
-        if (res && res.ok) {
-          showToast("Deposit approved");
-          await loadAdminData();
-        }
+        const res = await safeFetch(`/api/admin/deposit/approve/${id}`, { method: 'POST' });
+        if (res && res.ok) { showToast("Deposit approved"); await loadAdminData(); }
       } catch (e) { console.error(e); }
     }
 
-    async function rejectDeposit(depositId) {
+    async function rejectDeposit(id) {
       try {
-        const res = await safeFetch(`/api/admin/deposit/reject/${depositId}`, { method: 'POST' });
-        if (res && res.ok) {
-          showToast("Deposit rejected");
-          await loadAdminData();
-        }
+        const res = await safeFetch(`/api/admin/deposit/reject/${id}`, { method: 'POST' });
+        if (res && res.ok) { showToast("Deposit rejected"); await loadAdminData(); }
       } catch (e) { console.error(e); }
     }
 
-    async function approveWithdrawal(withdrawId) {
+    async function approveWithdrawal(id) {
       try {
-        const res = await safeFetch(`/api/admin/withdraw/approve/${withdrawId}`, { method: 'POST' });
-        if (res && res.ok) {
-          showToast("Withdrawal approved");
-          await loadAdminData();
-        }
+        const res = await safeFetch(`/api/admin/withdraw/approve/${id}`, { method: 'POST' });
+        if (res && res.ok) { showToast("Withdrawal marked as completed"); await loadAdminData(); }
       } catch (e) { console.error(e); }
     }
 
-    async function rejectWithdrawal(withdrawId) {
-      const reason = prompt("Enter rejection reason:") || "Rejected by admin";
+    async function rejectWithdrawal(id) {
+      const reason = prompt("Enter rejection reason:") || "Request rejected by admin";
       try {
-        const res = await safeFetch(`/api/admin/withdraw/reject/${withdrawId}`, {
+        const res = await safeFetch(`/api/admin/withdraw/reject/${id}`, {
           method: 'POST',
           body: JSON.stringify({ reason })
         });
-        if (res && res.ok) {
-          showToast("Withdrawal rejected");
-          await loadAdminData();
-        }
+        if (res && res.ok) { showToast("Withdrawal rejected"); await loadAdminData(); }
       } catch (e) { console.error(e); }
     }
 
-    // Initialize Application Page
-    window.addEventListener('DOMContentLoaded', initializeApp);
+    // Bridge Page Processing (Short URL Handler)
+    async function initBridge() {
+      const pathParts = window.location.pathname.split('/');
+      const shortCode = pathParts[pathParts.length - 1] || pathParts[pathParts.length - 2];
+
+      try {
+        const res = await fetch(`${API_BASE}/api/bridge/init`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ shortCode })
+        });
+
+        if (!res.ok) throw new Error("Link not found");
+        const data = await res.json();
+
+        currentSessionId = data.sessionId;
+        bridgeStartTime = Date.now();
+
+        // Load Adsgram Ad unit if available
+        if (window.Adsgram && data.adsgramBlockId) {
+          try {
+            const AdController = window.Adsgram.init({ blockId: data.adsgramBlockId });
+            AdController.show().catch(err => console.log("Adsgram display skipped:", err));
+          } catch (e) {}
+        }
+
+        // Render Custom Banner Ad if provided
+        if (data.ad) {
+          const adBox = document.getElementById('ad-container');
+          if (adBox) {
+            adBox.innerHTML = `
+              <div style="width:100%;">
+                <h4 style="margin:0 0 6px 0; color:var(--accent);">${escapeHTML(data.ad.title)}</h4>
+                <a href="${escapeHTML(data.ad.targetUrl)}" target="_blank" rel="noopener" style="color:var(--text-muted); font-size:12px; text-decoration:underline;">Click to explore sponsored ad</a>
+              </div>
+            `;
+          }
+        }
+
+        startBridgeTimer(data.timerSeconds || 5);
+      } catch (e) {
+        const adBox = document.getElementById('ad-container');
+        if (adBox) {
+          adBox.innerHTML = `<span style="color:var(--danger);">Invalid or expired short link.</span>`;
+        }
+      }
+    }
+
+    function startBridgeTimer(seconds) {
+      let timeLeft = seconds;
+      const timerElem = document.getElementById('timer');
+      const goBtn = document.getElementById('go-btn');
+
+      const interval = setInterval(() => {
+        timeLeft--;
+        if (timerElem) timerElem.innerText = timeLeft;
+
+        if (timeLeft <= 0) {
+          clearInterval(interval);
+          if (goBtn) goBtn.disabled = false;
+        }
+      }, 1000);
+    }
+
+    async function completeImpression() {
+      const goBtn = document.getElementById('go-btn');
+      setButtonLoading('go-btn', true, 'Redirecting...');
+
+      const timeSpent = Math.floor((Date.now() - bridgeStartTime) / 1000);
+
+      try {
+        const res = await fetch(`${API_BASE}/api/bridge/complete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId: currentSessionId,
+            timeSpent
+          })
+        });
+
+        const data = await res.json();
+        if (data && data.destinationUrl) {
+          window.location.href = data.destinationUrl;
+        } else {
+          showToast("Failed to resolve target link");
+        }
+      } catch (e) {
+        console.error("Bridge completion error:", e);
+      } finally {
+        setButtonLoading('go-btn', false);
+      }
+    }
+
+    // App Initialization Trigger
+    document.addEventListener('DOMContentLoaded', initializeApp);
   </script>
 </body>
 </html>
+    
