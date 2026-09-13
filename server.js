@@ -1117,11 +1117,13 @@ const handleShortenLink = async (req, res) => {
     });
 
   } catch (err) {
+    console.error('❌ [Link Shorten Error Details]:', err);
     logger.error('❌ Error in Link Creation Engine (Shorten API):', err);
     return res.status(500).json({ 
       success: false, 
-      error: 'فشل إنشاء الرابط المختصر بسبب خطأ في قاعدة البيانات',
-      details: CONFIG.NODE_ENV !== 'production' ? err.message : undefined
+      error: `حدث خطأ أثناء اختصار الرابط: ${err.message || 'خطأ غير معروف في قاعدة البيانات'}`,
+      details: err.message,
+      stack: CONFIG.NODE_ENV !== 'production' ? err.stack : undefined
     });
   }
 };
