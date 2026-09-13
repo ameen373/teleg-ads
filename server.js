@@ -43,14 +43,33 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-// --- Dynamic Universal URL Validator Helper (Enhanced for t.me & All Standard URLs) ---
-function isValidHttpUrl(string) {
-  if (!string || typeof string !== 'string') return false;
-  let cleanStr = string.trim();
-  
-  // إضافة البروتوكول تلقائياً إذا كان الرابط يبدأ بـ t.me أو telegram.me أو www.
+// --- Dynamic Universal URL Validator Helper (Enhanced for t.me, tg:// & Universal Links) ---
+function sanitizeAndFormatUrl(input) {
+  if (!input || typeof input !== 'string') return '';
+  let cleanStr = input.trim();
+
+  // معالجة أسماء المستخدمين أو القنوات التي تبدأ بـ @
+  if (cleanStr.startsWith('@')) {
+    cleanStr = 'https://t.me/' + cleanStr.slice(1);
+  }
+
+  // إضافة https:// تلقائياً لروابط t.me أو telegram.me أو www. أو الروابط الخالية من البروتوكول
   if (/^(t\.me|telegram\.me|www\.)/i.test(cleanStr)) {
     cleanStr = 'https://' + cleanStr;
+  } else if (!/^[a-z]+:\/\//i.test(cleanStr)) {
+    cleanStr = 'https://' + cleanStr;
+  }
+
+  return cleanStr;
+}
+
+function isValidHttpUrl(string) {
+  if (!string || typeof string !== 'string') return false;
+  const cleanStr = sanitizeAndFormatUrl(string);
+
+  // دعم بروتوكول تليجرام المباشر (tg://)
+  if (/^tg:\/\/[a-z0-9_?/&=.-]+/i.test(cleanStr)) {
+    return true;
   }
 
   // دعم مباشر وشامل لكافة روابط تليجرام (t.me / telegram.me)
@@ -61,11 +80,10 @@ function isValidHttpUrl(string) {
   try {
     const parsedUrl = new URL(cleanStr);
     const validProtocol = parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
-    // التأكد من وجود النطاق بشكل صحيح
     const validHost = Boolean(parsedUrl.hostname);
     return Boolean(validProtocol && validHost);
   } catch (_) {
-    // Regex احتياطي مرن جداً للروابط العامة في حال إخفاق new URL()
+    // Regex احتياطي مرن جداً للروابط العامة
     const urlPattern = /^(https?:\/\/)?([\w.-]+)+[\w\-_~:/?#[\]@!$&'()*+,;=.]+$/i;
     return urlPattern.test(cleanStr);
   }
@@ -506,10 +524,7 @@ app.post('/api/ads', authMiddleware, asyncHandler(async (req, res) => {
       return res.status(400).json({ success: false, error: 'عنوان الإعلان مطلوب' });
     }
 
-    let cleanTargetUrl = String(targetUrl || '').trim();
-    if (/^(t\.me|telegram\.me|www\.)/i.test(cleanTargetUrl)) {
-      cleanTargetUrl = 'https://' + cleanTargetUrl;
-    }
+    let cleanTargetUrl = sanitizeAndFormatUrl(targetUrl);
 
     if (!isValidHttpUrl(cleanTargetUrl)) {
       await session.abortTransaction();
@@ -895,12 +910,7 @@ const handleShortenLink = async (req, res) => {
   }
 
   const { title, targetUrl, url } = req.body;
-  let cleanUrl = String(targetUrl || url || '').trim();
-
-  // إلحاق البروتوكول تلقائياً لروابط تليجرام أو روابط النطاقات القادمة بدون https://
-  if (/^(t\.me|telegram\.me|www\.)/i.test(cleanUrl)) {
-    cleanUrl = 'https://' + cleanUrl;
-  }
+  let cleanUrl = sanitizeAndFormatUrl(targetUrl || url);
 
   if (!cleanUrl || !isValidHttpUrl(cleanUrl)) {
     return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
@@ -1248,6 +1258,7 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'views.html'));
 });
 
+// مسار توجيه الرابط المختصر والصفحة الجسرية
 app.get(['/app', '/admin', '/r/:code'], (req, res) => {
   res.sendFile(path.join(__dirname, 'views.html'));
 });
