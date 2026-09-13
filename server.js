@@ -81,27 +81,22 @@ app.use('/api', (req, res, next) => {
 });
 
 // ============================================================================
-// 2. CENTRALIZED ENTERPRISE LOGGING ENGINE
+// 2. CENTRALIZED ENTERPRISE LOGGING ENGINE (SERVERLESS / VERCEL SAFE)
 // ============================================================================
 const logger = winston.createLogger({
   level: CONFIG.NODE_ENV === 'production' ? 'info' : 'debug',
   format: winston.format.combine(
     winston.format.timestamp(),
     winston.format.errors({ stack: true }),
-    winston.format.json()
+    CONFIG.NODE_ENV === 'production'
+      ? winston.format.json()
+      : winston.format.combine(winston.format.colorize(), winston.format.simple())
   ),
   defaultMeta: { service: 'telega-core-v10' },
   transports: [
-    new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'logs/combined.log' })
+    new winston.transports.Console()
   ]
 });
-
-if (CONFIG.NODE_ENV !== 'production' || CONFIG.IS_SERVERLESS) {
-  logger.add(new winston.transports.Console({ 
-    format: winston.format.combine(winston.format.colorize(), winston.format.simple()) 
-  }));
-}
 
 app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } }));
 
