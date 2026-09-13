@@ -403,6 +403,7 @@ const linkSchema = new mongoose.Schema({
   },
   telegramId: {
     type: String,
+    required: [true, 'Telegram ID is required for tenant isolation'],
     index: true,
     trim: true
   },
@@ -444,9 +445,10 @@ const linkSchema = new mongoose.Schema({
   }
 }, globalSchemaOptions);
 
+// Pre-validate middleware ensuring complete data synchronization between telegramId and publisherTelegramId
 linkSchema.pre('validate', function(next) {
-  if (this.telegramId && !this.publisherTelegramId) this.publisherTelegramId = String(this.telegramId);
-  if (this.publisherTelegramId && !this.telegramId) this.telegramId = String(this.publisherTelegramId);
+  if (this.telegramId && !this.publisherTelegramId) this.publisherTelegramId = String(this.telegramId).trim();
+  if (this.publisherTelegramId && !this.telegramId) this.telegramId = String(this.publisherTelegramId).trim();
   
   if (!this.title || this.title.trim() === '') {
     this.title = 'Untitled Link';
@@ -454,21 +456,35 @@ linkSchema.pre('validate', function(next) {
   next();
 });
 
+// Indexes for high-performance isolated queries
 linkSchema.index({ userId: 1, createdAt: -1 });
 linkSchema.index({ telegramId: 1, createdAt: -1 });
 linkSchema.index({ publisherTelegramId: 1, createdAt: -1 });
 linkSchema.index({ userId: 1, isActive: 1, createdAt: -1 });
+linkSchema.index({ telegramId: 1, isActive: 1, createdAt: -1 });
 linkSchema.index({ userId: 1, shortCode: 1 });
+linkSchema.index({ telegramId: 1, shortCode: 1 });
 
-linkSchema.statics.getUserIsolatedLinks = function(userId, query = {}, options = {}) {
-  enforceTenantKey(userId, 'userId');
-  const safeQuery = { ...query, userId };
+// Helper Static Method to query user links safely using either userId or telegramId
+linkSchema.statics.getUserIsolatedLinks = function(userIdentifier, query = {}, options = {}) {
+  enforceTenantKey(userIdentifier, 'userIdentifier');
+  const isObjectId = mongoose.Types.ObjectId.isValid(userIdentifier);
+  const tenantFilter = isObjectId 
+    ? { userId: userIdentifier } 
+    : { telegramId: String(userIdentifier).trim() };
+
+  const safeQuery = { ...query, ...tenantFilter };
   return this.find(safeQuery, null, options).sort({ createdAt: -1 });
 };
 
-linkSchema.statics.findOneIsolated = function(shortCode, userId) {
-  enforceTenantKey(userId, 'userId');
-  return this.findOne({ shortCode, userId });
+linkSchema.statics.findOneIsolated = function(shortCode, userIdentifier) {
+  enforceTenantKey(userIdentifier, 'userIdentifier');
+  const isObjectId = mongoose.Types.ObjectId.isValid(userIdentifier);
+  const tenantFilter = isObjectId 
+    ? { userId: userIdentifier } 
+    : { telegramId: String(userIdentifier).trim() };
+
+  return this.findOne({ shortCode, ...tenantFilter });
 };
 
 // --------------------------------------------------
