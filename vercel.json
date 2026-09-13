@@ -1,11 +1,17 @@
 {
   "version": 2,
-  "functions": {
-    "server.js": {
-      "maxDuration": 60,
-      "includeFiles": "views.html"
+  "builds": [
+    {
+      "src": "server.js",
+      "use": "@vercel/node",
+      "config": {
+        "maxDuration": 60,
+        "includeFiles": [
+          "views.html"
+        ]
+      }
     }
-  },
+  ],
   "headers": [
     {
       "source": "/api/(.*)",
@@ -28,10 +34,10 @@
       ]
     }
   ],
-  "rewrites": [
+  "routes": [
     {
-      "source": "/(.*)",
-      "destination": "/server.js"
+      "src": "/(.*)",
+      "dest": "server.js"
     }
   ]
 }
