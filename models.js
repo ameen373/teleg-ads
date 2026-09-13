@@ -421,12 +421,8 @@ const linkSchema = new mongoose.Schema({
   },
   targetUrl: { 
     type: String, 
-    required: [true, 'Target URL is required'], 
-    trim: true,
-    validate: {
-      validator: isValidUrl,
-      message: 'Please enter a valid target URL'
-    }
+    required: [true, 'Target URL is required'],
+    trim: true
   },
   isActive: { 
     type: Boolean, 
@@ -453,13 +449,6 @@ const linkSchema = new mongoose.Schema({
 linkSchema.pre('validate', function(next) {
   if (this.telegramId && !this.publisherTelegramId) this.publisherTelegramId = String(this.telegramId);
   if (this.publisherTelegramId && !this.telegramId) this.telegramId = String(this.publisherTelegramId);
-  
-  if (this.targetUrl && typeof this.targetUrl === 'string') {
-    this.targetUrl = this.targetUrl.trim();
-    if (!/^https?:\/\//i.test(this.targetUrl) && !/^(tg|telegram):\/\//i.test(this.targetUrl)) {
-      this.targetUrl = `https://${this.targetUrl}`;
-    }
-  }
   
   if (!this.title || this.title.trim() === '') {
     this.title = 'Untitled Link';
