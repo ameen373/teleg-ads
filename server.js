@@ -88,7 +88,6 @@ function normalizeAndValidateUrl(inputUrl) {
   let clean = inputUrl.trim();
   if (!clean) return null;
 
-  // إضافة https:// تلقائياً للروابط التي لا تحتوي على بروتوكول (مثل t.me/username)
   if (!/^https?:\/\//i.test(clean)) {
     clean = 'https://' + clean;
   }
@@ -96,17 +95,14 @@ function normalizeAndValidateUrl(inputUrl) {
   try {
     const parsed = new URL(clean);
     
-    // التجميع فقط لحالات HTTP و HTTPS
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
       return null;
     }
 
-    // التحقق من وجود نطاق صحيح (اسم المضيف)
     if (!parsed.hostname) {
       return null;
     }
 
-    // قبول النطاقات المعروفة والقصيرة مثل t.me أو النطاقات التي تحتوي على نقطة
     const isShortTelegram = /^(t\.me|telegram\.me|telegram\.dog)$/i.test(parsed.hostname);
     if (!isShortTelegram && !parsed.hostname.includes('.')) {
       return null;
@@ -279,7 +275,7 @@ app.use(async (req, res, next) => {
     try {
       await connectDB();
     } catch (e) {
-      return res.status(503).json({ success: false, error: 'الخدمة جاري تهيئتها، يرجى إعادة المحاولة' });
+      return res.status(503).json({ success: false, error: 'الخدمة جاري تهيئتها، تعذر الاتصال بقاعدة البيانات. يرجى إعادة المحاولة' });
     }
   }
   next();
@@ -302,6 +298,9 @@ async function sendTelegramNotification(telegramId, message) {
   }
 }
 
+/**
+ * التحقق من توقيع Telegram WebApp initData
+ */
 function verifyTelegramData(initData) {
   if (!initData) return null;
   try {
@@ -327,7 +326,7 @@ function verifyTelegramData(initData) {
       const authDate = parseInt(urlParams.get('auth_date') || '0', 10);
       
       if (authDate && (Math.floor(Date.now() / 1000) - authDate > 86400)) {
-        return null;
+        return null; // صلاحية البيانات 24 ساعة
       }
       return parsedUser;
     }
@@ -376,53 +375,79 @@ const validateTraffic = (req, res, next) => {
   next();
 };
 
-const authMiddleware = async (req, res, next) => {
+/**
+ * Middleware للتحقق من التوثيق وهادئ للتحقق من initData القادم من تليجرام واستخراج userId
+ */
+const telegramAuthMiddleware = async (req, res, next) => {
   try {
     let user = null;
+    const initData = req.headers['x-telegram-init-data'] || req.body?.initData || req.query?.initData;
     const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
-      try {
-        const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
-        user = await User.findById(decoded.userId).lean();
-      } catch (err) {}
-    }
 
-    if (!user) {
-      const initData = req.headers['x-telegram-init-data'] || req.body?.initData;
+    // 1. التوثيق من خلال Telegram initData
+    if (initData) {
       const telegramUser = verifyTelegramData(initData);
-      if (telegramUser) {
-        user = await User.findOne({ telegramId: String(telegramUser.id) }).lean();
+      if (telegramUser && telegramUser.id) {
+        const tgId = String(telegramUser.id);
+        const currentUsername = telegramUser.username || `User_${tgId.slice(-4)}`;
+        const userLanguage = telegramUser.language_code || CONFIG.DEFAULT_LANGUAGE;
+
+        user = await User.findOne({ telegramId: tgId });
+        if (!user) {
+          user = await User.create({
+            telegramId: tgId,
+            username: currentUsername,
+            language: userLanguage
+          });
+        } else {
+          let updated = false;
+          if (user.username !== currentUsername) { user.username = currentUsername; updated = true; }
+          if (updated) await user.save();
+        }
       }
     }
 
-    // Fallback: البحث عبر userId أو telegramId المرسل مباشر في الجسم أو الكويري
+    // 2. التوثيق الاحتياطي عن طريق JWT Token
+    if (!user && authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      try {
+        const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
+        user = await User.findById(decoded.userId);
+      } catch (err) {}
+    }
+
+    // 3. التوثيق الاحتياطي عن طريق userId/telegramId صريح
     if (!user) {
       const fallbackUserId = req.body?.userId || req.query?.userId;
       const fallbackTelegramId = req.body?.telegramId || req.query?.telegramId;
 
       if (fallbackUserId && mongoose.Types.ObjectId.isValid(fallbackUserId)) {
-        user = await User.findById(fallbackUserId).lean();
+        user = await User.findById(fallbackUserId);
       } else if (fallbackTelegramId) {
-        user = await User.findOne({ telegramId: String(fallbackTelegramId) }).lean();
+        user = await User.findOne({ telegramId: String(fallbackTelegramId) });
       }
     }
 
     if (!user) {
-      return res.status(401).json({ success: false, error: 'جلسة غير صالحة، يرجى إعادة التشغيل' });
+      return res.status(401).json({ 
+        success: false, 
+        error: 'فشل التوثيق: تعذر استخراج Telegram initData أو معرف المستخدم userId' 
+      });
     }
 
     if (user.isBanned) {
       return res.status(403).json({ success: false, error: `حسابك معطل حالياً بسبب مخالفة السياسات. الدعم: ${CONFIG.SUPPORT_USERNAME}` });
     }
 
+    // إرفاق بيانات المستخدم بالطلب
     req.user = user;
-    req.user.id = user._id.toString();
     req.userId = user._id;
+    req.telegramId = user.telegramId;
 
     next();
   } catch (err) {
-    res.status(401).json({ success: false, error: 'انتهت الصلاحية، يرجى تسجيل الدخول مجدداً' });
+    logger.error('Error in Auth Middleware:', err);
+    res.status(401).json({ success: false, error: 'حدث خطأ أثناء التوثيق، يرجى إعادة التشغيل' });
   }
 };
 
@@ -532,19 +557,18 @@ app.post('/api/auth/login', async (req, res, next) => {
   }
 });
 
-app.get('/api/user/data', authMiddleware, async (req, res, next) => {
+app.get('/api/user/data', telegramAuthMiddleware, async (req, res, next) => {
   try {
     const userId = req.userId;
 
     const [rawLinks, withdraws, announcements, ads, deposits] = await Promise.all([
-      Link.find({ $or: [{ userId: userId }, { userId: userId.toString() }] }).sort({ createdAt: -1 }).lean(),
+      Link.find({ userId: userId }).sort({ createdAt: -1 }).lean(),
       Withdraw.find({ userId: userId }).sort({ createdAt: -1 }).lean(),
       Announcement.find({ $or: [{ isGlobal: true }, { targetUserId: userId }] }).sort({ createdAt: -1 }).lean(),
       Ad.find({ userId: userId }).sort({ createdAt: -1 }).lean(),
       Deposit.find({ userId: userId }).sort({ createdAt: -1 }).lean()
     ]);
 
-    // صياغة الروابط بدقة لمنع ظهور [object Object] وتضمين كافة الحقول النصية بشكل صريح
     const links = rawLinks.map(link => {
       const totalViews = Number(link.views || 0);
       const validImp = Number(link.validImpressions || 0);
@@ -599,7 +623,7 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
 // 8. FINANCIAL TRANSACTION ENGINE & AD MATRIX
 // ============================================================================
 
-app.post('/api/ads', authMiddleware, async (req, res, next) => {
+app.post('/api/ads', telegramAuthMiddleware, async (req, res, next) => {
   const lockKey = `lock:ads:${req.userId}`;
   const locked = await acquireLock(lockKey);
   if (!locked) return res.status(429).json({ success: false, error: 'طلب قيد المعالجة، يرجى الانتظار ثوانٍ' });
@@ -658,7 +682,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
   }
 });
 
-app.get('/api/user/ads', authMiddleware, async (req, res, next) => {
+app.get('/api/user/ads', telegramAuthMiddleware, async (req, res, next) => {
   try {
     const ads = await Ad.find({ userId: req.userId }).sort({ createdAt: -1 }).lean();
     res.json({ success: true, ads });
@@ -667,7 +691,7 @@ app.get('/api/user/ads', authMiddleware, async (req, res, next) => {
   }
 });
 
-app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
+app.post('/api/ads/toggle', telegramAuthMiddleware, async (req, res, next) => {
   try {
     const { adId } = req.body;
     if (!mongoose.Types.ObjectId.isValid(adId)) return res.status(400).json({ success: false, error: 'معرف الإعلان غير صالح' });
@@ -688,7 +712,7 @@ app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
   }
 });
 
-app.post('/api/deposit', authMiddleware, async (req, res, next) => {
+app.post('/api/deposit', telegramAuthMiddleware, async (req, res, next) => {
   try {
     const { amount, network, txid } = req.body;
     const numAmount = roundMoney(amount);
@@ -733,7 +757,7 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
   }
 });
 
-app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
+app.post('/api/withdraw', telegramAuthMiddleware, async (req, res, next) => {
   const lockKey = `lock:withdraw:${req.userId}`;
   const locked = await acquireLock(lockKey);
   if (!locked) return res.status(429).json({ success: false, error: 'جاري معالجة طلب سحب آخر حالياً' });
@@ -1008,28 +1032,23 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 // 10. ADVANCED LINK SHORTENING MANAGEMENT ENGINE
 // ============================================================================
 
+/**
+ * معالج إنشاء واختصار الرابط مع ضمان أخذ userId وحفظ البيانات
+ */
 const handleShortenLink = async (req, res) => {
   try {
-    // 1. التأكد من الاتصال بقاعدة البيانات قبل تنفيذ العملية
     if (mongoose.connection.readyState !== 1) {
       await connectDB();
     }
 
-    // 2. استخراج وتأكيد بيانات المستخدم (userId و telegramId)
-    let userId = req.userId || req.user?._id || req.body?.userId;
-    let telegramId = req.user?.telegramId || req.body?.telegramId || null;
+    // استخراج userId من التوثيق
+    const userId = req.userId;
+    const telegramId = req.telegramId || req.user?.telegramId;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'غير مصرح: معرف المستخدم مفقود' });
     }
 
-    // محاولة إيجاد telegramId إن لم يكن متوفراً
-    if (!telegramId && mongoose.Types.ObjectId.isValid(userId)) {
-      const u = await User.findById(userId).lean();
-      if (u) telegramId = u.telegramId;
-    }
-
-    // 3. التحقق من الرابط المرسل ومعالجته مع مطابقة مختلف أسماء الحقول
     const { title, targetUrl, url, link } = req.body;
     const rawUrl = String(targetUrl || url || link || '').trim();
 
@@ -1049,13 +1068,12 @@ const handleShortenLink = async (req, res) => {
       }
     } catch (e) {}
 
-    // 4. توليد كود فريد وضمان عدم حدوث تضارب في قاعدة البيانات (Unique ShortCode Handling)
     let shortCode = '';
     let isUnique = false;
     let attempts = 0;
 
     while (!isUnique && attempts < 10) {
-      shortCode = crypto.randomBytes(3).toString('hex'); // ينشئ كود مكون من 6 خانات
+      shortCode = crypto.randomBytes(3).toString('hex');
       const existingLink = await Link.findOne({ shortCode }).lean();
       if (!existingLink) {
         isUnique = true;
@@ -1067,11 +1085,9 @@ const handleShortenLink = async (req, res) => {
       return res.status(500).json({ success: false, error: 'فشل في توليد كود فريد، يرجى إعادة المحاولة' });
     }
 
-    // 5. إنشاء وحفظ الرابط في قاعدة البيانات
-    const validUserId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : userId;
-
+    // حفظ الرابط مع ربطه صراحةً بالـ userId الموثوق
     const newLink = new Link({
-      userId: validUserId,
+      userId: userId,
       publisherTelegramId: telegramId ? String(telegramId) : null,
       telegramId: telegramId ? String(telegramId) : null,
       title: title ? String(title).trim() : 'رابط بدون عنوان',
@@ -1082,14 +1098,10 @@ const handleShortenLink = async (req, res) => {
 
     await newLink.save();
 
-    // تحديث إحصائيات المستخدم
-    if (mongoose.Types.ObjectId.isValid(validUserId)) {
-      await User.findByIdAndUpdate(validUserId, { $inc: { 'statsSummary.totalLinksCreated': 1 } }).catch(() => {});
-    }
+    await User.findByIdAndUpdate(userId, { $inc: { 'statsSummary.totalLinksCreated': 1 } }).catch(() => {});
 
     const shortUrl = `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`;
 
-    // إرجاع استجابة صريحة ونظيفة بدون كائنات متداخلة أو معقدة تفادياً لظهور [object Object]
     const formattedLink = {
       _id: String(newLink._id),
       id: String(newLink._id),
@@ -1113,26 +1125,26 @@ const handleShortenLink = async (req, res) => {
     });
 
   } catch (err) {
-    console.error('❌ Error in Link Creation Engine (Shorten API):', err);
     logger.error('❌ Error in Link Creation Engine (Shorten API):', err);
-
     return res.status(500).json({ 
       success: false, 
-      error: 'فشل إنشاء الرابط المختصر',
+      error: 'فشل إنشاء الرابط المختصر بسبب خطأ في قاعدة البيانات',
       details: CONFIG.NODE_ENV !== 'production' ? err.message : undefined
     });
   }
 };
 
-app.post('/api/links/shorten', authMiddleware, linkCreationLimiter, handleShortenLink);
-app.post('/api/links', authMiddleware, linkCreationLimiter, handleShortenLink);
+app.post('/api/shorten', telegramAuthMiddleware, linkCreationLimiter, handleShortenLink);
+app.post('/api/links/shorten', telegramAuthMiddleware, linkCreationLimiter, handleShortenLink);
+app.post('/api/links', telegramAuthMiddleware, linkCreationLimiter, handleShortenLink);
 
+/**
+ * دالة جلب الروابط المعزولة للمستخدم الحالي فقط
+ */
 const getUserLinks = async (userId) => {
   if (!userId) return [];
 
-  const rawLinks = await Link.find({
-    $or: [{ userId: userId }, { userId: userId.toString() }]
-  }).sort({ createdAt: -1 }).lean();
+  const rawLinks = await Link.find({ userId: userId }).sort({ createdAt: -1 }).lean();
 
   return rawLinks.map(link => {
     const totalViews = Number(link.views || 0);
@@ -1159,25 +1171,35 @@ const getUserLinks = async (userId) => {
   });
 };
 
-app.get('/api/links', authMiddleware, async (req, res, next) => {
+// مسارات جلب روابط المستخدم الخاص بالطلب الحالي فقط
+app.get('/api/my-links', telegramAuthMiddleware, async (req, res, next) => {
   try {
     const links = await getUserLinks(req.userId);
     res.json({ success: true, links });
   } catch (err) {
-    next(err);
+    res.status(500).json({ success: false, error: 'فشل جلب الروابط من قاعدة البيانات' });
   }
 });
 
-app.get('/api/user/links', authMiddleware, async (req, res, next) => {
+app.get('/api/links', telegramAuthMiddleware, async (req, res, next) => {
   try {
     const links = await getUserLinks(req.userId);
     res.json({ success: true, links });
   } catch (err) {
-    next(err);
+    res.status(500).json({ success: false, error: 'فشل جلب الروابط من قاعدة البيانات' });
   }
 });
 
-app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
+app.get('/api/user/links', telegramAuthMiddleware, async (req, res, next) => {
+  try {
+    const links = await getUserLinks(req.userId);
+    res.json({ success: true, links });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'فشل جلب الروابط من قاعدة البيانات' });
+  }
+});
+
+app.post('/api/links/toggle', telegramAuthMiddleware, async (req, res, next) => {
   try {
     const { linkId } = req.body;
     const userId = req.userId;
@@ -1185,7 +1207,7 @@ app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
     if (!userId) return res.status(401).json({ success: false, error: 'معرف المستخدم مفقود' });
     if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
 
-    const link = await Link.findOne({ _id: linkId, $or: [{ userId: userId }, { userId: userId.toString() }] });
+    const link = await Link.findOne({ _id: linkId, userId: userId });
     if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحية التعديل' });
 
     link.isActive = !link.isActive;
@@ -1194,11 +1216,11 @@ app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
 
     res.json({ success: true, isActive: link.isActive });
   } catch (err) {
-    next(err);
+    res.status(500).json({ success: false, error: 'فشل في تغيير حالة الرابط' });
   }
 });
 
-app.post('/api/user/settings', authMiddleware, async (req, res, next) => {
+app.post('/api/user/settings', telegramAuthMiddleware, async (req, res, next) => {
   try {
     const { defaultWallet, language } = req.body;
     const updateData = {};
@@ -1217,7 +1239,7 @@ app.post('/api/user/settings', authMiddleware, async (req, res, next) => {
 // 11. ADMIN EXECUTIVE CONTROL SUITE
 // ============================================================================
 
-app.get('/api/admin/dashboard-data', authMiddleware, adminMiddleware, async (req, res, next) => {
+app.get('/api/admin/dashboard-data', telegramAuthMiddleware, adminMiddleware, async (req, res, next) => {
   try {
     const [withdraws, deposits, users, stats, totalAds] = await Promise.all([
       Withdraw.find().populate('userId').sort({ createdAt: -1 }).lean(),
@@ -1235,7 +1257,7 @@ app.get('/api/admin/dashboard-data', authMiddleware, adminMiddleware, async (req
   }
 });
 
-app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (req, res, next) => {
+app.post('/api/admin/deposit/action', telegramAuthMiddleware, adminMiddleware, async (req, res, next) => {
   const { depositId, action, reason } = req.body;
   if (!mongoose.Types.ObjectId.isValid(depositId)) return res.status(400).json({ success: false, error: 'معرف طلب الإيداع غير صالح' });
 
@@ -1287,7 +1309,7 @@ app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (re
   }
 });
 
-app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (req, res, next) => {
+app.post('/api/admin/withdraw/action', telegramAuthMiddleware, adminMiddleware, async (req, res, next) => {
   const { withdrawId, action, reason } = req.body;
   if (!mongoose.Types.ObjectId.isValid(withdrawId)) return res.status(400).json({ success: false, error: 'معرف السحب غير صالح' });
 
@@ -1338,7 +1360,7 @@ app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (r
   }
 });
 
-app.post('/api/admin/distribute-revenue', authMiddleware, adminMiddleware, async (req, res, next) => {
+app.post('/api/admin/distribute-revenue', telegramAuthMiddleware, adminMiddleware, async (req, res, next) => {
   try {
     const { totalRevenue } = req.body;
     const revenue = roundMoney(totalRevenue);
@@ -1393,7 +1415,7 @@ app.post('/api/admin/distribute-revenue', authMiddleware, adminMiddleware, async
   }
 });
 
-app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (req, res, next) => {
+app.post('/api/admin/user/toggle-ban', telegramAuthMiddleware, adminMiddleware, async (req, res, next) => {
   const { userId } = req.body;
   if (!mongoose.Types.ObjectId.isValid(userId)) return res.status(400).json({ success: false, error: 'معرف المستخدم غير صالح' });
 
@@ -1482,7 +1504,6 @@ app.get(['/app', '/admin', '/r/:code'], (req, res) => {
   res.sendFile(path.join(__dirname, 'views.html'));
 });
 
-// مسار إعادة التوجيه المباشر للرابط المختصر مع زيادة الضغطات
 app.get('/:shortCode', async (req, res, next) => {
   try {
     const { shortCode } = req.params;
