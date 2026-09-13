@@ -421,7 +421,11 @@ const linkSchema = new mongoose.Schema({
   targetUrl: { 
     type: String, 
     required: [true, 'Target URL is required'],
-    trim: true
+    trim: true,
+    validate: {
+      validator: isValidUrl,
+      message: 'Please enter a valid target URL'
+    }
   },
   isActive: { 
     type: Boolean, 
@@ -445,7 +449,7 @@ const linkSchema = new mongoose.Schema({
   }
 }, globalSchemaOptions);
 
-// Pre-validate middleware ensuring complete data synchronization between telegramId and publisherTelegramId
+// Pre-validate middleware ensuring complete data synchronization & targetUrl format validation
 linkSchema.pre('validate', function(next) {
   if (this.telegramId && !this.publisherTelegramId) this.publisherTelegramId = String(this.telegramId).trim();
   if (this.publisherTelegramId && !this.telegramId) this.telegramId = String(this.publisherTelegramId).trim();
@@ -453,6 +457,14 @@ linkSchema.pre('validate', function(next) {
   if (!this.title || this.title.trim() === '') {
     this.title = 'Untitled Link';
   }
+
+  if (this.targetUrl && typeof this.targetUrl === 'string') {
+    this.targetUrl = this.targetUrl.trim();
+    if (!/^https?:\/\//i.test(this.targetUrl) && !/^(tg|telegram):\/\//i.test(this.targetUrl)) {
+      this.targetUrl = `https://${this.targetUrl}`;
+    }
+  }
+
   next();
 });
 
