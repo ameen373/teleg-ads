@@ -81,26 +81,37 @@ app.use('/api', (req, res, next) => {
 });
 
 // ============================================================================
-// HELPER: URL NORMALIZATION & VALIDATION
+// HELPER: URL NORMALIZATION & VALIDATION (UNIVERSAL SUPPORT INCL. T.ME)
 // ============================================================================
 function normalizeAndValidateUrl(inputUrl) {
   if (!inputUrl || typeof inputUrl !== 'string') return null;
   let clean = inputUrl.trim();
   if (!clean) return null;
 
-  // إضافة https:// تلقائياً للروابط التي لا تحتوي على بروتوكول
+  // إضافة https:// تلقائياً للروابط التي لا تحتوي على بروتوكول (مثل t.me/username)
   if (!/^https?:\/\//i.test(clean)) {
     clean = 'https://' + clean;
   }
 
   try {
     const parsed = new URL(clean);
+    
+    // التجميع فقط لحالات HTTP و HTTPS
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
       return null;
     }
-    if (!parsed.hostname || !parsed.hostname.includes('.')) {
+
+    // التحقق من وجود نطاق صحيح (اسم المضيف)
+    if (!parsed.hostname) {
       return null;
     }
+
+    // قبول النطاقات المعروفة والقصيرة مثل t.me أو النطاقات التي تحتوي على نقطة
+    const isShortTelegram = /^(t\.me|telegram\.me|telegram\.dog)$/i.test(parsed.hostname);
+    if (!isShortTelegram && !parsed.hostname.includes('.')) {
+      return null;
+    }
+
     return parsed.toString();
   } catch (err) {
     return null;
