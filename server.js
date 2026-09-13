@@ -389,10 +389,22 @@ const authMiddleware = async (req, res, next) => {
     }
 
     if (!user) {
-      const initData = req.headers['x-telegram-init-data'];
+      const initData = req.headers['x-telegram-init-data'] || req.body?.initData;
       const telegramUser = verifyTelegramData(initData);
       if (telegramUser) {
         user = await User.findOne({ telegramId: String(telegramUser.id) }).lean();
+      }
+    }
+
+    // Fallback: البحث عبر userId أو telegramId المرسل مباشر في الجسم أو الكويري
+    if (!user) {
+      const fallbackUserId = req.body?.userId || req.query?.userId;
+      const fallbackTelegramId = req.body?.telegramId || req.query?.telegramId;
+
+      if (fallbackUserId && mongoose.Types.ObjectId.isValid(fallbackUserId)) {
+        user = await User.findById(fallbackUserId).lean();
+      } else if (fallbackTelegramId) {
+        user = await User.findOne({ telegramId: String(fallbackTelegramId) }).lean();
       }
     }
 
@@ -465,10 +477,10 @@ app.all('/api/check-admin', async (req, res) => {
 
 app.post('/api/auth/login', async (req, res, next) => {
   try {
-    const initData = req.headers['x-telegram-init-data'];
+    const initData = req.headers['x-telegram-init-data'] || req.body?.initData;
     const telegramUser = verifyTelegramData(initData);
 
-    const tgId = telegramUser ? String(telegramUser.id) : (CONFIG.NODE_ENV !== 'production' ? String(req.headers['x-demo-user-id'] || '') : null);
+    const tgId = telegramUser ? String(telegramUser.id) : (CONFIG.NODE_ENV !== 'production' ? String(req.headers['x-demo-user-id'] || req.body?.telegramId || '') : null);
     const { referrerId } = req.body;
 
     if (!tgId) return res.status(401).json({ success: false, error: 'بيانات اعتماد تليجرام المرفقة غير صالحة' });
@@ -1017,9 +1029,9 @@ const handleShortenLink = async (req, res) => {
       if (u) telegramId = u.telegramId;
     }
 
-    // 3. التحقق من الرابط المرسل ومعالجته
-    const { title, targetUrl, url } = req.body;
-    const rawUrl = String(targetUrl || url || '').trim();
+    // 3. التحقق من الرابط المرسل ومعالجته مع مطابقة مختلف أسماء الحقول
+    const { title, targetUrl, url, link } = req.body;
+    const rawUrl = String(targetUrl || url || link || '').trim();
 
     const cleanUrl = normalizeAndValidateUrl(rawUrl);
     if (!cleanUrl) {
@@ -1077,19 +1089,19 @@ const handleShortenLink = async (req, res) => {
 
     const shortUrl = `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`;
 
-    // إرجاع استجابة صريحة ونظيفة بدون كائنات متداخلة أو معقدة
+    // إرجاع استجابة صريحة ونظيفة بدون كائنات متداخلة أو معقدة تفادياً لظهور [object Object]
     const formattedLink = {
       _id: String(newLink._id),
       id: String(newLink._id),
       userId: String(newLink.userId),
-      title: newLink.title,
-      targetUrl: newLink.targetUrl,
-      shortCode: newLink.shortCode,
-      shortUrl: shortUrl,
+      title: String(newLink.title),
+      targetUrl: String(newLink.targetUrl),
+      shortCode: String(newLink.shortCode),
+      shortUrl: String(shortUrl),
       views: 0,
       validImpressions: 0,
       invalidImpressions: 0,
-      isActive: newLink.isActive,
+      isActive: Boolean(newLink.isActive),
       ctr: "0.0",
       createdAt: newLink.createdAt
     };
@@ -1097,7 +1109,7 @@ const handleShortenLink = async (req, res) => {
     return res.json({ 
       success: true, 
       link: formattedLink,
-      shortUrl: shortUrl
+      shortUrl: String(shortUrl)
     });
 
   } catch (err) {
