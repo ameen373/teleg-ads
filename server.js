@@ -532,17 +532,28 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
       Deposit.find({ userId: userId }).sort({ createdAt: -1 }).lean()
     ]);
 
+    // صياغة الروابط بدقة لمنع ظهور [object Object] وتضمين كافة الحقول النصية بشكل صريح
     const links = rawLinks.map(link => {
-      const totalViews = link.views || 0;
-      const validImp = link.validImpressions || 0;
-      const invalidImp = link.invalidImpressions || 0;
+      const totalViews = Number(link.views || 0);
+      const validImp = Number(link.validImpressions || 0);
+      const invalidImp = Number(link.invalidImpressions || 0);
       const ctr = totalViews > 0 ? ((validImp / totalViews) * 100).toFixed(1) : "0.0";
+      const code = String(link.shortCode || '').trim();
+
       return { 
-        ...link, 
-        ctr, 
-        validImpressions: validImp, 
+        _id: String(link._id),
+        id: String(link._id),
+        userId: String(link.userId),
+        title: String(link.title || 'رابط بدون عنوان'),
+        targetUrl: String(link.targetUrl || ''),
+        shortCode: code,
+        shortUrl: `https://${CONFIG.APP_DOMAIN}/r/${code}`,
+        views: totalViews,
+        validImpressions: validImp,
         invalidImpressions: invalidImp,
-        shortUrl: `https://${CONFIG.APP_DOMAIN}/r/${link.shortCode}`
+        isActive: Boolean(link.isActive),
+        ctr: String(ctr),
+        createdAt: link.createdAt
       };
     });
 
@@ -1064,17 +1075,32 @@ const handleShortenLink = async (req, res) => {
       await User.findByIdAndUpdate(validUserId, { $inc: { 'statsSummary.totalLinksCreated': 1 } }).catch(() => {});
     }
 
-    const linkObj = newLink.toObject ? newLink.toObject() : newLink;
     const shortUrl = `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`;
+
+    // إرجاع استجابة صريحة ونظيفة بدون كائنات متداخلة أو معقدة
+    const formattedLink = {
+      _id: String(newLink._id),
+      id: String(newLink._id),
+      userId: String(newLink.userId),
+      title: newLink.title,
+      targetUrl: newLink.targetUrl,
+      shortCode: newLink.shortCode,
+      shortUrl: shortUrl,
+      views: 0,
+      validImpressions: 0,
+      invalidImpressions: 0,
+      isActive: newLink.isActive,
+      ctr: "0.0",
+      createdAt: newLink.createdAt
+    };
 
     return res.json({ 
       success: true, 
-      link: { ...linkObj, shortUrl },
-      shortUrl
+      link: formattedLink,
+      shortUrl: shortUrl
     });
 
   } catch (err) {
-    // طباعة تفاصيل الخطأ الدقيقة في الكونسول لمعرفة سبب الفشل بالتحديد
     console.error('❌ Error in Link Creation Engine (Shorten API):', err);
     logger.error('❌ Error in Link Creation Engine (Shorten API):', err);
 
@@ -1097,13 +1123,26 @@ const getUserLinks = async (userId) => {
   }).sort({ createdAt: -1 }).lean();
 
   return rawLinks.map(link => {
-    const totalViews = link.views || 0;
-    const validImp = link.validImpressions || 0;
+    const totalViews = Number(link.views || 0);
+    const validImp = Number(link.validImpressions || 0);
+    const invalidImp = Number(link.invalidImpressions || 0);
     const ctr = totalViews > 0 ? ((validImp / totalViews) * 100).toFixed(1) : "0.0";
+    const code = String(link.shortCode || '').trim();
+
     return { 
-      ...link, 
-      ctr,
-      shortUrl: `https://${CONFIG.APP_DOMAIN}/r/${link.shortCode}`
+      _id: String(link._id),
+      id: String(link._id),
+      userId: String(link.userId),
+      title: String(link.title || 'رابط بدون عنوان'),
+      targetUrl: String(link.targetUrl || ''),
+      shortCode: code,
+      shortUrl: `https://${CONFIG.APP_DOMAIN}/r/${code}`,
+      views: totalViews,
+      validImpressions: validImp,
+      invalidImpressions: invalidImp,
+      isActive: Boolean(link.isActive),
+      ctr: String(ctr),
+      createdAt: link.createdAt
     };
   });
 };
