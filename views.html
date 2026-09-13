@@ -1421,16 +1421,19 @@
           method: 'POST',
           body: JSON.stringify({
             title: titleInput.value.trim(),
-            originalUrl: cleanedUrl
+            url: cleanedUrl,
+            originalUrl: cleanedUrl,
+            targetUrl: cleanedUrl
           })
         });
 
         if (res) {
           const data = await res.json();
           if (res.ok && (data.link || data.shortUrl || data.shortCode)) {
-            const shortUrlStr = extractShortUrl(data.link || data);
+            const rawObject = data.link || data;
+            const shortUrlStr = extractShortUrl(rawObject);
             const linkObjToSave = {
-              ...(data.link || data),
+              ...rawObject,
               shortUrl: shortUrlStr
             };
             prependLinkToDOM(linkObjToSave);
@@ -1601,14 +1604,14 @@
           const data = await res.json();
           if (res.ok) {
             clearDraftStorage(['ad-title', 'ad-target-url', 'ad-budget']);
-            showToast(currentLang === 'ar' ? "تم إنشاء الحملة الإعلانية بنجاح!" : "Ad campaign launched successfully!");
+            showToast(currentLang === 'ar' ? "تم إطلاق الحملة الإعلانية بنجاح!" : "Ad campaign created successfully!");
             await loadUserData();
           } else {
-            showToast(data.message || "Failed to launch ad campaign");
+            showToast(data.message || "Failed to create ad campaign");
           }
         }
       } catch (err) {
-        console.error("Create Ad Error:", err);
+        console.error("Ad creation error:", err);
       } finally {
         setButtonLoading('btn-create-ad', false);
       }
@@ -1627,9 +1630,68 @@
       }
     }
 
-    // Admin Dashboard Engine
+    // Bridge Logic
+    async function initBridge() {
+      const pathParts = window.location.pathname.split('/');
+      const code = pathParts[pathParts.indexOf('r') + 1];
+
+      try {
+        const res = await safeFetch(`/api/links/bridge/${code}`);
+        if (!res) return;
+        const data = await res.json();
+
+        if (data && data.sessionId) {
+          currentSessionId = data.sessionId;
+          let timeLeft = data.timer || 5;
+          const timerElem = document.getElementById('timer');
+          const goBtn = document.getElementById('go-btn');
+
+          const timerInterval = setInterval(() => {
+            timeLeft -= 1;
+            if (timerElem) timerElem.innerText = timeLeft;
+            if (timeLeft <= 0) {
+              clearInterval(timerInterval);
+              if (goBtn) goBtn.disabled = false;
+            }
+          }, 1000);
+        } else {
+          showToast(data.message || "Invalid or expired short link");
+        }
+      } catch (err) {
+        console.error("Bridge init error:", err);
+      }
+    }
+
+    async function completeImpression() {
+      if (!currentSessionId) return;
+      setButtonLoading('go-btn', true);
+
+      try {
+        const res = await safeFetch('/api/links/complete', {
+          method: 'POST',
+          body: JSON.stringify({
+            sessionId: currentSessionId,
+            timeSpent: Math.floor((Date.now() - bridgeStartTime) / 1000)
+          })
+        });
+
+        if (res) {
+          const data = await res.json();
+          if (res.ok && data.targetUrl) {
+            window.location.href = data.targetUrl;
+          } else {
+            showToast(data.message || "Error resolving destination URL");
+          }
+        }
+      } catch (err) {
+        console.error("Complete impression error:", err);
+      } finally {
+        setButtonLoading('go-btn', false);
+      }
+    }
+
+    // Admin Operations
     async function loadAdminData() {
-      if (!isUserAdmin) return;
       try {
         const res = await safeFetch('/api/admin/dashboard');
         if (!res) return;
@@ -1637,18 +1699,18 @@
         if (!data) return;
 
         document.getElementById('admin-total-users').innerText = data.totalUsers || 0;
-        document.getElementById('admin-total-pending').innerText = `$${(data.totalPendingBalances || 0).toFixed(2)}`;
+        document.getElementById('admin-total-pending').innerText = `$${(data.totalPending || 0).toFixed(2)}`;
 
-        // Render Deposits
-        const depList = document.getElementById('admin-deposits-list');
+        const depositsContainer = document.getElementById('admin-deposits-list');
         if (!data.pendingDeposits || data.pendingDeposits.length === 0) {
-          depList.innerHTML = 'No pending deposit requests.';
+          depositsContainer.innerHTML = 'No pending deposits.';
         } else {
-          depList.innerHTML = data.pendingDeposits.map(d => `
-            <div style="background:#0f172a; padding:10px; margin-bottom:8px; border-radius:10px; border:1px solid var(--card-border);">
-              <div>User: <b>${escapeHTML(d.userTelegramId || d.userId)}</b> | Amt: <b style="color:var(--success);">$${parseFloat(d.amount).toFixed(2)}</b></div>
-              <div style="font-size:10px; color:var(--text-muted); word-break:break-all;">Network: ${escapeHTML(d.network)} | TxID: ${escapeHTML(d.txHash)}</div>
-              <div style="margin-top:8px;">
+          depositsContainer.innerHTML = data.pendingDeposits.map(d => `
+            <div style="background: #0f172a; padding: 10px; margin-bottom: 8px; border-radius: 10px; border: 1px solid var(--card-border);">
+              <div>User: <b>${escapeHTML(d.telegramId || d.userId)}</b></div>
+              <div>Amount: <b style="color:var(--success);">$${parseFloat(d.amount).toFixed(2)}</b> (${escapeHTML(d.network)})</div>
+              <div style="font-size:10px; color:var(--text-muted); word-break:break-all;">TxID: ${escapeHTML(d.txHash)}</div>
+              <div style="margin-top: 6px; display: flex; gap: 6px;">
                 <button class="btn-small btn-success" onclick="approveDeposit('${d._id}')">Approve</button>
                 <button class="btn-small btn-danger" onclick="rejectDeposit('${d._id}')">Reject</button>
               </div>
@@ -1656,16 +1718,16 @@
           `).join('');
         }
 
-        // Render Withdrawals
-        const withList = document.getElementById('admin-withdraws-list');
+        const withdrawsContainer = document.getElementById('admin-withdraws-list');
         if (!data.pendingWithdraws || data.pendingWithdraws.length === 0) {
-          withList.innerHTML = 'No pending withdrawal requests.';
+          withdrawsContainer.innerHTML = 'No pending withdrawals.';
         } else {
-          withList.innerHTML = data.pendingWithdraws.map(w => `
-            <div style="background:#0f172a; padding:10px; margin-bottom:8px; border-radius:10px; border:1px solid var(--card-border);">
-              <div>User: <b>${escapeHTML(w.userTelegramId || w.userId)}</b> | Amt: <b style="color:var(--warning);">$${parseFloat(w.amount).toFixed(2)}</b></div>
+          withdrawsContainer.innerHTML = data.pendingWithdraws.map(w => `
+            <div style="background: #0f172a; padding: 10px; margin-bottom: 8px; border-radius: 10px; border: 1px solid var(--card-border);">
+              <div>User: <b>${escapeHTML(w.telegramId || w.userId)}</b></div>
+              <div>Amount: <b style="color:var(--warning);">$${parseFloat(w.amount).toFixed(2)}</b></div>
               <div style="font-size:10px; color:var(--text-muted); word-break:break-all;">Wallet: ${escapeHTML(w.walletAddress)}</div>
-              <div style="margin-top:8px;">
+              <div style="margin-top: 6px; display: flex; gap: 6px;">
                 <button class="btn-small btn-success" onclick="approveWithdrawal('${w._id}')">Approve</button>
                 <button class="btn-small btn-danger" onclick="rejectWithdrawal('${w._id}')">Reject</button>
               </div>
@@ -1673,85 +1735,32 @@
           `).join('');
         }
 
-        // Render Users
-        const usersList = document.getElementById('admin-users-list');
+        const usersContainer = document.getElementById('admin-users-list');
         if (!data.users || data.users.length === 0) {
-          usersList.innerHTML = 'No registered users found.';
+          usersContainer.innerHTML = 'No registered users.';
         } else {
-          usersList.innerHTML = data.users.map(u => `
-            <div style="background:#0f172a; padding:10px; margin-bottom:8px; border-radius:10px; border:1px solid var(--card-border);">
-              <div><b>${escapeHTML(u.username ? '@'+u.username : u.firstName || 'User')}</b> (ID: ${u.telegramId})</div>
-              <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">
-                Pending: <b style="color:var(--warning);">$${(u.pendingBalance||0).toFixed(2)}</b> | Available: <b style="color:var(--success);">$${(u.availableBalance||0).toFixed(2)}</b>
-              </div>
+          usersContainer.innerHTML = data.users.map(u => `
+            <div style="background: #0f172a; padding: 10px; margin-bottom: 8px; border-radius: 10px; border: 1px solid var(--card-border);">
+              <div><b>${escapeHTML(u.fullName || u.username || u.telegramId)}</b> (${escapeHTML(u.telegramId)})</div>
+              <div>Pending: $${(u.pendingBalance || 0).toFixed(2)} | Avail: $${(u.availableBalance || 0).toFixed(2)}</div>
             </div>
           `).join('');
         }
-
       } catch (err) {
-        console.error("Load Admin Data Error:", err);
+        console.error("Load admin data error:", err);
       }
-    }
-
-    async function approveDeposit(id) {
-      if (!confirm("Approve this deposit request?")) return;
-      try {
-        const res = await safeFetch(`/api/admin/deposit/approve/${id}`, { method: 'POST' });
-        if (res && res.ok) {
-          showToast("Deposit approved!");
-          await loadAdminData();
-        }
-      } catch(e) {}
-    }
-
-    async function rejectDeposit(id) {
-      if (!confirm("Reject this deposit request?")) return;
-      try {
-        const res = await safeFetch(`/api/admin/deposit/reject/${id}`, { method: 'POST' });
-        if (res && res.ok) {
-          showToast("Deposit rejected!");
-          await loadAdminData();
-        }
-      } catch(e) {}
-    }
-
-    async function approveWithdrawal(id) {
-      if (!confirm("Approve this withdrawal request?")) return;
-      try {
-        const res = await safeFetch(`/api/admin/withdraw/approve/${id}`, { method: 'POST' });
-        if (res && res.ok) {
-          showToast("Withdrawal approved!");
-          await loadAdminData();
-        }
-      } catch(e) {}
-    }
-
-    async function rejectWithdrawal(id) {
-      const reason = prompt("Enter rejection reason:");
-      if (reason === null) return;
-      try {
-        const res = await safeFetch(`/api/admin/withdraw/reject/${id}`, {
-          method: 'POST',
-          body: JSON.stringify({ reason })
-        });
-        if (res && res.ok) {
-          showToast("Withdrawal rejected!");
-          await loadAdminData();
-        }
-      } catch(e) {}
     }
 
     async function distributeRevenue() {
       const amount = parseFloat(document.getElementById('revenue-amount').value);
       if (!amount || amount <= 0) {
-        showToast("Enter valid revenue distribution amount");
+        showToast("Please enter a valid revenue pool amount");
         return;
       }
-      if (!confirm(`Distribute $${amount} proportionally to all eligible publishers?`)) return;
 
       setButtonLoading('btn-distribute-rev', true);
       try {
-        const res = await safeFetch('/api/admin/distribute-revenue', {
+        const res = await safeFetch('/api/admin/distribute', {
           method: 'POST',
           body: JSON.stringify({ amount })
         });
@@ -1760,87 +1769,46 @@
           document.getElementById('revenue-amount').value = '';
           await loadAdminData();
         }
-      } catch(e) {
+      } catch (e) {
+        console.error("Distribute revenue error:", e);
       } finally {
         setButtonLoading('btn-distribute-rev', false);
       }
     }
 
-    // Short Link Landing Bridge Engine
-    async function initBridge() {
-      const pathParts = window.location.pathname.split('/');
-      const shortCode = pathParts[pathParts.indexOf('r') + 1];
-
+    async function approveDeposit(id) {
       try {
-        const res = await safeFetch(`/api/bridge/init/${shortCode}`, { method: 'POST' });
-        if (!res) return;
-        const data = await res.json();
-
-        if (res.ok && data.sessionId) {
-          currentSessionId = data.sessionId;
-          bridgeStartTime = Date.now();
-
-          // Render Adsgram Direct/Native Ad Block
-          if (window.Adsgram) {
-            try {
-              window.Adsgram.init({ blockId: "1005" }).show().then(() => {
-                console.log("Adsgram Impression Logged");
-              }).catch(e => console.warn("Adsgram display warning:", e));
-            } catch(e) {}
-          }
-
-          startBridgeTimer(5, data.destinationUrl);
-        } else {
-          document.getElementById('bridge-view').innerHTML = `<h3 style="color:var(--danger); text-align:center;">${escapeHTML(data.message || "Link expired or disabled.")}</h3>`;
-        }
-      } catch (err) {
-        console.error("Bridge Init Error:", err);
-      }
+        const res = await safeFetch(`/api/admin/deposit/approve/${id}`, { method: 'POST' });
+        if (res && res.ok) { showToast("Deposit approved"); await loadAdminData(); }
+      } catch (e) {}
     }
 
-    function startBridgeTimer(seconds, destinationUrl) {
-      let remaining = seconds;
-      const timerElem = document.getElementById('timer');
-      const goBtn = document.getElementById('go-btn');
-
-      const interval = setInterval(() => {
-        remaining--;
-        if (timerElem) timerElem.innerText = remaining;
-
-        if (remaining <= 0) {
-          clearInterval(interval);
-          if (goBtn) {
-            goBtn.disabled = false;
-            goBtn.dataset.destination = destinationUrl;
-          }
-        }
-      }, 1000);
+    async function rejectDeposit(id) {
+      try {
+        const res = await safeFetch(`/api/admin/deposit/reject/${id}`, { method: 'POST' });
+        if (res && res.ok) { showToast("Deposit rejected"); await loadAdminData(); }
+      } catch (e) {}
     }
 
-    async function completeImpression() {
-      const goBtn = document.getElementById('go-btn');
-      const destinationUrl = goBtn.dataset.destination;
-      if (!destinationUrl) return;
-
-      const duration = Math.floor((Date.now() - bridgeStartTime) / 1000);
-      setButtonLoading('go-btn', true);
-
+    async function approveWithdrawal(id) {
       try {
-        await safeFetch('/api/bridge/complete', {
+        const res = await safeFetch(`/api/admin/withdraw/approve/${id}`, { method: 'POST' });
+        if (res && res.ok) { showToast("Withdrawal approved"); await loadAdminData(); }
+      } catch (e) {}
+    }
+
+    async function rejectWithdrawal(id) {
+      const reason = prompt("Enter rejection reason:") || "Rejected by admin";
+      try {
+        const res = await safeFetch(`/api/admin/withdraw/reject/${id}`, {
           method: 'POST',
-          body: JSON.stringify({
-            sessionId: currentSessionId,
-            duration: duration
-          })
+          body: JSON.stringify({ reason })
         });
-      } catch (e) {
-        console.warn("Complete impression warning:", e);
-      } finally {
-        window.location.href = destinationUrl;
-      }
+        if (res && res.ok) { showToast("Withdrawal rejected"); await loadAdminData(); }
+      } catch (e) {}
     }
 
-    // App Execution Entry Point
+    // Initialize application when DOM is fully loaded
     document.addEventListener('DOMContentLoaded', initializeApp);
   </script>
 </body>
