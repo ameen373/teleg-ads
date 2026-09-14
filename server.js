@@ -385,18 +385,17 @@ const telegramAuthMiddleware = async (req, res, next) => {
         const currentUsername = telegramUser.username || `User_${tgId.slice(-4)}`;
         const userLanguage = telegramUser.language_code || CONFIG.DEFAULT_LANGUAGE;
 
-        user = await User.findOne({ telegramId: tgId });
-        if (!user) {
-          user = await User.create({
-            telegramId: tgId,
-            username: currentUsername,
-            language: userLanguage
-          });
-        } else {
-          let updated = false;
-          if (user.username !== currentUsername) { user.username = currentUsername; updated = true; }
-          if (updated) await user.save();
-        }
+        user = await User.findOneAndUpdate(
+          { telegramId: tgId },
+          { 
+            $setOnInsert: { 
+              telegramId: tgId, 
+              language: userLanguage 
+            },
+            $set: { username: currentUsername }
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
       }
     }
 
@@ -415,14 +414,18 @@ const telegramAuthMiddleware = async (req, res, next) => {
       if (fallbackUserId && mongoose.Types.ObjectId.isValid(fallbackUserId)) {
         user = await User.findById(fallbackUserId);
       } else if (fallbackTelegramId) {
-        user = await User.findOne({ telegramId: String(fallbackTelegramId) });
-        if (!user) {
-          user = await User.create({
-            telegramId: String(fallbackTelegramId),
-            username: `User_${String(fallbackTelegramId).slice(-4)}`,
-            language: CONFIG.DEFAULT_LANGUAGE
-          });
-        }
+        const tgId = String(fallbackTelegramId);
+        user = await User.findOneAndUpdate(
+          { telegramId: tgId },
+          { 
+            $setOnInsert: { 
+              telegramId: tgId, 
+              username: `User_${tgId.slice(-4)}`,
+              language: CONFIG.DEFAULT_LANGUAGE 
+            } 
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
       }
     }
 
@@ -510,20 +513,18 @@ app.post('/api/auth/login', async (req, res, next) => {
     const currentUsername = telegramUser?.username || `User_${tgId.slice(-4)}`;
     const userLanguage = telegramUser?.language_code || CONFIG.DEFAULT_LANGUAGE;
 
-    let user = await User.findOne({ telegramId: tgId });
-    if (!user) {
-      user = await User.create({
-        telegramId: tgId,
-        username: currentUsername,
-        language: userLanguage,
-        referredBy: mongoose.Types.ObjectId.isValid(referrerId) ? referrerId : null
-      });
-    } else {
-      let updated = false;
-      if (user.username !== currentUsername) { user.username = currentUsername; updated = true; }
-      if (!user.language) { user.language = userLanguage; updated = true; }
-      if (updated) await user.save();
-    }
+    const user = await User.findOneAndUpdate(
+      { telegramId: tgId },
+      {
+        $setOnInsert: {
+          telegramId: tgId,
+          language: userLanguage,
+          referredBy: mongoose.Types.ObjectId.isValid(referrerId) ? referrerId : null
+        },
+        $set: { username: currentUsername }
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
 
     if (user.isBanned) return res.status(403).json({ success: false, error: `الحساب معطل لمخالفة الشروط. تواصل مع الدعم: ${CONFIG.SUPPORT_USERNAME}` });
 
@@ -1041,9 +1042,49 @@ const handleShortenLink = async (req, res) => {
       await connectDB();
     }
 
-    // 2. التحقق من التوثيق وتوفر معرف المستخدم
-    const userId = req.userId || req.user?._id;
-    const telegramId = req.telegramId || req.user?.telegramId;
+    // 2. استخراج التوثيق أو الإنشاء الفوري للمستخدم إن لم يكن موجوداً
+    let userId = req.userId || req.user?._id;
+    let telegramId = req.telegramId || req.user?.telegramId;
+
+    if (!userId) {
+      const initData = req.headers['x-telegram-init-data'] || req.body?.initData || req.query?.initData;
+      const fallbackTelegramId = req.body?.telegramId || req.query?.telegramId;
+      let tgId = null;
+      let tgUsername = null;
+      let tgLang = CONFIG.DEFAULT_LANGUAGE;
+
+      if (initData) {
+        const parsedUser = verifyTelegramData(initData);
+        if (parsedUser && parsedUser.id) {
+          tgId = String(parsedUser.id);
+          tgUsername = parsedUser.username || `User_${tgId.slice(-4)}`;
+          tgLang = parsedUser.language_code || CONFIG.DEFAULT_LANGUAGE;
+        }
+      }
+
+      if (!tgId && fallbackTelegramId) {
+        tgId = String(fallbackTelegramId);
+        tgUsername = `User_${tgId.slice(-4)}`;
+      }
+
+      if (tgId) {
+        const user = await User.findOneAndUpdate(
+          { telegramId: tgId },
+          {
+            $setOnInsert: {
+              telegramId: tgId,
+              language: tgLang
+            },
+            $set: {
+              username: tgUsername || `User_${tgId.slice(-4)}`
+            }
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+        userId = user._id;
+        telegramId = user.telegramId;
+      }
+    }
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'غير مصرح: معرف المستخدم مفقود' });
