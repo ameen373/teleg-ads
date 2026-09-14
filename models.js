@@ -1,7 +1,7 @@
 /**
- * Ultra-Enterprise Models Architecture (V5.6 - Fixed Dynamic Constraints & Tenant Tolerant Validation)
+ * Ultra-Enterprise Models Architecture (V5.6 - Optimized & Tenant Isolated)
  * Platform: Telega.ads Advertising & Shortener Network
- * Security: Zero-Data-Leakage Enforcement, Safe Persist Enforcers & Custom Validations
+ * Security: Zero-Data-Leakage Enforcement, Safe Persist Enforcers & Clean Schema Definitions
  */
 
 if (typeof window !== 'undefined') {
@@ -159,7 +159,8 @@ const walletSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    index: true 
+    index: true,
+    default: null 
   },
   telegramId: { 
     type: String, 
@@ -199,8 +200,6 @@ const walletSchema = new mongoose.Schema({
   }
 }, globalSchemaOptions);
 
-walletSchema.index({ telegramId: 1 });
-
 walletSchema.statics.getWalletIsolated = function(identifier) {
   enforceTenantKey(identifier, 'identifier');
   const isObjectId = mongoose.Types.ObjectId.isValid(identifier);
@@ -216,7 +215,8 @@ const transactionSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    index: true 
+    index: true,
+    default: null
   },
   telegramId: { 
     type: String, 
@@ -271,7 +271,8 @@ const adSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    index: true 
+    index: true,
+    default: null
   },
   telegramId: {
     type: String,
@@ -282,12 +283,14 @@ const adSchema = new mongoose.Schema({
   advertiserId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    index: true 
+    index: true,
+    default: null
   },
   advertiserTelegramId: {
     type: String,
     index: true,
-    trim: true
+    trim: true,
+    default: null
   },
   title: { 
     type: String, 
@@ -385,7 +388,7 @@ adSchema.statics.findAdvertiserAdsIsolated = function(identifier, filter = {}) {
 };
 
 // --------------------------------------------------
-// 5. Shortened Link Model (Links - SAFE TENANT)
+// 5. Shortened Link Model (Links - Optimized Ownership)
 // --------------------------------------------------
 const linkSchema = new mongoose.Schema({
   shortCode: { 
@@ -398,7 +401,8 @@ const linkSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User',
-    index: true
+    index: true,
+    default: null
   },
   telegramId: {
     type: String,
@@ -409,7 +413,8 @@ const linkSchema = new mongoose.Schema({
   publisherTelegramId: {
     type: String,
     index: true,
-    trim: true
+    trim: true,
+    default: null
   },
   title: { 
     type: String, 
@@ -511,7 +516,8 @@ const impressionSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    index: true
+    index: true,
+    default: null
   },
   telegramId: {
     type: String,
@@ -522,12 +528,14 @@ const impressionSchema = new mongoose.Schema({
   publisherId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    index: true
+    index: true,
+    default: null
   },
   publisherTelegramId: {
     type: String,
     trim: true,
-    index: true
+    index: true,
+    default: null
   },
   viewerTelegramId: {
     type: String,
@@ -607,7 +615,8 @@ const clickSessionSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    index: true
+    index: true,
+    default: null
   },
   telegramId: {
     type: String,
@@ -618,7 +627,8 @@ const clickSessionSchema = new mongoose.Schema({
   publisherId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    index: true
+    index: true,
+    default: null
   },
   visitorTelegramId: { 
     type: String, 
@@ -669,7 +679,8 @@ const withdrawSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    index: true 
+    index: true,
+    default: null
   },
   telegramId: {
     type: String,
@@ -750,7 +761,8 @@ const earningsHoldSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    index: true 
+    index: true,
+    default: null
   },
   telegramId: {
     type: String,
@@ -796,7 +808,8 @@ const depositSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    index: true
+    index: true,
+    default: null
   },
   telegramId: {
     type: String,
@@ -807,12 +820,14 @@ const depositSchema = new mongoose.Schema({
   advertiserId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    index: true
+    index: true,
+    default: null
   },
   advertiserTelegramId: {
     type: String,
     trim: true,
-    index: true
+    index: true,
+    default: null
   },
   amount: {
     type: Number,
