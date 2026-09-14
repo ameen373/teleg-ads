@@ -143,19 +143,23 @@ const inMemoryCache = new Map();
 const redis = new Redis(CONFIG.REDIS_URL, {
   maxRetriesPerRequest: 2,
   enableReadyCheck: true,
-  lazyConnect: true,
+  lazyConnect: false,
   connectTimeout: 5000,
   retryStrategy: (times) => Math.min(times * 100, 3000)
 });
 
-redis.connect().then(() => {
+redis.on('connect', () => {
   redisIsConnected = true;
   logger.info('✅ Enterprise Distributed Redis Cluster Active');
-}).catch(err => {
-  logger.warn('⚠️ Redis Connection Fallback Triggered (In-Memory Engine Active): ' + err.message);
 });
 
-redis.on('error', () => { redisIsConnected = false; });
+redis.on('error', (err) => {
+  if (redisIsConnected) {
+    logger.warn('⚠️ Redis Connection Fallback Triggered (In-Memory Engine Active): ' + err.message);
+  }
+  redisIsConnected = false;
+});
+
 redis.on('reconnecting', () => { redisIsConnected = false; });
 redis.on('ready', () => { redisIsConnected = true; });
 
@@ -1041,17 +1045,12 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 // 10. ADVANCED LINK SHORTENING MANAGEMENT ENGINE (ROBUST & RESILIENT)
 // ============================================================================
 
-/**
- * معالج إنشاء واختصار الرابط المحسّن بالكامل
- */
 const handleShortenLink = async (req, res) => {
   try {
-    // 1. التأكد من حالة الاتصال بقاعدة البيانات
     if (mongoose.connection.readyState !== 1) {
       await connectDB();
     }
 
-    // 2. استخراج التوثيق أو الإنشاء الفوري للمستخدم إن لم يكن موجوداً
     let userId = req.userId || req.user?._id;
     let telegramId = req.telegramId || req.user?.telegramId;
 
@@ -1102,7 +1101,6 @@ const handleShortenLink = async (req, res) => {
       return res.status(401).json({ success: false, error: 'غير مصرح: معرف المستخدم مفقود' });
     }
 
-    // 3. استخراج الرابط واختبار كافة الأسماء المحتملة في req.body
     const { title, targetUrl, url, link, originalUrl } = req.body || {};
     const rawUrl = String(targetUrl || url || link || originalUrl || '').trim();
 
@@ -1110,18 +1108,15 @@ const handleShortenLink = async (req, res) => {
       return res.status(400).json({ success: false, error: 'يرجى إدخال الرابط المراد اختصاره' });
     }
 
-    // 4. التحقق من صحة وصلاحية الرابط المدخل
     const cleanUrl = normalizeAndValidateUrl(rawUrl);
     if (!cleanUrl) {
       return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح، يرجى التأكد من كتابته بشكل صحيح' });
     }
 
-    // 5. فحص الروابط المشبوهة
     if (isPhishingOrMalicious(cleanUrl)) {
       return res.status(400).json({ success: false, error: 'الرابط مخالف لشروط وأحكام الاستخدام' });
     }
 
-    // 6. منع اختصار روابط النطاق الخاص بالمنصة
     try {
       const domainCheck = new URL(cleanUrl).hostname;
       if (domainCheck.includes(CONFIG.APP_DOMAIN)) {
@@ -1129,7 +1124,6 @@ const handleShortenLink = async (req, res) => {
       }
     } catch (e) {}
 
-    // 7. توليد كود فريد ومقاوم للتصادامات (Collision Prevention)
     let shortCode = '';
     let isUnique = false;
     let attempts = 0;
@@ -1149,7 +1143,6 @@ const handleShortenLink = async (req, res) => {
       shortCode = crypto.randomUUID().replace(/-/g, '').slice(0, 8);
     }
 
-    // 8. حفظ الرابط في قاعدة البيانات
     const newLink = await Link.create({
       userId: userId,
       publisherTelegramId: telegramId ? String(telegramId) : null,
@@ -1163,12 +1156,10 @@ const handleShortenLink = async (req, res) => {
       invalidImpressions: 0
     });
 
-    // تحديث إحصائيات الروابط المنشأة للمستخدم
     await User.findByIdAndUpdate(userId, { $inc: { 'statsSummary.totalLinksCreated': 1 } }).catch(() => {});
 
     const shortUrl = `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`;
 
-    // 9. كائن الاستجابة المنظم للواجهة الأمامية
     const formattedLink = {
       _id: String(newLink._id),
       id: String(newLink._id),
@@ -1571,7 +1562,13 @@ app.get('/:shortCode', async (req, res, next) => {
     const { shortCode } = req.params;
     const reservedRoutes = ['app', 'admin', 'r', 'api', 'views.html', 'favicon.ico'];
 
+    // استثناء المسارات المحجوزة
     if (reservedRoutes.includes(shortCode.toLowerCase())) {
+      return next();
+    }
+
+    // تجنب استعلام قواعد البيانات للملفات الثابتة المعلقة (Static assets bypass)
+    if (/\.(png|jpg|jpeg|gif|css|js|ico|json|svg|woff2?)$/i.test(shortCode)) {
       return next();
     }
 
