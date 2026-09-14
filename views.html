@@ -215,7 +215,7 @@
 
     .fee-breakdown {
       background: #0f172a; border: 1px solid var(--card-border); border-radius: 12px;
-      padding: 12px 16px; margin-top: 12px; font-size: 12px; display: flex; justify-content: space-between;
+      padding: 12px 16px; margin-top: 12px; font-size: 12px; display: flex; justify-style: space-between;
     }
 
     /* Modal Overlay UI */
@@ -923,7 +923,7 @@
     }
 
     /**
-     * UNIFIED SECURE FETCH WRAPPER WITH INITDATA SUPPORT
+     * UNIFIED SECURE FETCH WRAPPER WITH INITDATA SUPPORT & ROBUST ERROR HANDLING
      */
     async function safeFetch(endpoint, options = {}) {
       options.headers = options.headers || {};
@@ -932,7 +932,7 @@
       const tgUser = tg?.initDataUnsafe?.user;
       const currentTgId = tgUser?.id ? String(tgUser.id) : (currentUserTelegramId || '');
 
-      // Send InitData via Headers
+      // Send Auth Token & Telegram Credentials via Headers
       if (authToken) {
         options.headers['Authorization'] = `Bearer ${authToken}`;
       }
@@ -944,14 +944,14 @@
         options.headers['x-telegram-id'] = currentTgId;
       }
 
-      // Append InitData to Request Body if Object
+      // Append InitData & Auth payload to Request Body if JSON Object
       if (options.body && typeof options.body === 'string') {
         try {
           const bodyObj = JSON.parse(options.body);
-          if (initDataStr) bodyObj.initData = initDataStr;
+          if (initDataStr && !bodyObj.initData) bodyObj.initData = initDataStr;
           if (currentTgId) {
-            bodyObj.telegramId = currentTgId;
-            bodyObj.userId = currentTgId;
+            if (!bodyObj.telegramId) bodyObj.telegramId = currentTgId;
+            if (!bodyObj.userId) bodyObj.userId = currentTgId;
           }
           options.body = JSON.stringify(bodyObj);
         } catch(e) {}
@@ -964,7 +964,7 @@
       let cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
       let targetUrl = endpoint.startsWith('http') ? endpoint : `${API_BASE}${cleanEndpoint}`;
 
-      // Append InitData as Query Parameter
+      // Append InitData as Query Parameters
       try {
         const urlObj = new URL(targetUrl);
         if (initDataStr && !urlObj.searchParams.has('initData')) {
@@ -980,6 +980,7 @@
       try {
         let response = await fetch(targetUrl, options);
         
+        // Handle Token Expiration and attempt Silent Re-Auth once
         if (response && response.status === 401 && !options._isRetry) {
           options._isRetry = true;
           const reAuth = await authLogin();
@@ -1387,7 +1388,7 @@
       renderUserLinks(filtered);
     }
 
-    // Shorten Link Handler
+    // Shorten Link Handler - Robust Payload & Non-blocking Error Handling
     async function handleShortenClick() {
       const titleInput = document.getElementById('link-title');
       const urlInput = document.getElementById('link-url');
@@ -1401,28 +1402,34 @@
       setButtonLoading('btn-create-link', true);
 
       try {
+        const initDataStr = tg?.initData || '';
+        const userTelegramId = tg?.initDataUnsafe?.user?.id ? String(tg?.initDataUnsafe?.user?.id) : currentUserTelegramId;
+
         const res = await safeFetch('/api/links/shorten', {
           method: 'POST',
           body: JSON.stringify({
             title: titleInput.value.trim(),
             originalUrl: targetUrl,
-            initData: tg?.initData || '',
-            telegramId: currentUserTelegramId
+            initData: initDataStr,
+            telegramId: userTelegramId,
+            userId: userTelegramId
           })
         });
 
         if (res) {
-          const data = await res.json();
-          if (res.ok && data.success) {
-            showToast(i18n[currentLang].link_success_msg);
+          const data = await res.json().catch(() => null);
+          if (res.ok && data && (data.success || data.shortUrl || data.shortCode)) {
+            showToast(i18n[currentLang]?.link_success_msg || 'Link shortened successfully!');
             clearDraftStorage(['link-title', 'link-url']);
             await loadUserData();
           } else {
-            showToast(data.message || (currentLang === 'ar' ? 'حدث خطأ أثناء اختصار الرابط' : 'Failed to shorten link'));
+            const errorMsg = data?.message || data?.error || (currentLang === 'ar' ? 'حدث خطأ أثناء اختصار الرابط' : 'Failed to shorten link');
+            showToast(errorMsg);
           }
         }
       } catch (err) {
         console.error("Shorten Error:", err);
+        showToast(currentLang === 'ar' ? 'حدث خطأ غير متوقع أثناء معالجة الطلب' : 'An unexpected error occurred');
       } finally {
         setButtonLoading('btn-create-link', false);
       }
@@ -1492,13 +1499,13 @@
         });
 
         if (res) {
-          const data = await res.json();
-          if (res.ok && data.success) {
+          const data = await res.json().catch(() => null);
+          if (res.ok && data && data.success) {
             showToast(currentLang === 'ar' ? 'تم تقديم طلب الشحن بنجاح!' : 'Deposit request submitted successfully!');
             clearDraftStorage(['deposit-amount', 'deposit-txhash']);
             await loadUserData();
           } else {
-            showToast(data.message || 'Deposit submission failed');
+            showToast(data?.message || 'Deposit submission failed');
           }
         }
       } catch (e) {
@@ -1535,13 +1542,13 @@
         });
 
         if (res) {
-          const data = await res.json();
-          if (res.ok && data.success) {
+          const data = await res.json().catch(() => null);
+          if (res.ok && data && data.success) {
             showToast(currentLang === 'ar' ? 'تم إرسال طلب السحب بنجاح' : 'Withdrawal request submitted');
             clearDraftStorage(['withdraw-amount']);
             await loadUserData();
           } else {
-            showToast(data.message || 'Withdrawal failed');
+            showToast(data?.message || 'Withdrawal failed');
           }
         }
       } catch (e) {
@@ -1572,18 +1579,17 @@
       }
     }
 
-    // Ads Actions
     async function createAdCampaign() {
       const title = document.getElementById('ad-title').value.trim();
       const targetUrl = cleanAndValidateUrl(document.getElementById('ad-target-url').value);
       const budget = parseFloat(document.getElementById('ad-budget').value) || 0;
 
       if (!title || !targetUrl || budget < 5) {
-        showToast(currentLang === 'ar' ? 'يرجى إكمال الحقول (الحد الأدنى للميزانية $5)' : 'Please complete fields (Min. budget $5)');
+        showToast(currentLang === 'ar' ? 'يرجى إدخال كافة البيانات بشكل صحيح (الحد الأدنى للميزانية $5)' : 'Please fill all fields correctly (Min $5)');
         return;
       }
 
-         setButtonLoading('btn-create-ad', true);
+      setButtonLoading('btn-create-ad', true);
 
       try {
         const res = await safeFetch('/api/ads/create', {
@@ -1591,206 +1597,56 @@
           body: JSON.stringify({
             title,
             targetUrl,
-            budget,
+            totalBudget: budget,
             initData: tg?.initData || '',
             telegramId: currentUserTelegramId
           })
         });
 
         if (res) {
-          const data = await res.json();
-          if (res.ok && data.success) {
-            showToast(currentLang === 'ar' ? 'تم إنشاء الحملة الإعلانية بنجاح!' : 'Ad campaign created successfully!');
+          const data = await res.json().catch(() => null);
+          if (res.ok && data && data.success) {
+            showToast(currentLang === 'ar' ? 'تم إنشاء الحملة الإعلانية بنجاح!' : 'Ad campaign launched successfully!');
             clearDraftStorage(['ad-title', 'ad-target-url', 'ad-budget']);
             await loadUserData();
           } else {
-            showToast(data.message || (currentLang === 'ar' ? 'حدث خطأ أثناء إنشاء الحملة' : 'Failed to create campaign'));
+            showToast(data?.message || 'Failed to create campaign');
           }
         }
       } catch (e) {
-        console.error("Create Ad Error:", e);
+        console.error("Create Ad error:", e);
       } finally {
         setButtonLoading('btn-create-ad', false);
       }
     }
 
-    // Admin Panel Logic
-    async function loadAdminData() {
-      if (!isUserAdmin) return;
-
-      try {
-        const res = await safeFetch('/api/admin/data');
-        if (!res) return;
-        const data = await res.json();
-
-        document.getElementById('admin-total-users').innerText = data.totalUsers || 0;
-        document.getElementById('admin-total-pending').innerText = `$${(data.totalPendingBalance || 0).toFixed(2)}`;
-
-        // Render Pending Deposits
-        const depContainer = document.getElementById('admin-deposits-list');
-        if (!data.deposits || data.deposits.length === 0) {
-          depContainer.innerHTML = '<p style="color:var(--text-muted);">No pending deposit requests.</p>';
-        } else {
-          depContainer.innerHTML = data.deposits.map(d => `
-            <div style="background:#0f172a; padding:12px; border-radius:12px; margin-bottom:8px; border:1px solid var(--card-border);">
-              <div>User: <b>${escapeHTML(d.telegramId)}</b> | Amt: <b style="color:var(--success);">$${parseFloat(d.amount).toFixed(2)}</b></div>
-              <div style="font-size:11px; color:var(--text-muted); word-break:break-all; margin:4px 0;">TxID: ${escapeHTML(d.txHash)} (${escapeHTML(d.network)})</div>
-              <div style="display:flex; gap:8px; margin-top:8px;">
-                <button class="btn-small btn-success" onclick="approveDeposit('${d._id}')">Approve</button>
-                <button class="btn-small btn-danger" onclick="rejectDeposit('${d._id}')">Reject</button>
-              </div>
-            </div>
-          `).join('');
-        }
-
-        // Render Pending Withdrawals
-        const withContainer = document.getElementById('admin-withdraws-list');
-        if (!data.withdraws || data.withdraws.length === 0) {
-          withContainer.innerHTML = '<p style="color:var(--text-muted);">No pending withdrawal requests.</p>';
-        } else {
-          withContainer.innerHTML = data.withdraws.map(w => `
-            <div style="background:#0f172a; padding:12px; border-radius:12px; margin-bottom:8px; border:1px solid var(--card-border);">
-              <div>User: <b>${escapeHTML(w.telegramId)}</b> | Amt: <b style="color:var(--warning);">$${parseFloat(w.amount).toFixed(2)}</b></div>
-              <div style="font-size:11px; color:var(--text-muted); word-break:break-all; margin:4px 0;">Wallet: ${escapeHTML(w.walletAddress)}</div>
-              <div style="display:flex; gap:8px; margin-top:8px;">
-                <button class="btn-small btn-success" onclick="approveWithdrawal('${w._id}')">Complete</button>
-                <button class="btn-small btn-danger" onclick="rejectWithdrawal('${w._id}')">Reject</button>
-              </div>
-            </div>
-          `).join('');
-        }
-
-        // Render Users List
-        const usersContainer = document.getElementById('admin-users-list');
-        if (!data.users || data.users.length === 0) {
-          usersContainer.innerHTML = '<p style="color:var(--text-muted);">No users registered.</p>';
-        } else {
-          usersContainer.innerHTML = data.users.map(u => `
-            <div style="background:#0f172a; padding:10px; border-radius:10px; margin-bottom:6px; border:1px solid var(--card-border); font-size:11px;">
-              <div>ID: <b>${escapeHTML(u.telegramId)}</b> | Name: ${escapeHTML(u.fullName || 'N/A')}</div>
-              <div>Pending: <b style="color:var(--warning);">$${(u.pendingBalance || 0).toFixed(2)}</b> | Avail: <b style="color:var(--success);">$${(u.availableBalance || 0).toFixed(2)}</b></div>
-            </div>
-          `).join('');
-        }
-      } catch (e) {
-        console.error("Error loading admin data:", e);
-      }
-    }
-
-    async function distributeRevenue() {
-      const amount = parseFloat(document.getElementById('revenue-amount').value) || 0;
-      if (amount <= 0) {
-        showToast("Enter a valid revenue pool amount");
-        return;
-      }
-
-      setButtonLoading('btn-distribute-rev', true);
-      try {
-        const res = await safeFetch('/api/admin/distribute-revenue', {
-          method: 'POST',
-          body: JSON.stringify({ amount, initData: tg?.initData || '' })
-        });
-        if (res && res.ok) {
-          showToast("Revenue pool distributed successfully!");
-          document.getElementById('revenue-amount').value = '';
-          await loadAdminData();
-        }
-      } catch (e) {
-        console.error("Distribute revenue error:", e);
-      } finally {
-        setButtonLoading('btn-distribute-rev', false);
-      }
-    }
-
-    async function approveDeposit(id) {
-      try {
-        const res = await safeFetch(`/api/admin/deposit/approve/${id}`, { method: 'POST' });
-        if (res && res.ok) { showToast("Deposit approved"); await loadAdminData(); }
-      } catch (e) { console.error(e); }
-    }
-
-    async function rejectDeposit(id) {
-      try {
-        const res = await safeFetch(`/api/admin/deposit/reject/${id}`, { method: 'POST' });
-        if (res && res.ok) { showToast("Deposit rejected"); await loadAdminData(); }
-      } catch (e) { console.error(e); }
-    }
-
-    async function approveWithdrawal(id) {
-      try {
-        const res = await safeFetch(`/api/admin/withdraw/approve/${id}`, { method: 'POST' });
-        if (res && res.ok) { showToast("Withdrawal marked as completed"); await loadAdminData(); }
-      } catch (e) { console.error(e); }
-    }
-
-    async function rejectWithdrawal(id) {
-      const reason = prompt("Enter rejection reason:") || "Request rejected by admin";
-      try {
-        const res = await safeFetch(`/api/admin/withdraw/reject/${id}`, {
-          method: 'POST',
-          body: JSON.stringify({ reason })
-        });
-        if (res && res.ok) { showToast("Withdrawal rejected"); await loadAdminData(); }
-      } catch (e) { console.error(e); }
-    }
-
-    // Bridge Page Processing (Short URL Handler)
+    // Bridge Page Operations
     async function initBridge() {
-      const pathParts = window.location.pathname.split('/');
-      const shortCode = pathParts[pathParts.length - 1] || pathParts[pathParts.length - 2];
-
       try {
-        const res = await fetch(`${API_BASE}/api/bridge/init`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ shortCode })
-        });
+        const shortCode = window.location.pathname.split('/').pop();
+        const res = await safeFetch(`/api/bridge/init/${shortCode}`);
+        if (!res) return;
 
-        if (!res.ok) throw new Error("Link not found");
-        const data = await res.json();
-
-        currentSessionId = data.sessionId;
-        bridgeStartTime = Date.now();
-
-        // Load Adsgram Ad unit if available
-        if (window.Adsgram && data.adsgramBlockId) {
-          try {
-            const AdController = window.Adsgram.init({ blockId: data.adsgramBlockId });
-            AdController.show().catch(err => console.log("Adsgram display skipped:", err));
-          } catch (e) {}
+        const data = await res.json().catch(() => null);
+        if (data && data.sessionId) {
+          currentSessionId = data.sessionId;
+          startBridgeTimer(5);
+        } else {
+          showToast("Link expired or invalid");
         }
-
-        // Render Custom Banner Ad if provided
-        if (data.ad) {
-          const adBox = document.getElementById('ad-container');
-          if (adBox) {
-            adBox.innerHTML = `
-              <div style="width:100%;">
-                <h4 style="margin:0 0 6px 0; color:var(--accent);">${escapeHTML(data.ad.title)}</h4>
-                <a href="${escapeHTML(data.ad.targetUrl)}" target="_blank" rel="noopener" style="color:var(--text-muted); font-size:12px; text-decoration:underline;">Click to explore sponsored ad</a>
-              </div>
-            `;
-          }
-        }
-
-        startBridgeTimer(data.timerSeconds || 5);
       } catch (e) {
-        const adBox = document.getElementById('ad-container');
-        if (adBox) {
-          adBox.innerHTML = `<span style="color:var(--danger);">Invalid or expired short link.</span>`;
-        }
+        console.error("Bridge Init Error:", e);
       }
     }
 
-    function startBridgeTimer(seconds) {
-      let timeLeft = seconds;
+    function startBridgeTimer(sec) {
+      let timeLeft = sec;
       const timerElem = document.getElementById('timer');
       const goBtn = document.getElementById('go-btn');
 
       const interval = setInterval(() => {
         timeLeft--;
         if (timerElem) timerElem.innerText = timeLeft;
-
         if (timeLeft <= 0) {
           clearInterval(interval);
           if (goBtn) goBtn.disabled = false;
@@ -1799,37 +1655,172 @@
     }
 
     async function completeImpression() {
+      if (!currentSessionId) return;
       const goBtn = document.getElementById('go-btn');
-      setButtonLoading('go-btn', true, 'Redirecting...');
-
-      const timeSpent = Math.floor((Date.now() - bridgeStartTime) / 1000);
+      if (goBtn) goBtn.disabled = true;
 
       try {
-        const res = await fetch(`${API_BASE}/api/bridge/complete`, {
+        const res = await safeFetch('/api/bridge/complete', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             sessionId: currentSessionId,
-            timeSpent
+            timeSpent: Math.floor((Date.now() - bridgeStartTime) / 1000)
           })
         });
 
-        const data = await res.json();
-        if (data && data.destinationUrl) {
-          window.location.href = data.destinationUrl;
-        } else {
-          showToast("Failed to resolve target link");
+        if (res) {
+          const data = await res.json().catch(() => null);
+          if (data && data.destinationUrl) {
+            window.location.href = data.destinationUrl;
+          } else {
+            showToast("Failed to retrieve destination link");
+          }
         }
       } catch (e) {
-        console.error("Bridge completion error:", e);
-      } finally {
-        setButtonLoading('go-btn', false);
+        console.error("Impression error:", e);
+        if (goBtn) goBtn.disabled = false;
       }
     }
 
-    // App Initialization Trigger
-    document.addEventListener('DOMContentLoaded', initializeApp);
+    // Admin Panel Methods
+    async function loadAdminData() {
+      try {
+        const res = await safeFetch('/api/admin/stats');
+        if (!res) return;
+
+        const data = await res.json().catch(() => null);
+        if (data) {
+          document.getElementById('admin-total-users').innerText = data.totalUsers || 0;
+          document.getElementById('admin-total-pending').innerText = `$${(data.totalPending || 0).toFixed(2)}`;
+          
+          renderAdminDeposits(data.pendingDeposits || []);
+          renderAdminWithdraws(data.pendingWithdraws || []);
+          renderAdminUsers(data.users || []);
+        }
+      } catch (e) {
+        console.error("Error loading admin stats:", e);
+      }
+    }
+
+    function renderAdminDeposits(deposits) {
+      const container = document.getElementById('admin-deposits-list');
+      if (!container) return;
+
+      if (deposits.length === 0) {
+        container.innerHTML = 'No pending deposit requests.';
+        return;
+      }
+
+      container.innerHTML = deposits.map(d => `
+        <div style="background: #0f172a; padding: 10px; margin-bottom: 8px; border-radius: 10px; border: 1px solid var(--card-border);">
+          <div>User ID: <b>${escapeHTML(d.telegramId || d.userId)}</b></div>
+          <div>Amount: <b style="color:var(--success);">$${parseFloat(d.amount || 0).toFixed(2)}</b> (${escapeHTML(d.network)})</div>
+          <div style="font-size: 10px; color: var(--text-muted); word-break: break-all;">TxID: ${escapeHTML(d.txHash)}</div>
+          <div style="margin-top: 6px;">
+            <button class="btn-small btn-success" onclick="approveDeposit('${d._id}')">Approve</button>
+            <button class="btn-small btn-danger" onclick="rejectDeposit('${d._id}')">Reject</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderAdminWithdraws(withdraws) {
+      const container = document.getElementById('admin-withdraws-list');
+      if (!container) return;
+
+      if (withdraws.length === 0) {
+        container.innerHTML = 'No pending withdrawal requests.';
+        return;
+      }
+
+      container.innerHTML = withdraws.map(w => `
+        <div style="background: #0f172a; padding: 10px; margin-bottom: 8px; border-radius: 10px; border: 1px solid var(--card-border);">
+          <div>User ID: <b>${escapeHTML(w.telegramId || w.userId)}</b></div>
+          <div>Amount: <b style="color:var(--warning);">$${parseFloat(w.amount || 0).toFixed(2)}</b></div>
+          <div style="font-size: 10px; color: var(--text-muted); word-break: break-all;">Wallet: ${escapeHTML(w.walletAddress)}</div>
+          <div style="margin-top: 6px;">
+            <button class="btn-small btn-success" onclick="approveWithdrawal('${w._id}')">Approve</button>
+            <button class="btn-small btn-danger" onclick="rejectWithdrawal('${w._id}')">Reject</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderAdminUsers(users) {
+      const container = document.getElementById('admin-users-list');
+      if (!container) return;
+
+      if (users.length === 0) {
+        container.innerHTML = 'No users available.';
+        return;
+      }
+
+      container.innerHTML = users.slice(0, 20).map(u => `
+        <div style="background: #0f172a; padding: 8px 10px; margin-bottom: 6px; border-radius: 8px; font-size: 11px;">
+          <b>${escapeHTML(u.name || u.username || 'User')}</b> (ID: ${escapeHTML(u.telegramId || u._id)}) 
+          | Pending: <span style="color:var(--warning);">$${(u.pendingBalance || 0).toFixed(2)}</span> 
+          | Avail: <span style="color:var(--success);">$${(u.availableBalance || 0).toFixed(2)}</span>
+        </div>
+      `).join('');
+    }
+
+    async function approveDeposit(id) {
+      try {
+        const res = await safeFetch(`/api/admin/deposit/approve/${id}`, { method: 'POST' });
+        if (res && res.ok) loadAdminData();
+      } catch (e) { console.error(e); }
+    }
+
+    async function rejectDeposit(id) {
+      try {
+        const res = await safeFetch(`/api/admin/deposit/reject/${id}`, { method: 'POST' });
+        if (res && res.ok) loadAdminData();
+      } catch (e) { console.error(e); }
+    }
+
+    async function approveWithdrawal(id) {
+      try {
+        const res = await safeFetch(`/api/admin/withdraw/approve/${id}`, { method: 'POST' });
+        if (res && res.ok) loadAdminData();
+      } catch (e) { console.error(e); }
+    }
+
+    async function rejectWithdrawal(id) {
+      const reason = prompt("Enter rejection reason:");
+      if (reason === null) return;
+      try {
+        const res = await safeFetch(`/api/admin/withdraw/reject/${id}`, {
+          method: 'POST',
+          body: JSON.stringify({ reason })
+        });
+        if (res && res.ok) loadAdminData();
+      } catch (e) { console.error(e); }
+    }
+
+    async function distributeRevenue() {
+      const amount = parseFloat(document.getElementById('revenue-amount').value) || 0;
+      if (amount <= 0) {
+        showToast("Enter valid revenue amount");
+        return;
+      }
+
+      try {
+        const res = await safeFetch('/api/admin/distribute-revenue', {
+          method: 'POST',
+          body: JSON.stringify({ amount })
+        });
+        if (res && res.ok) {
+          showToast("Revenue pool distributed successfully!");
+          document.getElementById('revenue-amount').value = '';
+          loadAdminData();
+        }
+      } catch (e) { console.error(e); }
+    }
+
+    // App Initialization Bootstrapper
+    document.addEventListener('DOMContentLoaded', () => {
+      initializeApp();
+    });
   </script>
 </body>
 </html>
-    
