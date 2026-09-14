@@ -282,12 +282,10 @@ const adSchema = new mongoose.Schema({
   advertiserId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    required: [true, 'Advertiser User ID is required'], 
     index: true 
   },
   advertiserTelegramId: {
     type: String,
-    required: [true, 'Advertiser Telegram ID is required for fast tenant lookup'],
     index: true,
     trim: true
   },
@@ -314,7 +312,6 @@ const adSchema = new mongoose.Schema({
   },
   remainingBudget: { 
     type: Number, 
-    required: true, 
     min: [0, 'Remaining budget cannot be negative'], 
     set: formatCurrency 
   },
@@ -449,7 +446,6 @@ const linkSchema = new mongoose.Schema({
   }
 }, globalSchemaOptions);
 
-// Pre-validate middleware ensuring complete data synchronization & targetUrl format validation
 linkSchema.pre('validate', function(next) {
   if (this.telegramId && !this.publisherTelegramId) this.publisherTelegramId = String(this.telegramId).trim();
   if (this.publisherTelegramId && !this.telegramId) this.telegramId = String(this.publisherTelegramId).trim();
@@ -468,7 +464,6 @@ linkSchema.pre('validate', function(next) {
   next();
 });
 
-// Indexes for high-performance isolated queries
 linkSchema.index({ userId: 1, createdAt: -1 });
 linkSchema.index({ telegramId: 1, createdAt: -1 });
 linkSchema.index({ publisherTelegramId: 1, createdAt: -1 });
@@ -477,7 +472,6 @@ linkSchema.index({ telegramId: 1, isActive: 1, createdAt: -1 });
 linkSchema.index({ userId: 1, shortCode: 1 });
 linkSchema.index({ telegramId: 1, shortCode: 1 });
 
-// Helper Static Method to query user links safely using either userId or telegramId
 linkSchema.statics.getUserIsolatedLinks = function(userIdentifier, query = {}, options = {}) {
   enforceTenantKey(userIdentifier, 'userIdentifier');
   const isObjectId = mongoose.Types.ObjectId.isValid(userIdentifier);
@@ -526,12 +520,10 @@ const impressionSchema = new mongoose.Schema({
   publisherId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
     index: true
   },
   publisherTelegramId: {
     type: String,
-    required: true,
     trim: true,
     index: true
   },
@@ -622,7 +614,6 @@ const clickSessionSchema = new mongoose.Schema({
   publisherId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
     index: true
   },
   visitorTelegramId: { 
@@ -698,7 +689,6 @@ const withdrawSchema = new mongoose.Schema({
   },
   netAmount: {
     type: Number,
-    required: true,
     set: formatCurrency
   },
   network: {
@@ -816,12 +806,10 @@ const depositSchema = new mongoose.Schema({
   advertiserId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: [true, 'Advertiser User ID is required'],
     index: true
   },
   advertiserTelegramId: {
     type: String,
-    required: [true, 'Advertiser Telegram ID is required'],
     trim: true,
     index: true
   },
