@@ -1,7 +1,7 @@
 /**
- * Ultra-Enterprise Models Architecture (V5.6 - Optimized & Tenant Isolated)
+ * Ultra-Enterprise Models Architecture (V6.0 - Ultimate Performance & Multi-Tenant Resilient)
  * Platform: Telega.ads Advertising & Shortener Network
- * Security: Zero-Data-Leakage Enforcement, Safe Persist Enforcers & Clean Schema Definitions
+ * Security: Strict Tenant Isolation, Safe Persist Enforcers & Advanced Data Validation
  */
 
 if (typeof window !== 'undefined') {
@@ -10,27 +10,22 @@ if (typeof window !== 'undefined') {
 
 const mongoose = require('mongoose');
 
-// Precision currency formatter up to 5 decimal places (Prevents JS Floating-point flaws)
+// Precision Currency Formatter (Max 5 decimals to prevent floating-point flaws)
 const formatCurrency = (val) => {
   const num = Number(val);
   if (isNaN(num) || !isFinite(num)) return 0;
   return Math.round((num + Number.EPSILON) * 100000) / 100000;
 };
 
-// Robust URL Validator explicitly supporting standard URLs, Telegram domains, and Telegram protocols
+// Universal URL Validator supporting Web URLs and Telegram Protocols
 const isValidUrl = (val) => {
   if (!val || typeof val !== 'string') return false;
   const trimmed = val.trim();
   if (trimmed.length === 0) return false;
-  
-  if (/^(tg|telegram):\/\//i.test(trimmed)) {
-    return true;
-  }
+  if (/^(tg|telegram):\/\//i.test(trimmed)) return true;
 
   try {
-    const urlToTest = /^https?:\/\//i.test(trimmed) 
-      ? trimmed 
-      : `https://${trimmed}`;
+    const urlToTest = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
     const parsed = new URL(urlToTest);
     return parsed.protocol === 'http:' || parsed.protocol === 'https:';
   } catch (err) {
@@ -38,7 +33,16 @@ const isValidUrl = (val) => {
   }
 };
 
-// Global Schema Options for strict data isolation and safe JSON serialization
+// Advanced Wallet Validator (TRC20, EVM/BEP20, TON)
+const isValidWallet = (v) => {
+  if (!v || v.trim() === '') return true;
+  const val = v.trim();
+  const isTron = /^T[A-Za-z1-9]{33}$/.test(val);
+  const isEvm = /^0x[a-fA-F0-9]{40}$/.test(val);
+  const isTon = /^[a-zA-Z0-9_-]{48}$/.test(val) || /^0:[a-fA-F0-9]{64}$/.test(val);
+  return isTron || isEvm || isTon;
+};
+
 const globalSchemaOptions = {
   timestamps: true,
   versionKey: '__v',
@@ -56,15 +60,15 @@ const globalSchemaOptions = {
   }
 };
 
-// Helper validator to enforce non-empty ownership parameters
-const enforceTenantKey = (tenantKey, keyName = 'userId') => {
+// Tenant Enforcement Guard for Zero-Data-Leakage
+const enforceTenantKey = (tenantKey, keyName = 'identifier') => {
   if (!tenantKey) {
     throw new Error(`Security Violation [Tenant Isolation]: Access denied. Missing strictly required parameter: ${keyName}`);
   }
 };
 
 // --------------------------------------------------
-// 1. User Model (Profiles, Balances & Stats)
+// 1. User Model
 // --------------------------------------------------
 const userSchema = new mongoose.Schema({
   telegramId: { 
@@ -74,68 +78,19 @@ const userSchema = new mongoose.Schema({
     index: true,
     trim: true 
   },
-  username: { 
-    type: String, 
-    default: '', 
-    trim: true,
-    lowercase: true 
-  },
-  language: {
-    type: String,
-    default: 'ar',
-    trim: true,
-    lowercase: true
-  },
-  role: { 
-    type: String, 
-    enum: ['user', 'admin'], 
-    default: 'user',
-    index: true 
-  },
-  pendingBalance: { 
-    type: Number, 
-    default: 0, 
-    min: [0, 'Pending balance cannot be negative'],
-    set: formatCurrency 
-  },
-  availableBalance: { 
-    type: Number, 
-    default: 0, 
-    min: [0, 'Available balance cannot be negative'],
-    set: formatCurrency 
-  },
-  isBanned: { 
-    type: Boolean, 
-    default: false, 
-    index: true 
-  },
-  referredBy: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User', 
-    default: null, 
-    index: true 
-  },
-  referralEarnings: { 
-    type: Number, 
-    default: 0, 
-    min: 0,
-    set: formatCurrency 
-  },
+  username: { type: String, default: '', trim: true, lowercase: true },
+  language: { type: String, default: 'ar', trim: true, lowercase: true },
+  role: { type: String, enum: ['user', 'admin'], default: 'user', index: true },
+  pendingBalance: { type: Number, default: 0, min: 0, set: formatCurrency },
+  availableBalance: { type: Number, default: 0, min: 0, set: formatCurrency },
+  isBanned: { type: Boolean, default: false, index: true },
+  referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, index: true },
+  referralEarnings: { type: Number, default: 0, min: 0, set: formatCurrency },
   defaultWallet: { 
     type: String, 
     default: '', 
     trim: true,
-    validate: {
-      validator: function(v) {
-        if (!v || v.trim() === '') return true;
-        const val = v.trim();
-        const isTron = /^T[A-Za-z1-9]{33}$/.test(val);
-        const isEvm = /^0x[a-fA-F0-9]{40}$/.test(val);
-        const isTon = /^[a-zA-Z0-9_-]{48}$/.test(val) || /^0:[a-fA-F0-9]{64}$/.test(val);
-        return isTron || isEvm || isTon;
-      },
-      message: 'Invalid wallet address format (Must be USDT TRC20, BEP20/ERC20, or TON)'
-    }
+    validate: { validator: isValidWallet, message: 'Invalid wallet address format (Must be USDT TRC20, BEP20, or TON)' }
   },
   statsSummary: {
     totalLinksCreated: { type: Number, default: 0, min: 0 },
@@ -153,51 +108,16 @@ userSchema.statics.findByTelegramIdIsolated = function(telegramId) {
 };
 
 // --------------------------------------------------
-// 2. Wallet Model (Central Balance Control)
+// 2. Wallet Model
 // --------------------------------------------------
 const walletSchema = new mongoose.Schema({
-  userId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User', 
-    index: true,
-    default: null 
-  },
-  telegramId: { 
-    type: String, 
-    required: [true, 'Telegram ID is required'], 
-    index: true, 
-    trim: true 
-  },
-  availableBalance: { 
-    type: Number, 
-    default: 0, 
-    min: [0, 'Available balance cannot be negative'], 
-    set: formatCurrency 
-  },
-  pendingBalance: { 
-    type: Number, 
-    default: 0, 
-    min: [0, 'Pending balance cannot be negative'], 
-    set: formatCurrency 
-  },
-  totalDeposited: { 
-    type: Number, 
-    default: 0, 
-    min: 0, 
-    set: formatCurrency 
-  },
-  totalWithdrawn: { 
-    type: Number, 
-    default: 0, 
-    min: 0, 
-    set: formatCurrency 
-  },
-  currency: { 
-    type: String, 
-    default: 'USDT', 
-    uppercase: true, 
-    trim: true 
-  }
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null },
+  telegramId: { type: String, required: [true, 'Telegram ID is required'], index: true, trim: true },
+  availableBalance: { type: Number, default: 0, min: 0, set: formatCurrency },
+  pendingBalance: { type: Number, default: 0, min: 0, set: formatCurrency },
+  totalDeposited: { type: Number, default: 0, min: 0, set: formatCurrency },
+  totalWithdrawn: { type: Number, default: 0, min: 0, set: formatCurrency },
+  currency: { type: String, default: 'USDT', uppercase: true, trim: true }
 }, globalSchemaOptions);
 
 walletSchema.statics.getWalletIsolated = function(identifier) {
@@ -209,47 +129,21 @@ walletSchema.statics.getWalletIsolated = function(identifier) {
 };
 
 // --------------------------------------------------
-// 3. Transaction History Model
+// 3. Transaction Model
 // --------------------------------------------------
 const transactionSchema = new mongoose.Schema({
-  userId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User', 
-    index: true,
-    default: null
-  },
-  telegramId: { 
-    type: String, 
-    required: [true, 'Telegram ID is required'], 
-    index: true, 
-    trim: true 
-  },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null },
+  telegramId: { type: String, required: [true, 'Telegram ID is required'], index: true, trim: true },
   type: { 
     type: String, 
     enum: ['deposit', 'withdrawal', 'campaign_spend', 'publisher_earning', 'referral_bonus', 'refund'], 
     required: true,
     index: true 
   },
-  amount: { 
-    type: Number, 
-    required: true, 
-    set: formatCurrency 
-  },
-  balanceAfter: { 
-    type: Number, 
-    required: true, 
-    set: formatCurrency 
-  },
-  description: { 
-    type: String, 
-    default: '', 
-    trim: true 
-  },
-  referenceId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    default: null,
-    index: true 
-  }
+  amount: { type: Number, required: true, set: formatCurrency },
+  balanceAfter: { type: Number, required: true, set: formatCurrency },
+  description: { type: String, default: '', trim: true },
+  referenceId: { type: mongoose.Schema.Types.ObjectId, default: null, index: true }
 }, globalSchemaOptions);
 
 transactionSchema.index({ userId: 1, createdAt: -1 });
@@ -265,94 +159,23 @@ transactionSchema.statics.getUserTransactionsIsolated = function(identifier, fil
 };
 
 // --------------------------------------------------
-// 4. Ad Model (Campaigns)
+// 4. Ad Model
 // --------------------------------------------------
 const adSchema = new mongoose.Schema({
-  userId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User', 
-    index: true,
-    default: null
-  },
-  telegramId: {
-    type: String,
-    required: [true, 'Telegram ID is required'],
-    index: true,
-    trim: true
-  },
-  advertiserId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User', 
-    index: true,
-    default: null
-  },
-  advertiserTelegramId: {
-    type: String,
-    index: true,
-    trim: true,
-    default: null
-  },
-  title: { 
-    type: String, 
-    required: [true, 'Ad title is required'], 
-    trim: true, 
-    maxlength: [150, 'Ad title must not exceed 150 characters'] 
-  },
-  targetUrl: { 
-    type: String, 
-    required: [true, 'Target URL is required'], 
-    trim: true,
-    validate: {
-      validator: isValidUrl,
-      message: 'Please enter a valid target URL'
-    }
-  },
-  totalBudget: { 
-    type: Number, 
-    required: [true, 'Total budget is required'], 
-    min: [1, 'Minimum campaign budget is $1'], 
-    set: formatCurrency 
-  },
-  remainingBudget: { 
-    type: Number, 
-    min: [0, 'Remaining budget cannot be negative'], 
-    set: formatCurrency 
-  },
-  cpmRate: { 
-    type: Number, 
-    default: 1.50,
-    min: 0,
-    set: formatCurrency
-  },
-  costPerImpression: { 
-    type: Number, 
-    default: 0.0015,
-    min: 0,
-    set: formatCurrency
-  },
-  publisherEarningsPerImpression: {
-    type: Number,
-    default: 0.00135,
-    min: 0,
-    set: formatCurrency
-  },
-  platformFeePerImpression: {
-    type: Number,
-    default: 0.00015,
-    min: 0,
-    set: formatCurrency
-  },
-  impressionsCount: { 
-    type: Number, 
-    default: 0, 
-    min: 0 
-  },
-  status: { 
-    type: String, 
-    enum: ['active', 'paused', 'completed'], 
-    default: 'active', 
-    index: true 
-  }
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null },
+  telegramId: { type: String, required: [true, 'Telegram ID is required'], index: true, trim: true },
+  advertiserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null },
+  advertiserTelegramId: { type: String, index: true, trim: true, default: null },
+  title: { type: String, required: true, trim: true, maxlength: 150 },
+  targetUrl: { type: String, required: true, trim: true, validate: { validator: isValidUrl, message: 'Invalid URL' } },
+  totalBudget: { type: Number, required: true, min: 1, set: formatCurrency },
+  remainingBudget: { type: Number, set: formatCurrency },
+  cpmRate: { type: Number, default: 1.50, min: 0, set: formatCurrency },
+  costPerImpression: { type: Number, default: 0.0015, min: 0, set: formatCurrency },
+  publisherEarningsPerImpression: { type: Number, default: 0.00135, min: 0, set: formatCurrency },
+  platformFeePerImpression: { type: Number, default: 0.00015, min: 0, set: formatCurrency },
+  impressionsCount: { type: Number, default: 0, min: 0 },
+  status: { type: String, enum: ['active', 'paused', 'completed'], default: 'active', index: true }
 }, globalSchemaOptions);
 
 adSchema.pre('validate', function(next) {
@@ -360,10 +183,7 @@ adSchema.pre('validate', function(next) {
   if (this.advertiserId && !this.userId) this.userId = this.advertiserId;
   if (this.telegramId && !this.advertiserTelegramId) this.advertiserTelegramId = String(this.telegramId);
   if (this.advertiserTelegramId && !this.telegramId) this.telegramId = String(this.advertiserTelegramId);
-  
-  if (typeof this.remainingBudget === 'undefined' && typeof this.totalBudget === 'number') {
-    this.remainingBudget = this.totalBudget;
-  }
+  if (typeof this.remainingBudget === 'undefined') this.remainingBudget = this.totalBudget;
   
   if (this.targetUrl && typeof this.targetUrl === 'string') {
     this.targetUrl = this.targetUrl.trim();
@@ -388,69 +208,19 @@ adSchema.statics.findAdvertiserAdsIsolated = function(identifier, filter = {}) {
 };
 
 // --------------------------------------------------
-// 5. Shortened Link Model (Links - Optimized Ownership)
+// 5. Shortened Link Model
 // --------------------------------------------------
 const linkSchema = new mongoose.Schema({
-  shortCode: { 
-    type: String, 
-    required: [true, 'Short code is required'], 
-    unique: true, 
-    index: true,
-    trim: true 
-  },
-  userId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User',
-    index: true,
-    default: null
-  },
-  telegramId: {
-    type: String,
-    required: [true, 'Telegram ID is required for link ownership'],
-    index: true,
-    trim: true
-  },
-  publisherTelegramId: {
-    type: String,
-    index: true,
-    trim: true,
-    default: null
-  },
-  title: { 
-    type: String, 
-    default: 'Untitled Link', 
-    trim: true,
-    maxlength: 250 
-  },
-  targetUrl: { 
-    type: String, 
-    required: [true, 'Target URL is required'],
-    trim: true,
-    validate: {
-      validator: isValidUrl,
-      message: 'Please enter a valid target URL'
-    }
-  },
-  isActive: { 
-    type: Boolean, 
-    default: true, 
-    index: true 
-  },
-  views: { 
-    type: Number, 
-    default: 0, 
-    min: 0 
-  },
-  validImpressions: { 
-    type: Number, 
-    default: 0, 
-    min: 0 
-  },
-  invalidImpressions: { 
-    type: Number, 
-    default: 0, 
-    min: 0 
-  }
+  shortCode: { type: String, required: true, unique: true, index: true, trim: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null },
+  telegramId: { type: String, required: [true, 'Telegram ID is required for link ownership'], index: true, trim: true },
+  publisherTelegramId: { type: String, index: true, trim: true, default: null },
+  title: { type: String, default: 'Untitled Link', trim: true, maxlength: 250 },
+  targetUrl: { type: String, required: true, trim: true, validate: { validator: isValidUrl, message: 'Invalid URL' } },
+  isActive: { type: Boolean, default: true, index: true },
+  views: { type: Number, default: 0, min: 0 },
+  validImpressions: { type: Number, default: 0, min: 0 },
+  invalidImpressions: { type: Number, default: 0, min: 0 }
 }, globalSchemaOptions);
 
 linkSchema.pre('validate', function(next) {
@@ -461,18 +231,14 @@ linkSchema.pre('validate', function(next) {
     this.publisherTelegramId = String(this.publisherTelegramId).trim();
     this.telegramId = this.publisherTelegramId;
   }
-
-  if (!this.title || this.title.trim() === '') {
-    this.title = 'Untitled Link';
-  }
-
+  if (!this.title || this.title.trim() === '') this.title = 'Untitled Link';
+  
   if (this.targetUrl && typeof this.targetUrl === 'string') {
     this.targetUrl = this.targetUrl.trim();
     if (!/^https?:\/\//i.test(this.targetUrl) && !/^(tg|telegram):\/\//i.test(this.targetUrl)) {
       this.targetUrl = `https://${this.targetUrl}`;
     }
   }
-
   next();
 });
 
@@ -483,19 +249,16 @@ linkSchema.index({ userId: 1, isActive: 1, createdAt: -1 });
 linkSchema.statics.getUserIsolatedLinks = function(userIdentifier, query = {}, options = {}) {
   enforceTenantKey(userIdentifier, 'userIdentifier');
   const isObjectId = mongoose.Types.ObjectId.isValid(userIdentifier);
-  
   const tenantFilter = isObjectId 
     ? { $or: [{ userId: userIdentifier }, { telegramId: String(userIdentifier).trim() }] }
     : { telegramId: String(userIdentifier).trim() };
 
-  const safeQuery = { ...query, ...tenantFilter };
-  return this.find(safeQuery, null, options).sort({ createdAt: -1 });
+  return this.find({ ...query, ...tenantFilter }, null, options).sort({ createdAt: -1 });
 };
 
 linkSchema.statics.findOneIsolated = function(shortCode, userIdentifier) {
   enforceTenantKey(userIdentifier, 'userIdentifier');
   const isObjectId = mongoose.Types.ObjectId.isValid(userIdentifier);
-
   const tenantFilter = isObjectId 
     ? { $or: [{ userId: userIdentifier }, { telegramId: String(userIdentifier).trim() }] }
     : { telegramId: String(userIdentifier).trim() };
@@ -504,81 +267,22 @@ linkSchema.statics.findOneIsolated = function(shortCode, userIdentifier) {
 };
 
 // --------------------------------------------------
-// 6. Traffic & Impressions Model
+// 6. Impression Model
 // --------------------------------------------------
 const impressionSchema = new mongoose.Schema({
-  linkId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'Link', 
-    required: true, 
-    index: true 
-  },
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    index: true,
-    default: null
-  },
-  telegramId: {
-    type: String,
-    required: [true, 'Telegram ID is required'],
-    trim: true,
-    index: true
-  },
-  publisherId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    index: true,
-    default: null
-  },
-  publisherTelegramId: {
-    type: String,
-    trim: true,
-    index: true,
-    default: null
-  },
-  viewerTelegramId: {
-    type: String,
-    default: null,
-    trim: true,
-    index: true
-  },
-  adSource: { 
-    type: String, 
-    enum: ['internal', 'adsgram'], 
-    default: 'adsgram',
-    index: true
-  },
-  adId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'Ad', 
-    default: null,
-    index: true
-  },
-  publisherEarnings: {
-    type: Number,
-    default: 0.00135,
-    set: formatCurrency
-  },
-  ip: { 
-    type: String, 
-    required: true, 
-    trim: true 
-  },
-  userAgent: { 
-    type: String, 
-    default: '', 
-    trim: true 
-  },
-  isUnique: { 
-    type: Boolean, 
-    default: true 
-  },
-  createdAt: { 
-    type: Date, 
-    default: Date.now, 
-    expires: '60d' 
-  }
+  linkId: { type: mongoose.Schema.Types.ObjectId, ref: 'Link', required: true, index: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null },
+  telegramId: { type: String, required: [true, 'Telegram ID is required'], trim: true, index: true },
+  publisherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null },
+  publisherTelegramId: { type: String, trim: true, index: true, default: null },
+  viewerTelegramId: { type: String, default: null, trim: true, index: true },
+  adSource: { type: String, enum: ['internal', 'adsgram'], default: 'adsgram', index: true },
+  adId: { type: mongoose.Schema.Types.ObjectId, ref: 'Ad', default: null, index: true },
+  publisherEarnings: { type: Number, default: 0.00135, set: formatCurrency },
+  ip: { type: String, required: true, trim: true },
+  userAgent: { type: String, default: '', trim: true },
+  isUnique: { type: Boolean, default: true },
+  createdAt: { type: Date, default: Date.now, expires: '60d' }
 }, globalSchemaOptions);
 
 impressionSchema.pre('validate', function(next) {
@@ -604,64 +308,19 @@ impressionSchema.statics.getPublisherImpressionsIsolated = function(identifier, 
 };
 
 // --------------------------------------------------
-// 7. Anti-Bypass Click Session Model
+// 7. Click Session Model
 // --------------------------------------------------
 const clickSessionSchema = new mongoose.Schema({
-  linkId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'Link', 
-    required: true 
-  },
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    index: true,
-    default: null
-  },
-  telegramId: {
-    type: String,
-    required: [true, 'Telegram ID is required'],
-    trim: true,
-    index: true
-  },
-  publisherId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    index: true,
-    default: null
-  },
-  visitorTelegramId: { 
-    type: String, 
-    default: null, 
-    trim: true,
-    index: true 
-  },
-  adSource: { 
-    type: String, 
-    enum: ['internal', 'adsgram'], 
-    default: 'adsgram'
-  },
-  adId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'Ad', 
-    default: null 
-  },
-  ip: { 
-    type: String, 
-    required: true, 
-    trim: true 
-  },
-  bridgeToken: { 
-    type: String, 
-    required: true,
-    trim: true,
-    index: true
-  },
-  createdAt: { 
-    type: Date, 
-    default: Date.now, 
-    expires: 300 
-  }
+  linkId: { type: mongoose.Schema.Types.ObjectId, ref: 'Link', required: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null },
+  telegramId: { type: String, required: [true, 'Telegram ID is required'], trim: true, index: true },
+  publisherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null },
+  visitorTelegramId: { type: String, default: null, trim: true, index: true },
+  adSource: { type: String, enum: ['internal', 'adsgram'], default: 'adsgram' },
+  adId: { type: mongoose.Schema.Types.ObjectId, ref: 'Ad', default: null },
+  ip: { type: String, required: true, trim: true },
+  bridgeToken: { type: String, required: true, trim: true, index: true },
+  createdAt: { type: Date, default: Date.now, expires: 300 }
 }, globalSchemaOptions);
 
 clickSessionSchema.pre('validate', function(next) {
@@ -676,67 +335,21 @@ clickSessionSchema.index({ linkId: 1, ip: 1 });
 // 8. Withdraw Request Model
 // --------------------------------------------------
 const withdrawSchema = new mongoose.Schema({
-  userId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User', 
-    index: true,
-    default: null
-  },
-  telegramId: {
-    type: String,
-    required: [true, 'Telegram ID is required'],
-    trim: true,
-    index: true
-  },
-  amount: { 
-    type: Number, 
-    required: [true, 'Total withdrawal amount is required'], 
-    min: [1, 'Minimum withdrawal limit is $1'],
-    set: formatCurrency 
-  },
-  fee: {
-    type: Number,
-    default: 0,
-    set: formatCurrency
-  },
-  netAmount: {
-    type: Number,
-    set: formatCurrency
-  },
-  network: {
-    type: String,
-    enum: ['BEP20', 'TRC20', 'TON'],
-    required: [true, 'Please select network (BEP20, TRC20, or TON)'],
-    trim: true,
-    uppercase: true
-  },
-  walletAddress: { 
-    type: String, 
-    required: [true, 'Wallet address is required'], 
-    trim: true 
-  },
-  status: { 
-    type: String, 
-    enum: ['pending', 'approved', 'rejected'], 
-    default: 'pending', 
-    lowercase: true,
-    index: true 
-  },
-  rejectReason: { 
-    type: String, 
-    default: '', 
-    trim: true 
-  },
-  note: { 
-    type: String, 
-    default: '', 
-    trim: true 
-  }
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null },
+  telegramId: { type: String, required: [true, 'Telegram ID is required'], trim: true, index: true },
+  amount: { type: Number, required: [true, 'Amount is required'], min: [1, 'Minimum withdrawal limit is $1'], set: formatCurrency },
+  fee: { type: Number, default: 0, set: formatCurrency },
+  netAmount: { type: Number, set: formatCurrency },
+  network: { type: String, enum: ['BEP20', 'TRC20', 'TON'], required: true, trim: true, uppercase: true },
+  walletAddress: { type: String, required: [true, 'Wallet address is required'], trim: true },
+  status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending', lowercase: true, index: true },
+  rejectReason: { type: String, default: '', trim: true },
+  note: { type: String, default: '', trim: true }
 }, globalSchemaOptions);
 
 withdrawSchema.pre('validate', function(next) {
-  const amount = typeof this.amount === 'number' ? this.amount : Number(this.amount) || 0;
-  const fee = typeof this.fee === 'number' ? this.fee : Number(this.fee) || 0;
+  const amount = Number(this.amount) || 0;
+  const fee = Number(this.fee) || 0;
   this.netAmount = formatCurrency(Math.max(0, amount - fee));
   next();
 });
@@ -758,35 +371,11 @@ withdrawSchema.statics.getUserWithdrawalsIsolated = function(identifier, status 
 // 9. Earnings Hold Model
 // --------------------------------------------------
 const earningsHoldSchema = new mongoose.Schema({
-  userId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User', 
-    index: true,
-    default: null
-  },
-  telegramId: {
-    type: String,
-    required: [true, 'Telegram ID is required'],
-    trim: true,
-    index: true
-  },
-  amount: { 
-    type: Number, 
-    required: true, 
-    min: 0,
-    set: formatCurrency 
-  },
-  releaseAt: { 
-    type: Date, 
-    required: true, 
-    default: () => new Date(Date.now() + 24 * 60 * 60 * 1000),
-    index: true 
-  },
-  isReleased: { 
-    type: Boolean, 
-    default: false, 
-    index: true 
-  }
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null },
+  telegramId: { type: String, required: [true, 'Telegram ID is required'], trim: true, index: true },
+  amount: { type: Number, required: true, min: 0, set: formatCurrency },
+  releaseAt: { type: Date, required: true, default: () => new Date(Date.now() + 24 * 60 * 60 * 1000), index: true },
+  isReleased: { type: Boolean, default: false, index: true }
 }, globalSchemaOptions);
 
 earningsHoldSchema.index({ userId: 1, isReleased: 1, releaseAt: 1 });
@@ -805,61 +394,15 @@ earningsHoldSchema.statics.getUserHoldsIsolated = function(identifier) {
 // 10. Deposit Model
 // --------------------------------------------------
 const depositSchema = new mongoose.Schema({
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    index: true,
-    default: null
-  },
-  telegramId: {
-    type: String,
-    required: [true, 'Telegram ID is required'],
-    trim: true,
-    index: true
-  },
-  advertiserId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    index: true,
-    default: null
-  },
-  advertiserTelegramId: {
-    type: String,
-    trim: true,
-    index: true,
-    default: null
-  },
-  amount: {
-    type: Number,
-    required: [true, 'Deposit amount is required'],
-    min: [0.1, 'Minimum deposit limit is $0.1'],
-    set: formatCurrency
-  },
-  network: {
-    type: String,
-    enum: ['BEP20', 'TRC20', 'TON'],
-    required: [true, 'Please select network (BEP20, TRC20, TON)'],
-    trim: true,
-    uppercase: true
-  },
-  txid: {
-    type: String,
-    required: [true, 'Transaction hash (TxID) is required'],
-    trim: true,
-    unique: true
-  },
-  status: {
-    type: String,
-    enum: ['pending', 'approved', 'rejected'],
-    default: 'pending',
-    lowercase: true,
-    index: true
-  },
-  rejectReason: {
-    type: String,
-    default: '',
-    trim: true
-  }
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null },
+  telegramId: { type: String, required: [true, 'Telegram ID is required'], trim: true, index: true },
+  advertiserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, default: null },
+  advertiserTelegramId: { type: String, trim: true, index: true, default: null },
+  amount: { type: Number, required: true, min: [0.1, 'Minimum deposit limit is $0.1'], set: formatCurrency },
+  network: { type: String, enum: ['BEP20', 'TRC20', 'TON'], required: true, trim: true, uppercase: true },
+  txid: { type: String, required: [true, 'TxID is required'], trim: true, unique: true },
+  status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending', lowercase: true, index: true },
+  rejectReason: { type: String, default: '', trim: true }
 }, globalSchemaOptions);
 
 depositSchema.pre('validate', function(next) {
@@ -906,7 +449,7 @@ announcementSchema.statics.getForUserIsolated = function(userId, telegramId) {
   }).sort({ createdAt: -1 });
 };
 
-// Exporting Optimized Safe Models
+// Ultra-Safe Model Exports
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Wallet = mongoose.models.Wallet || mongoose.model('Wallet', walletSchema);
 const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
