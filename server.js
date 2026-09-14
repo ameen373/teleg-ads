@@ -390,7 +390,10 @@ const telegramAuthMiddleware = async (req, res, next) => {
           { 
             $setOnInsert: { 
               telegramId: tgId, 
-              language: userLanguage 
+              language: userLanguage,
+              availableBalance: 0,
+              pendingBalance: 0,
+              referralEarnings: 0
             },
             $set: { username: currentUsername }
           },
@@ -421,7 +424,10 @@ const telegramAuthMiddleware = async (req, res, next) => {
             $setOnInsert: { 
               telegramId: tgId, 
               username: `User_${tgId.slice(-4)}`,
-              language: CONFIG.DEFAULT_LANGUAGE 
+              language: CONFIG.DEFAULT_LANGUAGE,
+              availableBalance: 0,
+              pendingBalance: 0,
+              referralEarnings: 0
             } 
           },
           { upsert: true, new: true, setDefaultsOnInsert: true }
@@ -519,7 +525,10 @@ app.post('/api/auth/login', async (req, res, next) => {
         $setOnInsert: {
           telegramId: tgId,
           language: userLanguage,
-          referredBy: mongoose.Types.ObjectId.isValid(referrerId) ? referrerId : null
+          referredBy: mongoose.Types.ObjectId.isValid(referrerId) ? referrerId : null,
+          availableBalance: 0,
+          pendingBalance: 0,
+          referralEarnings: 0
         },
         $set: { username: currentUsername }
       },
@@ -1073,7 +1082,10 @@ const handleShortenLink = async (req, res) => {
           {
             $setOnInsert: {
               telegramId: tgId,
-              language: tgLang
+              language: tgLang,
+              availableBalance: 0,
+              pendingBalance: 0,
+              referralEarnings: 0
             },
             $set: {
               username: tgUsername || `User_${tgId.slice(-4)}`
@@ -1133,7 +1145,6 @@ const handleShortenLink = async (req, res) => {
       }
     }
 
-    // إذا فشلت محاولات التوليد العشوائي المباشرة، نستخدم النانو آيدي المستقر
     if (!isUnique) {
       shortCode = crypto.randomUUID().replace(/-/g, '').slice(0, 8);
     }
