@@ -37,7 +37,7 @@ const CONFIG = Object.freeze({
   PORT: parseInt(process.env.PORT || '3000', 10),
   BOT_TOKEN: process.env.BOT_TOKEN || '',
   MONGO_URI: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/shortener',
-  ADMIN_ID: String(process.env.ADMIN_ID || '123456789').trim(),
+  ADMIN_ID: String(process.env.ADMIN_ID || '').trim(),
   JWT_SECRET: process.env.JWT_SECRET || 'super_secret_jwt_key_telega_ads_2026_enterprise',
   ADSGRAM_BLOCK_ID: process.env.ADSGRAM_BLOCK_ID || '1234',
   APP_DOMAIN: process.env.APP_DOMAIN || 'teleg-ads.vercel.app',
@@ -416,6 +416,13 @@ const telegramAuthMiddleware = async (req, res, next) => {
         user = await User.findById(fallbackUserId);
       } else if (fallbackTelegramId) {
         user = await User.findOne({ telegramId: String(fallbackTelegramId) });
+        if (!user) {
+          user = await User.create({
+            telegramId: String(fallbackTelegramId),
+            username: `User_${String(fallbackTelegramId).slice(-4)}`,
+            language: CONFIG.DEFAULT_LANGUAGE
+          });
+        }
       }
     }
 
@@ -442,7 +449,7 @@ const telegramAuthMiddleware = async (req, res, next) => {
 };
 
 const adminMiddleware = async (req, res, next) => {
-  if (!req.user || String(req.user.telegramId).trim() !== CONFIG.ADMIN_ID) {
+  if (!req.user || !CONFIG.ADMIN_ID || String(req.user.telegramId).trim() !== CONFIG.ADMIN_ID) {
     return res.status(403).json({ success: false, error: 'غير مصرح لك بالدعم أو الوصول لهذه اللوحة' });
   }
   next();
@@ -483,7 +490,7 @@ app.all('/api/check-admin', async (req, res) => {
       }
     }
 
-    const isAdmin = Boolean(telegramIdToCheck && telegramIdToCheck === CONFIG.ADMIN_ID);
+    const isAdmin = Boolean(CONFIG.ADMIN_ID && telegramIdToCheck && telegramIdToCheck === CONFIG.ADMIN_ID);
     return res.json({ success: true, isAdmin });
   } catch (err) {
     return res.json({ success: true, isAdmin: false });
@@ -531,7 +538,7 @@ app.post('/api/auth/login', async (req, res, next) => {
       token, 
       user, 
       language: user.language || CONFIG.DEFAULT_LANGUAGE,
-      isAdmin: String(user.telegramId).trim() === CONFIG.ADMIN_ID,
+      isAdmin: Boolean(CONFIG.ADMIN_ID && String(user.telegramId).trim() === CONFIG.ADMIN_ID),
       botUsername: CONFIG.BOT_USERNAME,
       supportUsername: CONFIG.SUPPORT_USERNAME,
       botUrl: CONFIG.OFFICIAL_BOT_URL,
@@ -583,7 +590,7 @@ app.get('/api/user/data', telegramAuthMiddleware, async (req, res, next) => {
       };
     });
 
-    const isAdmin = String(req.user.telegramId).trim() === CONFIG.ADMIN_ID;
+    const isAdmin = Boolean(CONFIG.ADMIN_ID && String(req.user.telegramId).trim() === CONFIG.ADMIN_ID);
     res.json({ 
       success: true,
       user: req.user, 
@@ -736,10 +743,12 @@ app.post('/api/deposit', telegramAuthMiddleware, async (req, res, next) => {
       status: 'pending'
     });
 
-    sendTelegramNotification(
-      CONFIG.ADMIN_ID,
-      `💳 <b>طلب إيداع جديد!</b>\nالمستخدم: <code>${req.user.username}</code>\nالمبلغ: <code>$${numAmount}</code>\nالشبكة: <code>${cleanNetwork}</code>\nTxID: <code>${cleanTxid}</code>`
-    );
+    if (CONFIG.ADMIN_ID) {
+      sendTelegramNotification(
+        CONFIG.ADMIN_ID,
+        `💳 <b>طلب إيداع جديد!</b>\nالمستخدم: <code>${req.user.username}</code>\nالمبلغ: <code>$${numAmount}</code>\nالشبكة: <code>${cleanNetwork}</code>\nTxID: <code>${cleanTxid}</code>`
+      );
+    }
 
     res.json({ success: true, deposit });
   } catch (err) {
@@ -1033,7 +1042,7 @@ const handleShortenLink = async (req, res) => {
     }
 
     // 2. التحقق من التوثيق وتوفر معرف المستخدم
-    const userId = req.userId;
+    const userId = req.userId || req.user?._id;
     const telegramId = req.telegramId || req.user?.telegramId;
 
     if (!userId) {
@@ -1067,23 +1076,25 @@ const handleShortenLink = async (req, res) => {
       }
     } catch (e) {}
 
-    // 7. توليد كود فريد مع محاولات لتفادي التكرار
+    // 7. توليد كود فريد ومقاوم للتصادامات (Collision Prevention)
     let shortCode = '';
     let isUnique = false;
     let attempts = 0;
 
     while (!isUnique && attempts < 10) {
-      const bytesCount = attempts > 5 ? 4 : 3;
-      shortCode = crypto.randomBytes(bytesCount).toString('hex');
+      attempts++;
+      const byteLen = attempts > 5 ? 5 : 3;
+      shortCode = crypto.randomBytes(byteLen).toString('hex');
+      
       const existingLink = await Link.findOne({ shortCode }).lean();
       if (!existingLink) {
         isUnique = true;
       }
-      attempts++;
     }
 
+    // إذا فشلت محاولات التوليد العشوائي المباشرة، نستخدم النانو آيدي المستقر
     if (!isUnique) {
-      return res.status(500).json({ success: false, error: 'فشل في توليد كود فريد، يرجى إعادة المحاولة' });
+      shortCode = crypto.randomUUID().replace(/-/g, '').slice(0, 8);
     }
 
     // 8. حفظ الرابط في قاعدة البيانات
@@ -1129,7 +1140,6 @@ const handleShortenLink = async (req, res) => {
     });
 
   } catch (err) {
-    console.error('❌ [Link Shorten Error Details]:', err);
     logger.error('❌ Error in Link Creation Engine (Shorten API):', err);
     return res.status(500).json({ 
       success: false, 
