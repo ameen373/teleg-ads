@@ -1,5 +1,5 @@
 /**
- * Ultra-Enterprise Models Architecture (V5.4 - Dynamic Isolation & Fixed Multi-Tenant Constraints)
+ * Ultra-Enterprise Models Architecture (V5.5 - Dynamic Isolation & Fixed Multi-Tenant Constraints)
  * Platform: Telega.ads Advertising & Shortener Network
  * Security: Zero-Data-Leakage Enforcement, Safe Persist Enforcers & Custom Validations
  */
@@ -153,7 +153,7 @@ userSchema.statics.findByTelegramIdIsolated = function(telegramId) {
 };
 
 // --------------------------------------------------
-// 2. Wallet Model (Central Balance Control)
+// 2. Wallet Model (Central Balance Control - FIXED)
 // --------------------------------------------------
 const walletSchema = new mongoose.Schema({
   userId: { 
@@ -166,7 +166,6 @@ const walletSchema = new mongoose.Schema({
   telegramId: { 
     type: String, 
     required: [true, 'Telegram ID is required'], 
-    unique: true,
     index: true, 
     trim: true 
   },
@@ -201,6 +200,8 @@ const walletSchema = new mongoose.Schema({
     trim: true 
   }
 }, globalSchemaOptions);
+
+walletSchema.index({ telegramId: 1 });
 
 walletSchema.statics.getWalletIsolated = function(userId) {
   enforceTenantKey(userId, 'userId');
@@ -376,7 +377,7 @@ adSchema.statics.findAdvertiserAdsIsolated = function(userId, filter = {}) {
 };
 
 // --------------------------------------------------
-// 5. Shortened Link Model (Links)
+// 5. Shortened Link Model (Links - SAFE ENFORCE)
 // --------------------------------------------------
 const linkSchema = new mongoose.Schema({
   shortCode: { 
@@ -458,7 +459,6 @@ linkSchema.pre('validate', function(next) {
   next();
 });
 
-// Clean Non-Unique Multi-Tenant Indexes
 linkSchema.index({ userId: 1, createdAt: -1 });
 linkSchema.index({ telegramId: 1, createdAt: -1 });
 linkSchema.index({ userId: 1, isActive: 1, createdAt: -1 });
