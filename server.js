@@ -1019,7 +1019,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 });
 
 // ============================================================================
-// 10. ADVANCED LINK SHORTENING MANAGEMENT ENGINE
+// 10. ADVANCED LINK SHORTENING MANAGEMENT ENGINE (ROBUST & RESILIENT)
 // ============================================================================
 
 /**
@@ -1027,10 +1027,12 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
  */
 const handleShortenLink = async (req, res) => {
   try {
+    // 1. التأكد من حالة الاتصال بقاعدة البيانات
     if (mongoose.connection.readyState !== 1) {
       await connectDB();
     }
 
+    // 2. التحقق من التوثيق وتوفر معرف المستخدم
     const userId = req.userId;
     const telegramId = req.telegramId || req.user?.telegramId;
 
@@ -1038,18 +1040,26 @@ const handleShortenLink = async (req, res) => {
       return res.status(401).json({ success: false, error: 'غير مصرح: معرف المستخدم مفقود' });
     }
 
-    const { title, targetUrl, url, link } = req.body;
-    const rawUrl = String(targetUrl || url || link || '').trim();
+    // 3. استخراج الرابط واختبار كافة الأسماء المحتملة في req.body
+    const { title, targetUrl, url, link, originalUrl } = req.body || {};
+    const rawUrl = String(targetUrl || url || link || originalUrl || '').trim();
 
-    const cleanUrl = normalizeAndValidateUrl(rawUrl);
-    if (!cleanUrl) {
-      return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
+    if (!rawUrl) {
+      return res.status(400).json({ success: false, error: 'يرجى إدخال الرابط المراد اختصاره' });
     }
 
+    // 4. التحقق من صحة وصلاحية الرابط المدخل
+    const cleanUrl = normalizeAndValidateUrl(rawUrl);
+    if (!cleanUrl) {
+      return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح، يرجى التأكد من كتابته بشكل صحيح' });
+    }
+
+    // 5. فحص الروابط المشبوهة
     if (isPhishingOrMalicious(cleanUrl)) {
       return res.status(400).json({ success: false, error: 'الرابط مخالف لشروط وأحكام الاستخدام' });
     }
 
+    // 6. منع اختصار روابط النطاق الخاص بالمنصة
     try {
       const domainCheck = new URL(cleanUrl).hostname;
       if (domainCheck.includes(CONFIG.APP_DOMAIN)) {
@@ -1057,11 +1067,11 @@ const handleShortenLink = async (req, res) => {
       }
     } catch (e) {}
 
+    // 7. توليد كود فريد مع محاولات لتفادي التكرار
     let shortCode = '';
     let isUnique = false;
     let attempts = 0;
 
-    // توليد كود فريد مع تفعيل آلية تعاقب عند زيادة التضارب
     while (!isUnique && attempts < 10) {
       const bytesCount = attempts > 5 ? 4 : 3;
       shortCode = crypto.randomBytes(bytesCount).toString('hex');
@@ -1076,7 +1086,7 @@ const handleShortenLink = async (req, res) => {
       return res.status(500).json({ success: false, error: 'فشل في توليد كود فريد، يرجى إعادة المحاولة' });
     }
 
-    // إنشاء الرابط داخل قاعدة البيانات وتحديث الحقول الموحدة
+    // 8. حفظ الرابط في قاعدة البيانات
     const newLink = await Link.create({
       userId: userId,
       publisherTelegramId: telegramId ? String(telegramId) : null,
@@ -1090,10 +1100,12 @@ const handleShortenLink = async (req, res) => {
       invalidImpressions: 0
     });
 
+    // تحديث إحصائيات الروابط المنشأة للمستخدم
     await User.findByIdAndUpdate(userId, { $inc: { 'statsSummary.totalLinksCreated': 1 } }).catch(() => {});
 
     const shortUrl = `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`;
 
+    // 9. كائن الاستجابة المنظم للواجهة الأمامية
     const formattedLink = {
       _id: String(newLink._id),
       id: String(newLink._id),
@@ -1121,9 +1133,7 @@ const handleShortenLink = async (req, res) => {
     logger.error('❌ Error in Link Creation Engine (Shorten API):', err);
     return res.status(500).json({ 
       success: false, 
-      error: `حدث خطأ أثناء اختصار الرابط: ${err.message || 'خطأ غير معروف في قاعدة البيانات'}`,
-      details: err.message,
-      stack: CONFIG.NODE_ENV !== 'production' ? err.stack : undefined
+      error: `حدث خطأ أثناء اختصار الرابط: ${err.message || 'خطأ غير معروف في قاعدة البيانات'}`
     });
   }
 };
