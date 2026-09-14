@@ -1,5 +1,5 @@
 /**
- * Ultra-Enterprise Models Architecture (V5.5 - Dynamic Isolation & Fixed Multi-Tenant Constraints)
+ * Ultra-Enterprise Models Architecture (V5.6 - Fixed Dynamic Constraints & Tenant Tolerant Validation)
  * Platform: Telega.ads Advertising & Shortener Network
  * Security: Zero-Data-Leakage Enforcement, Safe Persist Enforcers & Custom Validations
  */
@@ -153,14 +153,12 @@ userSchema.statics.findByTelegramIdIsolated = function(telegramId) {
 };
 
 // --------------------------------------------------
-// 2. Wallet Model (Central Balance Control - FIXED)
+// 2. Wallet Model (Central Balance Control)
 // --------------------------------------------------
 const walletSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    required: [true, 'User ID is required'], 
-    unique: true,
     index: true 
   },
   telegramId: { 
@@ -203,9 +201,12 @@ const walletSchema = new mongoose.Schema({
 
 walletSchema.index({ telegramId: 1 });
 
-walletSchema.statics.getWalletIsolated = function(userId) {
-  enforceTenantKey(userId, 'userId');
-  return this.findOne({ userId });
+walletSchema.statics.getWalletIsolated = function(identifier) {
+  enforceTenantKey(identifier, 'identifier');
+  const isObjectId = mongoose.Types.ObjectId.isValid(identifier);
+  return isObjectId 
+    ? this.findOne({ $or: [{ userId: identifier }, { telegramId: String(identifier).trim() }] })
+    : this.findOne({ telegramId: String(identifier).trim() });
 };
 
 // --------------------------------------------------
@@ -215,7 +216,6 @@ const transactionSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    required: [true, 'User ID is required'], 
     index: true 
   },
   telegramId: { 
@@ -255,9 +255,13 @@ const transactionSchema = new mongoose.Schema({
 transactionSchema.index({ userId: 1, createdAt: -1 });
 transactionSchema.index({ telegramId: 1, createdAt: -1 });
 
-transactionSchema.statics.getUserTransactionsIsolated = function(userId, filter = {}) {
-  enforceTenantKey(userId, 'userId');
-  return this.find({ ...filter, userId }).sort({ createdAt: -1 });
+transactionSchema.statics.getUserTransactionsIsolated = function(identifier, filter = {}) {
+  enforceTenantKey(identifier, 'identifier');
+  const isObjectId = mongoose.Types.ObjectId.isValid(identifier);
+  const query = isObjectId 
+    ? { ...filter, $or: [{ userId: identifier }, { telegramId: String(identifier).trim() }] }
+    : { ...filter, telegramId: String(identifier).trim() };
+  return this.find(query).sort({ createdAt: -1 });
 };
 
 // --------------------------------------------------
@@ -267,7 +271,6 @@ const adSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    required: [true, 'User ID is required'], 
     index: true 
   },
   telegramId: {
@@ -371,13 +374,18 @@ adSchema.pre('validate', function(next) {
 adSchema.index({ userId: 1, status: 1, createdAt: -1 });
 adSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
 
-adSchema.statics.findAdvertiserAdsIsolated = function(userId, filter = {}) {
-  enforceTenantKey(userId, 'userId');
-  return this.find({ ...filter, $or: [{ userId }, { advertiserId: userId }] }).sort({ createdAt: -1 });
+adSchema.statics.findAdvertiserAdsIsolated = function(identifier, filter = {}) {
+  enforceTenantKey(identifier, 'identifier');
+  const isObjectId = mongoose.Types.ObjectId.isValid(identifier);
+  const tenantFilter = isObjectId
+    ? { $or: [{ userId: identifier }, { advertiserId: identifier }, { telegramId: String(identifier).trim() }] }
+    : { telegramId: String(identifier).trim() };
+
+  return this.find({ ...filter, ...tenantFilter }).sort({ createdAt: -1 });
 };
 
 // --------------------------------------------------
-// 5. Shortened Link Model (Links - SAFE ENFORCE)
+// 5. Shortened Link Model (Links - SAFE TENANT)
 // --------------------------------------------------
 const linkSchema = new mongoose.Schema({
   shortCode: { 
@@ -390,12 +398,11 @@ const linkSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User',
-    required: [true, 'User ID is required for tenant isolation'], 
     index: true
   },
   telegramId: {
     type: String,
-    required: [true, 'Telegram ID is required for tenant isolation'],
+    required: [true, 'Telegram ID is required for link ownership'],
     index: true,
     trim: true
   },
@@ -442,9 +449,14 @@ const linkSchema = new mongoose.Schema({
 }, globalSchemaOptions);
 
 linkSchema.pre('validate', function(next) {
-  if (this.telegramId && !this.publisherTelegramId) this.publisherTelegramId = String(this.telegramId).trim();
-  if (this.publisherTelegramId && !this.telegramId) this.telegramId = String(this.publisherTelegramId).trim();
-  
+  if (this.telegramId) {
+    this.telegramId = String(this.telegramId).trim();
+    if (!this.publisherTelegramId) this.publisherTelegramId = this.telegramId;
+  } else if (this.publisherTelegramId) {
+    this.publisherTelegramId = String(this.publisherTelegramId).trim();
+    this.telegramId = this.publisherTelegramId;
+  }
+
   if (!this.title || this.title.trim() === '') {
     this.title = 'Untitled Link';
   }
@@ -499,7 +511,6 @@ const impressionSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: [true, 'User ID is required'],
     index: true
   },
   telegramId: {
@@ -574,9 +585,14 @@ impressionSchema.index({ userId: 1, createdAt: -1 });
 impressionSchema.index({ telegramId: 1, createdAt: -1 });
 impressionSchema.index({ linkId: 1, userId: 1 });
 
-impressionSchema.statics.getPublisherImpressionsIsolated = function(userId, extraFilter = {}) {
-  enforceTenantKey(userId, 'userId');
-  return this.find({ ...extraFilter, $or: [{ userId }, { publisherId: userId }] }).sort({ createdAt: -1 });
+impressionSchema.statics.getPublisherImpressionsIsolated = function(identifier, extraFilter = {}) {
+  enforceTenantKey(identifier, 'identifier');
+  const isObjectId = mongoose.Types.ObjectId.isValid(identifier);
+  const filter = isObjectId
+    ? { ...extraFilter, $or: [{ userId: identifier }, { publisherId: identifier }, { telegramId: String(identifier).trim() }] }
+    : { ...extraFilter, telegramId: String(identifier).trim() };
+
+  return this.find(filter).sort({ createdAt: -1 });
 };
 
 // --------------------------------------------------
@@ -591,7 +607,6 @@ const clickSessionSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: [true, 'User ID is required'],
     index: true
   },
   telegramId: {
@@ -654,7 +669,6 @@ const withdrawSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    required: [true, 'User ID is required'], 
     index: true 
   },
   telegramId: {
@@ -718,9 +732,13 @@ withdrawSchema.pre('validate', function(next) {
 
 withdrawSchema.index({ userId: 1, status: 1, createdAt: -1 });
 
-withdrawSchema.statics.getUserWithdrawalsIsolated = function(userId, status = null) {
-  enforceTenantKey(userId, 'userId');
-  const query = { userId };
+withdrawSchema.statics.getUserWithdrawalsIsolated = function(identifier, status = null) {
+  enforceTenantKey(identifier, 'identifier');
+  const isObjectId = mongoose.Types.ObjectId.isValid(identifier);
+  const query = isObjectId 
+    ? { $or: [{ userId: identifier }, { telegramId: String(identifier).trim() }] }
+    : { telegramId: String(identifier).trim() };
+
   if (status) query.status = status;
   return this.find(query).sort({ createdAt: -1 });
 };
@@ -732,7 +750,6 @@ const earningsHoldSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    required: [true, 'User ID is required'], 
     index: true 
   },
   telegramId: {
@@ -762,9 +779,14 @@ const earningsHoldSchema = new mongoose.Schema({
 
 earningsHoldSchema.index({ userId: 1, isReleased: 1, releaseAt: 1 });
 
-earningsHoldSchema.statics.getUserHoldsIsolated = function(userId) {
-  enforceTenantKey(userId, 'userId');
-  return this.find({ userId, isReleased: false }).sort({ releaseAt: 1 });
+earningsHoldSchema.statics.getUserHoldsIsolated = function(identifier) {
+  enforceTenantKey(identifier, 'identifier');
+  const isObjectId = mongoose.Types.ObjectId.isValid(identifier);
+  const query = isObjectId 
+    ? { $or: [{ userId: identifier }, { telegramId: String(identifier).trim() }], isReleased: false }
+    : { telegramId: String(identifier).trim(), isReleased: false };
+
+  return this.find(query).sort({ releaseAt: 1 });
 };
 
 // --------------------------------------------------
@@ -774,7 +796,6 @@ const depositSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: [true, 'User ID is required'],
     index: true
   },
   telegramId: {
@@ -836,9 +857,14 @@ depositSchema.pre('validate', function(next) {
 
 depositSchema.index({ userId: 1, status: 1, createdAt: -1 });
 
-depositSchema.statics.getAdvertiserDepositsIsolated = function(userId) {
-  enforceTenantKey(userId, 'userId');
-  return this.find({ $or: [{ userId }, { advertiserId: userId }] }).sort({ createdAt: -1 });
+depositSchema.statics.getAdvertiserDepositsIsolated = function(identifier) {
+  enforceTenantKey(identifier, 'identifier');
+  const isObjectId = mongoose.Types.ObjectId.isValid(identifier);
+  const query = isObjectId 
+    ? { $or: [{ userId: identifier }, { advertiserId: identifier }, { telegramId: String(identifier).trim() }] }
+    : { telegramId: String(identifier).trim() };
+
+  return this.find(query).sort({ createdAt: -1 });
 };
 
 // --------------------------------------------------
