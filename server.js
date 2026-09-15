@@ -8,17 +8,35 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const rateLimit = require('express-rate-limit');
-const cron = require('node-cron');
 const path = require('path');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const morgan = require('morgan');
 const winston = require('winston');
-const validUrl = require('valid-url');
 const axios = require('axios');
 const Redis = require('ioredis');
 const cors = require('cors');
 const { User, Ad, Link, Impression, ClickSession, Withdraw, EarningsHold, Deposit, Announcement } = require('./models');
+
+// --- Safe Import for node-cron (Vercel Compatibility Guard) ---
+let cron = null;
+if (process.env.VERCEL !== '1') {
+  try {
+    cron = require('node-cron');
+  } catch (e) {
+    console.warn('⚠️ node-cron module missing or skipped in serverless mode.');
+  }
+}
+
+// --- Native URL Validator Helper ---
+function isValidWebUri(urlStr) {
+  try {
+    const parsed = new URL(urlStr);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch (e) {
+    return false;
+  }
+}
 
 const app = express();
 
@@ -259,7 +277,6 @@ const authMiddleware = async (req, res, next) => {
   try {
     let user = null;
 
-    // Option 1: Bearer Token
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
@@ -269,7 +286,6 @@ const authMiddleware = async (req, res, next) => {
       } catch (err) {}
     }
 
-    // Option 2: Fallback to Direct Telegram InitData Header
     if (!user) {
       const initData = req.headers['x-telegram-init-data'];
       const telegramUser = verifyTelegramData(initData);
@@ -491,7 +507,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'عنوان الحملة الإعلانية مطلوب' });
     }
 
-    if (!validUrl.isWebUri(targetUrl)) {
+    if (!isValidWebUri(targetUrl)) {
       return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
     }
 
@@ -499,7 +515,6 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'الحد الأدنى لميزانية الحملة هو $5' });
     }
 
-    // التحديث الذري لمنع عمليات التزامن المزدوجة (Atomic Check & Decrement)
     const updatedUser = await User.findOneAndUpdate(
       { _id: req.userId, availableBalance: { $gte: budget } },
       { $inc: { availableBalance: -budget } },
@@ -640,7 +655,6 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
 
     const netAmount = numAmt - FEE;
 
-    // الخصم الذري الفوري لمنع التكرار بالتزامن
     const updatedUser = await User.findOneAndUpdate(
       { _id: req.userId, availableBalance: { $gte: numAmt } },
       { $inc: { availableBalance: -numAmt }, defaultWallet: cleanWallet },
@@ -823,7 +837,6 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
       const costPerImpression = 0.0015;
       let publisherShare = 0.00135;
 
-      // الخصم الذري للميزانية من الإعلان المباشر
       const ad = await Ad.findOneAndUpdate(
         { _id: clickSession.adId, remainingBudget: { $gte: costPerImpression }, status: 'active' },
         { 
@@ -884,7 +897,7 @@ const handleShortenLink = async (req, res, next) => {
     const { title, targetUrl, url } = req.body;
     const cleanUrl = String(targetUrl || url || '').trim();
 
-    if (!cleanUrl || !validUrl.isWebUri(cleanUrl)) {
+    if (!cleanUrl || !isValidWebUri(cleanUrl)) {
       return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
     }
 
@@ -1103,7 +1116,6 @@ app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (r
     await withdraw.save();
 
     if (action === 'rejected') {
-      // إعادة المبلغ لرصيد المستخدم المتاح بشكل ذري
       await User.findByIdAndUpdate(
         withdraw.userId._id, 
         { $inc: { availableBalance: withdraw.amount } }
@@ -1231,10 +1243,12 @@ async function processEarningsSettlement() {
   }
 }
 
-// تشغيل Cron Job المجدول للمحيط التقليدي (Node.js / PM2)
-cron.schedule('0 0 * * *', processEarningsSettlement);
+// Cron Job يعمل فقط في البيئة التقليدية (Node.js / PM2)
+if (cron) {
+  cron.schedule('0 0 * * *', processEarningsSettlement);
+}
 
-// المسار اليدوي/المجدول لدعم بيئات Serverless / Vercel Cron Jobs
+// المسار المجدول لدعم بيئات Serverless / Vercel Cron Jobs
 app.all('/api/cron/settle-earnings', async (req, res) => {
   try {
     await processEarningsSettlement();
@@ -1290,6 +1304,8 @@ process.on('unhandledRejection', (reason, promise) => {
 // تصدير تطبيق Express لتوافقه الكامل مع Vercel Serverless
 module.exports = app;
 
-// تشغيل الخادم على المنفذ المحدد
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Enterprise Server V6 Active on Port ${PORT}`));
+// تشغيل الخادم على المنفذ المحدد في البيئة المحلية فقط
+if (process.env.VERCEL !== '1') {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => console.log(`🚀 Enterprise Server V6 Active on Port ${PORT}`));
+}
