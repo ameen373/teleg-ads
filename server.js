@@ -111,14 +111,14 @@ if (!cachedDb) {
 }
 
 async function connectDB() {
-  if (cachedDb.conn) {
+  if (cachedDb.conn && mongoose.connection.readyState === 1) {
     return cachedDb.conn;
   }
 
-  if (!cachedDb.promise) {
+  if (!cachedDb.promise || mongoose.connection.readyState === 0) {
     const opts = {
       maxPoolSize: 50,
-      minPoolSize: 5,
+      minPoolSize: 0,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
       bufferCommands: false
@@ -715,14 +715,17 @@ app.post('/api/init-click', validateTraffic, async (req, res, next) => {
 
     await ClickSession.deleteMany({ linkId, ip: req.ip });
 
+    const matchCondition = { 
+      status: 'active', 
+      remainingBudget: { $gte: 0.0015 }
+    };
+
+    if (mongoose.Types.ObjectId.isValid(linkOwnerId)) {
+      matchCondition.userId = { $ne: new mongoose.Types.ObjectId(linkOwnerId) };
+    }
+
     const activeAds = await Ad.aggregate([
-      { 
-        $match: { 
-          status: 'active', 
-          remainingBudget: { $gte: 0.0015 },
-          userId: { $ne: new mongoose.Types.ObjectId(linkOwnerId) }
-        } 
-      },
+      { $match: matchCondition },
       { $sample: { size: 1 } }
     ]);
 
@@ -819,11 +822,14 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 
     await safeRedisSet(lockKey, '1', 'EX', 86400);
 
+    const publisherId = link.userId?._id || link.userId;
+    const publisherTgId = link.userId?.telegramId || null;
+
     await Impression.create({
       linkId: link._id,
-      userId: link.userId._id,
-      publisherId: link.userId._id,
-      publisherTelegramId: link.userId.telegramId,
+      userId: publisherId,
+      publisherId: publisherId,
+      publisherTelegramId: publisherTgId,
       adSource: clickSession.adSource,
       adId: clickSession.adId,
       publisherEarnings: clickSession.adSource === 'internal' ? 0.00135 : 0,
@@ -861,19 +867,21 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
           );
         }
 
-        await User.findByIdAndUpdate(
-          link.userId._id,
-          { $inc: { pendingBalance: publisherShare } }
-        );
+        if (publisherId) {
+          await User.findByIdAndUpdate(
+            publisherId,
+            { $inc: { pendingBalance: publisherShare } }
+          );
 
-        const releaseDate = new Date();
-        releaseDate.setDate(releaseDate.getDate() + 1);
-        await EarningsHold.create({
-          userId: link.userId._id,
-          telegramId: link.userId.telegramId,
-          amount: publisherShare,
-          releaseAt: releaseDate
-        });
+          const releaseDate = new Date();
+          releaseDate.setDate(releaseDate.getDate() + 1);
+          await EarningsHold.create({
+            userId: publisherId,
+            telegramId: publisherTgId,
+            amount: publisherShare,
+            releaseAt: releaseDate
+          });
+        }
       }
     }
 
@@ -1070,19 +1078,23 @@ app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (re
     await deposit.save();
 
     if (action === 'approved') {
-      const targetUserId = deposit.userId || deposit.advertiserId._id;
-      await User.findByIdAndUpdate(
-        targetUserId,
-        { $inc: { availableBalance: deposit.amount } }
-      );
+      const targetUserId = deposit.userId || deposit.advertiserId?._id;
+      if (targetUserId) {
+        await User.findByIdAndUpdate(
+          targetUserId,
+          { $inc: { availableBalance: deposit.amount } }
+        );
+      }
 
+      const tgNotifyId = deposit.advertiserTelegramId || deposit.advertiserId?.telegramId;
       sendTelegramNotification(
-        deposit.advertiserTelegramId || deposit.advertiserId.telegramId,
+        tgNotifyId,
         `🎉 <b>تم تأكيد الإيداع!</b>\nتمت إضافة <code>$${deposit.amount}</code> إلى رصيدك المتاح.`
       );
     } else {
+      const tgNotifyId = deposit.advertiserTelegramId || deposit.advertiserId?.telegramId;
       sendTelegramNotification(
-        deposit.advertiserTelegramId || deposit.advertiserId.telegramId,
+        tgNotifyId,
         `❌ <b>تم رفض طلب الإيداع</b>\nالمبلغ: <code>$${deposit.amount}</code>\n⚠️ <b>السبب:</b> ${deposit.rejectReason}\n\nالدعم: ${CONFIG.SUPPORT_USERNAME}`
       );
     }
@@ -1115,19 +1127,24 @@ app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (r
     }
     await withdraw.save();
 
+    const targetUserId = withdraw.userId?._id || withdraw.userId;
+    const tgNotifyId = withdraw.telegramId || withdraw.userId?.telegramId;
+
     if (action === 'rejected') {
-      await User.findByIdAndUpdate(
-        withdraw.userId._id, 
-        { $inc: { availableBalance: withdraw.amount } }
-      );
+      if (targetUserId) {
+        await User.findByIdAndUpdate(
+          targetUserId, 
+          { $inc: { availableBalance: withdraw.amount } }
+        );
+      }
 
       sendTelegramNotification(
-        withdraw.telegramId || withdraw.userId.telegramId,
+        tgNotifyId,
         `❌ <b>تم رفض طلب السحب</b>\nإجمالي المبلغ: <code>$${withdraw.amount}</code>\n⚠️ <b>السبب:</b> ${withdraw.rejectReason}\nتم إعادة المبلغ إلى رصيدك المتاح.\nالدعم: ${CONFIG.SUPPORT_USERNAME}`
       );
     } else if (action === 'approved') {
       sendTelegramNotification(
-        withdraw.telegramId || withdraw.userId.telegramId,
+        tgNotifyId,
         `🎉 <b>تمت الموافقة على طلب السحب!</b>\nإجمالي المبلغ: <code>$${withdraw.amount}</code>\nالصافي المحول: <code>$${withdraw.netAmount}</code>\nالشبكة: <code>${withdraw.network}</code>\nشكراً لاستخدامك منصتنا!`
       );
     }
@@ -1161,9 +1178,13 @@ app.post('/api/admin/distribute-revenue', authMiddleware, adminMiddleware, async
     releaseDate.setDate(releaseDate.getDate() + 1);
 
     for (let link of links) {
-      let earned = Number(((link.validImpressions / totalImp) * revenue).toFixed(4));
+      if (!link.userId) continue;
 
-      if (link.userId && link.userId.referredBy) {
+      let earned = Number(((link.validImpressions / totalImp) * revenue).toFixed(4));
+      const publisherId = link.userId._id || link.userId;
+      const publisherTgId = link.userId.telegramId || null;
+
+      if (link.userId.referredBy) {
         const refBonus = Number((earned * 0.10).toFixed(4));
         earned = Number((earned - refBonus).toFixed(4));
 
@@ -1173,10 +1194,8 @@ app.post('/api/admin/distribute-revenue', authMiddleware, adminMiddleware, async
         );
       }
 
-      if (link.userId) {
-        await User.findByIdAndUpdate(link.userId._id, { $inc: { pendingBalance: earned } });
-        await EarningsHold.create({ userId: link.userId._id, telegramId: link.userId.telegramId, amount: earned, releaseAt: releaseDate });
-      }
+      await User.findByIdAndUpdate(publisherId, { $inc: { pendingBalance: earned } });
+      await EarningsHold.create({ userId: publisherId, telegramId: publisherTgId, amount: earned, releaseAt: releaseDate });
 
       link.validImpressions = 0;
       await link.save();
@@ -1216,23 +1235,30 @@ app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (r
 // =========================================================================
 async function processEarningsSettlement() {
   try {
+    await connectDB();
     const readyHolds = await EarningsHold.find({ releaseAt: { $lte: new Date() }, isReleased: false }).lean();
 
     for (let hold of readyHolds) {
       try {
-        const userUpdate = await User.findByIdAndUpdate(
-          hold.userId,
-          { $inc: { pendingBalance: -hold.amount, availableBalance: hold.amount } },
+        const holdUpdated = await EarningsHold.findOneAndUpdate(
+          { _id: hold._id, isReleased: false },
+          { isReleased: true },
           { new: true }
         );
 
-        await EarningsHold.findByIdAndUpdate(hold._id, { isReleased: true });
-
-        if (userUpdate && userUpdate.telegramId) {
-          sendTelegramNotification(
-            userUpdate.telegramId,
-            `✅ <b>تم إطلاق الأرباح!</b>\nتم تحويل <code>$${hold.amount.toFixed(4)}</code> إلى رصيدك المتاح.`
+        if (holdUpdated) {
+          const userUpdate = await User.findByIdAndUpdate(
+            hold.userId,
+            { $inc: { pendingBalance: -hold.amount, availableBalance: hold.amount } },
+            { new: true }
           );
+
+          if (userUpdate && userUpdate.telegramId) {
+            sendTelegramNotification(
+              userUpdate.telegramId,
+              `✅ <b>تم إطلاق الأرباح!</b>\nتم تحويل <code>$${hold.amount.toFixed(4)}</code> إلى رصيدك المتاح.`
+            );
+          }
         }
       } catch (err) {
         logger.error(`Error processing hold release for ID ${hold._id}: ${err.message}`);
@@ -1249,12 +1275,12 @@ if (cron) {
 }
 
 // المسار المجدول لدعم بيئات Serverless / Vercel Cron Jobs
-app.all('/api/cron/settle-earnings', async (req, res) => {
+app.all('/api/cron/settle-earnings', async (req, res, next) => {
   try {
     await processEarningsSettlement();
     return res.json({ success: true, message: 'تم تنفيذ تسوية الأرباح بنجاح' });
   } catch (err) {
-    return res.status(500).json({ success: false, error: 'حدث خطأ أثناء تسوية الأرباح' });
+    next(err);
   }
 });
 
