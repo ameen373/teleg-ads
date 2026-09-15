@@ -202,7 +202,6 @@ const isPhishingOrMalicious = (url) => {
 const sendTelegramNotification = async (telegramId, message) => {
   if (!telegramId || !process.env.TELEGRAM_BOT_TOKEN) return;
   try {
-    const fetch = (await import('node-fetch')).default;
     await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -226,8 +225,6 @@ const authMiddleware = async (req, res, next) => {
     }
     const token = authHeader.split(' ')[1];
     
-    // Validate Telegram InitData or custom JWT/Token logic here
-    // Example lookup based on telegramId / token payload
     const user = await User.findOne({ telegramId: Number(token) || token });
     if (!user || user.isBanned) {
       return res.status(403).json({ success: false, error: 'المستخدم محظور أو غير مسجل' });
@@ -250,7 +247,6 @@ const adminMiddleware = async (req, res, next) => {
 };
 
 const validateTraffic = (req, res, next) => {
-  // Basic traffic validation (can be expanded with Cloudflare/bot scores)
   next();
 };
 
@@ -262,7 +258,8 @@ const clickLimiter = async (req, res, next) => {
     const count = await redis.incr(limitKey);
     if (count === 1) await redis.expire(limitKey, 60); // 1 minute window
     if (count > 30) {
-      return res.status(429.json({ success: false, error: 'تم تجاوز الحد المسموح من الطلبات، يرجى المحاولة لاحقاً' }));
+      // ✅ تم تصحيح خطأ بناء الجملة هنا (SyntaxError Fix)
+      return res.status(429).json({ success: false, error: 'تم تجاوز الحد المسموح من الطلبات، يرجى المحاولة لاحقاً' });
     }
     next();
   } catch (e) {
@@ -287,7 +284,7 @@ const linkCreationLimiter = async (req, res, next) => {
 };
 
 // =========================================================================
-// --- Core Redirection & Tracking Engine (Part 1 Integration) ---
+// --- Core Redirection & Tracking Engine ---
 // =========================================================================
 
 app.get('/r/:code', async (req, res, next) => {
@@ -313,7 +310,6 @@ app.get('/r/:code', async (req, res, next) => {
     });
     await clickSession.save();
 
-    // Redirect to frontend bridge / impression verification page
     res.redirect(`https://${CONFIG.APP_DOMAIN}/app?sessionId=${sessionId}&token=${bridgeToken}`);
   } catch (err) {
     next(err);
@@ -321,7 +317,7 @@ app.get('/r/:code', async (req, res, next) => {
 });
 
 // =========================================================================
-// --- Impression & Monetization Engine (Part 2 Start) ---
+// --- Impression & Monetization Engine ---
 // =========================================================================
 
 app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next) => {
@@ -448,7 +444,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 });
 
 // =========================================================================
-// --- Strict Link Management Engine ---
+// --- Link Management Engine ---
 // =========================================================================
 
 const handleShortenLink = async (req, res) => {
@@ -888,4 +884,11 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Enterprise Server V6 Active on Port ${PORT}`));
+
+// ✅ تشغيل السيرفر محلياً وعدم تداخله مع بيئة Vercel Serverless
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  app.listen(PORT, () => console.log(`🚀 Enterprise Server V6 Active on Port ${PORT}`));
+}
+
+// ✅ تصدير التطبيق ليعمل بسلاسة كـ Serverless Function على Vercel
+module.exports = app;
