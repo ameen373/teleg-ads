@@ -1,7 +1,7 @@
 /**
- * Ultra-Enterprise Models Architecture (V5.2 - Absolute Multi-Tenant Isolation & High-Load Optimization)
+ * Ultra-Enterprise Models Architecture (V5.3 - Production-Ready & High-Load Optimized)
  * Platform: Telega.ads Advertising & Shortener Network
- * Security: Zero-Data-Leakage Enforcement, Strict Validation, Anti-Negative Balance Protection
+ * Security: Multi-Tenant Isolation, Strict Validation, Anti-Negative Balance Enforcement
  */
 
 if (typeof window !== 'undefined') {
@@ -10,15 +10,21 @@ if (typeof window !== 'undefined') {
 
 const mongoose = require('mongoose');
 
-// Precision currency formatter up to 5 decimal places (Prevents JS Floating-point calculation errors)
+/**
+ * Precision currency formatter up to 5 decimal places.
+ * Prevents IEEE 754 floating-point errors (e.g. 0.1 + 0.2 = 0.30000000000000004).
+ */
 const formatCurrency = (val) => {
-  if (val === null || val === undefined || isNaN(val)) return 0;
+  if (val === null || val === undefined || val === '') return 0;
   const num = Number(val);
-  if (!isFinite(num)) return 0;
+  if (isNaN(num) || !isFinite(num)) return 0;
   return Math.round((num + Number.EPSILON) * 100000) / 100000;
 };
 
-// Global Schema Options for strict data isolation and safe JSON serialization with automatic timestamps (createdAt, updatedAt)
+/**
+ * Global Schema Options for strict data isolation,
+ * safe JSON serialization, and automatic timestamp generation (createdAt, updatedAt).
+ */
 const globalSchemaOptions = {
   timestamps: true,
   versionKey: '__v',
@@ -36,7 +42,9 @@ const globalSchemaOptions = {
   }
 };
 
-// Helper validator to enforce non-empty tenant parameters
+/**
+ * Helper validator to enforce non-empty tenant key for strict data isolation.
+ */
 const enforceTenantKey = (tenantKey, keyName = 'userId') => {
   if (!tenantKey) {
     throw new Error(`Security Violation [Tenant Isolation]: Access denied. Missing strictly required parameter: ${keyName}`);
@@ -51,20 +59,22 @@ const userSchema = new mongoose.Schema({
     type: String, 
     required: [true, 'Telegram ID is strictly required'], 
     unique: true, 
-    index: true,
-    trim: true 
+    trim: true,
+    maxlength: [50, 'Telegram ID is too long']
   },
   username: { 
     type: String, 
     default: '', 
     trim: true,
-    lowercase: true 
+    lowercase: true,
+    maxlength: [100, 'Username cannot exceed 100 characters']
   },
   language: {
     type: String,
     default: 'ar',
     trim: true,
-    lowercase: true
+    lowercase: true,
+    maxlength: [10, 'Language code too long']
   },
   role: { 
     type: String, 
@@ -108,6 +118,7 @@ const userSchema = new mongoose.Schema({
     type: String, 
     default: '', 
     trim: true,
+    maxlength: [120, 'Wallet address too long'],
     validate: {
       validator: function(v) {
         if (!v || v === '') return true;
@@ -127,10 +138,9 @@ const userSchema = new mongoose.Schema({
   }
 }, globalSchemaOptions);
 
-// Compound Indexes for High-Traffic Queries
+// Compound Indexes for Ultra-Fast Queries
 userSchema.index({ telegramId: 1, isBanned: 1 });
 userSchema.index({ role: 1, isBanned: 1 });
-userSchema.index({ createdAt: -1 });
 
 userSchema.statics.findByTelegramIdIsolated = function(telegramId) {
   enforceTenantKey(telegramId, 'telegramId');
@@ -145,15 +155,14 @@ const walletSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
     required: [true, 'User ID is strictly required for wallet mapping'], 
-    unique: true,
-    index: true 
+    unique: true 
   },
   telegramId: { 
     type: String, 
     required: [true, 'Telegram ID is strictly required for wallet lookup'], 
-    unique: true,
-    index: true, 
-    trim: true 
+    unique: true, 
+    trim: true,
+    maxlength: [50, 'Telegram ID is too long']
   },
   availableBalance: { 
     type: Number, 
@@ -183,11 +192,11 @@ const walletSchema = new mongoose.Schema({
     type: String, 
     default: 'USDT', 
     uppercase: true, 
-    trim: true 
+    trim: true,
+    maxlength: [10, 'Currency code too long']
   }
 }, globalSchemaOptions);
 
-// Compound Index for Ultra-Fast Wallet Security Lookups
 walletSchema.index({ userId: 1, telegramId: 1 });
 
 walletSchema.statics.getWalletIsolated = function(userId) {
@@ -209,7 +218,8 @@ const transactionSchema = new mongoose.Schema({
     type: String, 
     required: [true, 'Telegram ID is strictly required for transaction audit'], 
     index: true, 
-    trim: true 
+    trim: true,
+    maxlength: [50, 'Telegram ID is too long']
   },
   type: { 
     type: String, 
@@ -235,7 +245,8 @@ const transactionSchema = new mongoose.Schema({
   description: { 
     type: String, 
     default: '', 
-    trim: true 
+    trim: true,
+    maxlength: [255, 'Description cannot exceed 255 characters']
   },
   referenceId: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -244,7 +255,7 @@ const transactionSchema = new mongoose.Schema({
   }
 }, globalSchemaOptions);
 
-// Performance Indexes for Financial History Pagination
+// Performance Indexes for Financial Audit Ledger
 transactionSchema.index({ userId: 1, createdAt: -1 });
 transactionSchema.index({ telegramId: 1, createdAt: -1 });
 transactionSchema.index({ userId: 1, type: 1, createdAt: -1 });
@@ -269,7 +280,8 @@ const adSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Telegram ID is strictly required'],
     index: true,
-    trim: true
+    trim: true,
+    maxlength: [50, 'Telegram ID is too long']
   },
   advertiserId: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -281,7 +293,8 @@ const adSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Advertiser Telegram ID is required'],
     index: true,
-    trim: true
+    trim: true,
+    maxlength: [50, 'Telegram ID is too long']
   },
   title: { 
     type: String, 
@@ -293,6 +306,7 @@ const adSchema = new mongoose.Schema({
     type: String, 
     required: [true, 'Target URL is required'], 
     trim: true,
+    maxlength: [2048, 'Target URL is too long'],
     validate: {
       validator: function(v) {
         return /^(https?:\/\/)?([\w.-]+)+[\w\-_~:/?#[\]@!$&'()*+,;=.]+$/i.test(v);
@@ -379,8 +393,8 @@ const linkSchema = new mongoose.Schema({
     type: String, 
     required: [true, 'Short code is strictly required'], 
     unique: true, 
-    index: true,
-    trim: true 
+    trim: true,
+    maxlength: [30, 'Short code cannot exceed 30 characters']
   },
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -392,13 +406,15 @@ const linkSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Telegram ID is strictly required'],
     index: true,
-    trim: true
+    trim: true,
+    maxlength: [50, 'Telegram ID is too long']
   },
   publisherTelegramId: {
     type: String,
     required: [true, 'Publisher Telegram ID is required'],
     index: true,
-    trim: true
+    trim: true,
+    maxlength: [50, 'Telegram ID is too long']
   },
   title: { 
     type: String, 
@@ -410,6 +426,7 @@ const linkSchema = new mongoose.Schema({
     type: String, 
     required: [true, 'Target URL is required'], 
     trim: true,
+    maxlength: [2048, 'Target URL is too long'],
     validate: {
       validator: function(v) {
         return /^(https?:\/\/)?([\w.-]+)+[\w\-_~:/?#[\]@!$&'()*+,;=.]+$/i.test(v);
@@ -451,7 +468,6 @@ linkSchema.index({ userId: 1, createdAt: -1 });
 linkSchema.index({ telegramId: 1, createdAt: -1 });
 linkSchema.index({ publisherTelegramId: 1, createdAt: -1 });
 linkSchema.index({ userId: 1, isActive: 1, createdAt: -1 });
-linkSchema.index({ userId: 1, shortCode: 1 });
 
 linkSchema.statics.getUserIsolatedLinks = function(userId, query = {}, options = {}) {
   enforceTenantKey(userId, 'userId');
@@ -484,7 +500,8 @@ const impressionSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Telegram ID is strictly required'],
     trim: true,
-    index: true
+    index: true,
+    maxlength: [50, 'Telegram ID is too long']
   },
   publisherId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -496,13 +513,15 @@ const impressionSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Publisher Telegram ID is required'],
     trim: true,
-    index: true
+    index: true,
+    maxlength: [50, 'Telegram ID is too long']
   },
   viewerTelegramId: {
     type: String,
     default: null,
     trim: true,
-    index: true
+    index: true,
+    maxlength: [50, 'Telegram ID is too long']
   },
   adSource: { 
     type: String, 
@@ -528,12 +547,14 @@ const impressionSchema = new mongoose.Schema({
   ip: { 
     type: String, 
     required: [true, 'IP address is required for anti-fraud tracking'], 
-    trim: true 
+    trim: true,
+    maxlength: [45, 'IP address too long'] 
   },
   userAgent: { 
     type: String, 
     default: '', 
-    trim: true 
+    trim: true,
+    maxlength: [500, 'User agent too long'] 
   },
   isUnique: { 
     type: Boolean, 
@@ -585,7 +606,8 @@ const clickSessionSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Telegram ID is strictly required'],
     trim: true,
-    index: true
+    index: true,
+    maxlength: [50, 'Telegram ID is too long']
   },
   publisherId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -597,7 +619,8 @@ const clickSessionSchema = new mongoose.Schema({
     type: String, 
     default: null, 
     trim: true,
-    index: true 
+    index: true,
+    maxlength: [50, 'Telegram ID is too long'] 
   },
   adSource: { 
     type: String, 
@@ -612,13 +635,15 @@ const clickSessionSchema = new mongoose.Schema({
   ip: { 
     type: String, 
     required: [true, 'IP address is required'], 
-    trim: true 
+    trim: true,
+    maxlength: [45, 'IP address too long'] 
   },
   bridgeToken: { 
     type: String, 
     required: [true, 'Bridge token is required'], 
     trim: true,
-    unique: true 
+    unique: true,
+    maxlength: [128, 'Token too long'] 
   },
   createdAt: { 
     type: Date, 
@@ -651,7 +676,8 @@ const withdrawSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Telegram ID is strictly required'],
     trim: true,
-    index: true
+    index: true,
+    maxlength: [50, 'Telegram ID is too long']
   },
   amount: { 
     type: Number, 
@@ -685,6 +711,7 @@ const withdrawSchema = new mongoose.Schema({
     type: String, 
     required: [true, 'Wallet address is required'], 
     trim: true,
+    maxlength: [120, 'Wallet address too long'],
     validate: {
       validator: function(v) {
         if (!v) return false;
@@ -709,12 +736,14 @@ const withdrawSchema = new mongoose.Schema({
   rejectReason: { 
     type: String, 
     default: '', 
-    trim: true 
+    trim: true,
+    maxlength: [255, 'Reason cannot exceed 255 characters']
   },
   note: { 
     type: String, 
     default: '', 
-    trim: true 
+    trim: true,
+    maxlength: [255, 'Note cannot exceed 255 characters']
   }
 }, globalSchemaOptions);
 
@@ -757,7 +786,8 @@ const earningsHoldSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Telegram ID is strictly required'],
     trim: true,
-    index: true
+    index: true,
+    maxlength: [50, 'Telegram ID is too long']
   },
   amount: { 
     type: Number, 
@@ -801,7 +831,8 @@ const depositSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Telegram ID is strictly required'],
     trim: true,
-    index: true
+    index: true,
+    maxlength: [50, 'Telegram ID is too long']
   },
   advertiserId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -813,7 +844,8 @@ const depositSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Advertiser Telegram ID is required'],
     trim: true,
-    index: true
+    index: true,
+    maxlength: [50, 'Telegram ID is too long']
   },
   amount: {
     type: Number,
@@ -835,7 +867,8 @@ const depositSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Transaction hash (TxID) is required'],
     trim: true,
-    unique: true
+    unique: true,
+    maxlength: [120, 'TxID cannot exceed 120 characters']
   },
   status: {
     type: String,
@@ -850,7 +883,8 @@ const depositSchema = new mongoose.Schema({
   rejectReason: {
     type: String,
     default: '',
-    trim: true
+    trim: true,
+    maxlength: [255, 'Reason cannot exceed 255 characters']
   }
 }, globalSchemaOptions);
 
@@ -863,7 +897,6 @@ depositSchema.pre('validate', function(next) {
 });
 
 // Deposit Verification & Index Queries
-depositSchema.index({ txid: 1 }, { unique: true });
 depositSchema.index({ userId: 1, status: 1, createdAt: -1 });
 depositSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
 depositSchema.index({ advertiserTelegramId: 1, status: 1, createdAt: -1 });
@@ -881,12 +914,14 @@ const announcementSchema = new mongoose.Schema({
   title: { 
     type: String, 
     required: [true, 'Announcement title is required'], 
-    trim: true 
+    trim: true,
+    maxlength: [150, 'Title cannot exceed 150 characters'] 
   },
   content: { 
     type: String, 
     required: [true, 'Announcement content is required'], 
-    trim: true 
+    trim: true,
+    maxlength: [2000, 'Content cannot exceed 2000 characters'] 
   },
   isActive: { 
     type: Boolean, 
@@ -903,7 +938,8 @@ const announcementSchema = new mongoose.Schema({
     type: String, 
     default: null, 
     trim: true, 
-    index: true 
+    index: true,
+    maxlength: [50, 'Telegram ID is too long'] 
   }
 }, globalSchemaOptions);
 
@@ -917,12 +953,14 @@ announcementSchema.statics.getForUserIsolated = function(userId, telegramId) {
     $or: [
       { targetUser: null, targetTelegramId: null },
       { targetUser: userId },
-      { targetTelegramId: String(telegramId) }
+      { targetTelegramId: telegramId ? String(telegramId).trim() : null }
     ]
   }).sort({ createdAt: -1 });
 };
 
+// --------------------------------------------------
 // Exporting Safe Compiled Mongoose Models
+// --------------------------------------------------
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Wallet = mongoose.models.Wallet || mongoose.model('Wallet', walletSchema);
 const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
