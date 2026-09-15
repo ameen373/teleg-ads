@@ -1,7 +1,7 @@
 /**
  * Ultra-Enterprise Server Architecture (V6 - Absolute Multi-Tenant Security & High-Performance Core)
  * Telegram Link Shortener & Mini App Engine (Telega.ads)
- * Production-Ready Backend Solution
+ * Fully Production-Ready Backend Solution
  */
 
 require('dotenv').config();
@@ -141,7 +141,7 @@ async function connectDB() {
   return cachedDb.conn;
 }
 
-// Middleware لضمان الاتصال بقاعدة البيانات لكل طلب
+// Middleware لضمان الاتصال بقاعدة البيانات لكل طلب مع معالجة الأخطاء
 app.use(async (req, res, next) => {
   try {
     await connectDB();
@@ -313,16 +313,20 @@ const authMiddleware = async (req, res, next) => {
 };
 
 const adminMiddleware = async (req, res, next) => {
-  if (!req.user || String(req.user.telegramId).trim() !== CONFIG.ADMIN_ID) {
-    return res.status(403).json({ success: false, error: 'غير مصرح لك بالوصول إلى لوحة التحكم' });
+  try {
+    if (!req.user || String(req.user.telegramId).trim() !== CONFIG.ADMIN_ID) {
+      return res.status(403).json({ success: false, error: 'غير مصرح لك بالوصول إلى لوحة التحكم' });
+    }
+    next();
+  } catch (err) {
+    next(err);
   }
-  next();
 };
 
 // =========================================================================
 // --- API Endpoint: Check Admin Role ---
 // =========================================================================
-app.all('/api/check-admin', async (req, res) => {
+app.all('/api/check-admin', async (req, res, next) => {
   try {
     let targetUserId = req.body?.userId || req.query?.userId;
     let telegramIdToCheck = null;
@@ -515,6 +519,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'الحد الأدنى لميزانية الحملة هو $5' });
     }
 
+    // اقتطاع مالي ذري يمنع Race Conditions عند التزامن العالي
     const updatedUser = await User.findOneAndUpdate(
       { _id: req.userId, availableBalance: { $gte: budget } },
       { $inc: { availableBalance: -budget } },
@@ -655,6 +660,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
 
     const netAmount = numAmt - FEE;
 
+    // خصم مالي ذري يمنع سحب أكثر من الرصيد المتاح تحت الضغط الشديد
     const updatedUser = await User.findOneAndUpdate(
       { _id: req.userId, availableBalance: { $gte: numAmt } },
       { $inc: { availableBalance: -numAmt }, defaultWallet: cleanWallet },
@@ -843,6 +849,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
       const costPerImpression = 0.0015;
       let publisherShare = 0.00135;
 
+      // تحديث ميزانية الإعلان ذرياً لمنع الميزانية السلبية
       const ad = await Ad.findOneAndUpdate(
         { _id: clickSession.adId, remainingBudget: { $gte: costPerImpression }, status: 'active' },
         { 
@@ -1080,6 +1087,7 @@ app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (re
     if (action === 'approved') {
       const targetUserId = deposit.userId || deposit.advertiserId?._id;
       if (targetUserId) {
+        // زيادة الرصيد ذرياً
         await User.findByIdAndUpdate(
           targetUserId,
           { $inc: { availableBalance: deposit.amount } }
@@ -1132,6 +1140,7 @@ app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (r
 
     if (action === 'rejected') {
       if (targetUserId) {
+        // إرجاع المبلغ ذرياً إلى الرصيد المتاح عند الرفض
         await User.findByIdAndUpdate(
           targetUserId, 
           { $inc: { availableBalance: withdraw.amount } }
@@ -1240,6 +1249,7 @@ async function processEarningsSettlement() {
 
     for (let hold of readyHolds) {
       try {
+        // تحويل ذري بحالة قفل لمنع التحرير المزدوج
         const holdUpdated = await EarningsHold.findOneAndUpdate(
           { _id: hold._id, isReleased: false },
           { isReleased: true },
