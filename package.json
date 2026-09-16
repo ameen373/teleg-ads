@@ -8,8 +8,6 @@
   "scripts": {
     "start": "node server.js",
     "dev": "cross-env NODE_ENV=development nodemon server.js",
-    "build": "echo 'Build optimization completed'",
-    "vercel-build": "echo 'Building Serverless Functions for Vercel Edge/Node execution...'",
     "lint": "eslint . --ext .js",
     "lint:fix": "eslint . --ext .js --fix",
     "format": "prettier --write \"**/*.js\"",
@@ -64,7 +62,6 @@
     "supertest": "^7.0.0"
   },
   "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=9.0.0"
+    "node": "20.x"
   }
 }
