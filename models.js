@@ -403,9 +403,9 @@ const linkSchema = new mongoose.Schema({
     maxlength: [30, 'Short code cannot exceed 30 characters']
   },
   userId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User',
+    type: String, 
     required: [true, 'User ID is strictly required'], 
+    trim: true,
     index: true
   },
   telegramId: {
