@@ -1,9 +1,15 @@
 {
   "version": 2,
+  "cleanUrls": true,
+  "trailingSlash": false,
   "builds": [
     {
       "src": "server.js",
-      "use": "@vercel/node"
+      "use": "@vercel/node",
+      "config": {
+        "maxDuration": 60,
+        "memory": 1024
+      }
     },
     {
       "src": "views.html",
@@ -13,11 +19,26 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/server.js"
+      "dest": "/server.js",
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+        "Access-Control-Allow-Headers": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, x-telegram-init-data, x-telegram-id, initData, telegram_id, tma-init-data",
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+      }
     },
     {
       "src": "/(.*)",
-      "dest": "/views.html"
+      "dest": "/views.html",
+      "headers": {
+        "Content-Security-Policy": "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org telegram:;",
+        "X-Content-Type-Options": "nosniff",
+        "X-XSS-Protection": "1; mode=block",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), display-capture=()",
+        "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
+        "Cache-Control": "public, max-age=0, must-revalidate"
+      }
     }
   ]
 }
