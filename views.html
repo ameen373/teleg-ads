@@ -3,26 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Telega Ads & Shortener Ultimate</title>
+    <title>Telega Ads & Shortener Enterprise Ultimate</title>
     
-    <!-- Telegram WebApp SDK -->
+    <!-- Telegram WebApp SDK & Adsgram SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <!-- Adsgram SDK Integration -->
     <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
     
     <style>
         :root {
-            --bg-color: var(--tg-theme-bg-color, #0f172a);
-            --card-bg: var(--tg-theme-secondary-bg-color, #1e293b);
+            --bg-color: var(--tg-theme-bg-color, #0b0f19);
+            --card-bg: var(--tg-theme-secondary-bg-color, #151d30);
             --text-color: var(--tg-theme-text-color, #f8fafc);
             --hint-color: var(--tg-theme-hint-color, #94a3b8);
             --button-color: var(--tg-theme-button-color, #3b82f6);
             --button-text: var(--tg-theme-button-text-color, #ffffff);
-            --accent-glow: rgba(59, 130, 246, 0.25);
+            --accent-glow: rgba(59, 130, 246, 0.3);
             --success-color: #10b981;
             --danger-color: #ef4444;
             --warning-color: #f59e0b;
-            --glass-bg: rgba(30, 41, 59, 0.7);
+            --purple-accent: #8b5cf6;
+            --glass-bg: rgba(21, 29, 48, 0.75);
             --glass-border: rgba(255, 255, 255, 0.08);
         }
 
@@ -38,7 +38,7 @@
         body {
             background-color: var(--bg-color);
             color: var(--text-color);
-            padding-bottom: 90px;
+            padding-bottom: 95px;
             direction: rtl;
             min-height: 100vh;
             overflow-x: hidden;
@@ -47,10 +47,10 @@
         /* Top Header Profile Card */
         .header-card {
             background: var(--glass-bg);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
             border-bottom: 1px solid var(--glass-border);
-            padding: 16px;
+            padding: 14px 18px;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -69,14 +69,14 @@
             width: 44px;
             height: 44px;
             border-radius: 50%;
-            background: linear-gradient(135deg, var(--button-color), #8b5cf6);
+            background: linear-gradient(135deg, var(--button-color), var(--purple-accent));
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: bold;
+            font-weight: 700;
             color: #fff;
             font-size: 18px;
-            box-shadow: 0 0 12px var(--accent-glow);
+            box-shadow: 0 0 14px var(--accent-glow);
             object-fit: cover;
         }
 
@@ -90,17 +90,26 @@
         .badge-premium {
             background: linear-gradient(135deg, #f59e0b, #d97706);
             color: #fff;
-            font-size: 10px;
+            font-size: 9px;
             padding: 2px 6px;
-            border-radius: 12px;
-            font-weight: bold;
+            border-radius: 10px;
+            font-weight: 700;
+        }
+
+        .badge-admin {
+            background: linear-gradient(135deg, #ef4444, #b91c1c);
+            color: #fff;
+            font-size: 9px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-weight: 700;
         }
 
         .lang-switch {
             background: rgba(255, 255, 255, 0.06);
             border: 1px solid var(--glass-border);
             color: var(--text-color);
-            padding: 6px 12px;
+            padding: 6px 14px;
             border-radius: 20px;
             font-size: 12px;
             cursor: pointer;
@@ -114,8 +123,8 @@
             left: 0;
             right: 0;
             background: var(--glass-bg);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
             display: flex;
             justify-content: space-around;
             padding: 10px 0 14px 0;
@@ -127,13 +136,13 @@
             color: var(--hint-color);
             border: none;
             background: none;
-            font-size: 11px;
+            font-size: 10px;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 5px;
+            gap: 4px;
             cursor: pointer;
-            width: 20%;
+            flex: 1;
             transition: all 0.2s ease;
         }
 
@@ -146,14 +155,14 @@
 
         .nav-item.active {
             color: var(--button-color);
-            font-weight: bold;
+            font-weight: 700;
         }
 
         .nav-item.active svg {
-            transform: translateY(-2px) scale(1.1);
+            transform: translateY(-2px) scale(1.12);
         }
 
-        /* Container & Grid Layouts */
+        /* Layout & Cards */
         .container {
             padding: 16px;
             max-width: 600px;
@@ -170,22 +179,22 @@
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(8px); }
+            from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
 
         .card {
             background: var(--card-bg);
             border: 1px solid var(--glass-border);
-            border-radius: 18px;
+            border-radius: 20px;
             padding: 18px;
             margin-bottom: 16px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 8px 28px rgba(0, 0, 0, 0.2);
         }
 
         .balance-hero {
-            background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(139, 92, 246, 0.15));
-            border: 1px solid rgba(59, 130, 246, 0.3);
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.18), rgba(139, 92, 246, 0.18));
+            border: 1px solid rgba(59, 130, 246, 0.35);
             text-align: center;
             position: relative;
             overflow: hidden;
@@ -202,7 +211,7 @@
             background: rgba(255, 255, 255, 0.02);
             border: 1px solid var(--glass-border);
             padding: 14px;
-            border-radius: 14px;
+            border-radius: 16px;
             text-align: center;
         }
 
@@ -213,7 +222,7 @@
             margin-top: 4px;
         }
 
-        /* Input Controls & UI Elements */
+        /* Inputs & Forms */
         .form-group {
             margin-bottom: 14px;
         }
@@ -231,11 +240,11 @@
             padding: 12px 14px;
             border-radius: 12px;
             border: 1px solid var(--glass-border);
-            background-color: rgba(0, 0, 0, 0.25);
+            background-color: rgba(0, 0, 0, 0.3);
             color: var(--text-color);
             font-size: 14px;
             outline: none;
-            transition: border-color 0.2s ease;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
 
         input:focus {
@@ -257,22 +266,15 @@
             justify-content: center;
             align-items: center;
             gap: 8px;
-            box-shadow: 0 4px 12px var(--accent-glow);
+            box-shadow: 0 4px 14px var(--accent-glow);
             transition: transform 0.1s ease, opacity 0.2s ease;
         }
 
-        .btn:active {
-            transform: scale(0.98);
-        }
-
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .btn-success { background-color: var(--success-color); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25); }
-        .btn-danger { background-color: var(--danger-color); box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25); }
+        .btn:active { transform: scale(0.98); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-success { background-color: var(--success-color); box-shadow: 0 4px 14px rgba(16, 185, 129, 0.25); }
+        .btn-danger { background-color: var(--danger-color); box-shadow: 0 4px 14px rgba(239, 68, 68, 0.25); }
+        .btn-outline { background: transparent; border: 1px solid var(--glass-border); color: var(--text-color); box-shadow: none; }
 
         /* Spinner & Loading */
         .spinner {
@@ -284,10 +286,9 @@
             animation: spin 0.8s linear infinite;
             display: none;
         }
-
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* List Items & Cards */
+        /* List Items & Copy Box */
         .list-item {
             display: flex;
             justify-content: space-between;
@@ -295,19 +296,83 @@
             padding: 12px 0;
             border-bottom: 1px solid var(--glass-border);
         }
-
         .list-item:last-child { border-bottom: none; }
 
         .copy-box {
-            background: rgba(0, 0, 0, 0.3);
+            background: rgba(0, 0, 0, 0.35);
             border: 1px dashed var(--button-color);
             padding: 12px;
-            border-radius: 12px;
+            border-radius: 14px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             word-break: break-all;
             margin-top: 8px;
+        }
+
+        /* Modal Component */
+        .modal-backdrop {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(8px);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .modal-backdrop.active { display: flex; }
+        .modal-card {
+            background: var(--card-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 24px;
+            width: 100%;
+            max-width: 480px;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+            animation: modalUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes modalUp {
+            from { opacity: 0; transform: translateY(30px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        /* Bridge View Layout */
+        .bridge-container {
+            text-align: center;
+            padding: 20px 10px;
+        }
+        .timer-circle {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: rgba(59, 130, 246, 0.1);
+            border: 3px solid var(--button-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--button-color);
+            margin: 16px auto;
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+        .progress-bar-container {
+            width: 100%;
+            height: 8px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 16px 0;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--button-color), var(--purple-accent));
+            transition: width 1s linear;
         }
 
         /* Toast Notifications */
@@ -324,13 +389,12 @@
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
             border: 1px solid var(--glass-border);
             transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            z-index: 2000;
+            z-index: 3000;
             display: flex;
             align-items: center;
             gap: 8px;
             max-width: 90%;
         }
-
         #toast.show { transform: translateX(-50%) translateY(0); }
     </style>
 </head>
@@ -342,13 +406,59 @@
         <span id="toast-text"></span>
     </div>
 
+    <!-- Deposit Modal (Bridge & Instructions) -->
+    <div id="deposit-modal" class="modal-backdrop">
+        <div class="modal-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="font-size: 16px;" data-i18n="deposit_guide_title">دليل الإيداع الشامل</h3>
+                <button class="lang-switch" onclick="closeDepositModal()">✕</button>
+            </div>
+            
+            <div class="form-group">
+                <label data-i18n="select_network">اختر الشبكة</label>
+                <select id="modal-network-select" onchange="updateModalWallet()">
+                    <option value="TRC20">USDT - TRC20 (Tron)</option>
+                    <option value="BEP20">USDT - BEP20 (BNB Smart Chain)</option>
+                </select>
+            </div>
+
+            <div style="text-align: center; margin: 16px 0;">
+                <div style="background: #fff; padding: 12px; display: inline-block; border-radius: 16px;">
+                    <svg id="qr-code-svg" width="130" height="130" viewBox="0 0 100 100">
+                        <path d="M0 0h30v30H0zM40 0h10v10H40zM60 0h40v40H60zM10 10h10v10H10zM70 10h20v20H70zM0 60h40v40H0zM10 70h20v20H10zM50 50h10v20H50zM70 50h30v10H70zM90 70h10v30H90z" fill="#0f172a"/>
+                    </svg>
+                </div>
+                <p style="font-size: 11px; color: var(--hint-color); margin-top: 6px;" data-i18n="scan_qr">امسح كود QR للإيداع السريع</p>
+            </div>
+
+            <div class="copy-box">
+                <div>
+                    <div style="font-size: 10px; color: var(--hint-color);" id="modal-network-label">USDT (TRC20)</div>
+                    <div style="font-size: 11px; font-weight: bold;" id="modal-wallet-addr">TYdX23k9...xKP82mL</div>
+                </div>
+                <button class="lang-switch" onclick="copyModalWallet()" data-i18n="copy">نسخ</button>
+            </div>
+
+            <div style="margin-top: 16px; font-size: 11px; color: var(--hint-color); line-height: 1.6;">
+                <p>1. <span data-i18n="step1">أرسل المبلغ المراد إيداعه للعنوان أعلاه.</span></p>
+                <p>2. <span data-i18n="step2">انسخ معرف المعاملة (TxID / Hash).</span></p>
+                <p>3. <span data-i18n="step3">عد لتبويب "المالية" وأدخل الرقم لتأكيد الحساب.</span></p>
+            </div>
+
+            <button class="btn btn-outline" style="margin-top: 16px;" onclick="closeDepositModal()" data-i18n="close">إغلاق</button>
+        </div>
+    </div>
+
     <!-- Header Section -->
     <header class="header-card">
         <div class="user-info">
             <img id="user-avatar" class="avatar" style="display:none;" alt="Avatar" />
             <div id="avatar-fallback" class="avatar">U</div>
             <div class="user-details">
-                <h4 id="user-name">Telegram User <span id="premium-badge" class="badge-premium" style="display:none;">PREMIUM</span></h4>
+                <h4 id="user-name">Telegram User 
+                    <span id="premium-badge" class="badge-premium" style="display:none;">PREMIUM</span>
+                    <span id="admin-badge" class="badge-admin" style="display:none;">ADMIN</span>
+                </h4>
                 <p style="font-size: 11px; color: var(--hint-color);" id="user-id-display">ID: ------</p>
             </div>
         </div>
@@ -452,7 +562,10 @@
         <!-- Tab 4: Finance (USDT TRC20 / BEP20) -->
         <section id="finance-tab" class="tab-content">
             <div class="card">
-                <h3 style="font-size: 15px; margin-bottom: 10px;" data-i18n="deposit_title">إيداع رصيد (USDT)</h3>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h3 style="font-size: 15px;" data-i18n="deposit_title">إيداع رصيد (USDT)</h3>
+                    <button class="lang-switch" onclick="openDepositModal()" data-i18n="deposit_guide">📖 دليل الإيداع</button>
+                </div>
                 <p style="font-size: 11px; color: var(--hint-color); margin-bottom: 12px;" data-i18n="deposit_desc">قم بتحويل المبلغ إلى عنوان المحفظة ثم أدخل رقم المعاملة (TxID).</p>
                 
                 <div class="copy-box">
@@ -498,7 +611,7 @@
             </div>
         </section>
 
-        <!-- Tab 5: Referrals & Settings -->
+        <!-- Tab 5: Referrals -->
         <section id="ref-tab" class="tab-content">
             <div class="card">
                 <h3 style="font-size: 15px; margin-bottom: 8px;" data-i18n="ref_system_title">نظام الإحالات</h3>
@@ -508,6 +621,41 @@
                     <span id="ref-link-display" style="font-size: 12px;">https://t.me/bot?start=ref</span>
                     <button class="lang-switch" onclick="shareReferralLink()" data-i18n="share">مشاركة</button>
                 </div>
+            </div>
+        </section>
+
+        <!-- Tab 6: Smart Bridge View (Integrated dynamic view) -->
+        <section id="bridge-tab" class="tab-content">
+            <div class="card bridge-container">
+                <h3 style="font-size: 18px;" data-i18n="bridge_heading">توجيه الرابط المختصر</h3>
+                <p style="font-size: 12px; color: var(--hint-color); margin-top: 4px;" data-i18n="bridge_sub">سيتم تجهيز رابطك الأصلي خلال ثوانٍ قليلة...</p>
+
+                <div class="timer-circle" id="bridge-timer">5</div>
+
+                <div class="progress-bar-container">
+                    <div class="progress-bar-fill" id="bridge-progress"></div>
+                </div>
+
+                <div style="margin: 16px 0;">
+                    <button class="btn btn-success" onclick="showAdsgramReward()" style="font-size: 13px;">
+                        <span data-i18n="speed_up_ad">⚡ شاهد إعلان ودعم الناشر لفتح الرابط فورا</span>
+                    </button>
+                </div>
+
+                <button class="btn" id="open-bridge-btn" disabled onclick="redirectBridgeTarget()">
+                    <span data-i18n="open_target_btn">الانتقال للرابط المطلوب</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Tab 7: Admin Control Hub (Dynamic Access) -->
+        <section id="admin-tab" class="tab-content">
+            <div class="card" style="border-color: var(--danger-color);">
+                <h3 style="font-size: 16px; color: var(--danger-color); margin-bottom: 12px;" data-i18n="admin_panel_title">لوحة تحكم الإدارة</h3>
+                <p style="font-size: 12px; color: var(--hint-color); margin-bottom: 14px;" data-i18n="admin_desc">مراجعة وتقديم الموافقات على طلبات الإيداع والسحب.</p>
+
+                <h4 style="font-size: 13px; margin-bottom: 8px;" data-i18n="pending_deposits">طلبات الإيداع المعلقة</h4>
+                <div id="admin-deposits-list">...</div>
             </div>
         </section>
     </div>
@@ -534,18 +682,31 @@
             <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
             <span data-i18n="nav_ref">الإحالات</span>
         </button>
+        <button class="nav-item" id="nav-admin-btn" style="display:none;" onclick="switchTab('admin-tab', this)">
+            <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8s0 0 0 0z"/></svg>
+            <span data-i18n="nav_admin">الإدارة</span>
+        </button>
     </nav>
 
     <script>
-        // --- Telegram WebApp Global Setup ---
+        // --- Global State & Telegram Init ---
         const tg = window.Telegram?.WebApp;
+        let bridgeTargetUrl = '';
+        let bridgeTimerInterval = null;
+        let isAdminUser = false;
+
         if (tg) {
             tg.ready();
             tg.expand();
             if (tg.enableClosingConfirmation) tg.enableClosingConfirmation();
         }
 
-        // --- i18n Translation Dictionary ---
+        const walletAddresses = {
+            TRC20: 'TYdX23k9xKP82mL9023xKW8219xKP82mL',
+            BEP20: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F'
+        };
+
+        // --- Complete Internationalization (AR / EN) ---
         let currentLang = 'ar';
         const i18n = {
             ar: {
@@ -570,6 +731,7 @@
                 launch_camp_btn: "إطلاق الحملة",
                 active_camps_list: "الحملات النشطة",
                 deposit_title: "إيداع رصيد (USDT)",
+                deposit_guide: "📖 دليل الإيداع",
                 deposit_desc: "قم بتحويل المبلغ إلى عنوان المحفظة ثم أدخل رقم المعاملة (TxID).",
                 copy: "نسخ",
                 amount_cents_label: "المبلغ بالسنتات",
@@ -585,7 +747,24 @@
                 nav_links: "الروابط",
                 nav_campaigns: "الحملات",
                 nav_finance: "المالية",
-                nav_ref: "الإحالات"
+                nav_ref: "الإحالات",
+                nav_admin: "الإدارة",
+                deposit_guide_title: "دليل الإيداع الشامل",
+                select_network: "اختر الشبكة",
+                scan_qr: "امسح كود QR للإيداع السريع",
+                step1: "أرسل المبلغ المراد إيداعه للعنوان أعلاه.",
+                step2: "انسخ معرف المعاملة (TxID / Hash).",
+                step3: "عد لتبويب المالية وأدخل الرقم لتأكيد الحساب.",
+                close: "إغلاق",
+                bridge_heading: "توجيه الرابط المختصر",
+                bridge_sub: "سيتم تجهيز رابطك الأصلي خلال ثوانٍ قليلة...",
+                speed_up_ad: "⚡ شاهد إعلان ودعم الناشر لفتح الرابط فورا",
+                open_target_btn: "الانتقال للرابط المطلوب",
+                admin_panel_title: "لوحة تحكم الإدارة",
+                admin_desc: "مراجعة وتقديم الموافقات على طلبات الإيداع والسحب.",
+                pending_deposits: "طلبات الإيداع المعلقة",
+                approve: "موافقة",
+                reject: "رفض"
             },
             en: {
                 current_balance: "Current Balance",
@@ -609,6 +788,7 @@
                 launch_camp_btn: "Launch Campaign",
                 active_camps_list: "Active Campaigns",
                 deposit_title: "Deposit Funds (USDT)",
+                deposit_guide: "📖 Deposit Guide",
                 deposit_desc: "Transfer funds to the address below then enter TxID.",
                 copy: "Copy",
                 amount_cents_label: "Amount in Cents",
@@ -624,7 +804,24 @@
                 nav_links: "Links",
                 nav_campaigns: "Campaigns",
                 nav_finance: "Finance",
-                nav_ref: "Referrals"
+                nav_ref: "Referrals",
+                nav_admin: "Admin",
+                deposit_guide_title: "Comprehensive Deposit Guide",
+                select_network: "Select Network",
+                scan_qr: "Scan QR Code for fast deposit",
+                step1: "Send the amount to the address above.",
+                step2: "Copy the Transaction Hash (TxID).",
+                step3: "Return to Finance tab & submit TxID.",
+                close: "Close",
+                bridge_heading: "Short Link Redirection",
+                bridge_sub: "Your link will be ready in a few seconds...",
+                speed_up_ad: "⚡ Watch Ad & Unlock Immediately",
+                open_target_btn: "Proceed to Target Link",
+                admin_panel_title: "Admin Control Hub",
+                admin_desc: "Review & approve pending financial operations.",
+                pending_deposits: "Pending Deposit Requests",
+                approve: "Approve",
+                reject: "Reject"
             }
         };
 
@@ -636,31 +833,25 @@
 
             document.querySelectorAll('[data-i18n]').forEach(el => {
                 const key = el.getAttribute('data-i18n');
-                if (i18n[currentLang][key]) {
-                    el.textContent = i18n[currentLang][key];
-                }
+                if (i18n[currentLang][key]) el.textContent = i18n[currentLang][key];
             });
             if (tg?.HapticFeedback) tg.HapticFeedback.selectionChanged();
         }
 
-        // --- Security Helper Functions ---
+        // --- Security & API Layer ---
         function escapeHtml(str) {
             if (!str) return '';
             return String(str)
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/"/g, "&quot;")
+                .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;").replace(/"/g, "&quot;")
                 .replace(/'/g, "&#039;");
         }
 
-        // --- Secure API Wrapper ---
         async function safeFetch(endpoint, method = 'GET', body = null) {
             const headers = {
                 'Content-Type': 'application/json',
                 'x-telegram-init-data': tg?.initData || ''
             };
-
             const config = { method, headers };
             if (body) config.body = JSON.stringify(body);
 
@@ -676,7 +867,7 @@
             }
         }
 
-        // --- UI Feedback & Navigation ---
+        // --- UI Feedback & Modals ---
         function showToast(msg, isError = false) {
             const toast = document.getElementById('toast');
             document.getElementById('toast-text').textContent = msg;
@@ -691,7 +882,6 @@
             if (!btn) return;
             const text = btn.querySelector('span');
             const spinner = btn.querySelector('.spinner');
-
             btn.disabled = isLoading;
             if (text) text.style.display = isLoading ? 'none' : 'inline';
             if (spinner) spinner.style.display = isLoading ? 'inline-block' : 'none';
@@ -702,16 +892,76 @@
             document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
 
             document.getElementById(tabId).classList.add('active');
-            btn.classList.add('active');
+            if (btn) btn.classList.add('active');
 
             if (tg?.HapticFeedback) tg.HapticFeedback.selectionChanged();
 
             if (tabId === 'wallet-tab') loadStats();
             if (tabId === 'links-tab') loadLinks();
             if (tabId === 'campaigns-tab') loadCampaigns();
+            if (tabId === 'admin-tab') loadAdminData();
         }
 
-        // --- Telegram User Data Parsing ---
+        // --- Deposit Modal Logic ---
+        function openDepositModal() {
+            document.getElementById('deposit-modal').classList.add('active');
+            updateModalWallet();
+            if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+        }
+
+        function closeDepositModal() {
+            document.getElementById('deposit-modal').classList.remove('active');
+        }
+
+        function updateModalWallet() {
+            const net = document.getElementById('modal-network-select').value;
+            document.getElementById('modal-network-label').textContent = `USDT (${net})`;
+            document.getElementById('modal-wallet-addr').textContent = walletAddresses[net];
+        }
+
+        function copyModalWallet() {
+            const addr = document.getElementById('modal-wallet-addr').textContent;
+            navigator.clipboard.writeText(addr);
+            showToast('تم نسخ عنوان المحفظة');
+            if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+        }
+
+        // --- Bridge View Simulation / Logic ---
+        function startBridgeCountdown(targetUrl) {
+            bridgeTargetUrl = targetUrl;
+            switchTab('bridge-tab', null);
+            let secondsLeft = 5;
+            const timerEl = document.getElementById('bridge-timer');
+            const progressEl = document.getElementById('bridge-progress');
+            const openBtn = document.getElementById('open-bridge-btn');
+
+            openBtn.disabled = true;
+            timerEl.textContent = secondsLeft;
+            progressEl.style.width = '0%';
+
+            if (bridgeTimerInterval) clearInterval(bridgeTimerInterval);
+
+            bridgeTimerInterval = setInterval(() => {
+                secondsLeft--;
+                timerEl.textContent = secondsLeft;
+                progressEl.style.width = `${((5 - secondsLeft) / 5) * 100}%`;
+
+                if (secondsLeft <= 0) {
+                    clearInterval(bridgeTimerInterval);
+                    openBtn.disabled = false;
+                    if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+                }
+            }, 1000);
+        }
+
+        function redirectBridgeTarget() {
+            if (bridgeTargetUrl) {
+                if (tg) tg.openLink(bridgeTargetUrl);
+                else window.location.href = bridgeTargetUrl;
+            }
+        }
+
+        // --- User Initialization ---
         function initUserProfile() {
             const user = tg?.initDataUnsafe?.user;
             if (user) {
@@ -719,9 +969,15 @@
                 document.getElementById('user-id-display').textContent = `ID: ${user.id}`;
                 document.getElementById('ref-link-display').textContent = `https://t.me/${tg?.initDataUnsafe?.bot?.username || 'bot'}?start=${user.id}`;
 
-                if (user.is_premium) {
-                    document.getElementById('premium-badge').style.display = 'inline-block';
+                if (user.is_premium) document.getElementById('premium-badge').style.display = 'inline-block';
+                
+                // Admin privilege check placeholder
+                if (user.id === 123456789 || user.username === 'admin') { 
+                    isAdminUser = true;
+                    document.getElementById('admin-badge').style.display = 'inline-block';
+                    document.getElementById('nav-admin-btn').style.display = 'flex';
                 }
+
                 if (user.photo_url) {
                     const img = document.getElementById('user-avatar');
                     img.src = user.photo_url;
@@ -743,6 +999,12 @@
                             showToast('تمت إتاحة المكافأة وإضافتها لحسابك!');
                             if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
                             loadStats();
+                            if (document.getElementById('bridge-tab').classList.contains('active')) {
+                                clearInterval(bridgeTimerInterval);
+                                document.getElementById('bridge-timer').textContent = '0';
+                                document.getElementById('bridge-progress').style.width = '100%';
+                                document.getElementById('open-bridge-btn').disabled = false;
+                            }
                         }
                     }
                 }).catch(() => {
@@ -777,9 +1039,12 @@
                     <div class="list-item">
                         <div>
                             <div style="font-weight: 600; font-size: 13px;">/${escapeHtml(l.shortUrl)}</div>
-                            <div style="font-size: 11px; color: var(--hint-color); max-width: 200px; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(l.originalUrl)}</div>
+                            <div style="font-size: 11px; color: var(--hint-color); max-width: 180px; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(l.originalUrl)}</div>
                         </div>
-                        <span style="font-size: 12px; color: var(--button-color); font-weight: bold;">${l.clicksCount || 0} نقرة</span>
+                        <div style="display: flex; gap: 6px; align-items: center;">
+                            <span style="font-size: 11px; color: var(--button-color); font-weight: bold;">${l.clicksCount || 0} نقرة</span>
+                            <button class="lang-switch" onclick="startBridgeCountdown('${escapeHtml(l.originalUrl)}')">معاينة</button>
+                        </div>
                     </div>
                 `).join('');
             }
@@ -805,7 +1070,38 @@
             }
         }
 
-        // --- Form Event Listeners ---
+        async function loadAdminData() {
+            const res = await safeFetch('/api/admin/deposits');
+            const container = document.getElementById('admin-deposits-list');
+            if (res && res.deposits) {
+                if (res.deposits.length === 0) {
+                    container.innerHTML = '<p style="color: var(--hint-color); font-size: 12px;">لا توجد طلبات إيداع معلقة</p>';
+                    return;
+                }
+                container.innerHTML = res.deposits.map(d => `
+                    <div class="list-item">
+                        <div>
+                            <div style="font-weight: 600; font-size: 12px;">مستخدم #${d.userId} - ${d.amount} سنت</div>
+                            <div style="font-size: 10px; color: var(--hint-color);">${escapeHtml(d.txid)}</div>
+                        </div>
+                        <div style="display: flex; gap: 4px;">
+                            <button class="lang-switch" style="background: var(--success-color);" onclick="verifyDeposit('${d.id}', true)">${i18n[currentLang].approve}</button>
+                            <button class="lang-switch" style="background: var(--danger-color);" onclick="verifyDeposit('${d.id}', false)">${i18n[currentLang].reject}</button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        async function verifyDeposit(depositId, approve) {
+            const res = await safeFetch('/api/admin/deposits/verify', 'POST', { depositId, approve });
+            if (res?.success) {
+                showToast(approve ? 'تم قبول الإيداع' : 'تم رفض الإيداع');
+                loadAdminData();
+            }
+        }
+
+        // --- Event Listeners ---
         document.getElementById('link-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             setLoading('link-btn', true);
@@ -882,7 +1178,7 @@
             }
         });
 
-        // --- Clipboard Helpers ---
+        // --- Clipboard & Sharing Helpers ---
         function copyWalletAddress() {
             const addr = document.getElementById('wallet-address').textContent;
             navigator.clipboard.writeText(addr);
@@ -893,15 +1189,14 @@
         function shareReferralLink() {
             const link = document.getElementById('ref-link-display').textContent;
             const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('انضم وربح معي عبر منصة الاختصار والإعلانات!')}`;
-            if (tg) {
-                tg.openTelegramLink(shareUrl);
-            } else {
+            if (tg) tg.openTelegramLink(shareUrl);
+            else {
                 navigator.clipboard.writeText(link);
                 showToast('تم نسخ رابط الإحالة');
             }
         }
 
-        // --- App Initialization ---
+        // --- App Startup ---
         initUserProfile();
         loadStats();
     </script>
