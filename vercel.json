@@ -28,17 +28,24 @@
       }
     },
     {
+      "src": "/r/(.*)",
+      "dest": "/server.js"
+    },
+    {
+      "src": "/",
+      "dest": "/views.html"
+    },
+    {
+      "src": "/app",
+      "dest": "/views.html"
+    },
+    {
+      "src": "/admin",
+      "dest": "/views.html"
+    },
+    {
       "src": "/(.*)",
-      "dest": "/views.html",
-      "headers": {
-        "Content-Security-Policy": "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org telegram:;",
-        "X-Content-Type-Options": "nosniff",
-        "X-XSS-Protection": "1; mode=block",
-        "Referrer-Policy": "strict-origin-when-cross-origin",
-        "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), display-capture=()",
-        "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
-        "Cache-Control": "public, max-age=0, must-revalidate"
-      }
+      "dest": "/server.js"
     }
   ]
 }
