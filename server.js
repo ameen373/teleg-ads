@@ -1,5 +1,5 @@
 /**
- * Ultra-Enterprise Server Architecture (V6 - Absolute Multi-Tenant Security & High-Performance Core)
+ * Enterprise Server Architecture (V6 - High-Performance & Multi-Tenant Core)
  * Telegram Link Shortener & Mini App Engine (Telega.ads)
  * Production-Ready Backend Solution
  */
@@ -62,6 +62,21 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
+// --- Unified JSON Response Helper ---
+function sendResponse(res, statusCode, success, message, data = {}) {
+  const payload = {
+    success: Boolean(success),
+    message: String(message || ''),
+    data: data && typeof data === 'object' ? data : {}
+  };
+  
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    Object.assign(payload, data);
+  }
+
+  return res.status(statusCode).json(payload);
+}
+
 // --- Centralized Logging Engine ---
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
@@ -117,15 +132,16 @@ async function connectDB() {
 
   if (!cachedDb.promise || mongoose.connection.readyState === 0) {
     const opts = {
-      maxPoolSize: 50,
+      maxPoolSize: 10,
       minPoolSize: 0,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
+      family: 4,
       bufferCommands: false
     };
 
     cachedDb.promise = mongoose.connect(CONFIG.MONGO_URI, opts).then((m) => {
-      console.log('✅ Enterprise MongoDB Connection Established');
+      logger.info('✅ Serverless MongoDB Connection Established');
       return m;
     });
   }
@@ -147,10 +163,7 @@ app.use(async (req, res, next) => {
     await connectDB();
     next();
   } catch (err) {
-    return res.status(500).json({
-      success: false,
-      error: 'فشل الاتصال بقاعدة البيانات، يرجى إعادة المحاولة لاحقاً'
-    });
+    return sendResponse(res, 500, false, 'فشل الاتصال بقاعدة البيانات، يرجى إعادة المحاولة لاحقاً');
   }
 });
 
@@ -243,7 +256,7 @@ const linkCreationLimiter = rateLimit({
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, error: 'تم تجاوز الحد اليومي لإنشاء الروابط (100 رابط يومياً)' }
+  handler: (req, res) => sendResponse(res, 429, false, 'تم تجاوز الحد اليومي لإنشاء الروابط (100 رابط يومياً)')
 });
 
 const clickLimiter = rateLimit({
@@ -252,14 +265,14 @@ const clickLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => req.ip,
-  message: { success: false, error: 'عدد الطلبات كبير جداً، يرجى الانتظار قليلاً' }
+  handler: (req, res) => sendResponse(res, 429, false, 'عدد الطلبات كبير جداً، يرجى الانتظار قليلاً')
 });
 
 const validateTraffic = (req, res, next) => {
   const ua = req.get('User-Agent') || '';
   const botPattern = /bot|crawler|spider|datacenter|proxy|httpclient|curl|python|axios|headless|selenium|puppeteer/i;
   if (botPattern.test(ua)) {
-    return res.status(403).json({ success: false, error: 'تم رفض الزيارة الآلية (Bot Traffic Rejected)' });
+    return sendResponse(res, 403, false, 'تم رفض الزيارة الآلية (Bot Traffic Rejected)');
   }
   next();
 };
@@ -295,11 +308,11 @@ const authMiddleware = async (req, res, next) => {
     }
 
     if (!user) {
-      return res.status(401).json({ success: false, error: 'جلسة غير صالحة، يرجى إعادة تحميل التطبيق' });
+      return sendResponse(res, 401, false, 'جلسة غير صالحة، يرجى إعادة تحميل التطبيق');
     }
 
     if (user.isBanned) {
-      return res.status(403).json({ success: false, error: 'حسابك معطل بسبب مخالفة الشروط والأنظمة' });
+      return sendResponse(res, 403, false, 'حسابك معطل بسبب مخالفة الشروط والأنظمة');
     }
 
     req.user = user;
@@ -308,13 +321,13 @@ const authMiddleware = async (req, res, next) => {
 
     next();
   } catch (err) {
-    return res.status(401).json({ success: false, error: 'انتهت الجلسة، يرجى إعادة تسجيل الدخول' });
+    return sendResponse(res, 401, false, 'انتهت الجلسة، يرجى إعادة تسجيل الدخول');
   }
 };
 
 const adminMiddleware = async (req, res, next) => {
   if (!req.user || String(req.user.telegramId).trim() !== CONFIG.ADMIN_ID) {
-    return res.status(403).json({ success: false, error: 'غير مصرح لك بالوصول إلى لوحة التحكم' });
+    return sendResponse(res, 403, false, 'غير مصرح لك بالوصول إلى لوحة التحكم');
   }
   next();
 };
@@ -354,9 +367,9 @@ app.all('/api/check-admin', async (req, res) => {
     }
 
     const isAdmin = Boolean(telegramIdToCheck && telegramIdToCheck === CONFIG.ADMIN_ID);
-    return res.json({ success: true, isAdmin });
+    return sendResponse(res, 200, true, 'تم التحقق من صلاحية المسؤول', { isAdmin });
   } catch (err) {
-    return res.json({ success: true, isAdmin: false });
+    return sendResponse(res, 200, true, 'تم التحقق من صلاحية المسؤول', { isAdmin: false });
   }
 });
 
@@ -370,7 +383,7 @@ app.post('/api/auth/login', async (req, res, next) => {
     const { referrerId } = req.body;
 
     if (!tgId) {
-      return res.status(401).json({ success: false, error: 'بيانات الاعتماد الخاصة بتليجرام غير صالحة' });
+      return sendResponse(res, 401, false, 'بيانات الاعتماد الخاصة بتليجرام غير صالحة');
     }
 
     const currentUsername = telegramUser?.username || `User_${tgId.slice(-4)}`;
@@ -398,7 +411,7 @@ app.post('/api/auth/login', async (req, res, next) => {
     }
 
     if (user.isBanned) {
-      return res.status(403).json({ success: false, error: `حسابك معطل بسبب مخالفة الشروط. للتواصل مع الدعم: ${CONFIG.SUPPORT_USERNAME}` });
+      return sendResponse(res, 403, false, `حسابك معطل بسبب مخالفة الشروط. للتواصل مع الدعم: ${CONFIG.SUPPORT_USERNAME}`);
     }
 
     const token = jwt.sign(
@@ -407,8 +420,7 @@ app.post('/api/auth/login', async (req, res, next) => {
       { expiresIn: '7d', algorithm: 'HS256' }
     );
 
-    return res.json({ 
-      success: true, 
+    return sendResponse(res, 200, true, 'تم تسجيل الدخول بنجاح', { 
       token, 
       user, 
       language: user.language || CONFIG.DEFAULT_LANGUAGE,
@@ -434,8 +446,7 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
     const userId = req.userId;
 
     if (!userId) {
-      return res.json({
-        success: true,
+      return sendResponse(res, 200, true, 'تم جلب البيانات بنجاح', {
         user: req.user,
         language: req.user.language || CONFIG.DEFAULT_LANGUAGE,
         links: [],
@@ -470,8 +481,7 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
     });
 
     const isAdmin = String(req.user.telegramId).trim() === CONFIG.ADMIN_ID;
-    return res.json({ 
-      success: true,
+    return sendResponse(res, 200, true, 'تم جلب بيانات المستخدم بنجاح', { 
       user: req.user, 
       language: req.user.language || CONFIG.DEFAULT_LANGUAGE,
       links, 
@@ -504,17 +514,18 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
     const budget = Number(totalBudget);
 
     if (!title || String(title).trim().length === 0) {
-      return res.status(400).json({ success: false, error: 'عنوان الحملة الإعلانية مطلوب' });
+      return sendResponse(res, 400, false, 'عنوان الحملة الإعلانية مطلوب');
     }
 
     if (!isValidWebUri(targetUrl)) {
-      return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
+      return sendResponse(res, 400, false, 'الرابط المستهدف غير صالح');
     }
 
     if (isNaN(budget) || budget < 5) {
-      return res.status(400).json({ success: false, error: 'الحد الأدنى لميزانية الحملة هو $5' });
+      return sendResponse(res, 400, false, 'الحد الأدنى لميزانية الحملة هو $5');
     }
 
+    // Atomic Operation: خصم الميزانية ذرياً ومنع الرصيد السالب
     const updatedUser = await User.findOneAndUpdate(
       { _id: req.userId, availableBalance: { $gte: budget } },
       { $inc: { availableBalance: -budget } },
@@ -522,7 +533,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
     );
 
     if (!updatedUser) {
-      return res.status(400).json({ success: false, error: 'رصيدك المتاح غير كافٍ لإنشاء هذه الحملة (الحد الأدنى $5)' });
+      return sendResponse(res, 400, false, 'رصيدك المتاح غير كافٍ لإنشاء هذه الحملة (الحد الأدنى $5)');
     }
 
     const ad = await Ad.create({
@@ -540,7 +551,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       status: 'active'
     });
 
-    return res.json({ success: true, ad });
+    return sendResponse(res, 200, true, 'تم إنشاء الحملة الإعلانية بنجاح', { ad });
   } catch (err) {
     next(err);
   }
@@ -549,7 +560,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
 app.get('/api/user/ads', authMiddleware, async (req, res, next) => {
   try {
     const ads = await Ad.find({ userId: req.userId }).sort({ createdAt: -1 }).lean();
-    return res.json({ success: true, ads });
+    return sendResponse(res, 200, true, 'تم جلب الحملات بنجاح', { ads });
   } catch (err) {
     next(err);
   }
@@ -559,22 +570,22 @@ app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
   try {
     const { adId } = req.body;
     if (!mongoose.Types.ObjectId.isValid(adId)) {
-      return res.status(400).json({ success: false, error: 'معرف الإعلان غير صالح' });
+      return sendResponse(res, 400, false, 'معرف الإعلان غير صالح');
     }
 
     const ad = await Ad.findOne({ _id: adId, userId: req.userId });
     if (!ad) {
-      return res.status(404).json({ success: false, error: 'الإعلان غير موجود أو لا تملك صلاحية تعديله' });
+      return sendResponse(res, 404, false, 'الإعلان غير موجود أو لا تملك صلاحية تعديله');
     }
 
     if (ad.status === 'completed') {
-      return res.status(400).json({ success: false, error: 'لا يمكن تفعيل حملة مكتملة ونفاذ ميزانيتها' });
+      return sendResponse(res, 400, false, 'لا يمكن تفعيل حملة مكتملة ونفاذ ميزانيتها');
     }
 
     ad.status = ad.status === 'active' ? 'paused' : 'active';
     await ad.save();
 
-    return res.json({ success: true, status: ad.status });
+    return sendResponse(res, 200, true, `تم تغيير حالة الحملة إلى ${ad.status}`, { status: ad.status, ad });
   } catch (err) {
     next(err);
   }
@@ -591,20 +602,20 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
     const cleanTxid = String(txid || '').trim();
 
     if (isNaN(numAmount) || numAmount < 1) {
-      return res.status(400).json({ success: false, error: 'الحد الأدنى للإيداع هو $1' });
+      return sendResponse(res, 400, false, 'الحد الأدنى للإيداع هو $1');
     }
 
     if (!['BEP20', 'TRC20', 'TON'].includes(cleanNetwork)) {
-      return res.status(400).json({ success: false, error: 'يرجى تحديد شبكة صالحة (BEP20, TRC20, TON)' });
+      return sendResponse(res, 400, false, 'يرجى تحديد شبكة صالحة (BEP20, TRC20, TON)');
     }
 
     if (!cleanTxid || cleanTxid.length < 8) {
-      return res.status(400).json({ success: false, error: 'يرجى إدخال هاش المعاملة الصحيح (TxID)' });
+      return sendResponse(res, 400, false, 'يرجى إدخال هاش المعاملة الصحيح (TxID)');
     }
 
     const existingDeposit = await Deposit.findOne({ txid: cleanTxid });
     if (existingDeposit) {
-      return res.status(400).json({ success: false, error: 'تم تقديم رقم هذه المعاملة (TxID) مسبقاً' });
+      return sendResponse(res, 400, false, 'تم تقديم رقم هذه المعاملة (TxID) مسبقاً');
     }
 
     const deposit = await Deposit.create({
@@ -622,7 +633,7 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
       `💳 <b>طلب إيداع جديد!</b>\nالمستخدم: <code>${req.user.username}</code>\nالمبلغ: <code>$${numAmount}</code>\nالشبكة: <code>${cleanNetwork}</code>\nTxID: <code>${cleanTxid}</code>`
     );
 
-    return res.json({ success: true, deposit });
+    return sendResponse(res, 200, true, 'تم تقديم طلب الإيداع بنجاح وهو قيد المراجعة', { deposit });
   } catch (err) {
     next(err);
   }
@@ -637,24 +648,25 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
     const FEE = 3;
 
     if (isNaN(numAmt) || numAmt < 30) {
-      return res.status(400).json({ success: false, error: 'الحد الأدنى للسحب هو $30' });
+      return sendResponse(res, 400, false, 'الحد الأدنى للسحب هو $30');
     }
 
     if (!['BEP20', 'TRC20', 'TON'].includes(cleanNetwork)) {
-      return res.status(400).json({ success: false, error: 'يرجى تحديد الشبكة بشكل صحيح (BEP20, TRC20, TON)' });
+      return sendResponse(res, 400, false, 'يرجى تحديد الشبكة بشكل صحيح (BEP20, TRC20, TON)');
     }
 
     if (!cleanWallet || cleanWallet.length < 10) {
-      return res.status(400).json({ success: false, error: 'عنوان المحفظة غير صالح' });
+      return sendResponse(res, 400, false, 'عنوان المحفظة غير صالح');
     }
 
     const activePending = await Withdraw.findOne({ userId: req.userId, status: 'pending' });
     if (activePending) {
-      return res.status(400).json({ success: false, error: 'لديك طلب سحب قيد الانتظار حالياً، يرجى الانتظار حتى معالجته' });
+      return sendResponse(res, 400, false, 'لديك طلب سحب قيد الانتظار حالياً، يرجى الانتظار حتى معالجته');
     }
 
     const netAmount = numAmt - FEE;
 
+    // Atomic Operation: خصم مبلغ السحب ذرياً وتحديث المحفظة المفضلة
     const updatedUser = await User.findOneAndUpdate(
       { _id: req.userId, availableBalance: { $gte: numAmt } },
       { $inc: { availableBalance: -numAmt }, defaultWallet: cleanWallet },
@@ -662,7 +674,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
     );
 
     if (!updatedUser) {
-      return res.status(400).json({ success: false, error: 'رصيدك المتاح لا يكفي لإتمام عملية السحب' });
+      return sendResponse(res, 400, false, 'رصيدك المتاح لا يكفي لإتمام عملية السحب');
     }
 
     const withdrawRequest = await Withdraw.create({
@@ -681,7 +693,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
       `🔔 <b>تم تقديم طلب السحب بنجاح!</b>\nالمبلغ: <code>$${numAmt}</code>\nالرسوم: <code>$${FEE}</code>\nالصافي: <code>$${netAmount}</code>\nالشبكة: <code>${cleanNetwork}</code>\nالمحفظة: <code>${cleanWallet}</code>\nالحالة: ⏳ قيد المراجعة\n\nالدعم: ${CONFIG.SUPPORT_USERNAME}`
     );
 
-    return res.json({ success: true, withdraw: withdrawRequest });
+    return sendResponse(res, 200, true, 'تم تقديم طلب السحب بنجاح', { withdraw: withdrawRequest });
   } catch (err) {
     next(err);
   }
@@ -694,7 +706,7 @@ app.post('/api/init-click', validateTraffic, async (req, res, next) => {
   try {
     const { linkCode } = req.body;
     const cleanCode = String(linkCode || '').trim();
-    if (!cleanCode) return res.status(400).json({ success: false, error: 'كود الرابط مطلوب' });
+    if (!cleanCode) return sendResponse(res, 400, false, 'كود الرابط مطلوب');
 
     let linkData = await safeRedisGet(`link:data:${cleanCode}`);
     let linkId, linkOwnerId, linkOwnerTelegramId;
@@ -706,7 +718,7 @@ app.post('/api/init-click', validateTraffic, async (req, res, next) => {
       linkOwnerTelegramId = parsed.publisherTelegramId;
     } else {
       const link = await Link.findOne({ shortCode: cleanCode, isActive: true }).select('_id userId publisherTelegramId').lean();
-      if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود أو معطل' });
+      if (!link) return sendResponse(res, 404, false, 'الرابط غير موجود أو معطل');
       linkId = link._id.toString();
       linkOwnerId = link.userId.toString();
       linkOwnerTelegramId = link.publisherTelegramId;
@@ -750,8 +762,7 @@ app.post('/api/init-click', validateTraffic, async (req, res, next) => {
 
     await safeRedisSet(`bridge:token:${session._id}`, bridgeToken, 'EX', 300);
 
-    return res.json({ 
-      success: true,
+    return sendResponse(res, 200, true, 'تم إنشاء جلسة الزيارة بنجاح', { 
       sessionId: session._id, 
       bridgeToken, 
       blockId: CONFIG.ADSGRAM_BLOCK_ID,
@@ -777,22 +788,22 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
   try {
     const { sessionId, bridgeToken, duration } = req.body;
     if (!sessionId || !bridgeToken) {
-      return res.status(400).json({ success: false, error: 'رمز حماية الجلسة مفقود' });
+      return sendResponse(res, 400, false, 'رمز حماية الجلسة مفقود');
     }
 
     const cachedToken = await safeRedisGet(`bridge:token:${sessionId}`);
     if (cachedToken && cachedToken !== bridgeToken) {
-      return res.status(403).json({ success: false, error: 'تم اكتشاف محاولة تخطي غير مشروعة' });
+      return sendResponse(res, 403, false, 'تم اكتشاف محاولة تخطي غير مشروعة');
     }
 
     const clickSession = await ClickSession.findById(sessionId);
     if (!clickSession || clickSession.ip !== req.ip) {
-      return res.status(403).json({ success: false, error: 'الجلسة غير صالحة' });
+      return sendResponse(res, 403, false, 'الجلسة غير صالحة');
     }
 
     const dwellTime = Date.now() - new Date(clickSession.createdAt).getTime();
     if (dwellTime < 4800 && (Number(duration) || 0) < 5) {
-      return res.status(400).json({ success: false, error: 'لم يتم استيفاء وقت المكوث المطلوب (5 ثوانٍ)' });
+      return sendResponse(res, 400, false, 'لم يتم استيفاء وقت المكوث المطلوب (5 ثوانٍ)');
     }
 
     let dailyIpClicks = 1;
@@ -812,12 +823,13 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
     await safeRedisDel(`bridge:token:${sessionId}`);
 
     if (!link) {
-      return res.status(404).json({ success: false, error: 'الرابط غير موجود' });
+      return sendResponse(res, 404, false, 'الرابط غير موجود');
     }
 
+    // Atomic Operation: زيادة زيارات الرابط كغير صالحة
     if (isDuplicate || dailyIpClicks > 20) {
       await Link.findByIdAndUpdate(link._id, { $inc: { views: 1, invalidImpressions: 1 } });
-      return res.json({ success: true, targetUrl: link.targetUrl, counted: false });
+      return sendResponse(res, 200, true, 'زيارة غير محسوبة (تكرار أو تجاوز الحد)', { targetUrl: link.targetUrl, counted: false });
     }
 
     await safeRedisSet(lockKey, '1', 'EX', 86400);
@@ -837,12 +849,14 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
       userAgent: req.get('User-Agent') || ''
     });
 
+    // Atomic Operation: زيادة زيارات الرابط كصالحة
     await Link.findByIdAndUpdate(link._id, { $inc: { views: 1, validImpressions: 1 } });
 
     if (clickSession.adSource === 'internal' && clickSession.adId) {
       const costPerImpression = 0.0015;
       let publisherShare = 0.00135;
 
+      // Atomic Operation: خصم تكلفة المشاهدة من ميزانية الإعلان
       const ad = await Ad.findOneAndUpdate(
         { _id: clickSession.adId, remainingBudget: { $gte: costPerImpression }, status: 'active' },
         { 
@@ -857,6 +871,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
           await ad.save();
         }
 
+        // Atomic Operation: حساب وتسجيل عمولة الإحالة
         if (link.userId && link.userId.referredBy) {
           const refBonus = Math.round((publisherShare * 0.10 + Number.EPSILON) * 100000) / 100000;
           publisherShare = Math.round((publisherShare - refBonus + Number.EPSILON) * 100000) / 100000;
@@ -867,6 +882,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
           );
         }
 
+        // Atomic Operation: إضافة الأرباح المعلقة للناشر
         if (publisherId) {
           await User.findByIdAndUpdate(
             publisherId,
@@ -885,7 +901,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
       }
     }
 
-    return res.json({ success: true, targetUrl: link.targetUrl, counted: true });
+    return sendResponse(res, 200, true, 'تم تسجيل الزيارة واحتساب الأرباح بنجاح', { targetUrl: link.targetUrl, counted: true });
   } catch (err) {
     next(err);
   }
@@ -899,24 +915,24 @@ const handleShortenLink = async (req, res, next) => {
     const userId = req.userId;
 
     if (!userId) {
-      return res.status(401).json({ success: false, error: 'غير مصرح: معرف المستخدم مفقود' });
+      return sendResponse(res, 401, false, 'غير مصرح: معرف المستخدم مفقود');
     }
 
     const { title, targetUrl, url } = req.body;
     const cleanUrl = String(targetUrl || url || '').trim();
 
     if (!cleanUrl || !isValidWebUri(cleanUrl)) {
-      return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
+      return sendResponse(res, 400, false, 'الرابط المستهدف غير صالح');
     }
 
     if (isPhishingOrMalicious(cleanUrl)) {
-      return res.status(400).json({ success: false, error: 'الرابط ينتهك معايير الأمان' });
+      return sendResponse(res, 400, false, 'الرابط ينتهك معايير الأمان');
     }
 
     try {
       const domainCheck = new URL(cleanUrl).hostname;
       if (domainCheck.includes(CONFIG.APP_DOMAIN)) {
-        return res.status(400).json({ success: false, error: 'لا يمكن اختصار روابط الموقع نفسه' });
+        return sendResponse(res, 400, false, 'لا يمكن اختصار روابط الموقع نفسه');
       }
     } catch (e) {}
 
@@ -935,6 +951,7 @@ const handleShortenLink = async (req, res, next) => {
 
     await newLink.save();
 
+    // Atomic Operation: زيادة عدد الروابط للعلامة إحصائياً
     if (mongoose.Types.ObjectId.isValid(userId)) {
       await User.findByIdAndUpdate(userId, { $inc: { 'statsSummary.totalLinksCreated': 1 } }).catch(() => {});
     }
@@ -942,8 +959,7 @@ const handleShortenLink = async (req, res, next) => {
     const linkObj = newLink.toObject ? newLink.toObject() : newLink;
     const shortUrl = `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`;
 
-    return res.json({ 
-      success: true, 
+    return sendResponse(res, 200, true, 'تم إنشاء الرابط المباشر بنجاح', { 
       link: {
         ...linkObj,
         shortUrl
@@ -983,7 +999,7 @@ const getUserLinks = async (userId) => {
 app.get('/api/links', authMiddleware, async (req, res, next) => {
   try {
     const links = await getUserLinks(req.userId);
-    return res.json({ success: true, links });
+    return sendResponse(res, 200, true, 'تم جلب الروابط بنجاح', { links });
   } catch (err) {
     next(err);
   }
@@ -992,7 +1008,7 @@ app.get('/api/links', authMiddleware, async (req, res, next) => {
 app.get('/api/user/links', authMiddleware, async (req, res, next) => {
   try {
     const links = await getUserLinks(req.userId);
-    return res.json({ success: true, links });
+    return sendResponse(res, 200, true, 'تم جلب الروابط بنجاح', { links });
   } catch (err) {
     next(err);
   }
@@ -1003,17 +1019,17 @@ app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
     const { linkId } = req.body;
     const userId = req.userId;
 
-    if (!userId) return res.status(401).json({ success: false, error: 'معرف المستخدم مفقود' });
-    if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
+    if (!userId) return sendResponse(res, 401, false, 'معرف المستخدم مفقود');
+    if (!mongoose.Types.ObjectId.isValid(linkId)) return sendResponse(res, 400, false, 'معرف الرابط غير صالح');
 
     const link = await Link.findOne({ _id: linkId, $or: [{ userId: userId }, { userId: userId.toString() }] });
-    if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات التعديل عليه' });
+    if (!link) return sendResponse(res, 404, false, 'الرابط غير موجود أو لا تملك صلاحيات التعديل عليه');
 
     link.isActive = !link.isActive;
     await link.save();
     await safeRedisDel(`link:data:${link.shortCode}`);
 
-    return res.json({ success: true, isActive: link.isActive });
+    return sendResponse(res, 200, true, 'تم تغيير حالة الرابط بنجاح', { isActive: link.isActive, link });
   } catch (err) {
     next(err);
   }
@@ -1027,8 +1043,8 @@ app.post('/api/user/settings', authMiddleware, async (req, res, next) => {
     if (defaultWallet !== undefined) updateData.defaultWallet = String(defaultWallet).trim();
     if (language !== undefined) updateData.language = String(language).trim().toLowerCase() || CONFIG.DEFAULT_LANGUAGE;
 
-    await User.findByIdAndUpdate(req.userId, updateData);
-    return res.json({ success: true, message: 'تم تحديث الإعدادات بنجاح' });
+    const updatedUser = await User.findByIdAndUpdate(req.userId, updateData, { new: true });
+    return sendResponse(res, 200, true, 'تم تحديث الإعدادات بنجاح', { user: updatedUser });
   } catch (err) {
     next(err);
   }
@@ -1049,7 +1065,12 @@ app.get('/api/admin/dashboard-data', authMiddleware, adminMiddleware, async (req
       Ad.countDocuments()
     ]);
 
-    return res.json({ success: true, withdraws, deposits, users, stats: { ...(stats[0] || {}), totalAds } });
+    return sendResponse(res, 200, true, 'تم جلب بيانات لوحة التحكم بنجاح', { 
+      withdraws, 
+      deposits, 
+      users, 
+      stats: { ...(stats[0] || {}), totalAds } 
+    });
   } catch (err) {
     next(err);
   }
@@ -1059,27 +1080,30 @@ app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (re
   try {
     const { depositId, action, reason } = req.body;
     if (!mongoose.Types.ObjectId.isValid(depositId)) {
-      return res.status(400).json({ success: false, error: 'معرف الإيداع غير صالح' });
-    }
-
-    const deposit = await Deposit.findById(depositId).populate('advertiserId');
-    if (!deposit || deposit.status !== 'pending') {
-      return res.status(400).json({ success: false, error: 'طلب الإيداع غير موجود أو تم معالجته مسبقاً' });
+      return sendResponse(res, 400, false, 'معرف الإيداع غير صالح');
     }
 
     if (!['approved', 'rejected'].includes(action)) {
-      return res.status(400).json({ success: false, error: 'الإجراء المطلوب غير صالح' });
+      return sendResponse(res, 400, false, 'الإجراء المطلوب غير صالح');
     }
 
-    deposit.status = action;
-    if (action === 'rejected') {
-      deposit.rejectReason = String(reason || 'لم يتم تحديد سبب').trim();
+    const rejectReasonText = action === 'rejected' ? String(reason || 'لم يتم تحديد سبب').trim() : '';
+
+    // Atomic Operation: التأكد من معالجة الطلب المعلق مرة واحدة فقط لمنع التكرار
+    const deposit = await Deposit.findOneAndUpdate(
+      { _id: depositId, status: 'pending' },
+      { status: action, ...(action === 'rejected' && { rejectReason: rejectReasonText }) },
+      { new: true }
+    ).populate('advertiserId');
+
+    if (!deposit) {
+      return sendResponse(res, 400, false, 'طلب الإيداع غير موجود أو تم معالجته مسبقاً');
     }
-    await deposit.save();
 
     if (action === 'approved') {
       const targetUserId = deposit.userId || deposit.advertiserId?._id;
       if (targetUserId) {
+        // Atomic Operation: إضافة الرصيد ذرياً
         await User.findByIdAndUpdate(
           targetUserId,
           { $inc: { availableBalance: deposit.amount } }
@@ -1099,7 +1123,7 @@ app.post('/api/admin/deposit/action', authMiddleware, adminMiddleware, async (re
       );
     }
 
-    return res.json({ success: true, deposit });
+    return sendResponse(res, 200, true, `تم ${action === 'approved' ? 'الموافقة على' : 'رفض'} طلب الإيداع بنجاح`, { deposit });
   } catch (err) {
     next(err);
   }
@@ -1109,29 +1133,32 @@ app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (r
   try {
     const { withdrawId, action, reason } = req.body;
     if (!mongoose.Types.ObjectId.isValid(withdrawId)) {
-      return res.status(400).json({ success: false, error: 'معرف السحب غير صالح' });
-    }
-
-    const withdraw = await Withdraw.findById(withdrawId).populate('userId');
-    if (!withdraw || withdraw.status !== 'pending') {
-      return res.status(400).json({ success: false, error: 'طلب السحب غير موجود أو تم معالجته مسبقاً' });
+      return sendResponse(res, 400, false, 'معرف السحب غير صالح');
     }
 
     if (!['approved', 'rejected'].includes(action)) {
-      return res.status(400).json({ success: false, error: 'الإجراء المطلوب غير صالح' });
+      return sendResponse(res, 400, false, 'الإجراء المطلوب غير صالح');
     }
 
-    withdraw.status = action;
-    if (action === 'rejected') {
-      withdraw.rejectReason = String(reason || 'لم يتم تحديد سبب').trim();
+    const rejectReasonText = action === 'rejected' ? String(reason || 'لم يتم تحديد سبب').trim() : '';
+
+    // Atomic Operation: التأكد من القفل الذري لطلب السحب لمنع الإعادة المزدوجة
+    const withdraw = await Withdraw.findOneAndUpdate(
+      { _id: withdrawId, status: 'pending' },
+      { status: action, ...(action === 'rejected' && { rejectReason: rejectReasonText }) },
+      { new: true }
+    ).populate('userId');
+
+    if (!withdraw) {
+      return sendResponse(res, 400, false, 'طلب السحب غير موجود أو تم معالجته مسبقاً');
     }
-    await withdraw.save();
 
     const targetUserId = withdraw.userId?._id || withdraw.userId;
     const tgNotifyId = withdraw.telegramId || withdraw.userId?.telegramId;
 
     if (action === 'rejected') {
       if (targetUserId) {
+        // Atomic Operation: استرجاع المبلغ المحجوز للرصيد المتاح ذرياً
         await User.findByIdAndUpdate(
           targetUserId, 
           { $inc: { availableBalance: withdraw.amount } }
@@ -1149,7 +1176,7 @@ app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (r
       );
     }
 
-    return res.json({ success: true, withdraw });
+    return sendResponse(res, 200, true, `تم ${action === 'approved' ? 'الموافقة على' : 'رفض'} طلب السحب بنجاح`, { withdraw });
   } catch (err) {
     next(err);
   }
@@ -1161,7 +1188,7 @@ app.post('/api/admin/distribute-revenue', authMiddleware, adminMiddleware, async
     const revenue = Number(totalRevenue);
 
     if (isNaN(revenue) || revenue <= 0) {
-      return res.status(400).json({ success: false, error: 'مبلغ الإيرادات غير صالح' });
+      return sendResponse(res, 400, false, 'مبلغ الإيرادات غير صالح');
     }
 
     const aggregateTotal = await Link.aggregate([
@@ -1170,12 +1197,14 @@ app.post('/api/admin/distribute-revenue', authMiddleware, adminMiddleware, async
 
     const totalImp = aggregateTotal[0]?.total || 0;
     if (totalImp === 0) {
-      return res.status(400).json({ success: false, error: 'لا توجد مشاهدات مؤكدة لتوزيع الأرباح' });
+      return sendResponse(res, 400, false, 'لا توجد مشاهدات مؤكدة لتوزيع الأرباح');
     }
 
     const links = await Link.find({ validImpressions: { $gt: 0 } }).populate('userId');
     const releaseDate = new Date();
     releaseDate.setDate(releaseDate.getDate() + 1);
+
+    let distributedCount = 0;
 
     for (let link of links) {
       if (!link.userId) continue;
@@ -1197,11 +1226,11 @@ app.post('/api/admin/distribute-revenue', authMiddleware, adminMiddleware, async
       await User.findByIdAndUpdate(publisherId, { $inc: { pendingBalance: earned } });
       await EarningsHold.create({ userId: publisherId, telegramId: publisherTgId, amount: earned, releaseAt: releaseDate });
 
-      link.validImpressions = 0;
-      await link.save();
+      await Link.findByIdAndUpdate(link._id, { $set: { validImpressions: 0 } });
+      distributedCount++;
     }
 
-    return res.json({ success: true, message: `تم توزيع $${revenue} بنجاح على ${links.length} رابطاً.` });
+    return sendResponse(res, 200, true, `تم توزيع $${revenue} بنجاح على ${distributedCount} رابطاً.`, { revenue, distributedCount });
   } catch (err) {
     next(err);
   }
@@ -1211,11 +1240,11 @@ app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (r
   try {
     const { userId } = req.body;
     if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return res.status(400).json({ success: false, error: 'معرف المستخدم غير صالح' });
+      return sendResponse(res, 400, false, 'معرف المستخدم غير صالح');
     }
 
     const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ success: false, error: 'المستخدم غير موجود' });
+    if (!user) return sendResponse(res, 404, false, 'المستخدم غير موجود');
 
     user.isBanned = !user.isBanned;
     await user.save();
@@ -1224,7 +1253,7 @@ app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (r
       sendTelegramNotification(user.telegramId, `🚫 <b>تنبيه من الإدارة:</b> تم حظر حسابك بسبب مخالفة الشروط.\nالدعم: ${CONFIG.SUPPORT_USERNAME}`);
     }
 
-    return res.json({ success: true, isBanned: user.isBanned });
+    return sendResponse(res, 200, true, `تم ${user.isBanned ? 'حظر' : 'إلغاء حظر'} المستخدم بنجاح`, { isBanned: user.isBanned, userId: user._id });
   } catch (err) {
     next(err);
   }
@@ -1240,6 +1269,7 @@ async function processEarningsSettlement() {
 
     for (let hold of readyHolds) {
       try {
+        // Atomic Operation: القفل الذري للسجل لمنع إطلاق الأرباح مرتين
         const holdUpdated = await EarningsHold.findOneAndUpdate(
           { _id: hold._id, isReleased: false },
           { isReleased: true },
@@ -1247,6 +1277,7 @@ async function processEarningsSettlement() {
         );
 
         if (holdUpdated) {
+          // Atomic Operation: تحويل الأرباح ذرياً من الأرباح المعلقة إلى الرصيد المتاح
           const userUpdate = await User.findByIdAndUpdate(
             hold.userId,
             { $inc: { pendingBalance: -hold.amount, availableBalance: hold.amount } },
@@ -1278,7 +1309,7 @@ if (cron) {
 app.all('/api/cron/settle-earnings', async (req, res, next) => {
   try {
     await processEarningsSettlement();
-    return res.json({ success: true, message: 'تم تنفيذ تسوية الأرباح بنجاح' });
+    return sendResponse(res, 200, true, 'تم تنفيذ تسوية الأرباح بنجاح');
   } catch (err) {
     next(err);
   }
@@ -1297,7 +1328,7 @@ app.get(['/app', '/admin', '/r/:code'], (req, res) => {
 
 // --- Catch-all API 404 Handler ---
 app.use('/api/*', (req, res) => {
-  res.status(404).json({ success: false, error: 'المسار المطلوب غير موجود' });
+  return sendResponse(res, 404, false, 'المسار المطلوب غير موجود');
 });
 
 // =========================================================================
@@ -1311,11 +1342,7 @@ app.use((err, req, res, next) => {
     ? 'حدث خطأ غير متوقع في الخادم، يرجى المحاولة لاحقاً' 
     : (err.message || 'خطأ داخلي في النظام');
 
-  return res.status(statusCode).json({
-    success: false,
-    error: message,
-    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
-  });
+  return sendResponse(res, statusCode, false, message, process.env.NODE_ENV !== 'production' ? { stack: err.stack } : {});
 });
 
 // --- Global Process Crash Protection Guard ---
