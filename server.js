@@ -459,7 +459,7 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
     }
 
     const [rawLinks, withdraws, announcements, ads, deposits] = await Promise.all([
-      Link.find({ $or: [{ userId: userId }, { userId: userId.toString() }] }).sort({ createdAt: -1 }).lean(),
+      Link.find({ userId: userId }).sort({ createdAt: -1 }).lean(),
       Withdraw.find({ userId: userId }).sort({ createdAt: -1 }).lean(),
       Announcement.find({ $or: [{ isGlobal: true }, { targetUserId: userId }] }).sort({ createdAt: -1 }).lean(),
       Ad.find({ userId: userId }).sort({ createdAt: -1 }).lean(),
@@ -912,7 +912,8 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 // =========================================================================
 const handleShortenLink = async (req, res, next) => {
   try {
-    const userId = req.userId;
+    // استخراج userId من جسم الطلب (Body) أو من الجلسة (Auth Middleware)
+    const userId = req.body.userId || req.userId;
 
     if (!userId) {
       return sendResponse(res, 401, false, 'غير مصرح: معرف المستخدم مفقود');
@@ -939,6 +940,7 @@ const handleShortenLink = async (req, res, next) => {
     const shortCode = crypto.randomBytes(3).toString('hex');
     const publisherTelegramId = req.user?.telegramId || null;
     
+    // إنشاء الرابط الجديد وحفظ userId معه
     const newLink = new Link({
       userId: userId,
       publisherTelegramId: publisherTelegramId,
@@ -974,15 +976,11 @@ const handleShortenLink = async (req, res, next) => {
 app.post('/api/links/shorten', authMiddleware, linkCreationLimiter, handleShortenLink);
 app.post('/api/links', authMiddleware, linkCreationLimiter, handleShortenLink);
 
+// التصفية باستخدام Link.find({ userId }) لإرجاع روابط المستخدم المحدد فقط
 const getUserLinks = async (userId) => {
   if (!userId) return [];
 
-  const rawLinks = await Link.find({
-    $or: [
-      { userId: userId },
-      { userId: userId.toString() }
-    ]
-  }).sort({ createdAt: -1 }).lean();
+  const rawLinks = await Link.find({ userId }).sort({ createdAt: -1 }).lean();
 
   return rawLinks.map(link => {
     const totalViews = link.views || 0;
@@ -998,7 +996,8 @@ const getUserLinks = async (userId) => {
 
 app.get('/api/links', authMiddleware, async (req, res, next) => {
   try {
-    const links = await getUserLinks(req.userId);
+    const userId = req.query.userId || req.userId;
+    const links = await getUserLinks(userId);
     return sendResponse(res, 200, true, 'تم جلب الروابط بنجاح', { links });
   } catch (err) {
     next(err);
@@ -1007,7 +1006,8 @@ app.get('/api/links', authMiddleware, async (req, res, next) => {
 
 app.get('/api/user/links', authMiddleware, async (req, res, next) => {
   try {
-    const links = await getUserLinks(req.userId);
+    const userId = req.query.userId || req.userId;
+    const links = await getUserLinks(userId);
     return sendResponse(res, 200, true, 'تم جلب الروابط بنجاح', { links });
   } catch (err) {
     next(err);
@@ -1022,7 +1022,7 @@ app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
     if (!userId) return sendResponse(res, 401, false, 'معرف المستخدم مفقود');
     if (!mongoose.Types.ObjectId.isValid(linkId)) return sendResponse(res, 400, false, 'معرف الرابط غير صالح');
 
-    const link = await Link.findOne({ _id: linkId, $or: [{ userId: userId }, { userId: userId.toString() }] });
+    const link = await Link.findOne({ _id: linkId, userId: userId });
     if (!link) return sendResponse(res, 404, false, 'الرابط غير موجود أو لا تملك صلاحيات التعديل عليه');
 
     link.isActive = !link.isActive;
