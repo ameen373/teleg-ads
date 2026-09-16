@@ -1,5 +1,5 @@
 /**
- * Ultra-Enterprise Models Architecture (V5.3 - Production-Ready & High-Load Optimized)
+ * Ultra-Enterprise Models Architecture (V5.4 - Production-Ready & High-Load Optimized)
  * Platform: Telega.ads Advertising & Shortener Network
  * Security: Multi-Tenant Isolation, Strict Validation, Anti-Negative Balance Enforcement
  */
@@ -12,7 +12,7 @@ const mongoose = require('mongoose');
 
 /**
  * Precision currency formatter up to 5 decimal places.
- * Prevents IEEE 754 floating-point errors (e.g. 0.1 + 0.2 = 0.30000000000000004).
+ * Prevents IEEE 754 floating-point rounding issues (e.g. 0.1 + 0.2 = 0.30000000000000004).
  */
 const formatCurrency = (val) => {
   if (val === null || val === undefined || val === '') return 0;
@@ -51,15 +51,16 @@ const enforceTenantKey = (tenantKey, keyName = 'userId') => {
   }
 };
 
-// --------------------------------------------------
-// 1. User Model (Profiles, Balances & System Stats)
-// --------------------------------------------------
+// ==================================================
+// 1. User Model (Users)
+// ==================================================
 const userSchema = new mongoose.Schema({
   telegramId: { 
     type: String, 
     required: [true, 'Telegram ID is strictly required'], 
     unique: true, 
     trim: true,
+    index: true,
     maxlength: [50, 'Telegram ID is too long']
   },
   username: { 
@@ -138,30 +139,33 @@ const userSchema = new mongoose.Schema({
   }
 }, globalSchemaOptions);
 
-// Compound Indexes for Ultra-Fast Queries
+// Compound Indexes for High-Concurrency User Lookups & Filters
 userSchema.index({ telegramId: 1, isBanned: 1 });
 userSchema.index({ role: 1, isBanned: 1 });
+userSchema.index({ referredBy: 1, createdAt: -1 });
 
 userSchema.statics.findByTelegramIdIsolated = function(telegramId) {
   enforceTenantKey(telegramId, 'telegramId');
   return this.findOne({ telegramId: String(telegramId).trim() });
 };
 
-// --------------------------------------------------
-// 2. Wallet Model (Central Financial Ledger)
-// --------------------------------------------------
+// ==================================================
+// 2. Wallet Model (Wallet)
+// ==================================================
 const walletSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
     required: [true, 'User ID is strictly required for wallet mapping'], 
-    unique: true 
+    unique: true,
+    index: true
   },
   telegramId: { 
     type: String, 
     required: [true, 'Telegram ID is strictly required for wallet lookup'], 
     unique: true, 
     trim: true,
+    index: true,
     maxlength: [50, 'Telegram ID is too long']
   },
   availableBalance: { 
@@ -197,6 +201,7 @@ const walletSchema = new mongoose.Schema({
   }
 }, globalSchemaOptions);
 
+// Compound Index for High-Speed Financial Operations
 walletSchema.index({ userId: 1, telegramId: 1 });
 
 walletSchema.statics.getWalletIsolated = function(userId) {
@@ -204,9 +209,9 @@ walletSchema.statics.getWalletIsolated = function(userId) {
   return this.findOne({ userId });
 };
 
-// --------------------------------------------------
-// 3. Transaction History Model (Financial Audit Logs)
-// --------------------------------------------------
+// ==================================================
+// 3. Transactions Model (Transactions)
+// ==================================================
 const transactionSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -255,7 +260,7 @@ const transactionSchema = new mongoose.Schema({
   }
 }, globalSchemaOptions);
 
-// Performance Indexes for Financial Audit Ledger
+// Compound Performance Indexes for Financial History Audits
 transactionSchema.index({ userId: 1, createdAt: -1 });
 transactionSchema.index({ telegramId: 1, createdAt: -1 });
 transactionSchema.index({ userId: 1, type: 1, createdAt: -1 });
@@ -266,9 +271,9 @@ transactionSchema.statics.getUserTransactionsIsolated = function(userId, filter 
   return this.find({ ...filter, userId }).sort({ createdAt: -1 });
 };
 
-// --------------------------------------------------
-// 4. Ad Campaign Model (Campaigns)
-// --------------------------------------------------
+// ==================================================
+// 4. Campaigns / Ad Model (Campaigns)
+// ==================================================
 const adSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -374,7 +379,7 @@ adSchema.pre('validate', function(next) {
   next();
 });
 
-// High-Concurrency Ad Bidding & Selection Indexes
+// High-Concurrency Ad Bidding & Selection Compound Indexes
 adSchema.index({ status: 1, remainingBudget: 1, createdAt: -1 });
 adSchema.index({ userId: 1, status: 1, createdAt: -1 });
 adSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
@@ -385,15 +390,16 @@ adSchema.statics.findAdvertiserAdsIsolated = function(userId, filter = {}) {
   return this.find({ ...filter, $or: [{ userId }, { advertiserId: userId }] }).sort({ createdAt: -1 });
 };
 
-// --------------------------------------------------
-// 5. Short Link Model (Short Links - Multi-Tenant)
-// --------------------------------------------------
+// ==================================================
+// 5. Short Links Model (ShortLinks / Link)
+// ==================================================
 const linkSchema = new mongoose.Schema({
   shortCode: { 
     type: String, 
     required: [true, 'Short code is strictly required'], 
     unique: true, 
     trim: true,
+    index: true,
     maxlength: [30, 'Short code cannot exceed 30 characters']
   },
   userId: { 
@@ -462,7 +468,7 @@ linkSchema.pre('validate', function(next) {
   next();
 });
 
-// Ultra-Fast Link Resolution & User Dashboard Indexes
+// Ultra-Fast Link Resolution & High-Traffic Compound Indexes
 linkSchema.index({ shortCode: 1, isActive: 1 });
 linkSchema.index({ userId: 1, createdAt: -1 });
 linkSchema.index({ telegramId: 1, createdAt: -1 });
@@ -480,9 +486,9 @@ linkSchema.statics.findOneIsolated = function(shortCode, userId) {
   return this.findOne({ shortCode: String(shortCode).trim(), userId });
 };
 
-// --------------------------------------------------
+// ==================================================
 // 6. Impression & Traffic Model
-// --------------------------------------------------
+// ==================================================
 const impressionSchema = new mongoose.Schema({
   linkId: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -575,7 +581,7 @@ impressionSchema.pre('validate', function(next) {
   next();
 });
 
-// Analytics & Fraud Detection Indexes
+// Analytics & Fraud Detection Compound Indexes
 impressionSchema.index({ linkId: 1, createdAt: -1 });
 impressionSchema.index({ userId: 1, createdAt: -1 });
 impressionSchema.index({ telegramId: 1, createdAt: -1 });
@@ -587,9 +593,9 @@ impressionSchema.statics.getPublisherImpressionsIsolated = function(userId, extr
   return this.find({ ...extraFilter, $or: [{ userId }, { publisherId: userId }] }).sort({ createdAt: -1 });
 };
 
-// --------------------------------------------------
-// 7. Anti-Bypass Click Session Model
-// --------------------------------------------------
+// ==================================================
+// 7. Click Session Model (Anti-Bypass Traffic Security)
+// ==================================================
 const clickSessionSchema = new mongoose.Schema({
   linkId: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -643,6 +649,7 @@ const clickSessionSchema = new mongoose.Schema({
     required: [true, 'Bridge token is required'], 
     trim: true,
     unique: true,
+    index: true,
     maxlength: [128, 'Token too long'] 
   },
   createdAt: { 
@@ -662,9 +669,9 @@ clickSessionSchema.index({ linkId: 1, ip: 1 });
 clickSessionSchema.index({ userId: 1, createdAt: -1 });
 clickSessionSchema.index({ telegramId: 1, createdAt: -1 });
 
-// --------------------------------------------------
-// 8. Withdraw Request Model (Withdrawals)
-// --------------------------------------------------
+// ==================================================
+// 8. Withdrawals Model (Withdraw / Withdrawals)
+// ==================================================
 const withdrawSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -754,12 +761,12 @@ withdrawSchema.pre('validate', function(next) {
   next();
 });
 
-// Admin Review & User History Indexes
+// Admin Review & User History Compound Indexes
 withdrawSchema.index({ userId: 1, status: 1, createdAt: -1 });
 withdrawSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
 withdrawSchema.index({ status: 1, createdAt: -1 });
 
-// Strict Partial Unique Index: Prevents multiple pending withdrawals for the same user simultaneously
+// Strict Partial Unique Index: Prevents simultaneous pending withdrawals for the same user
 withdrawSchema.index(
   { userId: 1, status: 'pending' }, 
   { unique: true, partialFilterExpression: { status: 'pending' } }
@@ -772,9 +779,9 @@ withdrawSchema.statics.getUserWithdrawalsIsolated = function(userId, status = nu
   return this.find(query).sort({ createdAt: -1 });
 };
 
-// --------------------------------------------------
-// 9. Earnings Hold Model (Rolling Security Holds)
-// --------------------------------------------------
+// ==================================================
+// 9. Earnings Hold Model (Security Hold Window)
+// ==================================================
 const earningsHoldSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -817,9 +824,9 @@ earningsHoldSchema.statics.getUserHoldsIsolated = function(userId) {
   return this.find({ userId, isReleased: false }).sort({ releaseAt: 1 });
 };
 
-// --------------------------------------------------
-// 10. Advertiser Deposit Model (Deposits)
-// --------------------------------------------------
+// ==================================================
+// 10. Deposits Model (Deposit / Deposits)
+// ==================================================
 const depositSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -868,6 +875,7 @@ const depositSchema = new mongoose.Schema({
     required: [true, 'Transaction hash (TxID) is required'],
     trim: true,
     unique: true,
+    index: true,
     maxlength: [120, 'TxID cannot exceed 120 characters']
   },
   status: {
@@ -907,9 +915,9 @@ depositSchema.statics.getAdvertiserDepositsIsolated = function(userId) {
   return this.find({ $or: [{ userId }, { advertiserId: userId }] }).sort({ createdAt: -1 });
 };
 
-// --------------------------------------------------
+// ==================================================
 // 11. Announcement Model (System Notifications)
-// --------------------------------------------------
+// ==================================================
 const announcementSchema = new mongoose.Schema({
   title: { 
     type: String, 
@@ -958,9 +966,9 @@ announcementSchema.statics.getForUserIsolated = function(userId, telegramId) {
   }).sort({ createdAt: -1 });
 };
 
-// --------------------------------------------------
-// Exporting Safe Compiled Mongoose Models
-// --------------------------------------------------
+// ==================================================
+// Safe Compiled Mongoose Models & Exports
+// ==================================================
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Wallet = mongoose.models.Wallet || mongoose.model('Wallet', walletSchema);
 const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
@@ -978,10 +986,13 @@ module.exports = {
   Wallet,
   Transaction,
   Ad,
+  Campaign: Ad, // Alias for Campaign compatibility
   Link,
+  ShortLink: Link, // Alias for ShortLink compatibility
   Impression,
   ClickSession,
   Withdraw,
+  Withdrawal: Withdraw, // Alias for Withdrawal compatibility
   EarningsHold,
   Deposit,
   Announcement
