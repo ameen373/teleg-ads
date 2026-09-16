@@ -14,7 +14,6 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const morgan = require('morgan');
 const winston = require('winston');
-const validUrl = require('valid-url');
 const axios = require('axios');
 const Redis = require('ioredis');
 const cors = require('cors');
@@ -44,19 +43,23 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-// --- Centralized Logging Engine ---
+// --- Centralized Logging Engine (Vercel Read-Only FS Safe) ---
+const loggerTransports = [
+  new winston.transports.Console({ format: winston.format.simple() })
+];
+
+if (!process.env.VERCEL && process.env.NODE_ENV === 'production') {
+  loggerTransports.push(
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' })
+  );
+}
+
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(winston.format.timestamp(), winston.format.json()),
-  transports: [
-    new winston.transports.File({ filename: 'error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'combined.log' })
-  ]
+  transports: loggerTransports
 });
-
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(new winston.transports.Console({ format: winston.format.simple() }));
-}
 
 app.use(morgan('combined', { stream: { write: (message) => logger.info(message.trim()) } }));
 
@@ -117,6 +120,17 @@ async function safeRedisSet(key, value, mode, duration) {
 async function safeRedisDel(key) {
   if (!redisIsConnected) return;
   try { await redis.del(key); } catch (e) { logger.error('Redis Del Failed: ' + e.message); }
+}
+
+// --- Native Web URL Validator (Replaces valid-url package) ---
+function isValidWebUrl(urlString) {
+  if (!urlString || typeof urlString !== 'string') return false;
+  try {
+    const parsedUrl = new URL(urlString.trim());
+    return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
+  } catch (err) {
+    return false;
+  }
 }
 
 // --- Database Connection Pipeline ---
@@ -205,6 +219,7 @@ const validateTraffic = (req, res, next) => {
 };
 
 const isPhishingOrMalicious = (url) => {
+  if (!url || typeof url !== 'string') return false;
   const blacklistedKeywords = ['phish', 'login-verify', 'free-telegram-premium', 'grabber', 'stealer', 'iplogger'];
   const lowerUrl = url.toLowerCase();
   return blacklistedKeywords.some(keyword => lowerUrl.includes(keyword));
@@ -428,7 +443,7 @@ const handleShortenLink = async (req, res) => {
     const { title, targetUrl, url } = req.body;
     const cleanUrl = String(targetUrl || url || '').trim();
 
-    if (!cleanUrl || !validUrl.isWebUri(cleanUrl)) {
+    if (!cleanUrl || !isValidWebUrl(cleanUrl)) {
       return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
     }
 
@@ -557,7 +572,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'عنوان الإعلان مطلوب' });
     }
 
-    if (!validUrl.isWebUri(targetUrl)) {
+    if (!targetUrl || !isValidWebUrl(targetUrl)) {
       await session.abortTransaction();
       return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
     }
@@ -1272,3 +1287,5 @@ process.on('unhandledRejection', (reason, promise) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Enterprise Server V6 Active on Port ${PORT}`));
+
+module.exports = app;
