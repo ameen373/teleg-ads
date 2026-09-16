@@ -188,13 +188,28 @@ async function safeRedisDel(key) {
   try { await redis.del(key); } catch {}
 }
 
-mongoose.connect(CONFIG.MONGO_URI, {
-  maxPoolSize: 50,
-  minPoolSize: 10,
-  serverSelectionTimeoutMS: 5000,
-  socketTimeoutMS: 45000
-}).then(() => console.log('✅ Master MongoDB V6 Connection Established'))
-  .catch(err => { logger.error('❌ Mongo Critical Failure:', err); process.exit(1); });
+// الاتصال الموثوق بـ MongoDB متوافق مع بيئة Vercel Serverless
+let isDbConnected = false;
+async function connectDatabase() {
+  if (isDbConnected && mongoose.connection.readyState === 1) return;
+  try {
+    const db = await mongoose.connect(CONFIG.MONGO_URI, {
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000
+    });
+    isDbConnected = db.connections[0].readyState === 1;
+    console.log('✅ Master MongoDB V6 Connection Established');
+  } catch (err) {
+    logger.error('❌ Mongo Critical Failure:', err);
+  }
+}
+connectDatabase();
+
+app.use(async (req, res, next) => {
+  await connectDatabase();
+  next();
+});
 
 // =========================================================================
 // --- 4. أدوات الأمان والمكافحة التلقائية (Anti-Fraud Engines) ---
@@ -318,7 +333,7 @@ const authenticateUser = async (req, res, next) => {
 
 const requireAdmin = (req, res, next) => {
   if (!req.user || String(req.user.telegramId).trim() !== CONFIG.ADMIN_ID) {
-    return res.status(403).json({ success: false, message: 'وصول مرفوض: صلاحديد الإدارة مطلوبة' });
+    return res.status(403).json({ success: false, message: 'وصول مرفوض: صلاحيات الإدارة مطلوبة' });
   }
   next();
 };
@@ -920,7 +935,7 @@ cron.schedule('0 * * * *', async () => {
 });
 
 // =========================================================================
-// --- 12. مسارات العرض ومعالجة الاستثناءات ---
+// --- 12. مسارات العرض ومعالجة الاستثناءات والتصدير لـ Vercel Serverless ---
 // =========================================================================
 app.get(['/', '/app', '/admin', '/r/:code'], (req, res) => {
   res.sendFile(path.join(__dirname, 'views.html'));
@@ -937,5 +952,9 @@ app.use((err, req, res, next) => {
 process.on('uncaughtException', (err) => logger.error('Uncaught Exception Caught: ' + err.stack));
 process.on('unhandledRejection', (reason) => logger.error('Unhandled Rejection Caught: ' + reason));
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Telega.ads Master V6 Active & Listening on Port ${PORT}`));
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => console.log(`🚀 Telega.ads Master V6 Active & Listening on Port ${PORT}`));
+}
+
+module.exports = app;
