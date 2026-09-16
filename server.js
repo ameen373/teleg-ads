@@ -14,13 +14,23 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const morgan = require('morgan');
 const winston = require('winston');
-const validUrl = require('valid-url');
 const axios = require('axios');
 const Redis = require('ioredis');
 const cors = require('cors');
 const { User, Ad, Link, Impression, ClickSession, Withdraw, EarningsHold, Deposit, Announcement } = require('./models');
 
 const app = express();
+
+// --- Native URL Validation Helper (Replaces valid-url dependency) ---
+const isValidWebUrl = (urlStr) => {
+  if (!urlStr || typeof urlStr !== 'string') return false;
+  try {
+    const parsedUrl = new URL(urlStr);
+    return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
+  } catch (e) {
+    return false;
+  }
+};
 
 // --- Setup Server Trust Proxy ---
 app.set('trust proxy', 1);
@@ -121,7 +131,7 @@ async function safeRedisDel(key) {
 
 // --- Distributed Locking Mechanism for Concurrency Safety ---
 async function acquireLock(lockKey, ttlMs = 5000) {
-  if (!redisIsConnected) return true; // Fallback to DB atomic constraints if Redis is down
+  if (!redisIsConnected) return true;
   try {
     const result = await redis.set(`lock:${lockKey}`, 'LOCKED', 'NX', 'PX', ttlMs);
     return result === 'OK';
@@ -146,7 +156,6 @@ mongoose.connect(CONFIG.MONGO_URI, {
 }).then(() => console.log('✅ Enterprise MongoDB Pipeline Connected'))
   .catch(err => {
     logger.error('❌ Critical MongoDB Connection Failure:', err);
-    process.exit(1);
   });
 
 // --- Telegram Dispatch Helper ---
@@ -235,7 +244,6 @@ const authMiddleware = async (req, res, next) => {
   try {
     let user = null;
 
-    // Option 1: Bearer Token Authorization Header
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
@@ -245,7 +253,6 @@ const authMiddleware = async (req, res, next) => {
       } catch (err) {}
     }
 
-    // Option 2: Fallback to Direct Telegram InitData Header
     if (!user) {
       const initData = req.headers['x-telegram-init-data'];
       const telegramUser = verifyTelegramData(initData);
@@ -262,7 +269,6 @@ const authMiddleware = async (req, res, next) => {
       return res.status(403).json({ success: false, error: 'حسابك معطل بسبب مخالفة الشروط' });
     }
 
-    // ربط كائن المستخدم واستخراج userId بشكل صريح وموحد
     req.user = user;
     req.user.id = user._id.toString();
     req.userId = user._id;
@@ -459,7 +465,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'عنوان الإعلان مطلوب' });
     }
 
-    if (!validUrl.isWebUri(targetUrl)) {
+    if (!isValidWebUrl(targetUrl)) {
       await session.abortTransaction();
       return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
     }
@@ -469,7 +475,6 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'الحد الأدنى لميزانية الحملة هو $5' });
     }
 
-    // خصم ذري مباشر مع التحقق من كفاية الرصيد
     const updatedUser = await User.findOneAndUpdate(
       { _id: req.userId, availableBalance: { $gte: budget } },
       { $inc: { availableBalance: -budget } },
@@ -624,7 +629,6 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
 
     const netAmount = numAmt - FEE;
 
-    // الخصم الذري يمنع تماماً السالب والمعاملات المزدوجة
     const updatedUser = await User.findOneAndUpdate(
       { _id: req.userId, availableBalance: { $gte: numAmt } },
       { $inc: { availableBalance: -numAmt }, defaultWallet: cleanWallet },
@@ -874,7 +878,6 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 // --- Strict Link Management Engine (100% Isolated Routes Guard) ---
 // =========================================================================
 
-// Shared Link Shortening Logic
 const handleShortenLink = async (req, res) => {
   try {
     const userId = req.userId;
@@ -889,7 +892,7 @@ const handleShortenLink = async (req, res) => {
     const { title, targetUrl, url } = req.body;
     const cleanUrl = String(targetUrl || url || '').trim();
 
-    if (!cleanUrl || !validUrl.isWebUri(cleanUrl)) {
+    if (!cleanUrl || !isValidWebUrl(cleanUrl)) {
       return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
     }
 
@@ -904,7 +907,6 @@ const handleShortenLink = async (req, res) => {
       }
     } catch (e) {}
 
-    // ضمان كود فريد ومنع التصادم
     let shortCode = '';
     let isUnique = false;
     let attempts = 0;
@@ -958,11 +960,9 @@ const handleShortenLink = async (req, res) => {
   }
 };
 
-// Create Link Engines (Direct & Alias endpoints)
 app.post('/api/links/shorten', authMiddleware, linkCreationLimiter, handleShortenLink);
 app.post('/api/links', authMiddleware, linkCreationLimiter, handleShortenLink);
 
-// Fetch Links Helper Function
 const getUserLinks = async (userId) => {
   if (!userId) return [];
 
@@ -985,7 +985,6 @@ const getUserLinks = async (userId) => {
   });
 };
 
-// Fetch Links Main Endpoint
 app.get('/api/links', authMiddleware, async (req, res, next) => {
   try {
     const links = await getUserLinks(req.userId);
@@ -995,7 +994,6 @@ app.get('/api/links', authMiddleware, async (req, res, next) => {
   }
 });
 
-// Fetch Links Alias Endpoint
 app.get('/api/user/links', authMiddleware, async (req, res, next) => {
   try {
     const links = await getUserLinks(req.userId);
@@ -1333,5 +1331,13 @@ process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
+// =========================================================================
+// --- Server Initialization & Vercel Serverless Export Guard ---
+// =========================================================================
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Enterprise Server V6 Active on Port ${PORT}`));
+
+if (process.env.NODE_ENV !== 'production' || require.main === module) {
+  app.listen(PORT, () => console.log(`🚀 Enterprise Server V6 Active on Port ${PORT}`));
+}
+
+module.exports = app;
