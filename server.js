@@ -144,11 +144,11 @@ const CONFIG = Object.freeze({
   ADSGRAM_BLOCK_ID: process.env.ADSGRAM_BLOCK_ID || '1234',
   APP_DOMAIN: process.env.APP_DOMAIN || 'teleg-ads.vercel.app',
   REDIS_URL: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
-  WITHDRAWAL_FEE: 3.00, // رسوم ثابتة للسحب الخارجي $3
-  MIN_WITHDRAWAL: 10.00, // الحد الأدنى للسحب $10
-  PUBLISHER_CPM_RATE: 0.0012, // ربح الناشر لكل زيارة
-  REFERRAL_COMMISSION: 0.10,  // 10% عمولة الإحالة
-  DAILY_IP_CAP: 20            // أقصى عدد زيارات محسوبة لـ IP واحد يومياً
+  WITHDRAWAL_FEE: 3.00,
+  MIN_WITHDRAWAL: 10.00,
+  PUBLISHER_CPM_RATE: 0.0012,
+  REFERRAL_COMMISSION: 0.10,
+  DAILY_IP_CAP: 20
 });
 
 let redisConnected = false;
@@ -188,7 +188,6 @@ async function safeRedisDel(key) {
   try { await redis.del(key); } catch {}
 }
 
-// الاتصال الموثوق بـ MongoDB متوافق مع بيئة Vercel Serverless
 let isDbConnected = false;
 async function connectDatabase() {
   if (isDbConnected && mongoose.connection.readyState === 1) return;
@@ -462,7 +461,7 @@ app.post('/api/wallet/withdraw', authenticateUser, async (req, res) => {
   const netAmount = numAmount - fee;
 
   if (netAmount <= 0) {
-    return res.status(400).json({ success: false, message: `المبلغ اقل من رسوم الشبكة ($${fee})` });
+    return res.status(400).json({ success: false, message: `المبلغ أقل من رسوم الشبكة ($${fee})` });
   }
 
   const session = await mongoose.startSession();
@@ -713,14 +712,12 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res) => {
       return res.status(404).json({ success: false, message: 'الرابط المستهدف غير موجود' });
     }
 
-    // فحص وتطبيق حد الزيارات اليومية الحقيقية لكل IP
     const dailyIpKey = `daily:ip:${req.ip}`;
     const currentIpCount = await safeRedisIncr(dailyIpKey, 86400);
 
     const lockKey = `imp:${clickSession.linkId}:${req.ip}`;
     const isDuplicate = await safeRedisGet(lockKey);
 
-    // إذا تم تجاوز الحد اليومي للـ IP أو كشف تكرار مفرط
     if (isDuplicate || currentIpCount > CONFIG.DAILY_IP_CAP) {
       await Link.findByIdAndUpdate(link._id, { $inc: { views: 1, invalidImpressions: 1 } }, { session: sessionDb });
       await sessionDb.commitTransaction();
@@ -729,14 +726,13 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res) => {
 
     await safeRedisSet(lockKey, '1', 'EX', 86400);
 
-    const publisherEarning = CONFIG.PUBLISHER_CPM_RATE; // $0.0012
+    const publisherEarning = CONFIG.PUBLISHER_CPM_RATE;
 
-    // استعلام المحيل وإعداد نسب الأرباح التراكمية (10% Referral Engine)
     const publisherUser = await User.findById(link.userId).session(sessionDb);
     let referralEarning = 0;
 
     if (publisherUser && publisherUser.referredBy) {
-      referralEarning = publisherEarning * CONFIG.REFERRAL_COMMISSION; // $0.00012
+      referralEarning = publisherEarning * CONFIG.REFERRAL_COMMISSION;
     }
 
     await Impression.create([{
@@ -762,7 +758,6 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res) => {
       }
     }
 
-    // إضافة الأرباح المعلقة للناشر
     await Wallet.findOneAndUpdate(
       { userId: link.userId },
       { $inc: { pendingBalance: publisherEarning, totalEarned: publisherEarning } },
@@ -778,7 +773,6 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res) => {
       releaseAt: releaseDate
     }], { session: sessionDb });
 
-    // إضافة أرباح الإحالة المباشرة للمُحيل في حال وجوده
     if (publisherUser && publisherUser.referredBy && referralEarning > 0) {
       await Wallet.findOneAndUpdate(
         { userId: publisherUser.referredBy },
@@ -883,7 +877,6 @@ app.post('/api/admin/transaction/action', authenticateUser, requireAdmin, async 
       } else {
         tx.status = 'rejected';
         if (tx.type === 'withdrawal') {
-          // إعادة المبلغ المخصوم للمستخدم عند رفض طلب السحب
           await Wallet.findOneAndUpdate(
             { userId: tx.userId._id },
             { $inc: { balance: tx.amount, totalSpent: -tx.amount } },
@@ -935,10 +928,20 @@ cron.schedule('0 * * * *', async () => {
 });
 
 // =========================================================================
-// --- 12. مسارات العرض ومعالجة الاستثناءات والتصدير لـ Vercel Serverless ---
+// --- 12. مسارات العرض والتصديق المطلق عبر path.join لـ Vercel Serverless ---
 // =========================================================================
+// إرجاع الملف الرئيسي لأي مسار واجهة
 app.get(['/', '/app', '/admin', '/r/:code'], (req, res) => {
   res.sendFile(path.join(__dirname, 'views.html'));
+});
+
+// التوجيه الاحتياطي للواجهات عند فتح مسارات غير معروفة عبر الصفحة الرئيسية
+app.get('*', (req, res) => {
+  if (!req.path.startsWith('/api')) {
+    res.sendFile(path.join(__dirname, 'views.html'));
+  } else {
+    res.status(404).json({ success: false, message: 'المسار البرمجي المطلوب غير موجود' });
+  }
 });
 
 app.use((err, req, res, next) => {
@@ -952,6 +955,7 @@ app.use((err, req, res, next) => {
 process.on('uncaughtException', (err) => logger.error('Uncaught Exception Caught: ' + err.stack));
 process.on('unhandledRejection', (reason) => logger.error('Unhandled Rejection Caught: ' + reason));
 
+// تشغيل السيرفر محلياً إذا تم تشغيل الملف مباشرة، مع تصديره لـ Vercel
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => console.log(`🚀 Telega.ads Master V6 Active & Listening on Port ${PORT}`));
