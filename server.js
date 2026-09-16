@@ -14,23 +14,13 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const morgan = require('morgan');
 const winston = require('winston');
+const validUrl = require('valid-url');
 const axios = require('axios');
 const Redis = require('ioredis');
 const cors = require('cors');
 const { User, Ad, Link, Impression, ClickSession, Withdraw, EarningsHold, Deposit, Announcement } = require('./models');
 
 const app = express();
-
-// --- Native URL Validation Helper (Replaces valid-url dependency) ---
-const isValidWebUrl = (urlStr) => {
-  if (!urlStr || typeof urlStr !== 'string') return false;
-  try {
-    const parsedUrl = new URL(urlStr);
-    return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
-  } catch (e) {
-    return false;
-  }
-};
 
 // --- Setup Server Trust Proxy ---
 app.set('trust proxy', 1);
@@ -129,24 +119,6 @@ async function safeRedisDel(key) {
   try { await redis.del(key); } catch (e) { logger.error('Redis Del Failed: ' + e.message); }
 }
 
-// --- Distributed Locking Mechanism for Concurrency Safety ---
-async function acquireLock(lockKey, ttlMs = 5000) {
-  if (!redisIsConnected) return true;
-  try {
-    const result = await redis.set(`lock:${lockKey}`, 'LOCKED', 'NX', 'PX', ttlMs);
-    return result === 'OK';
-  } catch (e) {
-    return true;
-  }
-}
-
-async function releaseLock(lockKey) {
-  if (!redisIsConnected) return;
-  try {
-    await redis.del(`lock:${lockKey}`);
-  } catch (e) {}
-}
-
 // --- Database Connection Pipeline ---
 mongoose.connect(CONFIG.MONGO_URI, {
   maxPoolSize: 50,
@@ -156,6 +128,7 @@ mongoose.connect(CONFIG.MONGO_URI, {
 }).then(() => console.log('✅ Enterprise MongoDB Pipeline Connected'))
   .catch(err => {
     logger.error('❌ Critical MongoDB Connection Failure:', err);
+    process.exit(1);
   });
 
 // --- Telegram Dispatch Helper ---
@@ -207,7 +180,7 @@ function verifyTelegramData(initData) {
 // --- Middlewares & Security Limiters ---
 const linkCreationLimiter = rateLimit({
   windowMs: 24 * 60 * 60 * 1000,
-  max: 150,
+  max: 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, error: 'تم تجاوز الحد اليومي لإنشاء الروابط' }
@@ -238,12 +211,13 @@ const isPhishingOrMalicious = (url) => {
 };
 
 // =========================================================================
-// --- Middleware للتحقق من هوية المستخدم واستخراج userId وثنائية البيانات ---
+// --- Middleware للتحقق من هوية المستخدم واستخراج userId وزيادة الأمان ---
 // =========================================================================
 const authMiddleware = async (req, res, next) => {
   try {
     let user = null;
 
+    // Option 1: Bearer Token Authorization Header
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
@@ -253,6 +227,7 @@ const authMiddleware = async (req, res, next) => {
       } catch (err) {}
     }
 
+    // Option 2: Direct Telegram InitData Header Fallback
     if (!user) {
       const initData = req.headers['x-telegram-init-data'];
       const telegramUser = verifyTelegramData(initData);
@@ -391,7 +366,7 @@ app.post('/api/auth/login', async (req, res, next) => {
   }
 });
 
-// --- Isolated User Data Gateway ---
+// --- Isolated User Data Gateway (/api/user/data) ---
 app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   try {
     const userId = req.userId;
@@ -445,15 +420,132 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
 });
 
 // =========================================================================
-// --- Self-Serve Ad Campaign APIs (Strict Concurrency Guard) ---
+// --- Link Shortener & Management APIs ---
+// =========================================================================
+const handleShortenLink = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { title, targetUrl, url } = req.body;
+    const cleanUrl = String(targetUrl || url || '').trim();
+
+    if (!cleanUrl || !validUrl.isWebUri(cleanUrl)) {
+      return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
+    }
+
+    if (isPhishingOrMalicious(cleanUrl)) {
+      return res.status(400).json({ success: false, error: 'الرابط ينتهك معايير الأمان' });
+    }
+
+    try {
+      const domainCheck = new URL(cleanUrl).hostname;
+      if (domainCheck.includes(CONFIG.APP_DOMAIN)) {
+        return res.status(400).json({ success: false, error: 'لا يمكن اختصار روابط الموقع نفسه' });
+      }
+    } catch (e) {}
+
+    const shortCode = crypto.randomBytes(3).toString('hex');
+    const publisherTelegramId = req.user?.telegramId || null;
+    
+    const newLink = new Link({
+      userId: userId,
+      publisherTelegramId: publisherTelegramId,
+      telegramId: publisherTelegramId,
+      title: title ? String(title).trim() : 'رابط بدون عنوان',
+      targetUrl: cleanUrl,
+      shortCode,
+      isActive: true
+    });
+
+    await newLink.save();
+
+    await User.findByIdAndUpdate(userId, { $inc: { 'statsSummary.totalLinksCreated': 1 } }).catch(() => {});
+
+    const linkObj = newLink.toObject ? newLink.toObject() : newLink;
+    const shortUrl = `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`;
+
+    return res.json({ 
+      success: true, 
+      link: {
+        ...linkObj,
+        shortUrl
+      },
+      shortUrl
+    });
+  } catch (err) {
+    logger.error('❌ Error in Link Shortening Route: ' + err.message);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'حدث خطأ أثناء اختصار الرابط، يرجى المحاولة لاحقاً' 
+    });
+  }
+};
+
+app.post('/api/links/shorten', authMiddleware, linkCreationLimiter, handleShortenLink);
+app.post('/api/links', authMiddleware, linkCreationLimiter, handleShortenLink);
+
+const getUserLinks = async (userId) => {
+  if (!userId) return [];
+  const rawLinks = await Link.find({
+    $or: [
+      { userId: userId },
+      { userId: userId.toString() }
+    ]
+  }).sort({ createdAt: -1 }).lean();
+
+  return rawLinks.map(link => {
+    const totalViews = link.views || 0;
+    const validImp = link.validImpressions || 0;
+    const ctr = totalViews > 0 ? ((validImp / totalViews) * 100).toFixed(1) : "0.0";
+    return { 
+      ...link, 
+      ctr,
+      shortUrl: `https://${CONFIG.APP_DOMAIN}/r/${link.shortCode}`
+    };
+  });
+};
+
+app.get('/api/links', authMiddleware, async (req, res, next) => {
+  try {
+    const links = await getUserLinks(req.userId);
+    res.json({ success: true, links });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/user/links', authMiddleware, async (req, res, next) => {
+  try {
+    const links = await getUserLinks(req.userId);
+    res.json({ success: true, links });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
+  try {
+    const { linkId } = req.body;
+    const userId = req.userId;
+
+    if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
+
+    const link = await Link.findOne({ _id: linkId, $or: [{ userId: userId }, { userId: userId.toString() }] });
+    if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات التعديل عليه' });
+
+    link.isActive = !link.isActive;
+    await link.save();
+    await safeRedisDel(`link:data:${link.shortCode}`);
+
+    res.json({ success: true, isActive: link.isActive });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// =========================================================================
+// --- Self-Serve Ad Campaign APIs ---
 // =========================================================================
 app.post('/api/ads', authMiddleware, async (req, res, next) => {
-  const lockKey = `ad_create:${req.userId}`;
-  const acquired = await acquireLock(lockKey, 6000);
-  if (!acquired) {
-    return res.status(429).json({ success: false, error: 'جاري معالجة طلب إعلاني آخر، يرجى الانتظار...' });
-  }
-
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -465,7 +557,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'عنوان الإعلان مطلوب' });
     }
 
-    if (!isValidWebUrl(targetUrl)) {
+    if (!validUrl.isWebUri(targetUrl)) {
       await session.abortTransaction();
       return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
     }
@@ -475,6 +567,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'الحد الأدنى لميزانية الحملة هو $5' });
     }
 
+    // Atomic Balance Deduction Guard (Prevents negative balances)
     const updatedUser = await User.findOneAndUpdate(
       { _id: req.userId, availableBalance: { $gte: budget } },
       { $inc: { availableBalance: -budget } },
@@ -508,7 +601,6 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
     next(err);
   } finally {
     session.endSession();
-    await releaseLock(lockKey);
   }
 });
 
@@ -543,7 +635,7 @@ app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
 });
 
 // =========================================================================
-// --- Deposit & Withdraw Routes (Strict Anti-Double Spending Core) ---
+// --- Deposit & Withdraw Routes (Financial Safety Engine) ---
 // =========================================================================
 app.post('/api/deposit', authMiddleware, async (req, res, next) => {
   try {
@@ -591,12 +683,6 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
 });
 
 app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
-  const lockKey = `withdraw:${req.userId}`;
-  const acquired = await acquireLock(lockKey, 8000);
-  if (!acquired) {
-    return res.status(429).json({ success: false, error: 'جاري معالجة طلب سحب آخر، يرجى الانتظار...' });
-  }
-
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -621,6 +707,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'عنوان المحفظة غير صالح' });
     }
 
+    // Lock check: prevent concurrent active pending withdrawal requests
     const activePending = await Withdraw.findOne({ userId: req.userId, status: 'pending' }).session(session);
     if (activePending) {
       await session.abortTransaction();
@@ -629,6 +716,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
 
     const netAmount = numAmt - FEE;
 
+    // Atomic balance lock
     const updatedUser = await User.findOneAndUpdate(
       { _id: req.userId, availableBalance: { $gte: numAmt } },
       { $inc: { availableBalance: -numAmt }, defaultWallet: cleanWallet },
@@ -664,12 +752,11 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
     next(err);
   } finally {
     session.endSession();
-    await releaseLock(lockKey);
   }
 });
 
 // =========================================================================
-// --- Bridge Page & Traffic Engine ---
+// --- Bridge Page & High-Volume Redirect Traffic Engine ---
 // =========================================================================
 app.post('/api/init-click', validateTraffic, async (req, res, next) => {
   try {
@@ -875,155 +962,8 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 });
 
 // =========================================================================
-// --- Strict Link Management Engine (100% Isolated Routes Guard) ---
+// --- User Settings API ---
 // =========================================================================
-
-const handleShortenLink = async (req, res) => {
-  try {
-    const userId = req.userId;
-
-    if (!userId) {
-      return res.status(401).json({ 
-        success: false, 
-        error: 'غير مصرح: معرف المستخدم (userId) مفقود' 
-      });
-    }
-
-    const { title, targetUrl, url } = req.body;
-    const cleanUrl = String(targetUrl || url || '').trim();
-
-    if (!cleanUrl || !isValidWebUrl(cleanUrl)) {
-      return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
-    }
-
-    if (isPhishingOrMalicious(cleanUrl)) {
-      return res.status(400).json({ success: false, error: 'الرابط ينتهك معايير الأمان' });
-    }
-
-    try {
-      const domainCheck = new URL(cleanUrl).hostname;
-      if (domainCheck.includes(CONFIG.APP_DOMAIN)) {
-        return res.status(400).json({ success: false, error: 'لا يمكن اختصار روابط الموقع نفسه' });
-      }
-    } catch (e) {}
-
-    let shortCode = '';
-    let isUnique = false;
-    let attempts = 0;
-
-    while (!isUnique && attempts < 5) {
-      shortCode = crypto.randomBytes(3).toString('hex');
-      const existing = await Link.findOne({ shortCode }).lean();
-      if (!existing) isUnique = true;
-      attempts++;
-    }
-
-    if (!isUnique) {
-      return res.status(500).json({ success: false, error: 'فشل في توليد كود فريد للرابط، يرجى المحاولة لاحقاً' });
-    }
-
-    const publisherTelegramId = req.user?.telegramId || null;
-    
-    const newLink = new Link({
-      userId: userId,
-      publisherTelegramId: publisherTelegramId,
-      telegramId: publisherTelegramId,
-      title: title ? String(title).trim() : 'رابط بدون عنوان',
-      targetUrl: cleanUrl,
-      shortCode,
-      isActive: true
-    });
-
-    await newLink.save();
-
-    if (mongoose.Types.ObjectId.isValid(userId)) {
-      await User.findByIdAndUpdate(userId, { $inc: { 'statsSummary.totalLinksCreated': 1 } }).catch(() => {});
-    }
-
-    const linkObj = newLink.toObject ? newLink.toObject() : newLink;
-    const shortUrl = `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`;
-
-    return res.json({ 
-      success: true, 
-      link: {
-        ...linkObj,
-        shortUrl
-      },
-      shortUrl
-    });
-  } catch (err) {
-    console.error('❌ Error in Link Shortening Route:', err);
-    return res.status(500).json({ 
-      success: false, 
-      error: 'حدث خطأ أثناء اختصار الرابط، يرجى المحاولة لاحقاً' 
-    });
-  }
-};
-
-app.post('/api/links/shorten', authMiddleware, linkCreationLimiter, handleShortenLink);
-app.post('/api/links', authMiddleware, linkCreationLimiter, handleShortenLink);
-
-const getUserLinks = async (userId) => {
-  if (!userId) return [];
-
-  const rawLinks = await Link.find({
-    $or: [
-      { userId: userId },
-      { userId: userId.toString() }
-    ]
-  }).sort({ createdAt: -1 }).lean();
-
-  return rawLinks.map(link => {
-    const totalViews = link.views || 0;
-    const validImp = link.validImpressions || 0;
-    const ctr = totalViews > 0 ? ((validImp / totalViews) * 100).toFixed(1) : "0.0";
-    return { 
-      ...link, 
-      ctr,
-      shortUrl: `https://${CONFIG.APP_DOMAIN}/r/${link.shortCode}`
-    };
-  });
-};
-
-app.get('/api/links', authMiddleware, async (req, res, next) => {
-  try {
-    const links = await getUserLinks(req.userId);
-    res.json({ success: true, links });
-  } catch (err) {
-    next(err);
-  }
-});
-
-app.get('/api/user/links', authMiddleware, async (req, res, next) => {
-  try {
-    const links = await getUserLinks(req.userId);
-    res.json({ success: true, links });
-  } catch (err) {
-    next(err);
-  }
-});
-
-app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
-  try {
-    const { linkId } = req.body;
-    const userId = req.userId;
-
-    if (!userId) return res.status(401).json({ success: false, error: 'معرف المستخدم مفقود' });
-    if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
-
-    const link = await Link.findOne({ _id: linkId, $or: [{ userId: userId }, { userId: userId.toString() }] });
-    if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات التعديل عليه' });
-
-    link.isActive = !link.isActive;
-    await link.save();
-    await safeRedisDel(`link:data:${link.shortCode}`);
-
-    res.json({ success: true, isActive: link.isActive });
-  } catch (err) {
-    next(err);
-  }
-});
-
 app.post('/api/user/settings', authMiddleware, async (req, res, next) => {
   try {
     const { defaultWallet, language } = req.body;
@@ -1040,7 +980,7 @@ app.post('/api/user/settings', authMiddleware, async (req, res, next) => {
 });
 
 // =========================================================================
-// --- Admin Panel Routes (Protected strictly with authMiddleware & adminMiddleware) ---
+// --- Admin Control Panel APIs (Strict Guard) ---
 // =========================================================================
 app.get('/api/admin/dashboard-data', authMiddleware, adminMiddleware, async (req, res, next) => {
   try {
@@ -1249,7 +1189,7 @@ app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (r
 });
 
 // =========================================================================
-// --- Automated Cron Task for Earnings Settlement ---
+// --- Automated Daily Settlement Cron Engine ---
 // =========================================================================
 cron.schedule('0 0 * * *', async () => {
   try {
@@ -1289,7 +1229,7 @@ cron.schedule('0 0 * * *', async () => {
 });
 
 // =========================================================================
-// --- Static HTML Delivery Routes ---
+// --- Static Page Deliveries & Route Catch-Alls ---
 // =========================================================================
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'views.html'));
@@ -1299,7 +1239,6 @@ app.get(['/app', '/admin', '/r/:code'], (req, res) => {
   res.sendFile(path.join(__dirname, 'views.html'));
 });
 
-// --- Catch-all API 404 Handler ---
 app.use('/api/*', (req, res) => {
   res.status(404).json({ success: false, error: 'المسار المطلوب غير موجود' });
 });
@@ -1313,7 +1252,7 @@ app.use((err, req, res, next) => {
   const statusCode = err.status || err.statusCode || 500;
   const message = process.env.NODE_ENV === 'production' 
     ? 'حدث خطأ غير متوقع في الخادم' 
-    : (err.message || 'خطأ داخلي في الخادم');
+    : (err.message || 'خطأ داخلي');
 
   res.status(statusCode).json({
     success: false,
@@ -1322,22 +1261,14 @@ app.use((err, req, res, next) => {
   });
 });
 
-// --- Global Crash Guard ---
+// --- Process Crash Handlers ---
 process.on('uncaughtException', (err) => {
-  logger.error('Uncaught Exception Detected: ' + (err.stack || err));
+  logger.error('Uncaught Exception Detected: ' + err.stack);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-// =========================================================================
-// --- Server Initialization & Vercel Serverless Export Guard ---
-// =========================================================================
 const PORT = process.env.PORT || 3000;
-
-if (process.env.NODE_ENV !== 'production' || require.main === module) {
-  app.listen(PORT, () => console.log(`🚀 Enterprise Server V6 Active on Port ${PORT}`));
-}
-
-module.exports = app;
+app.listen(PORT, () => console.log(`🚀 Enterprise Server V6 Active on Port ${PORT}`));
