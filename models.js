@@ -1,7 +1,7 @@
 /**
- * Ultra-Enterprise Models Architecture (V7.0 Supreme - Precision Integer Math, Zero Data-Leakage & Fraud Guard)
- * Platform: Telega.ads Network & Shortener Engine
- * Security: Multi-Tenant Isolation, Partial Index Race-Condition Protection, Micro-Unit Currency Standard
+ * Ultra-Enterprise Models Architecture (V5.2 - Absolute Multi-Tenant Isolation & Zero Data-Leakage)
+ * Platform: Telega.ads Advertising & Shortener Network
+ * Security: Zero-Data-Leakage Enforcement, Dynamic Context Scoping, Dual-ID Ownership Bindings
  */
 
 if (typeof window !== 'undefined') {
@@ -9,39 +9,14 @@ if (typeof window !== 'undefined') {
 }
 
 const mongoose = require('mongoose');
-const { Schema } = mongoose;
 
-// --------------------------------------------------
-// Global Helpers, Currency Standard & Security Utilities
-// --------------------------------------------------
-
-/**
- * Currency Micro-Unit Converter
- * 1 USD = 1,000,000 Micro-units (1 Micro-unit = $0.000001 USD)
- * Prevents JavaScript IEEE-754 Floating-Point errors completely.
- */
-const CurrencyUtils = {
-  MICRO_FACTOR: 1000000,
-  usdToMicro: (usd) => Math.round((Number(usd) || 0) * 1000000),
-  microToUsd: (micro) => (Number(micro) || 0) / 1000000
+// Precision currency formatter up to 5 decimal places (Prevents JS Floating-point flaws)
+const formatCurrency = (val) => {
+  if (typeof val !== 'number' || isNaN(val) || !isFinite(val)) return 0;
+  return Math.round((val + Number.EPSILON) * 100000) / 100000;
 };
 
-// Strict Integer Currency Validator
-const integerValidator = {
-  validator: Number.isInteger,
-  message: '{PATH} must be a strict integer micro-unit representation (1 USD = 1,000,000 Micro-units).'
-};
-
-// Multi-Chain Crypto Wallet Validator
-const validateWalletAddress = (v) => {
-  if (!v || v === '') return true;
-  const isTron = /^T[A-Za-z1-9]{33}$/.test(v);
-  const isEvm = /^0x[a-fA-F0-9]{40}$/.test(v);
-  const isTon = /^[a-zA-Z0-9_-]{48}$/.test(v) || /^0:[a-fA-F0-9]{64}$/.test(v);
-  return isTron || isEvm || isTon;
-};
-
-// Global Schema Serialization Options
+// Global Schema Options for strict data isolation and safe JSON serialization
 const globalSchemaOptions = {
   timestamps: true,
   versionKey: '__v',
@@ -59,7 +34,7 @@ const globalSchemaOptions = {
   }
 };
 
-// Tenant Isolation Guard
+// Helper validator to enforce non-empty ownership parameters
 const enforceTenantKey = (tenantKey, keyName = 'userId') => {
   if (!tenantKey) {
     throw new Error(`Security Violation [Tenant Isolation]: Access denied. Missing strictly required parameter: ${keyName}`);
@@ -67,9 +42,9 @@ const enforceTenantKey = (tenantKey, keyName = 'userId') => {
 };
 
 // --------------------------------------------------
-// 1. User Model (Profile, Global Controls & Stats)
+// 1. User Model (Isolated Profiles, Balances & Stats)
 // --------------------------------------------------
-const userSchema = new Schema({
+const userSchema = new mongoose.Schema({
   telegramId: { 
     type: String, 
     required: [true, 'Telegram ID is required'], 
@@ -86,19 +61,26 @@ const userSchema = new Schema({
   language: {
     type: String,
     default: 'ar',
-    lowercase: true,
-    trim: true
+    trim: true,
+    lowercase: true
   },
   role: { 
     type: String, 
-    enum: ['publisher', 'advertiser', 'both', 'admin'], 
-    default: 'both',
+    enum: ['user', 'admin'], 
+    default: 'user',
     index: true 
   },
-  isActive: { 
-    type: Boolean, 
-    default: true,
-    index: true 
+  pendingBalance: { 
+    type: Number, 
+    default: 0, 
+    min: [0, 'Pending balance cannot be negative'],
+    set: formatCurrency 
+  },
+  availableBalance: { 
+    type: Number, 
+    default: 0, 
+    min: [0, 'Available balance cannot be negative'],
+    set: formatCurrency 
   },
   isBanned: { 
     type: Boolean, 
@@ -106,31 +88,37 @@ const userSchema = new Schema({
     index: true 
   },
   referredBy: { 
-    type: Schema.Types.ObjectId, 
+    type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
     default: null, 
     index: true 
   },
-  referralEarnings: {
-    type: Number,
-    default: 0,
+  referralEarnings: { 
+    type: Number, 
+    default: 0, 
     min: 0,
-    validate: integerValidator
+    set: formatCurrency 
   },
   defaultWallet: { 
     type: String, 
     default: '', 
     trim: true,
     validate: {
-      validator: validateWalletAddress,
-      message: 'Invalid wallet address format (USDT TRC20, BEP20, or TON)'
+      validator: function(v) {
+        if (!v || v === '') return true;
+        const isTron = /^T[A-Za-z1-9]{33}$/.test(v);
+        const isEvm = /^0x[a-fA-F0-9]{40}$/.test(v);
+        const isTon = /^[a-zA-Z0-9_-]{48}$/.test(v) || /^0:[a-fA-F0-9]{64}$/.test(v);
+        return isTron || isEvm || isTon;
+      },
+      message: 'Invalid wallet address format (Must be USDT TRC20, BEP20/ERC20, or TON)'
     }
   },
   statsSummary: {
-    totalLinksCreated: { type: Number, default: 0, min: 0, validate: integerValidator },
-    totalViewsReceived: { type: Number, default: 0, min: 0, validate: integerValidator },
-    totalValidViews: { type: Number, default: 0, min: 0, validate: integerValidator },
-    totalLifetimeEarned: { type: Number, default: 0, min: 0, validate: integerValidator }
+    totalLinksCreated: { type: Number, default: 0, min: 0 },
+    totalViewsReceived: { type: Number, default: 0, min: 0 },
+    totalValidViews: { type: Number, default: 0, min: 0 },
+    totalLifetimeEarned: { type: Number, default: 0, min: 0, set: formatCurrency }
   }
 }, globalSchemaOptions);
 
@@ -142,53 +130,46 @@ userSchema.statics.findByTelegramIdIsolated = function(telegramId) {
 };
 
 // --------------------------------------------------
-// 2. High-Precision Isolated Wallet Model
+// 2. Isolated Wallet Model (Central Balance Control)
 // --------------------------------------------------
-const walletSchema = new Schema({
+const walletSchema = new mongoose.Schema({
   userId: { 
-    type: Schema.Types.ObjectId, 
+    type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
     required: [true, 'User ID is required for tenant isolation'], 
-    unique: true, 
+    unique: true,
     index: true 
   },
-  telegramId: {
-    type: String,
-    required: [true, 'Telegram ID is required'],
-    index: true,
-    trim: true
+  telegramId: { 
+    type: String, 
+    required: [true, 'Telegram ID is required for fast tenant lookup'], 
+    unique: true,
+    index: true, 
+    trim: true 
   },
   availableBalance: { 
     type: Number, 
-    required: true, 
-    default: 0,
-    min: [0, 'Available balance cannot be negative'],
-    validate: integerValidator
+    default: 0, 
+    min: [0, 'Available balance cannot be negative'], 
+    set: formatCurrency 
   },
   pendingBalance: { 
     type: Number, 
-    required: true, 
-    default: 0,
-    min: [0, 'Pending balance cannot be negative'],
-    validate: integerValidator
+    default: 0, 
+    min: [0, 'Pending balance cannot be negative'], 
+    set: formatCurrency 
   },
-  totalEarned: { 
+  totalDeposited: { 
     type: Number, 
-    default: 0,
-    min: 0,
-    validate: integerValidator
+    default: 0, 
+    min: 0, 
+    set: formatCurrency 
   },
-  totalSpent: { 
+  totalWithdrawn: { 
     type: Number, 
-    default: 0,
-    min: 0,
-    validate: integerValidator
-  },
-  totalWithdrawn: {
-    type: Number,
-    default: 0,
-    min: 0,
-    validate: integerValidator
+    default: 0, 
+    min: 0, 
+    set: formatCurrency 
   },
   currency: { 
     type: String, 
@@ -205,83 +186,53 @@ walletSchema.statics.getWalletIsolated = function(userId) {
   return this.findOne({ userId });
 };
 
-// Atomic Balance Credit Helper
-walletSchema.statics.creditBalanceAtomic = async function(userId, amountMicro, target = 'availableBalance', session = null) {
-  enforceTenantKey(userId, 'userId');
-  if (!Number.isInteger(amountMicro) || amountMicro <= 0) throw new Error('Invalid credit amount');
-  
-  const updateQuery = { $inc: { [target]: amountMicro } };
-  if (target === 'availableBalance' || target === 'pendingBalance') {
-    updateQuery.$inc.totalEarned = amountMicro;
-  }
-  
-  return this.findOneAndUpdate({ userId }, updateQuery, { new: true, session });
-};
-
-// Atomic Balance Debit Helper
-walletSchema.statics.debitBalanceAtomic = async function(userId, amountMicro, target = 'availableBalance', session = null) {
-  enforceTenantKey(userId, 'userId');
-  if (!Number.isInteger(amountMicro) || amountMicro <= 0) throw new Error('Invalid debit amount');
-
-  return this.findOneAndUpdate(
-    { userId, [target]: { $gte: amountMicro } },
-    { $inc: { [target]: -amountMicro, totalSpent: amountMicro } },
-    { new: true, session }
-  );
-};
-
 // --------------------------------------------------
-// 3. Immutable Ledger Transactions Model
+// 3. Isolated Transaction History Model
 // --------------------------------------------------
-const transactionSchema = new Schema({
+const transactionSchema = new mongoose.Schema({
   userId: { 
-    type: Schema.Types.ObjectId, 
+    type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    required: true,
-    index: true
+    required: [true, 'User ID is required for tenant isolation'], 
+    index: true 
   },
-  telegramId: {
-    type: String,
-    required: true,
-    index: true,
-    trim: true
+  telegramId: { 
+    type: String, 
+    required: [true, 'Telegram ID is required for fast tenant lookup'], 
+    index: true, 
+    trim: true 
   },
   type: { 
     type: String, 
     enum: ['deposit', 'withdrawal', 'campaign_spend', 'publisher_earning', 'referral_bonus', 'refund'], 
     required: true,
-    index: true
+    index: true 
   },
   amount: { 
     type: Number, 
-    required: true,
-    validate: integerValidator
+    required: true, 
+    set: formatCurrency 
   },
-  balanceAfter: {
-    type: Number,
-    required: true,
-    validate: integerValidator
-  },
-  status: { 
-    type: String, 
-    enum: ['pending', 'completed', 'failed', 'refunded'], 
-    default: 'completed',
-    index: true
+  balanceAfter: { 
+    type: Number, 
+    required: true, 
+    set: formatCurrency 
   },
   description: { 
     type: String, 
-    default: '',
+    default: '', 
     trim: true 
   },
   referenceId: { 
-    type: Schema.Types.ObjectId,
+    type: mongoose.Schema.Types.ObjectId, 
     default: null,
-    index: true
+    index: true 
   }
 }, globalSchemaOptions);
 
 transactionSchema.index({ userId: 1, createdAt: -1 });
 transactionSchema.index({ telegramId: 1, createdAt: -1 });
+transactionSchema.index({ userId: 1, type: 1, createdAt: -1 });
 
 transactionSchema.statics.getUserTransactionsIsolated = function(userId, filter = {}) {
   enforceTenantKey(userId, 'userId');
@@ -289,21 +240,121 @@ transactionSchema.statics.getUserTransactionsIsolated = function(userId, filter 
 };
 
 // --------------------------------------------------
-// 4. Multi-Tenant Shortened Link Model
+// 4. Self-Serve Ad Model (Campaigns)
 // --------------------------------------------------
-const linkSchema = new Schema({
+const adSchema = new mongoose.Schema({
   userId: { 
-    type: Schema.Types.ObjectId, 
+    type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    required: [true, 'User ID is required for multi-tenancy'],
-    index: true
+    required: [true, 'User ID is required for tenant isolation'], 
+    index: true 
   },
   telegramId: {
     type: String,
-    required: true,
+    required: [true, 'Telegram ID is required for fast tenant lookup'],
     index: true,
     trim: true
   },
+  advertiserId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'User', 
+    required: [true, 'Advertiser User ID is required'], 
+    index: true 
+  },
+  advertiserTelegramId: {
+    type: String,
+    required: [true, 'Advertiser Telegram ID is required for fast tenant lookup'],
+    index: true,
+    trim: true
+  },
+  title: { 
+    type: String, 
+    required: [true, 'Ad title is required'], 
+    trim: true, 
+    maxlength: [100, 'Ad title must not exceed 100 characters'] 
+  },
+  targetUrl: { 
+    type: String, 
+    required: [true, 'Target URL is required'], 
+    trim: true,
+    validate: {
+      validator: function(v) {
+        return /^(https?:\/\/)?([\w.-]+)+[\w\-_~:/?#[\]@!$&'()*+,;=.]+$/i.test(v);
+      },
+      message: 'Please enter a valid target URL'
+    }
+  },
+  totalBudget: { 
+    type: Number, 
+    required: [true, 'Total budget is required'], 
+    min: [5, 'Minimum campaign budget is $5'], 
+    set: formatCurrency 
+  },
+  remainingBudget: { 
+    type: Number, 
+    required: true, 
+    min: [0, 'Remaining budget cannot be negative'], 
+    set: formatCurrency 
+  },
+  cpmRate: { 
+    type: Number, 
+    default: 1.50,
+    min: 0,
+    set: formatCurrency
+  },
+  costPerImpression: { 
+    type: Number, 
+    default: 0.0015,
+    min: 0,
+    set: formatCurrency
+  },
+  publisherEarningsPerImpression: {
+    type: Number,
+    default: 0.00135,
+    min: 0,
+    set: formatCurrency
+  },
+  platformFeePerImpression: {
+    type: Number,
+    default: 0.00015,
+    min: 0,
+    set: formatCurrency
+  },
+  impressionsCount: { 
+    type: Number, 
+    default: 0, 
+    min: 0 
+  },
+  status: { 
+    type: String, 
+    enum: ['active', 'paused', 'completed'], 
+    default: 'active', 
+    index: true 
+  }
+}, globalSchemaOptions);
+
+adSchema.pre('validate', function(next) {
+  if (this.userId && !this.advertiserId) this.advertiserId = this.userId;
+  if (this.advertiserId && !this.userId) this.userId = this.advertiserId;
+  if (this.telegramId && !this.advertiserTelegramId) this.advertiserTelegramId = this.telegramId;
+  if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.advertiserTelegramId;
+  next();
+});
+
+adSchema.index({ userId: 1, status: 1, createdAt: -1 });
+adSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
+adSchema.index({ advertiserTelegramId: 1, status: 1, createdAt: -1 });
+adSchema.index({ status: 1, remainingBudget: 1, createdAt: -1 });
+
+adSchema.statics.findAdvertiserAdsIsolated = function(userId, filter = {}) {
+  enforceTenantKey(userId, 'userId');
+  return this.find({ ...filter, $or: [{ userId }, { advertiserId: userId }] }).sort({ createdAt: -1 });
+};
+
+// --------------------------------------------------
+// 5. Shortened Link Model (Links - Isolated Multi-Tenant)
+// --------------------------------------------------
+const linkSchema = new mongoose.Schema({
   shortCode: { 
     type: String, 
     required: [true, 'Short code is required'], 
@@ -311,50 +362,73 @@ const linkSchema = new Schema({
     index: true,
     trim: true 
   },
-  title: {
-    type: String,
-    default: 'Untitled Link',
-    trim: true,
-    maxlength: 150
-  },
-  originalUrl: { 
-    type: String, 
-    required: [true, 'Original target URL is required'],
-    trim: true,
-    match: [/^https?:\/\/.+/, 'Please present a valid HTTP/HTTPS URL']
-  },
-  clicksCount: { 
-    type: Number, 
-    default: 0,
-    min: 0,
-    validate: integerValidator
-  },
-  validImpressions: {
-    type: Number,
-    default: 0,
-    min: 0,
-    validate: integerValidator
-  },
-  invalidImpressions: {
-    type: Number,
-    default: 0,
-    min: 0,
-    validate: integerValidator
-  },
-  status: { 
-    type: String, 
-    enum: ['active', 'disabled'], 
-    default: 'active',
+  userId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'User',
+    required: [true, 'User ID is required for tenant isolation'], 
     index: true
+  },
+  telegramId: {
+    type: String,
+    required: [true, 'Telegram ID is required for zero-leakage index queries'],
+    index: true,
+    trim: true
+  },
+  publisherTelegramId: {
+    type: String,
+    required: [true, 'Publisher Telegram ID is required for zero-leakage index queries'],
+    index: true,
+    trim: true
+  },
+  title: { 
+    type: String, 
+    default: 'Untitled Link', 
+    trim: true,
+    maxlength: 150 
+  },
+  targetUrl: { 
+    type: String, 
+    required: [true, 'Target URL is required'], 
+    trim: true 
+  },
+  isActive: { 
+    type: Boolean, 
+    default: true, 
+    index: true 
+  },
+  views: { 
+    type: Number, 
+    default: 0, 
+    min: 0 
+  },
+  validImpressions: { 
+    type: Number, 
+    default: 0, 
+    min: 0 
+  },
+  invalidImpressions: { 
+    type: Number, 
+    default: 0, 
+    min: 0 
   }
 }, globalSchemaOptions);
 
+linkSchema.pre('validate', function(next) {
+  if (this.telegramId && !this.publisherTelegramId) this.publisherTelegramId = this.telegramId;
+  if (this.publisherTelegramId && !this.telegramId) this.telegramId = this.publisherTelegramId;
+  next();
+});
+
 linkSchema.index({ userId: 1, createdAt: -1 });
+linkSchema.index({ telegramId: 1, createdAt: -1 });
+linkSchema.index({ publisherTelegramId: 1, createdAt: -1 });
+linkSchema.index({ userId: 1, isActive: 1, createdAt: -1 });
 linkSchema.index({ userId: 1, shortCode: 1 });
 
 linkSchema.statics.getUserIsolatedLinks = function(userId, query = {}, options = {}) {
   enforceTenantKey(userId, 'userId');
-  return this.find({ ...query, userId }, null, options).sort({ createdAt: -1 });
+  const safeQuery = { ...query, userId };
+  return this.find(safeQuery, null, options).sort({ createdAt: -1 });
 };
 
 linkSchema.statics.findOneIsolated = function(shortCode, userId) {
@@ -363,122 +437,29 @@ linkSchema.statics.findOneIsolated = function(shortCode, userId) {
 };
 
 // --------------------------------------------------
-// 5. High-Precision Campaign & Ad Model
+// 6. Traffic & Impressions Model
 // --------------------------------------------------
-const campaignSchema = new Schema({
-  userId: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: [true, 'Advertiser User ID is required'],
-    index: true
-  },
-  telegramId: {
-    type: String,
-    required: true,
-    index: true,
-    trim: true
-  },
-  title: { 
-    type: String, 
-    required: [true, 'Campaign title is required'], 
-    trim: true,
-    maxlength: 120
-  },
-  targetUrl: { 
-    type: String, 
-    required: [true, 'Target URL is required'],
-    trim: true,
-    match: [/^https?:\/\/.+/,'Invalid target URL format']
-  },
-  budget: { 
-    type: Number, 
-    required: [true, 'Total campaign budget is required'],
-    min: [1000000, 'Minimum budget is $1.00 USD (1,000,000 Micro-units)'],
-    validate: integerValidator
-  },
-  remainingBudget: { 
-    type: Number, 
-    required: true,
-    min: [0, 'Remaining budget cannot be negative'],
-    validate: integerValidator
-  },
-  cpmRate: {
-    type: Number,
-    default: 1500000, // Default $1.50 CPM
-    min: 0,
-    validate: integerValidator
-  },
-  costPerClick: { 
-    type: Number, 
-    default: 10000, // Default $0.01 CPC
-    min: 0,
-    validate: integerValidator
-  },
-  costPerImpression: {
-    type: Number,
-    default: 1500, // $0.0015
-    min: 0,
-    validate: integerValidator
-  },
-  publisherEarningsPerImpression: {
-    type: Number,
-    default: 1350, // $0.00135
-    min: 0,
-    validate: integerValidator
-  },
-  platformFeePerImpression: {
-    type: Number,
-    default: 150, // $0.00015
-    min: 0,
-    validate: integerValidator
-  },
-  impressionsCount: { 
-    type: Number, 
-    default: 0,
-    min: 0,
-    validate: integerValidator
-  },
-  totalClicks: { 
-    type: Number, 
-    default: 0,
-    min: 0,
-    validate: integerValidator
-  },
-  status: { 
-    type: String, 
-    enum: ['active', 'paused', 'completed'], 
-    default: 'active',
-    index: true
-  }
-}, globalSchemaOptions);
-
-campaignSchema.pre('validate', function(next) {
-  if (this.isNew && this.remainingBudget === undefined) {
-    this.remainingBudget = this.budget;
-  }
-  next();
-});
-
-campaignSchema.index({ userId: 1, status: 1, createdAt: -1 });
-campaignSchema.index({ status: 1, remainingBudget: 1, createdAt: -1 });
-
-campaignSchema.statics.findAdvertiserCampaignsIsolated = function(userId, filter = {}) {
-  enforceTenantKey(userId, 'userId');
-  return this.find({ ...filter, userId }).sort({ createdAt: -1 });
-};
-
-// --------------------------------------------------
-// 6. Real-Time Impressions & Traffic Analytics Model
-// --------------------------------------------------
-const impressionSchema = new Schema({
+const impressionSchema = new mongoose.Schema({
   linkId: { 
-    type: Schema.Types.ObjectId, 
+    type: mongoose.Schema.Types.ObjectId, 
     ref: 'Link', 
     required: true, 
     index: true 
   },
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: [true, 'User ID is required for tenant isolation'],
+    index: true
+  },
+  telegramId: {
+    type: String,
+    required: [true, 'Telegram ID is required for tenant isolation'],
+    trim: true,
+    index: true
+  },
   publisherId: {
-    type: Schema.Types.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true,
     index: true
@@ -501,16 +482,16 @@ const impressionSchema = new Schema({
     default: 'adsgram',
     index: true
   },
-  campaignId: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'Campaign', 
+  adId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Ad', 
     default: null,
     index: true
   },
   publisherEarnings: {
     type: Number,
-    default: 1350, // $0.00135 in Micro-units
-    validate: integerValidator
+    default: 0.00135,
+    set: formatCurrency
   },
   ip: { 
     type: String, 
@@ -529,32 +510,52 @@ const impressionSchema = new Schema({
   createdAt: { 
     type: Date, 
     default: Date.now, 
-    expires: '60d' // Automatic 60-day document pruning
+    expires: '60d' 
   }
 }, globalSchemaOptions);
 
-impressionSchema.index({ publisherId: 1, createdAt: -1 });
+impressionSchema.pre('validate', function(next) {
+  if (this.publisherId && !this.userId) this.userId = this.publisherId;
+  if (this.userId && !this.publisherId) this.publisherId = this.userId;
+  if (this.telegramId && !this.publisherTelegramId) this.publisherTelegramId = this.telegramId;
+  if (this.publisherTelegramId && !this.telegramId) this.telegramId = this.publisherTelegramId;
+  next();
+});
+
+impressionSchema.index({ userId: 1, createdAt: -1 });
+impressionSchema.index({ telegramId: 1, createdAt: -1 });
 impressionSchema.index({ publisherTelegramId: 1, createdAt: -1 });
-impressionSchema.index({ linkId: 1, publisherId: 1, createdAt: -1 });
+impressionSchema.index({ linkId: 1, userId: 1, createdAt: -1 });
 impressionSchema.index({ ip: 1, linkId: 1, createdAt: -1 });
 
 impressionSchema.statics.getPublisherImpressionsIsolated = function(userId, extraFilter = {}) {
   enforceTenantKey(userId, 'userId');
-  return this.find({ ...extraFilter, publisherId: userId }).sort({ createdAt: -1 });
+  return this.find({ ...extraFilter, $or: [{ userId }, { publisherId: userId }] }).sort({ createdAt: -1 });
 };
 
 // --------------------------------------------------
-// 7. Anti-Bypass Click Session Model (Fraud Prevention)
+// 7. Anti-Bypass Click Session Model
 // --------------------------------------------------
-const clickSessionSchema = new Schema({
+const clickSessionSchema = new mongoose.Schema({
   linkId: { 
-    type: Schema.Types.ObjectId, 
+    type: mongoose.Schema.Types.ObjectId, 
     ref: 'Link', 
-    required: true,
+    required: true 
+  },
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: [true, 'User ID is required for tenant isolation'],
+    index: true
+  },
+  telegramId: {
+    type: String,
+    required: [true, 'Telegram ID is required for tenant isolation'],
+    trim: true,
     index: true
   },
   publisherId: {
-    type: Schema.Types.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true,
     index: true
@@ -570,9 +571,9 @@ const clickSessionSchema = new Schema({
     enum: ['internal', 'adsgram'], 
     default: 'adsgram'
   },
-  campaignId: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'Campaign', 
+  adId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Ad', 
     default: null 
   },
   ip: { 
@@ -583,67 +584,69 @@ const clickSessionSchema = new Schema({
   bridgeToken: { 
     type: String, 
     required: true,
-    trim: true,
-    unique: true
+    trim: true 
   },
   createdAt: { 
     type: Date, 
     default: Date.now, 
-    expires: 300 // Auto-expires after 5 minutes (TTL Index)
+    expires: 300 
   }
 }, globalSchemaOptions);
 
+clickSessionSchema.pre('validate', function(next) {
+  if (this.publisherId && !this.userId) this.userId = this.publisherId;
+  if (this.userId && !this.publisherId) this.publisherId = this.userId;
+  next();
+});
+
 clickSessionSchema.index({ linkId: 1, ip: 1 });
-clickSessionSchema.index({ publisherId: 1, createdAt: -1 });
+clickSessionSchema.index({ userId: 1, createdAt: -1 });
+clickSessionSchema.index({ telegramId: 1, createdAt: -1 });
 clickSessionSchema.index({ bridgeToken: 1 }, { unique: true });
 
 // --------------------------------------------------
-// 8. Atomic Withdrawals Queue & Fraud Guard Model
+// 8. Withdraw Request Model (Withdrawals)
 // --------------------------------------------------
-const withdrawSchema = new Schema({
+const withdrawSchema = new mongoose.Schema({
   userId: { 
-    type: Schema.Types.ObjectId, 
+    type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    required: [true, 'User ID is required'], 
+    required: [true, 'User ID is required for tenant isolation'], 
     index: true 
   },
   telegramId: {
     type: String,
-    required: true,
+    required: [true, 'Telegram ID is required for tenant isolation'],
     trim: true,
     index: true
   },
   amount: { 
     type: Number, 
-    required: true,
-    min: [30000000, 'Minimum withdrawal limit is $30.00 USD'], // $30 USD in Micro-units
-    validate: integerValidator
+    required: [true, 'Total withdrawal amount is required'], 
+    min: [30, 'Minimum withdrawal limit is $30'],
+    set: formatCurrency 
   },
   fee: {
     type: Number,
-    default: 3000000, // $3.00 USD Fee
-    validate: integerValidator
+    default: 3,
+    set: formatCurrency
   },
   netAmount: {
     type: Number,
     required: true,
-    validate: integerValidator
+    set: formatCurrency
   },
   network: {
     type: String,
     enum: ['BEP20', 'TRC20', 'TON'],
-    required: [true, 'Withdrawal network selection is required'],
+    required: [true, 'Please select network (BEP20, TRC20, or TON)'],
     trim: true,
     uppercase: true
   },
   walletAddress: { 
     type: String, 
-    required: true, 
-    trim: true,
-    validate: {
-      validator: validateWalletAddress,
-      message: 'Invalid withdrawal wallet address format'
-    }
+    required: [true, 'Wallet address is required'], 
+    trim: true 
   },
   status: { 
     type: String, 
@@ -657,24 +660,23 @@ const withdrawSchema = new Schema({
     default: '', 
     trim: true 
   },
-  note: {
-    type: String,
-    default: '',
-    trim: true
+  note: { 
+    type: String, 
+    default: '', 
+    trim: true 
   }
 }, globalSchemaOptions);
 
 withdrawSchema.pre('validate', function(next) {
   const amount = typeof this.amount === 'number' ? this.amount : 0;
-  const fee = typeof this.fee === 'number' ? this.fee : 3000000;
-  this.netAmount = Math.max(0, amount - fee);
+  const fee = typeof this.fee === 'number' ? this.fee : 3;
+  this.netAmount = formatCurrency(Math.max(0, amount - fee));
   next();
 });
 
 withdrawSchema.index({ userId: 1, status: 1, createdAt: -1 });
 withdrawSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
 
-// Partial Unique Index: Race-Condition Guard against double withdrawals
 withdrawSchema.index(
   { userId: 1, status: 'pending' }, 
   { unique: true, partialFilterExpression: { status: 'pending' } }
@@ -688,11 +690,11 @@ withdrawSchema.statics.getUserWithdrawalsIsolated = function(userId, status = nu
 };
 
 // --------------------------------------------------
-// 9. Earnings Hold Model (Pending Escrow Engine)
+// 9. Earnings Hold Model
 // --------------------------------------------------
-const earningsHoldSchema = new Schema({
+const earningsHoldSchema = new mongoose.Schema({
   userId: { 
-    type: Schema.Types.ObjectId, 
+    type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
     required: [true, 'User ID is required for tenant isolation'], 
     index: true 
@@ -707,12 +709,12 @@ const earningsHoldSchema = new Schema({
     type: Number, 
     required: true, 
     min: 0,
-    validate: integerValidator
+    set: formatCurrency 
   },
   releaseAt: { 
     type: Date, 
     required: true, 
-    default: () => new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 Hours Default Hold
+    default: () => new Date(Date.now() + 24 * 60 * 60 * 1000),
     index: true 
   },
   isReleased: { 
@@ -731,26 +733,38 @@ earningsHoldSchema.statics.getUserHoldsIsolated = function(userId) {
 };
 
 // --------------------------------------------------
-// 10. Advertiser Deposit Model (Cryptocurrency Gateways)
+// 10. Advertiser Deposit Model (Deposits)
 // --------------------------------------------------
-const depositSchema = new Schema({
+const depositSchema = new mongoose.Schema({
   userId: {
-    type: Schema.Types.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: [true, 'User ID is required for tenant isolation'],
     index: true
   },
   telegramId: {
     type: String,
-    required: [true, 'Telegram ID is required'],
+    required: [true, 'Telegram ID is required for fast tenant lookup'],
+    trim: true,
+    index: true
+  },
+  advertiserId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: [true, 'Advertiser User ID is required'],
+    index: true
+  },
+  advertiserTelegramId: {
+    type: String,
+    required: [true, 'Advertiser Telegram ID is required'],
     trim: true,
     index: true
   },
   amount: {
     type: Number,
     required: [true, 'Deposit amount is required'],
-    min: [1000000, 'Minimum deposit limit is $1.00 USD'],
-    validate: integerValidator
+    min: [1, 'Minimum deposit limit is $1'],
+    set: formatCurrency
   },
   network: {
     type: String,
@@ -779,22 +793,31 @@ const depositSchema = new Schema({
   }
 }, globalSchemaOptions);
 
+depositSchema.pre('validate', function(next) {
+  if (this.userId && !this.advertiserId) this.advertiserId = this.userId;
+  if (this.advertiserId && !this.userId) this.userId = this.advertiserId;
+  if (this.telegramId && !this.advertiserTelegramId) this.advertiserTelegramId = this.telegramId;
+  if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.advertiserTelegramId;
+  next();
+});
+
 depositSchema.index({ userId: 1, status: 1, createdAt: -1 });
 depositSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
+depositSchema.index({ advertiserTelegramId: 1, status: 1, createdAt: -1 });
 
 depositSchema.statics.getAdvertiserDepositsIsolated = function(userId) {
   enforceTenantKey(userId, 'userId');
-  return this.find({ userId }).sort({ createdAt: -1 });
+  return this.find({ $or: [{ userId }, { advertiserId: userId }] }).sort({ createdAt: -1 });
 };
 
 // --------------------------------------------------
-// 11. System Announcements Model
+// 11. Announcement Model
 // --------------------------------------------------
-const announcementSchema = new Schema({
+const announcementSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
   content: { type: String, required: true, trim: true },
   isActive: { type: Boolean, default: true, index: true },
-  targetUser: { type: Schema.Types.ObjectId, ref: 'User', default: null, index: true },
+  targetUser: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, index: true },
   targetTelegramId: { type: String, default: null, trim: true, index: true }
 }, globalSchemaOptions);
 
@@ -812,14 +835,12 @@ announcementSchema.statics.getForUserIsolated = function(userId, telegramId) {
   }).sort({ createdAt: -1 });
 };
 
-// --------------------------------------------------
-// Model Compilation & Safe Singleton Export
-// --------------------------------------------------
+// Exporting Optimized Safe Models
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Wallet = mongoose.models.Wallet || mongoose.model('Wallet', walletSchema);
 const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
+const Ad = mongoose.models.Ad || mongoose.model('Ad', adSchema);
 const Link = mongoose.models.Link || mongoose.model('Link', linkSchema);
-const Campaign = mongoose.models.Campaign || mongoose.model('Campaign', campaignSchema);
 const Impression = mongoose.models.Impression || mongoose.model('Impression', impressionSchema);
 const ClickSession = mongoose.models.ClickSession || mongoose.model('ClickSession', clickSessionSchema);
 const Withdraw = mongoose.models.Withdraw || mongoose.model('Withdraw', withdrawSchema);
@@ -828,12 +849,11 @@ const Deposit = mongoose.models.Deposit || mongoose.model('Deposit', depositSche
 const Announcement = mongoose.models.Announcement || mongoose.model('Announcement', announcementSchema);
 
 module.exports = {
-  CurrencyUtils,
   User,
   Wallet,
   Transaction,
+  Ad,
   Link,
-  Campaign,
   Impression,
   ClickSession,
   Withdraw,
