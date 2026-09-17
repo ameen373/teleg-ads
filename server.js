@@ -141,7 +141,6 @@ mongoose.connect(CONFIG.MONGO_URI, {
 }).then(() => console.log('✅ Enterprise MongoDB Connected'))
   .catch(err => {
     logger.error('❌ MongoDB Connection Failure:', err);
-    process.exit(1);
   });
 
 // --- Telegram Dispatch Helper ---
@@ -229,7 +228,6 @@ const authMiddleware = async (req, res, next) => {
   try {
     let user = null;
 
-    // Bearer Token Handling
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
@@ -239,7 +237,6 @@ const authMiddleware = async (req, res, next) => {
       } catch (err) {}
     }
 
-    // Telegram InitData Fallback
     if (!user) {
       const initData = req.headers['x-telegram-init-data'];
       const telegramUser = verifyTelegramData(initData);
@@ -256,7 +253,6 @@ const authMiddleware = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'حسابك معطل بسبب مخالفة الشروط' });
     }
 
-    // Strict Request Context Binding
     req.user = user;
     req.user.id = user._id.toString();
     req.userId = user._id;
@@ -606,7 +602,6 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'الحد الأدنى لميزانية الحملة هو $5' });
     }
 
-    // Atomic Operation to check and deduct balance securely
     const updatedUser = await User.findOneAndUpdate(
       { _id: req.user.id, availableBalance: { $gte: budget } },
       { $inc: { availableBalance: -budget } },
@@ -768,7 +763,6 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
 
     const netAmount = numAmt - FEE;
 
-    // Atomic Operation to check and deduct balance safely
     const updatedUser = await User.findOneAndUpdate(
       { _id: req.user.id, availableBalance: { $gte: numAmt } },
       { $inc: { availableBalance: -numAmt }, defaultWallet: cleanWallet },
@@ -1307,15 +1301,17 @@ cron.schedule('0 0 * * *', async () => {
 });
 
 // =========================================================================
-// --- Static HTML Delivery Routes & Catch-all ---
+// --- Static HTML Delivery Routes & Catch-all SPA Routing ---
 // =========================================================================
 
-app.get(['/', '/app', '/admin', '/r/:code'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'views.html'));
-});
-
+// Serve explicit API 404s
 app.use('/api/*', (req, res) => {
   res.status(404).json({ success: false, message: 'المسار المطلوب غير موجود' });
+});
+
+// Serve frontend SPA fallback for all non-API paths
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'views.html'));
 });
 
 // =========================================================================
@@ -1345,5 +1341,11 @@ process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Production Server Active on Port ${PORT}`));
+// Local listening fallback for standalone development environments
+if (process.env.NODE_ENV !== 'production' || require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => console.log(`🚀 Production Server Active on Port ${PORT}`));
+}
+
+// Export module for Vercel Serverless Function Execution
+module.exports = app;
