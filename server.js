@@ -14,7 +14,6 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const morgan = require('morgan');
 const winston = require('winston');
-const validUrl = require('valid-url');
 const axios = require('axios');
 const Redis = require('ioredis');
 const cors = require('cors');
@@ -32,6 +31,16 @@ const {
 } = require('./models');
 
 const app = express();
+
+// --- Native Web URL Validation Helper ---
+const isValidWebUrl = (urlString) => {
+  try {
+    const parsed = new URL(urlString);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch (err) {
+    return false;
+  }
+};
 
 // --- Setup Server Trust Proxy & CORS ---
 app.set('trust proxy', 1);
@@ -477,7 +486,7 @@ const handleShortenLink = async (req, res) => {
     const { title, targetUrl, url } = req.body;
     const cleanUrl = String(targetUrl || url || '').trim();
 
-    if (!cleanUrl || !validUrl.isWebUri(cleanUrl)) {
+    if (!cleanUrl || !isValidWebUrl(cleanUrl)) {
       return res.status(400).json({ success: false, message: 'الرابط المستهدف غير صالح' });
     }
 
@@ -587,7 +596,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'عنوان الإعلان مطلوب' });
     }
 
-    if (!validUrl.isWebUri(targetUrl)) {
+    if (!isValidWebUrl(targetUrl)) {
       await session.abortTransaction();
       return res.status(400).json({ success: false, message: 'الرابط المستهدف غير صالح' });
     }
