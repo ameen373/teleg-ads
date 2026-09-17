@@ -619,7 +619,7 @@ const impressionSchema = new mongoose.Schema({
   },
   linkId: { 
     type: mongoose.Schema.Types.ObjectId, 
-    ref: 'Link', 
+    ref: 'ShortLink', 
     required: true, 
     index: true 
   },
@@ -680,7 +680,7 @@ const clickSessionSchema = new mongoose.Schema({
   },
   linkId: { 
     type: mongoose.Schema.Types.ObjectId, 
-    ref: 'Link', 
+    ref: 'ShortLink', 
     required: true 
   },
   ip: { 
@@ -765,13 +765,20 @@ const announcementSchema = new mongoose.Schema({
 announcementSchema.index({ isActive: 1, userId: 1, createdAt: -1 });
 
 announcementSchema.statics.getForUserIsolated = function(userId, telegramId) {
+  const tgIdStr = telegramId ? String(telegramId).trim() : null;
+  const orConditions = [
+    { userId: null, targetTelegramId: null }
+  ];
+  if (userId) {
+    orConditions.push({ userId: userId });
+  }
+  if (tgIdStr) {
+    orConditions.push({ targetTelegramId: tgIdStr });
+  }
+
   return this.find({
     isActive: true,
-    $or: [
-      { userId: null, targetTelegramId: null },
-      { userId: userId },
-      { targetTelegramId: String(telegramId) }
-    ]
+    $or: orConditions
   }).sort({ createdAt: -1 });
 };
 
@@ -780,12 +787,15 @@ announcementSchema.statics.getForUserIsolated = function(userId, telegramId) {
 // --------------------------------------------------
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const ShortLink = mongoose.models.ShortLink || mongoose.model('ShortLink', shortLinkSchema);
-const Link = mongoose.models.Link || mongoose.model('Link', shortLinkSchema);
+const Link = ShortLink; // Backward compatibility alias pointing to same model & collection
+
 const Campaign = mongoose.models.Campaign || mongoose.model('Campaign', campaignSchema);
-const Ad = mongoose.models.Ad || mongoose.model('Ad', campaignSchema);
+const Ad = Campaign; // Backward compatibility alias
+
 const Deposit = mongoose.models.Deposit || mongoose.model('Deposit', depositSchema);
 const Withdrawal = mongoose.models.Withdrawal || mongoose.model('Withdrawal', withdrawalSchema);
-const Withdraw = mongoose.models.Withdraw || mongoose.model('Withdraw', withdrawalSchema);
+const Withdraw = Withdrawal; // Backward compatibility alias
+
 const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
 const Wallet = mongoose.models.Wallet || mongoose.model('Wallet', walletSchema);
 const Impression = mongoose.models.Impression || mongoose.model('Impression', impressionSchema);
