@@ -1,1204 +1,1690 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Telega Ads & Shortener Enterprise Ultimate</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Telega.ads | Enterprise Shortener & Ad Network</title>
+  
+  <!-- External Scripts Integration -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+
+  <style>
+    :root {
+      --bg-main: #0b0f19;
+      --card-bg: #151d30;
+      --card-border: #23314e;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --accent-glow: rgba(59, 130, 246, 0.35);
+      --danger: #ef4444;
+      --danger-hover: #dc2626;
+      --success: #10b981;
+      --success-hover: #059669;
+      --warning: #f59e0b;
+      --warning-hover: #d97706;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --nav-bg: rgba(11, 15, 25, 0.85);
+      --font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
     
-    <!-- Telegram WebApp SDK & Adsgram SDK -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+    body { 
+      font-family: var(--font-family); 
+      background: var(--bg-main); 
+      color: var(--text); 
+      margin: 0; 
+      padding: 12px; 
+      padding-bottom: 100px;
+      direction: ltr;
+      user-select: none;
+      -webkit-user-select: none;
+      overflow-x: hidden;
+    }
+
+    .container { max-width: 520px; margin: 0 auto; }
     
-    <style>
-        :root {
-            --bg-color: var(--tg-theme-bg-color, #0b0f19);
-            --card-bg: var(--tg-theme-secondary-bg-color, #151d30);
-            --text-color: var(--tg-theme-text-color, #f8fafc);
-            --hint-color: var(--tg-theme-hint-color, #94a3b8);
-            --button-color: var(--tg-theme-button-color, #3b82f6);
-            --button-text: var(--tg-theme-button-text-color, #ffffff);
-            --accent-glow: rgba(59, 130, 246, 0.3);
-            --success-color: #10b981;
-            --danger-color: #ef4444;
-            --warning-color: #f59e0b;
-            --purple-accent: #8b5cf6;
-            --glass-bg: rgba(21, 29, 48, 0.75);
-            --glass-border: rgba(255, 255, 255, 0.08);
-        }
+    .card { 
+      background: var(--card-bg); 
+      border-radius: 20px; 
+      padding: 20px; 
+      margin-bottom: 16px; 
+      border: 1px solid var(--card-border); 
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37); 
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            -webkit-tap-highlight-color: transparent;
-            user-select: none;
-        }
+    /* Header Profile Card */
+    .user-profile-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 18px;
+      background: rgba(21, 29, 48, 0.75);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-radius: 20px;
+      margin-bottom: 16px;
+      border: 1px solid var(--card-border);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    }
+    
+    .user-avatar-img {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid var(--accent);
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
+    
+    .user-avatar-placeholder {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), #1d4ed8);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 22px;
+      box-shadow: 0 4px 16px var(--accent-glow);
+    }
 
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            padding-bottom: 95px;
-            direction: rtl;
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
+    .user-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      font-size: 10px;
+      font-weight: 800;
+      border-radius: 12px;
+      background: rgba(59, 130, 246, 0.15);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      letter-spacing: 0.5px;
+    }
 
-        /* Top Header Profile Card */
-        .header-card {
-            background: var(--glass-bg);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border-bottom: 1px solid var(--glass-border);
-            padding: 14px 18px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            position: sticky;
-            top: 0;
-            z-index: 900;
-        }
+    /* Floating Dock Navigation */
+    .tg-nav-dock {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 94%;
+      max-width: 480px;
+      height: 68px;
+      background: var(--nav-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      padding: 0 6px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+      z-index: 9999;
+    }
 
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
+    .nav-btn {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 8px 0;
+      border-radius: 22px;
+      transition: all 0.25s ease-in-out;
+      margin: 0;
+    }
 
-        .avatar {
-            width: 44px;
-            height: 44px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, var(--button-color), var(--purple-accent));
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            color: #fff;
-            font-size: 18px;
-            box-shadow: 0 0 14px var(--accent-glow);
-            object-fit: cover;
-        }
+    .nav-btn svg { width: 22px; height: 22px; fill: currentColor; transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); }
+    .nav-btn.active { color: var(--accent); background: rgba(59, 130, 246, 0.18); }
+    .nav-btn.active svg { transform: scale(1.2); }
 
-        .user-details h4 {
-            font-size: 15px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
+    /* Inputs, Buttons & Controls */
+    input, button, select { 
+      width: 100%; 
+      padding: 13px 16px; 
+      margin-top: 10px; 
+      border-radius: 14px; 
+      border: 1px solid var(--card-border); 
+      background: #0b0f19; 
+      color: var(--text); 
+      font-size: 14px; 
+      font-family: inherit;
+      transition: all 0.2s ease;
+    }
+    
+    input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+    input:read-only { background: #070a12; color: var(--text-muted); cursor: not-allowed; }
+    
+    button { 
+      background: var(--accent); 
+      font-weight: 700; 
+      cursor: pointer; 
+      border: none; 
+      transition: all 0.2s ease; 
+      color: #fff; 
+      display: inline-flex; 
+      align-items: center; 
+      justify-content: center; 
+      gap: 8px; 
+      box-shadow: 0 4px 14px var(--accent-glow);
+    }
+    
+    button:hover { background: var(--accent-hover); }
+    button:active { transform: scale(0.97); }
+    button:disabled { background: #1e293b !important; cursor: not-allowed; opacity: 0.5; box-shadow: none; }
+    
+    .btn-danger { background: var(--danger); box-shadow: 0 4px 14px rgba(239, 68, 68, 0.3); }
+    .btn-danger:hover { background: var(--danger-hover); }
+    .btn-warning { background: var(--warning); color: #000; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.3); }
+    .btn-warning:hover { background: var(--warning-hover); }
+    .btn-success { background: var(--success); color: #fff; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3); }
+    .btn-success:hover { background: var(--success-hover); }
+    .btn-small { padding: 7px 14px; font-size: 12px; width: auto; margin: 0 2px; border-radius: 10px; box-shadow: none; }
 
-        .badge-premium {
-            background: linear-gradient(135deg, #f59e0b, #d97706);
-            color: #fff;
-            font-size: 9px;
-            padding: 2px 6px;
-            border-radius: 10px;
-            font-weight: 700;
-        }
+    /* Status Badges */
+    .status-badge {
+      padding: 3px 8px;
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 8px;
+      text-transform: uppercase;
+    }
+    .status-pending { background: rgba(245, 158, 11, 0.2); color: var(--warning); border: 1px solid var(--warning); }
+    .status-approved, .status-active { background: rgba(16, 185, 129, 0.2); color: var(--success); border: 1px solid var(--success); }
+    .status-rejected, .status-completed { background: rgba(239, 68, 68, 0.2); color: var(--danger); border: 1px solid var(--danger); }
 
-        .badge-admin {
-            background: linear-gradient(135deg, #ef4444, #b91c1c);
-            color: #fff;
-            font-size: 9px;
-            padding: 2px 6px;
-            border-radius: 10px;
-            font-weight: 700;
-        }
+    /* Wallet Action Navigation Switcher */
+    .wallet-actions-nav { display: flex; gap: 10px; margin-bottom: 16px; }
+    .wallet-action-btn {
+      flex: 1; padding: 12px; font-size: 13px; background: #0f172a;
+      color: var(--text-muted); border: 1px solid var(--card-border);
+      border-radius: 14px; margin: 0; box-shadow: none;
+    }
+    .wallet-action-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: 0 4px 14px var(--accent-glow); }
 
-        .lang-switch {
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid var(--glass-border);
-            color: var(--text-color);
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 12px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
+    /* Crypto & Transaction Components */
+    .address-card { background: #0f172a; border: 1px dashed var(--card-border); border-radius: 14px; padding: 14px; margin-top: 12px; }
+    .address-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+    .address-text {
+      font-family: 'Courier New', Courier, monospace; font-size: 11px; color: var(--warning); word-break: break-all;
+      background: #070a12; padding: 10px 12px; border-radius: 10px; flex: 1; border: 1px solid #1e293b;
+    }
 
-        /* Navigation Dock */
-        .nav-dock {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            display: flex;
-            justify-content: space-around;
-            padding: 10px 0 14px 0;
-            border-top: 1px solid var(--glass-border);
-            z-index: 1000;
-        }
+    .fee-breakdown {
+      background: #0f172a; border: 1px solid var(--card-border); border-radius: 12px;
+      padding: 12px 16px; margin-top: 12px; font-size: 12px; display: flex; justify-content: space-between;
+    }
 
-        .nav-item {
-            color: var(--hint-color);
-            border: none;
-            background: none;
-            font-size: 10px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
-            cursor: pointer;
-            flex: 1;
-            transition: all 0.2s ease;
-        }
+    /* Modal Overlay UI */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 18px;
+    }
+    .modal-content {
+      background: var(--card-bg); border: 1px solid var(--card-border);
+      border-radius: 24px; padding: 24px; max-width: 460px; width: 100%; max-height: 85vh; overflow-y: auto;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+    }
 
-        .nav-item svg {
-            width: 22px;
-            height: 22px;
-            fill: currentColor;
-            transition: transform 0.2s ease;
-        }
+    /* Grid & Item Component Layouts */
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+    .stat-box { background: #0f172a; padding: 16px; border-radius: 16px; border: 1px solid var(--card-border); text-align: center; }
+    .stat-box small { color: var(--text-muted); font-size: 11px; display: block; margin-bottom: 6px; font-weight: 600; }
+    .stat-box h3 { margin: 0; font-size: 20px; color: var(--text); font-weight: 800; }
 
-        .nav-item.active {
-            color: var(--button-color);
-            font-weight: 700;
-        }
+    .link-item, .ad-item, .tx-item { 
+      background: #0f172a; padding: 14px 16px; border-radius: 16px; margin-bottom: 12px; 
+      border: 1px solid var(--card-border); font-size: 13px; transition: transform 0.2s;
+    }
+    .link-item:hover, .ad-item:hover { transform: translateY(-2px); }
+    .link-header, .ad-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .link-actions, .ad-actions { display: flex; justify-content: flex-end; margin-top: 12px; gap: 8px; }
 
-        .nav-item.active svg {
-            transform: translateY(-2px) scale(1.12);
-        }
+    .hidden { display: none !important; }
 
-        /* Layout & Cards */
-        .container {
-            padding: 16px;
-            max-width: 600px;
-            margin: 0 auto;
-        }
+    /* Loaders & Animated UI */
+    .spinner {
+      width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3);
+      border-radius: 50%; border-top-color: #fff; animation: spin 0.8s linear infinite;
+      display: inline-block; vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
-        .tab-content {
-            display: none;
-            animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-        }
+    #toast { 
+      visibility: hidden; min-width: 260px; background-color: var(--card-bg); 
+      color: #fff; text-align: center; border-radius: 14px; padding: 14px 20px; 
+      position: fixed; z-index: 10001; left: 50%; bottom: 95px; transform: translateX(-50%) translateY(20px); 
+      border: 1px solid var(--accent); font-size: 13px; opacity: 0; transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55); 
+      box-shadow: 0 10px 30px rgba(0,0,0,0.7); font-weight: 600;
+    }
+    #toast.show { visibility: visible; opacity: 1; transform: translateX(-50%) translateY(0); }
 
-        .tab-content.active {
-            display: block;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .card {
-            background: var(--card-bg);
-            border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            padding: 18px;
-            margin-bottom: 16px;
-            box-shadow: 0 8px 28px rgba(0, 0, 0, 0.2);
-        }
-
-        .balance-hero {
-            background: linear-gradient(135deg, rgba(59, 130, 246, 0.18), rgba(139, 92, 246, 0.18));
-            border: 1px solid rgba(59, 130, 246, 0.35);
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 12px;
-            margin-bottom: 16px;
-        }
-
-        .stat-card {
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid var(--glass-border);
-            padding: 14px;
-            border-radius: 16px;
-            text-align: center;
-        }
-
-        .stat-value {
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--button-color);
-            margin-top: 4px;
-        }
-
-        /* Inputs & Forms */
-        .form-group {
-            margin-bottom: 14px;
-        }
-
-        label {
-            display: block;
-            font-size: 12px;
-            color: var(--hint-color);
-            margin-bottom: 6px;
-            font-weight: 500;
-        }
-
-        input, select {
-            width: 100%;
-            padding: 12px 14px;
-            border-radius: 12px;
-            border: 1px solid var(--glass-border);
-            background-color: rgba(0, 0, 0, 0.3);
-            color: var(--text-color);
-            font-size: 14px;
-            outline: none;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease;
-        }
-
-        input:focus {
-            border-color: var(--button-color);
-            box-shadow: 0 0 0 3px var(--accent-glow);
-        }
-
-        .btn {
-            width: 100%;
-            padding: 14px;
-            border: none;
-            border-radius: 12px;
-            background-color: var(--button-color);
-            color: var(--button-text);
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 8px;
-            box-shadow: 0 4px 14px var(--accent-glow);
-            transition: transform 0.1s ease, opacity 0.2s ease;
-        }
-
-        .btn:active { transform: scale(0.98); }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-        .btn-success { background-color: var(--success-color); box-shadow: 0 4px 14px rgba(16, 185, 129, 0.25); }
-        .btn-danger { background-color: var(--danger-color); box-shadow: 0 4px 14px rgba(239, 68, 68, 0.25); }
-        .btn-outline { background: transparent; border: 1px solid var(--glass-border); color: var(--text-color); box-shadow: none; }
-
-        /* Spinner & Loading */
-        .spinner {
-            width: 18px;
-            height: 18px;
-            border: 2px solid var(--button-text);
-            border-top-color: transparent;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            display: none;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        /* List Items & Copy Box */
-        .list-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 0;
-            border-bottom: 1px solid var(--glass-border);
-        }
-        .list-item:last-child { border-bottom: none; }
-
-        .copy-box {
-            background: rgba(0, 0, 0, 0.35);
-            border: 1px dashed var(--button-color);
-            padding: 12px;
-            border-radius: 14px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            word-break: break-all;
-            margin-top: 8px;
-        }
-
-        /* Modal Component */
-        .modal-backdrop {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0, 0, 0, 0.75);
-            backdrop-filter: blur(8px);
-            z-index: 2000;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        .modal-backdrop.active { display: flex; }
-        .modal-card {
-            background: var(--card-bg);
-            border: 1px solid var(--glass-border);
-            border-radius: 24px;
-            padding: 24px;
-            width: 100%;
-            max-width: 480px;
-            max-height: 85vh;
-            overflow-y: auto;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
-            animation: modalUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        @keyframes modalUp {
-            from { opacity: 0; transform: translateY(30px) scale(0.95); }
-            to { opacity: 1; transform: translateY(0) scale(1); }
-        }
-
-        /* Bridge View Layout */
-        .bridge-container {
-            text-align: center;
-            padding: 20px 10px;
-        }
-        .timer-circle {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            background: rgba(59, 130, 246, 0.1);
-            border: 3px solid var(--button-color);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 28px;
-            font-weight: 800;
-            color: var(--button-color);
-            margin: 16px auto;
-            box-shadow: 0 0 20px var(--accent-glow);
-        }
-        .progress-bar-container {
-            width: 100%;
-            height: 8px;
-            background: rgba(255,255,255,0.08);
-            border-radius: 10px;
-            overflow: hidden;
-            margin: 16px 0;
-        }
-        .progress-bar-fill {
-            height: 100%;
-            width: 0%;
-            background: linear-gradient(90deg, var(--button-color), var(--purple-accent));
-            transition: width 1s linear;
-        }
-
-        /* Toast Notifications */
-        #toast {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%) translateY(-100px);
-            background-color: var(--card-bg);
-            color: var(--text-color);
-            padding: 12px 20px;
-            border-radius: 30px;
-            font-size: 13px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
-            border: 1px solid var(--glass-border);
-            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            z-index: 3000;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            max-width: 90%;
-        }
-        #toast.show { transform: translateX(-50%) translateY(0); }
-    </style>
+    details { background: #0f172a; padding: 14px; border-radius: 12px; border: 1px solid var(--card-border); margin-bottom: 10px; }
+    summary { font-weight: bold; cursor: pointer; }
+    
+    .tab-pane { animation: fadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
 </head>
 <body>
 
-    <!-- Toast Component -->
-    <div id="toast">
-        <span id="toast-icon">✨</span>
-        <span id="toast-text"></span>
+  <div class="container">
+    <!-- Global Toast Component -->
+    <div id="toast"></div>
+
+    <!-- Modal: Deposit Instructions Guide -->
+    <div id="instructions-modal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <h3 style="margin-top: 0; color: var(--accent); font-size: 18px;" data-i18n="guide_modal_title">Deposit & TxID Guide</h3>
+        <hr style="border: 0; border-top: 1px solid var(--card-border); margin: 14px 0;">
+        <ol style="font-size: 12px; color: var(--text); padding-left: 18px; padding-right: 18px; line-height: 1.8;">
+          <li><b data-i18n="guide_step1_b">Select Network:</b> <span data-i18n="guide_step1_t">Choose USDT (TRC20 or BEP20) to reveal your dedicated deposit address and copy it.</span></li>
+          <li><b data-i18n="guide_step2_b">Transfer Funds:</b> <span data-i18n="guide_step2_t">Open your exchange or wallet app (Binance, Trust Wallet, OKX) and transfer USDT.</span></li>
+          <li><b data-i18n="guide_step3_b">Copy Transaction Hash (TxID):</b> <span data-i18n="guide_step3_t">After confirmation, copy the transaction Hash/TxID.</span>
+            <div style="background: #070a12; padding: 10px; border-radius: 10px; margin: 8px 0; border: 1px solid var(--card-border); text-align: center;">
+              <small style="color: var(--text-muted);" data-i18n="example_txid">Example TxID format:</small><br>
+              <code style="color: var(--success); font-size: 11px; word-break: break-all;">4a8f92b8d01...e83120c91</code>
+            </div>
+          </li>
+          <li><b data-i18n="guide_step4_b">Submit Request:</b> <span data-i18n="guide_step4_t">Return here, enter the exact deposited amount and TxID, then submit.</span></li>
+        </ol>
+        <button class="btn-danger" style="margin-top: 16px;" onclick="toggleInstructionsModal(false)" data-i18n="close">Close</button>
+      </div>
     </div>
 
-    <!-- Deposit Modal (Bridge & Instructions) -->
-    <div id="deposit-modal" class="modal-backdrop">
-        <div class="modal-card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                <h3 style="font-size: 16px;" data-i18n="deposit_guide_title">دليل الإيداع الشامل</h3>
-                <button class="lang-switch" onclick="closeDepositModal()">✕</button>
-            </div>
-            
-            <div class="form-group">
-                <label data-i18n="select_network">اختر الشبكة</label>
-                <select id="modal-network-select" onchange="updateModalWallet()">
-                    <option value="TRC20">USDT - TRC20 (Tron)</option>
-                    <option value="BEP20">USDT - BEP20 (BNB Smart Chain)</option>
-                </select>
-            </div>
+    <!-- Bridge View Page (Short Link Landing Bridge) -->
+    <div id="bridge-view" class="card hidden tab-pane">
+      <h2 style="text-align: center; margin-bottom: 6px; font-size: 22px;" data-i18n="bridge_title">Preparing your link...</h2>
+      <p style="text-align: center; color: var(--text-muted); font-size: 12px; margin: 0;" data-i18n="bridge_desc">Please wait while we prepare your destination link</p>
+      
+      <div id="ad-container" style="min-height: 230px; background: #000; border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 18px 0; border: 1px dashed var(--card-border); overflow: hidden; padding: 14px; text-align: center;">
+        <span style="color: var(--text-muted); font-size: 12px;" data-i18n="ad_loading">Loading advertisement...</span>
+      </div>
 
-            <div style="text-align: center; margin: 16px 0;">
-                <div style="background: #fff; padding: 12px; display: inline-block; border-radius: 16px;">
-                    <svg id="qr-code-svg" width="130" height="130" viewBox="0 0 100 100">
-                        <path d="M0 0h30v30H0zM40 0h10v10H40zM60 0h40v40H60zM10 10h10v10H10zM70 10h20v20H70zM0 60h40v40H0zM10 70h20v20H10zM50 50h10v20H50zM70 50h30v10H70zM90 70h10v30H90z" fill="#0f172a"/>
-                    </svg>
-                </div>
-                <p style="font-size: 11px; color: var(--hint-color); margin-top: 6px;" data-i18n="scan_qr">امسح كود QR للإيداع السريع</p>
-            </div>
+      <p style="text-align: center; font-size: 14px;"><span data-i18n="timer_text">Button unlocks in:</span> <b id="timer" style="color: var(--accent); font-size: 20px;">5</b> <span data-i18n="seconds">seconds</span></p>
+      <button id="go-btn" disabled onclick="completeImpression()">
+        <span id="go-btn-text" data-i18n="go_button">Continue to Destination</span>
+      </button>
 
-            <div class="copy-box">
-                <div>
-                    <div style="font-size: 10px; color: var(--hint-color);" id="modal-network-label">USDT (TRC20)</div>
-                    <div style="font-size: 11px; font-weight: bold;" id="modal-wallet-addr">TYdX23k9...xKP82mL</div>
-                </div>
-                <button class="lang-switch" onclick="copyModalWallet()" data-i18n="copy">نسخ</button>
-            </div>
-
-            <div style="margin-top: 16px; font-size: 11px; color: var(--hint-color); line-height: 1.6;">
-                <p>1. <span data-i18n="step1">أرسل المبلغ المراد إيداعه للعنوان أعلاه.</span></p>
-                <p>2. <span data-i18n="step2">انسخ معرف المعاملة (TxID / Hash).</span></p>
-                <p>3. <span data-i18n="step3">عد لتبويب "المالية" وأدخل الرقم لتأكيد الحساب.</span></p>
-            </div>
-
-            <button class="btn btn-outline" style="margin-top: 16px;" onclick="closeDepositModal()" data-i18n="close">إغلاق</button>
+      <div style="margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--card-border); text-align: center; font-size: 11px; color: var(--text-muted);">
+        <p style="margin: 0 0 8px 0;">
+          All rights reserved for <a href="https://t.me/Ads_telegabot" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: none; font-weight: bold;">Telega.ads</a>
+        </p>
+        <div>
+          <a href="https://t.me/ttelega_ads" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; background: rgba(59, 130, 246, 0.15); border: 1px solid var(--accent); border-radius: 20px; color: var(--accent); text-decoration: none; font-weight: bold;" data-i18n="official_channel">
+            📢 Official Channel
+          </a>
         </div>
+      </div>
     </div>
 
-    <!-- Header Section -->
-    <header class="header-card">
-        <div class="user-info">
-            <img id="user-avatar" class="avatar" style="display:none;" alt="Avatar" />
-            <div id="avatar-fallback" class="avatar">U</div>
-            <div class="user-details">
-                <h4 id="user-name">Telegram User 
-                    <span id="premium-badge" class="badge-premium" style="display:none;">PREMIUM</span>
-                    <span id="admin-badge" class="badge-admin" style="display:none;">ADMIN</span>
-                </h4>
-                <p style="font-size: 11px; color: var(--hint-color);" id="user-id-display">ID: ------</p>
-            </div>
+    <!-- Main App Container View -->
+    <div id="app-view">
+      
+      <!-- User Header Profile Card -->
+      <div class="user-profile-header">
+        <div id="user-avatar-container"></div>
+        <div style="flex: 1; overflow: hidden;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span id="user-display-name" style="font-weight: 800; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">...</span>
+            <span id="user-premium-badge" class="user-badge hidden">★ Premium</span>
+          </div>
+          <div id="user-display-handle" style="font-size: 12px; color: var(--text-muted);">@user</div>
+          <div id="user-tg-id" style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">ID: -</div>
         </div>
-        <button class="lang-switch" onclick="toggleLanguage()">English</button>
-    </header>
+      </div>
 
-    <div class="container">
-        <!-- Tab 1: Wallet & Dashboard -->
-        <section id="wallet-tab" class="tab-content active">
-            <div class="card balance-hero">
-                <p style="color: var(--hint-color); font-size: 12px;" data-i18n="current_balance">الرصيد الحالي</p>
-                <h1 id="balance-val" style="font-size: 36px; margin: 6px 0; color: var(--success-color);">$0.00</h1>
-                <p style="font-size: 11px; color: var(--hint-color);" data-i18n="cents_conversion">100 سنت = $1.00 USD</p>
+      <!-- Tab 1: Dashboard -->
+      <div id="tab-content-dashboard" class="tab-pane">
+        <div class="card" style="border-color: var(--accent); background: rgba(21, 29, 48, 0.95);">
+          <h4 style="margin: 0 0 6px 0; color: var(--accent); font-size: 14px;" data-i18n="about_title">ℹ️ About & Terms of Use</h4>
+          <p style="margin: 0; font-size: 12px; color: var(--text-muted); line-height: 1.6;" data-i18n="about_desc">
+            This platform allows you to shorten links safely and manage promotion campaigns efficiently. By using our service, you agree to our traffic quality and safety guidelines.
+          </p>
+        </div>
+
+        <div id="announcement-box" class="card hidden" style="border-color: var(--warning);">
+          <h4 id="anc-title" style="margin: 0 0 6px 0; color: var(--warning);"></h4>
+          <p id="anc-content" style="margin: 0; font-size: 12px; color: var(--text-muted); line-height: 1.6;"></p>
+        </div>
+
+        <div class="card">
+          <h3 style="font-size: 16px; margin-top:0;" data-i18n="create_link_title">Shorten New Link</h3>
+          <input type="text" id="link-title" data-i18n-ph="ph_link_title" placeholder="Title (Optional)">
+          <input type="url" id="link-url" data-i18n-ph="ph_link_url" placeholder="Original URL (https://...)">
+          <button id="btn-create-link" onclick="handleShortenClick()">
+            <span data-i18n="btn_shorten">Shorten Link Now</span>
+          </button>
+        </div>
+
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h3 style="font-size: 16px; margin:0;" data-i18n="my_links_title">Your Links</h3>
+            <input type="text" id="search-links-input" placeholder="Search..." oninput="filterUserLinks(this.value)" style="width: 110px; padding: 6px 10px; margin:0; font-size: 11px;">
+          </div>
+          <div id="links-list" style="color: var(--text-muted); font-size: 12px;" data-i18n="loading">Loading...</div>
+        </div>
+      </div>
+
+      <!-- Tab 2: Wallet & Transactions -->
+      <div id="tab-content-wallet" class="tab-pane hidden">
+        <div class="stats-grid">
+          <div class="stat-box">
+            <small data-i18n="pending_bal">Pending Balance</small>
+            <h3 id="pending-bal" style="color: var(--warning);">$0.00</h3>
+          </div>
+          <div class="stat-box">
+            <small data-i18n="avail_bal">Available Balance</small>
+            <h3 id="avail-bal" style="color: var(--success);">$0.00</h3>
+          </div>
+        </div>
+
+        <!-- Wallet Action Controls -->
+        <div class="wallet-actions-nav">
+          <button id="wallet-nav-deposit" class="wallet-action-btn active" onclick="switchWalletView('deposit')" data-i18n="tab_deposit">📥 Deposit</button>
+          <button id="wallet-nav-withdraw" class="wallet-action-btn" onclick="switchWalletView('withdraw')" data-i18n="tab_withdraw">📤 Withdraw</button>
+        </div>
+
+        <!-- Wallet View: Deposit -->
+        <div id="wallet-view-deposit" class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h3 style="font-size: 16px; margin:0;" data-i18n="deposit_funds_title">Deposit Funds (USDT)</h3>
+            <button class="btn-small btn-warning" style="width: auto;" onclick="toggleInstructionsModal(true)" data-i18n="btn_deposit_guide">❓ Deposit Guide</button>
+          </div>
+          
+          <h4 style="font-size: 13px; margin: 12px 0 4px 0;" data-i18n="select_network_label">Select Network:</h4>
+          <select id="deposit-network" onchange="handleNetworkChange(this.value)">
+            <option value="" data-i18n="opt_select_network">-- Select Payment Network --</option>
+            <option value="USDT_TRC20">USDT (TRC20 Network)</option>
+            <option value="USDT_BEP20">USDT (BEP20 Network)</option>
+          </select>
+
+          <div id="card-addr-trc20" class="address-card hidden">
+            <small style="color: var(--text-muted);" data-i18n="lbl_trc20_addr">USDT - TRC20 Address:</small>
+            <div class="address-row">
+              <span class="address-text" id="addr-trc20">TYqN8xM9KzL3pQ2vA5wR7jH4uE1sD8fX9k</span>
+              <button class="btn-small" onclick="copyToClipboard(document.getElementById('addr-trc20').innerText)" data-i18n="btn_copy">Copy</button>
             </div>
+          </div>
 
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div style="font-size: 11px; color: var(--hint-color);" data-i18n="total_earned">إجمالي الأرباح</div>
-                    <div id="earned-val" class="stat-value">$0.00</div>
-                </div>
-                <div class="stat-card">
-                    <div style="font-size: 11px; color: var(--hint-color);" data-i18n="total_spent">إجمالي المصروفات</div>
-                    <div id="spent-val" class="stat-value" style="color: var(--danger-color);">$0.00</div>
-                </div>
-                <div class="stat-card">
-                    <div style="font-size: 11px; color: var(--hint-color);" data-i18n="short_links">الروابط المختصرة</div>
-                    <div id="links-count" class="stat-value">0</div>
-                </div>
-                <div class="stat-card">
-                    <div style="font-size: 11px; color: var(--hint-color);" data-i18n="active_campaigns">الحملات النشطة</div>
-                    <div id="campaigns-count" class="stat-value">0</div>
-                </div>
+          <div id="card-addr-bep20" class="address-card hidden">
+            <small style="color: var(--text-muted);" data-i18n="lbl_bep20_addr">USDT - BEP20 (BSC) Address:</small>
+            <div class="address-row">
+              <span class="address-text" id="addr-bep20">0x71C7656EC7ab88b098defB751B7401B5f6d8976F</span>
+              <button class="btn-small" onclick="copyToClipboard(document.getElementById('addr-bep20').innerText)" data-i18n="btn_copy">Copy</button>
             </div>
+          </div>
 
-            <!-- Rewarded Adsgram Button -->
-            <div class="card">
-                <h3 style="font-size: 15px; margin-bottom: 8px;" data-i18n="watch_ad_title">ربح رصيد مجاني</h3>
-                <p style="font-size: 12px; color: var(--hint-color); margin-bottom: 12px;" data-i18n="watch_ad_desc">شاهد إعلانًا قصيرًا واحصل على مكافأة في محفظتك فوراً.</p>
-                <button class="btn btn-success" onclick="showAdsgramReward()">
-                    <span data-i18n="watch_ad_btn">📺 مشاهدة إعلان ورابح سنتات</span>
-                </button>
+          <h4 style="font-size: 13px; margin: 16px 0 6px 0;" data-i18n="submit_proof_label">Submit Deposit Proof:</h4>
+          <input type="number" id="deposit-amount" data-i18n-ph="ph_deposit_amount" placeholder="Amount ($)" min="1" step="any">
+          <input type="text" id="deposit-txhash" data-i18n-ph="ph_deposit_txid" placeholder="Transaction TxID / Hash">
+          
+          <button id="btn-request-deposit" class="btn-success" style="margin-top: 14px;" onclick="requestDeposit()">
+            <span data-i18n="btn_submit_deposit">Submit Deposit Request</span>
+          </button>
+        </div>
+
+        <!-- Wallet View: Withdraw -->
+        <div id="wallet-view-withdraw" class="card hidden">
+          <h3 style="font-size: 16px; margin-top:0;" data-i18n="withdraw_request_title">Withdraw Earnings</h3>
+          
+          <div style="margin-bottom: 12px;">
+            <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;" data-i18n="wallet_addr_label">Withdrawal Wallet (USDT TRC20)</label>
+            <div style="display: flex; gap: 6px;">
+              <input type="text" id="default-wallet" data-i18n-ph="ph_wallet_addr" placeholder="Enter wallet address" readonly style="margin-top: 0;">
+              <button class="btn-small btn-warning" id="edit-wallet-btn" onclick="toggleWalletEdit()" style="margin-top: 0; width: auto;" data-i18n="btn_edit">Edit</button>
             </div>
-        </section>
+            <button id="save-wallet-btn" class="hidden btn-small" onclick="saveSettings()" style="margin-top: 8px; width: 100%;" data-i18n="btn_save_wallet">Save New Address</button>
+          </div>
 
-        <!-- Tab 2: URL Shortener -->
-        <section id="links-tab" class="tab-content">
-            <div class="card">
-                <h3 style="font-size: 15px; margin-bottom: 12px;" data-i18n="shorten_new_link">اختصار رابط جديد</h3>
-                <form id="link-form">
-                    <div class="form-group">
-                        <label data-i18n="original_url_label">الرابط الأصلي</label>
-                        <input type="url" id="original-url" placeholder="https://example.com/page" required>
-                    </div>
-                    <button type="submit" class="btn" id="link-btn">
-                        <span data-i18n="shorten_btn">اختصار الرابط</span>
-                        <div class="spinner"></div>
-                    </button>
-                </form>
+          <input type="number" id="withdraw-amount" data-i18n-ph="ph_withdraw_amount" placeholder="Amount (Min. $30)" min="30" step="any" oninput="updateWithdrawCalculations()">
+          
+          <div class="fee-breakdown hidden" id="withdraw-fee-box">
+            <span><span data-i18n="lbl_amount">Amount</span>: <b id="calc-req">$0.00</b></span>
+            <span><span data-i18n="lbl_fee">Fee (10%)</span>: <b id="calc-fee" style="color: var(--danger);">$0.00</b></span>
+            <span><span data-i18n="lbl_net">Net</span>: <b id="calc-net" style="color: var(--success);">$0.00</b></span>
+          </div>
+
+          <button id="btn-request-withdraw" style="margin-top: 16px;" onclick="requestWithdrawal()">
+            <span data-i18n="btn_submit_withdraw">Request Withdrawal</span>
+          </button>
+
+          <h4 style="font-size: 13px; margin: 20px 0 10px 0; border-top: 1px solid var(--card-border); padding-top: 14px;" data-i18n="withdraw_history">Withdrawal History</h4>
+          <div id="withdraws-list" style="font-size: 12px; color: var(--text-muted);" data-i18n="loading">Loading...</div>
+        </div>
+      </div>
+
+      <!-- Tab 3: Self-Serve Ads -->
+      <div id="tab-content-ads" class="tab-pane hidden">
+        <div class="card">
+          <h3 style="font-size: 16px; margin-top:0;" data-i18n="create_ad_title">Create New Ad Campaign</h3>
+          <p style="font-size: 11px; color: var(--text-muted); margin-top:-4px;" data-i18n="ad_rate_desc">Ad Rate: $1.50 per 1,000 real impressions (CPM)</p>
+          
+          <input type="text" id="ad-title" data-i18n-ph="ph_ad_title" placeholder="Ad Title">
+          <input type="url" id="ad-target-url" data-i18n-ph="ph_ad_target_url" placeholder="Target URL (https://...)">
+          <input type="number" id="ad-budget" data-i18n-ph="ph_ad_budget" placeholder="Total Budget (Min. $5)" min="5" step="any">
+          
+          <button id="btn-create-ad" onclick="createAdCampaign()">
+            <span data-i18n="btn_launch_ad">Launch Ad Campaign</span>
+          </button>
+        </div>
+
+        <div class="card">
+          <h3 style="font-size: 16px; margin-top:0;" data-i18n="my_ads_title">Your Ad Campaigns</h3>
+          <div id="ads-list" style="color: var(--text-muted); font-size: 12px;" data-i18n="loading">Loading...</div>
+        </div>
+      </div>
+
+      <!-- Tab 4: Referral System -->
+      <div id="tab-content-referral" class="tab-pane hidden">
+        <div class="card">
+          <h3 style="margin-top:0;" data-i18n="ref_title">Referral System (10%)</h3>
+          <p style="font-size: 12px; color: var(--text-muted); line-height: 1.6;" data-i18n="ref_desc">Invite your friends and instantly earn 10% of their total revenues.</p>
+          <input type="text" id="ref-link" readonly onclick="copyToClipboard(this.value)">
+          <button class="btn-success" style="margin-top: 12px;" onclick="shareReferralLink()">
+            <span data-i18n="btn_share_ref">Share Link via Telegram</span>
+          </button>
+          <div class="stat-box" style="margin-top:16px;">
+            <small data-i18n="total_ref_earnings">Total Referral Earnings</small>
+            <h3 id="ref-earnings" style="color:var(--success);">$0.00</h3>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 5: Settings & FAQ -->
+      <div id="tab-content-settings" class="tab-pane hidden">
+        <div class="card">
+          <h3 style="margin-top:0; font-size: 16px;" data-i18n="lang_settings_title">Language / تغيير اللغة</h3>
+          <select id="language-select" onchange="changeAppLanguage(this.value)">
+            <option value="en">English (الإنجليزية)</option>
+            <option value="ar">العربية (Arabic)</option>
+          </select>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-top:0; font-size: 16px;" data-i18n="faq_title">FAQ & Support</h3>
+          <details>
+            <summary data-i18n="faq_q1">How are earnings calculated?</summary>
+            <p style="color: var(--text-muted); font-size: 12px; margin-top: 8px;" data-i18n="faq_a1">Earnings depend on ad revenue and are distributed proportionally based on verified visits.</p>
+          </details>
+          <details>
+            <summary data-i18n="faq_q2">What is the 1-day pending period?</summary>
+            <p style="color: var(--text-muted); font-size: 12px; margin-top: 8px;" data-i18n="faq_a2">It is a hold period to review traffic sources and prevent fraud before transferring earnings to available balance within 24 hours.</p>
+          </details>
+          
+          <div style="margin-top: 18px; padding: 14px; background: #0f172a; border-radius: 14px; border: 1px solid var(--card-border); font-size: 12px; text-align: center;">
+            <span data-i18n="support_text">Contact technical support on Telegram:</span>
+            <div style="display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;">
+              <a href="https://t.me/Ads_telegabot" target="_blank" rel="noopener" style="flex: 1; text-decoration: none;">
+                <button class="btn-small" style="width: 100%; background: var(--accent);">🤖 Bot</button>
+              </a>
+              <a href="https://t.me/ttelega_ads" target="_blank" rel="noopener" style="flex: 1; text-decoration: none;">
+                <button class="btn-small btn-success" style="width: 100%;">📢 Channel</button>
+              </a>
+              <a href="https://t.me/Te_AdsNs_bot" target="_blank" rel="noopener" style="flex: 1; text-decoration: none;">
+                <button class="btn-small btn-warning" style="width: 100%;">🎧 Support</button>
+              </a>
             </div>
+          </div>
+        </div>
+      </div>
 
-            <div class="card">
-                <h3 style="font-size: 15px; margin-bottom: 12px;" data-i18n="my_links">روابطي المختصرة</h3>
-                <div id="links-list">...</div>
-            </div>
-        </section>
+      <!-- Tab 6: Admin Dashboard Panel (Hidden by default) -->
+      <div id="tab-content-admin" class="tab-pane hidden">
+        <div class="stats-grid" style="margin-bottom: 16px;">
+          <div class="stat-box"><small>Total Platform Users</small><h3 id="admin-total-users">0</h3></div>
+          <div class="stat-box"><small>Total Pending Balances</small><h3 id="admin-total-pending" style="color: var(--warning);">$0.00</h3></div>
+        </div>
 
-        <!-- Tab 3: Ad Campaigns -->
-        <section id="campaigns-tab" class="tab-content">
-            <div class="card">
-                <h3 style="font-size: 15px; margin-bottom: 12px;" data-i18n="create_campaign">إنشاء حملة إعلانية</h3>
-                <form id="campaign-form">
-                    <div class="form-group">
-                        <label data-i18n="camp_title_label">عنوان الحملة</label>
-                        <input type="text" id="camp-title" required>
-                    </div>
-                    <div class="form-group">
-                        <label data-i18n="camp_url_label">الرابط المستهدف</label>
-                        <input type="url" id="camp-url" placeholder="https://t.me/your_channel" required>
-                    </div>
-                    <div class="form-group">
-                        <label data-i18n="camp_budget_label">الميزانية (بالسنت)</label>
-                        <input type="number" id="camp-budget" min="100" placeholder="100 سنت = $1" required>
-                    </div>
-                    <div class="form-group">
-                        <label data-i18n="camp_cpc_label">تكلفة النقرة (بالسنت)</label>
-                        <input type="number" id="camp-cpc" min="1" placeholder="مثال: 2" required>
-                    </div>
-                    <button type="submit" class="btn" id="camp-btn">
-                        <span data-i18n="launch_camp_btn">إطلاق الحملة</span>
-                        <div class="spinner"></div>
-                    </button>
-                </form>
-            </div>
+        <div class="card">
+          <h4 style="margin-top:0;">Revenue Pool Distribution</h4>
+          <input type="number" id="revenue-amount" placeholder="Total Revenue Amount ($)" step="any">
+          <button id="btn-distribute-rev" onclick="distributeRevenue()" style="margin-top: 12px;">Distribute Revenue Pool</button>
+        </div>
 
-            <div class="card">
-                <h3 style="font-size: 15px; margin-bottom: 12px;" data-i18n="active_camps_list">الحملات النشطة</h3>
-                <div id="campaigns-list">...</div>
-            </div>
-        </section>
+        <div class="card">
+          <h4 style="margin-top:0;">Pending Deposit Requests</h4>
+          <div id="admin-deposits-list" style="font-size: 12px;">Loading deposits...</div>
+        </div>
 
-        <!-- Tab 4: Finance (USDT TRC20 / BEP20) -->
-        <section id="finance-tab" class="tab-content">
-            <div class="card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <h3 style="font-size: 15px;" data-i18n="deposit_title">إيداع رصيد (USDT)</h3>
-                    <button class="lang-switch" onclick="openDepositModal()" data-i18n="deposit_guide">📖 دليل الإيداع</button>
-                </div>
-                <p style="font-size: 11px; color: var(--hint-color); margin-bottom: 12px;" data-i18n="deposit_desc">قم بتحويل المبلغ إلى عنوان المحفظة ثم أدخل رقم المعاملة (TxID).</p>
-                
-                <div class="copy-box">
-                    <div>
-                        <div style="font-size: 10px; color: var(--hint-color);">USDT (TRC20)</div>
-                        <div style="font-size: 12px; font-weight: bold;" id="wallet-address">TYdX23k9...xKP82mL</div>
-                    </div>
-                    <button class="lang-switch" onclick="copyWalletAddress()" data-i18n="copy">نسخ</button>
-                </div>
+        <div class="card">
+          <h4 style="margin-top:0;">Pending Withdrawal Requests</h4>
+          <div id="admin-withdraws-list" style="font-size: 12px;">Loading withdrawals...</div>
+        </div>
+        
+        <div class="card">
+          <h4 style="margin-top:0;">System User Management</h4>
+          <div id="admin-users-list" style="font-size: 12px;">Loading users...</div>
+        </div>
+      </div>
 
-                <form id="deposit-form" style="margin-top: 14px;">
-                    <div class="form-group">
-                        <label data-i18n="amount_cents_label">المبلغ بالسنتات</label>
-                        <input type="number" id="deposit-amount" min="100" placeholder="1000 = $10" required>
-                    </div>
-                    <div class="form-group">
-                        <label data-i18n="txid_label">معرف المعاملة (TxID / Hash)</label>
-                        <input type="text" id="deposit-txid" placeholder="أدخل رمز Hash للتحويل" required>
-                    </div>
-                    <button type="submit" class="btn" id="deposit-btn">
-                        <span data-i18n="confirm_deposit_btn">تأكيد الإيداع</span>
-                        <div class="spinner"></div>
-                    </button>
-                </form>
-            </div>
+      <!-- Floating Bottom Nav Dock Bar -->
+      <nav class="tg-nav-dock">
+        <button onclick="switchTab('dashboard')" class="nav-btn active" id="tab-btn-dashboard">
+          <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+          <span data-i18n="nav_home">Home</span>
+        </button>
 
-            <div class="card">
-                <h3 style="font-size: 15px; margin-bottom: 12px;" data-i18n="withdraw_title">سحب أرباح</h3>
-                <form id="withdraw-form">
-                    <div class="form-group">
-                        <label data-i18n="amount_cents_label">المبلغ بالسنتات</label>
-                        <input type="number" id="withdraw-amount" min="500" placeholder="500 = $5 (الحد الأدنى)" required>
-                    </div>
-                    <div class="form-group">
-                        <label data-i18n="usdt_address_label">عنوان محفظتك (USDT TRC20)</label>
-                        <input type="text" id="withdraw-address" placeholder="T..." required>
-                    </div>
-                    <button type="submit" class="btn btn-danger" id="withdraw-btn">
-                        <span data-i18n="request_withdraw_btn">طلب السحب</span>
-                        <div class="spinner"></div>
-                    </button>
-                </form>
-            </div>
-        </section>
+        <button onclick="switchTab('wallet')" class="nav-btn" id="tab-btn-wallet">
+          <svg viewBox="0 0 24 24"><path d="M21 18v1c0 1.1-.9 2-2 2H5c-1.11 0-2-.9-2-2V5c0-1.1.89-2 2-2h14c1.1 0 2 .9 2 2v1h-9c-1.11 0-2 .9-2 2v8c0 1.1.89 2 2 2h9zm-9-2h10V8H12v8zm4-2.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
+          <span data-i18n="nav_wallet">Wallet</span>
+        </button>
 
-        <!-- Tab 5: Referrals -->
-        <section id="ref-tab" class="tab-content">
-            <div class="card">
-                <h3 style="font-size: 15px; margin-bottom: 8px;" data-i18n="ref_system_title">نظام الإحالات</h3>
-                <p style="font-size: 12px; color: var(--hint-color); margin-bottom: 12px;" data-i18n="ref_system_desc">شارك رابطك الخاص واحصل على 10% من أرباح أصدقائك للأبد!</p>
-                
-                <div class="copy-box">
-                    <span id="ref-link-display" style="font-size: 12px;">https://t.me/bot?start=ref</span>
-                    <button class="lang-switch" onclick="shareReferralLink()" data-i18n="share">مشاركة</button>
-                </div>
-            </div>
-        </section>
+        <button onclick="switchTab('ads')" class="nav-btn" id="tab-btn-ads">
+          <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 10h2v7H7zm4-3h2v10h-2zm4 6h2v4h-2z"/></svg>
+          <span data-i18n="nav_ads">Ads</span>
+        </button>
 
-        <!-- Tab 6: Smart Bridge View (Integrated dynamic view) -->
-        <section id="bridge-tab" class="tab-content">
-            <div class="card bridge-container">
-                <h3 style="font-size: 18px;" data-i18n="bridge_heading">توجيه الرابط المختصر</h3>
-                <p style="font-size: 12px; color: var(--hint-color); margin-top: 4px;" data-i18n="bridge_sub">سيتم تجهيز رابطك الأصلي خلال ثوانٍ قليلة...</p>
+        <button onclick="switchTab('referral')" class="nav-btn" id="tab-btn-referral">
+          <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3-1.34 3-3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5s-3 1.34-3 3 1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+          <span data-i18n="nav_referral">Referrals</span>
+        </button>
 
-                <div class="timer-circle" id="bridge-timer">5</div>
+        <button onclick="switchTab('settings')" class="nav-btn" id="tab-btn-settings">
+          <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2z"/></svg>
+          <span data-i18n="nav_settings">Settings</span>
+        </button>
 
-                <div class="progress-bar-container">
-                    <div class="progress-bar-fill" id="bridge-progress"></div>
-                </div>
+        <button onclick="switchTab('admin')" class="nav-btn hidden" id="tab-btn-admin" style="color: var(--warning);">
+          <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-5.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+          <span>Admin</span>
+        </button>
+      </nav>
 
-                <div style="margin: 16px 0;">
-                    <button class="btn btn-success" onclick="showAdsgramReward()" style="font-size: 13px;">
-                        <span data-i18n="speed_up_ad">⚡ شاهد إعلان ودعم الناشر لفتح الرابط فورا</span>
-                    </button>
-                </div>
-
-                <button class="btn" id="open-bridge-btn" disabled onclick="redirectBridgeTarget()">
-                    <span data-i18n="open_target_btn">الانتقال للرابط المطلوب</span>
-                </button>
-            </div>
-        </section>
-
-        <!-- Tab 7: Admin Control Hub (Dynamic Access) -->
-        <section id="admin-tab" class="tab-content">
-            <div class="card" style="border-color: var(--danger-color);">
-                <h3 style="font-size: 16px; color: var(--danger-color); margin-bottom: 12px;" data-i18n="admin_panel_title">لوحة تحكم الإدارة</h3>
-                <p style="font-size: 12px; color: var(--hint-color); margin-bottom: 14px;" data-i18n="admin_desc">مراجعة وتقديم الموافقات على طلبات الإيداع والسحب.</p>
-
-                <h4 style="font-size: 13px; margin-bottom: 8px;" data-i18n="pending_deposits">طلبات الإيداع المعلقة</h4>
-                <div id="admin-deposits-list">...</div>
-            </div>
-        </section>
     </div>
+  </div>
 
-    <!-- Navigation Bar Bottom -->
-    <nav class="nav-dock">
-        <button class="nav-item active" onclick="switchTab('wallet-tab', this)">
-            <svg viewBox="0 0 24 24"><path d="M21 18v1c0 1.1-.9 2-2 2H5c-1.11 0-2-.9-2-2V5c0-1.1.89-2 2-2h14c1.1 0 2 .9 2 2v1h-9c-1.11 0-2 .9-2 2v8c0 1.1.89 2 2 2h9zm-9-2h10V8H12v8zm4-2.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
-            <span data-i18n="nav_wallet">المحفظة</span>
-        </button>
-        <button class="nav-item" onclick="switchTab('links-tab', this)">
-            <svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>
-            <span data-i18n="nav_links">الروابط</span>
-        </button>
-        <button class="nav-item" onclick="switchTab('campaigns-tab', this)">
-            <svg viewBox="0 0 24 24"><path d="M18 11c0-.67-.33-1.28-.84-1.65l-8.48-6.16C8.16 2.82 7.5 2.89 7.08 3.32c-.42.42-.49 1.08-.17 1.6l1.83 3.08H5c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h3.74l-1.83 3.08c-.32.52-.25 1.18.17 1.6.42.43 1.08.5 1.6.18l8.48-6.16c.51-.37.84-.98.84-1.65zm2 0h2v2h-2v-2z"/></svg>
-            <span data-i18n="nav_campaigns">الحملات</span>
-        </button>
-        <button class="nav-item" onclick="switchTab('finance-tab', this)">
-            <svg viewBox="0 0 24 24"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1H6.32c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>
-            <span data-i18n="nav_finance">المالية</span>
-        </button>
-        <button class="nav-item" onclick="switchTab('ref-tab', this)">
-            <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-            <span data-i18n="nav_ref">الإحالات</span>
-        </button>
-        <button class="nav-item" id="nav-admin-btn" style="display:none;" onclick="switchTab('admin-tab', this)">
-            <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8s0 0 0 0z"/></svg>
-            <span data-i18n="nav_admin">الإدارة</span>
-        </button>
-    </nav>
+  <script>
+    // Configuration & Core States
+    const API_BASE = window.location.protocol.startsWith('file') 
+      ? 'http://localhost:3000' 
+      : window.location.origin;
 
-    <script>
-        // --- Global State & Telegram Init ---
-        const tg = window.Telegram?.WebApp;
-        let bridgeTargetUrl = '';
-        let bridgeTimerInterval = null;
-        let isAdminUser = false;
+    let authToken = localStorage.getItem('authToken');
+    let bridgeTargetUrl = null;
+    let bridgeShortCode = null;
+    let bridgeSessionId = null;
+    let bridgeTimerInterval = null;
+    let isUserAdmin = false;
+    let currentLang = localStorage.getItem('appLang') || 'en';
+    let currentUserTelegramId = null;
+    let rawUserLinksCache = [];
+    const tg = window.Telegram?.WebApp;
 
-        if (tg) {
-            tg.ready();
-            tg.expand();
-            if (tg.enableClosingConfirmation) tg.enableClosingConfirmation();
+    // Translation Dictionary
+    const i18n = {
+      en: {
+        nav_home: "Home",
+        nav_wallet: "Wallet",
+        nav_ads: "Ads",
+        nav_referral: "Referrals",
+        nav_settings: "Settings",
+        pending_bal: "Pending Balance",
+        avail_bal: "Available Balance",
+        create_link_title: "Shorten New Link",
+        ph_link_title: "Title (Optional)",
+        ph_link_url: "Original URL (https://...)",
+        btn_shorten: "Shorten Link Now",
+        my_links_title: "Your Links",
+        withdraw_request_title: "Withdraw Earnings",
+        wallet_addr_label: "Withdrawal Wallet (USDT TRC20)",
+        ph_wallet_addr: "Enter wallet address",
+        ph_withdraw_amount: "Amount (Min. $30)",
+        btn_edit: "Edit",
+        btn_save_wallet: "Save New Address",
+        btn_submit_withdraw: "Request Withdrawal",
+        withdraw_history: "Withdrawal History",
+        create_ad_title: "Create New Ad Campaign",
+        ad_rate_desc: "Ad Rate: $1.50 per 1,000 real impressions (CPM)",
+        ph_ad_title: "Ad Title",
+        ph_ad_target_url: "Target URL (https://...)",
+        ph_ad_budget: "Total Budget (Min. $5)",
+        btn_launch_ad: "Launch Ad Campaign",
+        my_ads_title: "Your Ad Campaigns",
+        ref_title: "Referral System (10%)",
+        ref_desc: "Invite your friends and instantly earn 10% of their total revenues.",
+        btn_share_ref: "Share Link via Telegram",
+        total_ref_earnings: "Total Referral Earnings",
+        lang_settings_title: "Language / تغيير اللغة",
+        faq_title: "FAQ & Support",
+        faq_q1: "How are earnings calculated?",
+        faq_a1: "Earnings depend on ad revenue and are distributed proportionally based on verified visits.",
+        faq_q2: "What is the 1-day pending period?",
+        faq_a2: "It is a hold period to review traffic sources and prevent fraud before transferring earnings to available balance within 24 hours.",
+        support_text: "Contact technical support on Telegram:",
+        loading: "Loading...",
+        copied: "Copied successfully!",
+        bridge_title: "Preparing your link...",
+        bridge_desc: "Please wait while we prepare your destination link",
+        ad_loading: "Loading advertisement...",
+        timer_text: "Button unlocks in:",
+        seconds: "seconds",
+        go_button: "Continue to Destination",
+        cancel: "Cancel",
+        close: "Close",
+        network_error: "Network connection error. Please check your internet connection.",
+        about_title: "ℹ️ About & Terms of Use",
+        about_desc: "This platform allows you to shorten links safely and manage promotion campaigns efficiently. By using our service, you agree to our traffic quality and safety guidelines.",
+        link_success_msg: "Link shortened successfully!",
+        guide_modal_title: "Deposit & TxID Guide",
+        guide_step1_b: "Select Network:",
+        guide_step1_t: "Choose USDT (TRC20 or BEP20) to reveal your dedicated deposit address and copy it.",
+        guide_step2_b: "Transfer Funds:",
+        guide_step2_t: "Open your exchange or wallet app (Binance, Trust Wallet, OKX) and transfer USDT.",
+        guide_step3_b: "Copy Transaction Hash (TxID):",
+        guide_step3_t: "After confirmation, copy the transaction Hash/TxID.",
+        guide_step4_b: "Submit Request:",
+        guide_step4_t: "Return here, enter the exact deposited amount and TxID, then submit.",
+        tab_deposit: "📥 Deposit",
+        tab_withdraw: "📤 Withdraw",
+        deposit_funds_title: "Deposit Funds (USDT)",
+        btn_deposit_guide: "❓ Deposit Guide",
+        select_network_label: "Select Network:",
+        opt_select_network: "-- Select Payment Network --",
+        lbl_trc20_addr: "USDT - TRC20 Address:",
+        lbl_bep20_addr: "USDT - BEP20 (BSC) Address:",
+        btn_copy: "Copy",
+        submit_proof_label: "Submit Deposit Proof:",
+        ph_deposit_amount: "Amount ($)",
+        ph_deposit_txid: "Transaction TxID / Hash",
+        btn_submit_deposit: "Submit Deposit Request",
+        lbl_amount: "Amount",
+        lbl_fee: "Fee (10%)",
+        lbl_net: "Net",
+        example_txid: "Example TxID format:",
+        official_channel: "📢 Official Channel"
+      },
+      ar: {
+        nav_home: "الرئيسية",
+        nav_wallet: "المحفظة",
+        nav_ads: "الإعلانات",
+        nav_referral: "الإحالات",
+        nav_settings: "الإعدادات",
+        pending_bal: "رصيد معلق (Pending)",
+        avail_bal: "متاح للسحب (Available)",
+        create_link_title: "اختصار رابط جديد",
+        ph_link_title: "عنوان المعاينة (اختياري)",
+        ph_link_url: "الرابط الأصلي (https://...)",
+        btn_shorten: "اختصار الرابط الآن",
+        my_links_title: "الروابط الخاصة بك",
+        withdraw_request_title: "طلب سحب الأرباح",
+        wallet_addr_label: "عنوان محفظة السحب (USDT TRC20)",
+        ph_wallet_addr: "أدخل عنوان المحفظة",
+        ph_withdraw_amount: "المبلغ (الحد الأدنى 30$)",
+        btn_edit: "تعديل",
+        btn_save_wallet: "حفظ العنوان الجديد",
+        btn_submit_withdraw: "تقديم طلب السحب",
+        withdraw_history: "سجل طلبات السحب",
+        create_ad_title: "إنشاء حملة إعلانية جديدة",
+        ad_rate_desc: "تكلفة الإعلان: $1.50 لكل 1,000 مشاهدة حقيقية (CPM)",
+        ph_ad_title: "عنوان الإعلان",
+        ph_ad_target_url: "رابط التوجيه (https://...)",
+        ph_ad_budget: "الميزانية الإجمالية (الحد الأدنى 5$)",
+        btn_launch_ad: "إطلاق الحملة الإعلانية",
+        my_ads_title: "حملاتك الإعلانية",
+        ref_title: "نظام الإحالة (10%)",
+        ref_desc: "ادعُ أصدقاءك واحصل على 10% من إجمالي الأرباح التي يحققونها فورياً.",
+        btn_share_ref: "مشاركة رابط الإحالة عبر تليجرام",
+        total_ref_earnings: "إجمالي أرباح الإحالات",
+        lang_settings_title: "تغيير اللغة / Language",
+        faq_title: "الأسئلة الشائعة والدعم",
+        faq_q1: "كيف يتم احتساب الأرباح؟",
+        faq_a1: "تعتمد الأرباح على إيرادات الإعلانات وتوزع نسبياً حسب الزيارات الحقيقية المعتمدة.",
+        faq_q2: "ما هي فترة الرصيد المعلق (يوم واحد)؟",
+        faq_a2: "هي فترة أمان لمراجعة مصادر الحركة والتأكد من عدم وجود نقرات وهمية قبل تحويل الأرباح للرصيد المتاح خلال 24 ساعة.",
+        support_text: "للتواصل والدعم الفني عبر التليجرام:",
+        loading: "جاري التحميل...",
+        copied: "تم النسخ بنجاح!",
+        bridge_title: "جاري تجهيز الرابط...",
+        bridge_desc: "الرجاء الانتظار للتحويل التلقائي للجهة المطلوبة",
+        ad_loading: "جاري تحميل الإعلان...",
+        timer_text: "سيفعل الزر خلال:",
+        seconds: "ثوانٍ",
+        go_button: "الانتقال إلى الرابط الأصلي",
+        cancel: "إلغاء",
+        close: "إغلاق",
+        network_error: "تعذر الاتصال بالشبكة، يرجى التحقق من اتصال الإنترنت لديك.",
+        about_title: "ℹ️ نبذة وشروط الاستخدام",
+        about_desc: "هذا البوت مخصص لاختصار الروابط بأمان وإدارة الحملات الإعلانية بكفاءة عالية. باستخدامك لهذه المنصة، فإنك توافق على الالتزام بشروط الاستخدام وسياسة الجودة لدينا.",
+        link_success_msg: "تم اختصار الرابط بنجاح!",
+        guide_modal_title: "دليل الشحن ورمز المعاملة TxID",
+        guide_step1_b: "اختر الشبكة:",
+        guide_step1_t: "حدد شبكة USDT (TRC20 أو BEP20) لإظهار عنوان المحفظة ثم قم بنسخه.",
+        guide_step2_b: "تحويل الأموال:",
+        guide_step2_t: "افتح تطبيق محفظتك (Binance, Trust Wallet) وقم بتحويل المبلغ إلى العنوان المنسوخ.",
+        guide_step3_b: "نسخ رمز العملية (TxID):",
+        guide_step3_t: "بعد نجاح التحويل، انسخ معرف المعاملة TxHash/TxID.",
+        guide_step4_b: "إرسال الطلب:",
+        guide_step4_t: "عد هنا وأدخل قيمة المبلغ المودع ورمز المعاملة ثم انقر تقديم الطلب.",
+        tab_deposit: "📥 الشحن والإيداع",
+        tab_withdraw: "📤 سحب الأرباح",
+        deposit_funds_title: "شحن الرصيد (USDT)",
+        btn_deposit_guide: "❓ دليل الشحن",
+        select_network_label: "اختر الشبكة:",
+        opt_select_network: "-- اختر شبكة الدفع --",
+        lbl_trc20_addr: "عنوان USDT - TRC20:",
+        lbl_bep20_addr: "عنوان USDT - BEP20 (BSC):",
+        btn_copy: "نسخ",
+        submit_proof_label: "إرسال إثبات الشحن:",
+        ph_deposit_amount: "المبلغ ($)",
+        ph_deposit_txid: "رمز المعاملة TxID / Hash",
+        btn_submit_deposit: "تأكيد وإرسال طلب الشحن",
+        lbl_amount: "المبلغ",
+        lbl_fee: "الرسوم (10%)",
+        lbl_net: "الصافي",
+        example_txid: "صيغة رمز المعاملة TxID:",
+        official_channel: "📢 القناة الرسمية"
+      }
+    };
+
+    // Helper Utilities
+    function escapeHTML(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function triggerHaptic(style = 'light') {
+      try {
+        if (tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.1') && tg.HapticFeedback) {
+          tg.HapticFeedback.impactOccurred(style);
+        }
+      } catch (e) {}
+    }
+
+    function showToast(msg) {
+      triggerHaptic('medium');
+      const toast = document.getElementById("toast");
+      if (!toast) return;
+      toast.innerText = msg;
+      toast.classList.add("show");
+      setTimeout(() => { toast.classList.remove("show"); }, 3200);
+    }
+
+    function setButtonLoading(btnId, isLoading, originalText) {
+      const btn = document.getElementById(btnId);
+      if (!btn) return;
+      if (isLoading) {
+        btn.disabled = true;
+        btn.dataset.oldContent = btn.innerHTML;
+        btn.innerHTML = `<div class="spinner"></div>`;
+      } else {
+        btn.disabled = false;
+        btn.innerHTML = originalText || btn.dataset.oldContent || '';
+      }
+    }
+
+    function copyToClipboard(text) {
+      if (!text) return;
+      navigator.clipboard.writeText(text).then(() => {
+        showToast(i18n[currentLang].copied);
+      }).catch(() => {
+        showToast(currentLang === 'ar' ? "فشل النسخ تلقائياً" : "Failed to copy");
+      });
+    }
+
+    function handleNetworkChange(networkVal) {
+      triggerHaptic('light');
+      const trcCard = document.getElementById('card-addr-trc20');
+      const bepCard = document.getElementById('card-addr-bep20');
+
+      if (trcCard) trcCard.classList.add('hidden');
+      if (bepCard) bepCard.classList.add('hidden');
+
+      if (networkVal === 'USDT_TRC20' && trcCard) {
+        trcCard.classList.remove('hidden');
+      } else if (networkVal === 'USDT_BEP20' && bepCard) {
+        bepCard.classList.remove('hidden');
+      }
+    }
+
+    function switchWalletView(view) {
+      triggerHaptic('light');
+      document.getElementById('wallet-nav-deposit').classList.toggle('active', view === 'deposit');
+      document.getElementById('wallet-nav-withdraw').classList.toggle('active', view === 'withdraw');
+
+      document.getElementById('wallet-view-deposit').classList.toggle('hidden', view !== 'deposit');
+      document.getElementById('wallet-view-withdraw').classList.toggle('hidden', view !== 'withdraw');
+    }
+
+    function toggleInstructionsModal(show) {
+      triggerHaptic('medium');
+      document.getElementById('instructions-modal').classList.toggle('hidden', !show);
+    }
+
+    function updateWithdrawCalculations() {
+      const amtInput = document.getElementById('withdraw-amount');
+      const feeBox = document.getElementById('withdraw-fee-box');
+      const val = parseFloat(amtInput.value) || 0;
+
+      if (val > 0) {
+        feeBox.classList.remove('hidden');
+        const fee = val * 0.10;
+        const net = val - fee;
+
+        document.getElementById('calc-req').innerText = `$${val.toFixed(2)}`;
+        document.getElementById('calc-fee').innerText = `$${fee.toFixed(2)}`;
+        document.getElementById('calc-net').innerText = `$${net.toFixed(2)}`;
+      } else {
+        feeBox.classList.add('hidden');
+      }
+    }
+
+    /**
+     * UNIFIED SECURE FETCH WRAPPER
+     */
+    async function safeFetch(endpoint, options = {}) {
+      options.headers = options.headers || {};
+      
+      const tgUser = tg?.initDataUnsafe?.user;
+      const currentTgId = tgUser?.id ? String(tgUser.id) : (currentUserTelegramId || '');
+      const initDataStr = tg?.initData || '';
+
+      if (authToken) {
+        options.headers['Authorization'] = `Bearer ${authToken}`;
+      }
+      if (initDataStr) {
+        options.headers['x-telegram-init-data'] = initDataStr;
+      }
+      if (currentTgId) {
+        options.headers['x-telegram-id'] = currentTgId;
+      }
+
+      if (options.body && typeof options.body === 'string') {
+        try {
+          const bodyObj = JSON.parse(options.body);
+          if (currentTgId) {
+            bodyObj.telegramId = currentTgId;
+            bodyObj.userId = currentTgId;
+          }
+          if (initDataStr) bodyObj.initData = initDataStr;
+          options.body = JSON.stringify(bodyObj);
+        } catch(e) {}
+      }
+
+      if (options.body && !options.headers['Content-Type']) {
+        options.headers['Content-Type'] = 'application/json';
+      }
+      
+      let cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+      let targetUrl = endpoint.startsWith('http') ? endpoint : `${API_BASE}${cleanEndpoint}`;
+
+      try {
+        const urlObj = new URL(targetUrl);
+        if (currentTgId && !urlObj.searchParams.has('telegramId')) {
+          urlObj.searchParams.set('telegramId', currentTgId);
+          urlObj.searchParams.set('userId', currentTgId);
+        }
+        if (initDataStr && !urlObj.searchParams.has('initData')) {
+          urlObj.searchParams.set('initData', initDataStr);
+        }
+        targetUrl = urlObj.toString();
+      } catch(e) {}
+
+      try {
+        let response = await fetch(targetUrl, options);
+        
+        if (response && response.status === 401 && !options._isRetry) {
+          options._isRetry = true;
+          const reAuth = await authLogin();
+          if (reAuth) {
+            if (authToken) options.headers['Authorization'] = `Bearer ${authToken}`;
+            if (initDataStr) options.headers['x-telegram-init-data'] = initDataStr;
+            if (currentTgId) options.headers['x-telegram-id'] = currentTgId;
+            response = await fetch(targetUrl, options);
+          }
+        }
+        return response;
+      } catch (err) {
+        console.error("Fetch Network Error:", err);
+        showToast(i18n[currentLang]?.network_error || "Network error. Please try again.");
+        return null;
+      }
+    }
+
+    function renderTelegramUser() {
+      const u = tg?.initDataUnsafe?.user;
+      const avatarContainer = document.getElementById('user-avatar-container');
+      const nameElem = document.getElementById('user-display-name');
+      const handleElem = document.getElementById('user-display-handle');
+      const idElem = document.getElementById('user-tg-id');
+      const premiumBadge = document.getElementById('user-premium-badge');
+
+      if (u) {
+        currentUserTelegramId = String(u.id);
+        const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || 'Telegram User';
+        nameElem.innerText = fullName;
+        handleElem.innerText = u.username ? `@${u.username}` : '@no_username';
+        idElem.innerText = `ID: ${u.id}`;
+
+        if (u.is_premium) {
+          premiumBadge.classList.remove('hidden');
         }
 
-        const walletAddresses = {
-            TRC20: 'TYdX23k9xKP82mL9023xKW8219xKP82mL',
-            BEP20: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F'
-        };
-
-        // --- Complete Internationalization (AR / EN) ---
-        let currentLang = 'ar';
-        const i18n = {
-            ar: {
-                current_balance: "الرصيد الحالي",
-                cents_conversion: "100 سنت = $1.00 USD",
-                total_earned: "إجمالي الأرباح",
-                total_spent: "إجمالي المصروفات",
-                short_links: "الروابط المختصرة",
-                active_campaigns: "الحملات النشطة",
-                watch_ad_title: "ربح رصيد مجاني",
-                watch_ad_desc: "شاهد إعلانًا قصيرًا واحصل على مكافأة في محفظتك فوراً.",
-                watch_ad_btn: "📺 مشاهدة إعلان ورابح سنتات",
-                shorten_new_link: "اختصار رابط جديد",
-                original_url_label: "الرابط الأصلي",
-                shorten_btn: "اختصار الرابط",
-                my_links: "روابطي المختصرة",
-                create_campaign: "إنشاء حملة إعلانية",
-                camp_title_label: "عنوان الحملة",
-                camp_url_label: "الرابط المستهدف",
-                camp_budget_label: "الميزانية (بالسنت)",
-                camp_cpc_label: "تكلفة النقرة (بالسنت)",
-                launch_camp_btn: "إطلاق الحملة",
-                active_camps_list: "الحملات النشطة",
-                deposit_title: "إيداع رصيد (USDT)",
-                deposit_guide: "📖 دليل الإيداع",
-                deposit_desc: "قم بتحويل المبلغ إلى عنوان المحفظة ثم أدخل رقم المعاملة (TxID).",
-                copy: "نسخ",
-                amount_cents_label: "المبلغ بالسنتات",
-                txid_label: "معرف المعاملة (TxID / Hash)",
-                confirm_deposit_btn: "تأكيد الإيداع",
-                withdraw_title: "سحب أرباح",
-                usdt_address_label: "عنوان محفظتك (USDT TRC20)",
-                request_withdraw_btn: "طلب السحب",
-                ref_system_title: "نظام الإحالات",
-                ref_system_desc: "شارك رابطك الخاص واحصل على 10% من أرباح أصدقائك للأبد!",
-                share: "مشاركة",
-                nav_wallet: "المحفظة",
-                nav_links: "الروابط",
-                nav_campaigns: "الحملات",
-                nav_finance: "المالية",
-                nav_ref: "الإحالات",
-                nav_admin: "الإدارة",
-                deposit_guide_title: "دليل الإيداع الشامل",
-                select_network: "اختر الشبكة",
-                scan_qr: "امسح كود QR للإيداع السريع",
-                step1: "أرسل المبلغ المراد إيداعه للعنوان أعلاه.",
-                step2: "انسخ معرف المعاملة (TxID / Hash).",
-                step3: "عد لتبويب المالية وأدخل الرقم لتأكيد الحساب.",
-                close: "إغلاق",
-                bridge_heading: "توجيه الرابط المختصر",
-                bridge_sub: "سيتم تجهيز رابطك الأصلي خلال ثوانٍ قليلة...",
-                speed_up_ad: "⚡ شاهد إعلان ودعم الناشر لفتح الرابط فورا",
-                open_target_btn: "الانتقال للرابط المطلوب",
-                admin_panel_title: "لوحة تحكم الإدارة",
-                admin_desc: "مراجعة وتقديم الموافقات على طلبات الإيداع والسحب.",
-                pending_deposits: "طلبات الإيداع المعلقة",
-                approve: "موافقة",
-                reject: "رفض"
-            },
-            en: {
-                current_balance: "Current Balance",
-                cents_conversion: "100 Cents = $1.00 USD",
-                total_earned: "Total Earned",
-                total_spent: "Total Spent",
-                short_links: "Short Links",
-                active_campaigns: "Active Campaigns",
-                watch_ad_title: "Earn Free Credits",
-                watch_ad_desc: "Watch a quick ad and earn instant rewards to your wallet.",
-                watch_ad_btn: "📺 Watch Ad & Earn Cents",
-                shorten_new_link: "Shorten New Link",
-                original_url_label: "Original URL",
-                shorten_btn: "Shorten URL",
-                my_links: "My Short Links",
-                create_campaign: "Create Ad Campaign",
-                camp_title_label: "Campaign Title",
-                camp_url_label: "Target URL",
-                camp_budget_label: "Budget (in Cents)",
-                camp_cpc_label: "Cost Per Click (Cents)",
-                launch_camp_btn: "Launch Campaign",
-                active_camps_list: "Active Campaigns",
-                deposit_title: "Deposit Funds (USDT)",
-                deposit_guide: "📖 Deposit Guide",
-                deposit_desc: "Transfer funds to the address below then enter TxID.",
-                copy: "Copy",
-                amount_cents_label: "Amount in Cents",
-                txid_label: "Transaction ID (TxID / Hash)",
-                confirm_deposit_btn: "Confirm Deposit",
-                withdraw_title: "Withdraw Earnings",
-                usdt_address_label: "Your Wallet Address (USDT TRC20)",
-                request_withdraw_btn: "Request Withdrawal",
-                ref_system_title: "Referral System",
-                ref_system_desc: "Share your link and earn 10% from your friends' earnings forever!",
-                share: "Share",
-                nav_wallet: "Wallet",
-                nav_links: "Links",
-                nav_campaigns: "Campaigns",
-                nav_finance: "Finance",
-                nav_ref: "Referrals",
-                nav_admin: "Admin",
-                deposit_guide_title: "Comprehensive Deposit Guide",
-                select_network: "Select Network",
-                scan_qr: "Scan QR Code for fast deposit",
-                step1: "Send the amount to the address above.",
-                step2: "Copy the Transaction Hash (TxID).",
-                step3: "Return to Finance tab & submit TxID.",
-                close: "Close",
-                bridge_heading: "Short Link Redirection",
-                bridge_sub: "Your link will be ready in a few seconds...",
-                speed_up_ad: "⚡ Watch Ad & Unlock Immediately",
-                open_target_btn: "Proceed to Target Link",
-                admin_panel_title: "Admin Control Hub",
-                admin_desc: "Review & approve pending financial operations.",
-                pending_deposits: "Pending Deposit Requests",
-                approve: "Approve",
-                reject: "Reject"
-            }
-        };
-
-        function toggleLanguage() {
-            currentLang = currentLang === 'ar' ? 'en' : 'ar';
-            document.documentElement.lang = currentLang;
-            document.documentElement.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
-            document.querySelector('.lang-switch').textContent = currentLang === 'ar' ? 'English' : 'عربي';
-
-            document.querySelectorAll('[data-i18n]').forEach(el => {
-                const key = el.getAttribute('data-i18n');
-                if (i18n[currentLang][key]) el.textContent = i18n[currentLang][key];
-            });
-            if (tg?.HapticFeedback) tg.HapticFeedback.selectionChanged();
+        if (u.photo_url) {
+          avatarContainer.innerHTML = `<img src="${escapeHTML(u.photo_url)}" class="user-avatar-img" alt="Avatar">`;
+        } else {
+          const letter = (u.first_name || 'U').charAt(0).toUpperCase();
+          avatarContainer.innerHTML = `<div class="user-avatar-placeholder">${escapeHTML(letter)}</div>`;
         }
 
-        // --- Security & API Layer ---
-        function escapeHtml(str) {
-            if (!str) return '';
-            return String(str)
-                .replace(/&/g, "&amp;").replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;").replace(/"/g, "&quot;")
-                .replace(/'/g, "&#039;");
+        const savedLang = localStorage.getItem('appLang');
+        if (savedLang && i18n[savedLang]) {
+          currentLang = savedLang;
+        } else if (u.language_code && i18n[u.language_code]) {
+          currentLang = u.language_code === 'ar' ? 'ar' : 'en';
+        } else {
+          currentLang = 'en';
         }
-
-        async function safeFetch(endpoint, method = 'GET', body = null) {
-            const headers = {
-                'Content-Type': 'application/json',
-                'x-telegram-init-data': tg?.initData || ''
-            };
-            const config = { method, headers };
-            if (body) config.body = JSON.stringify(body);
-
-            try {
-                const res = await fetch(endpoint, config);
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.message || 'Error occurred');
-                return data;
-            } catch (err) {
-                showToast(err.message, true);
-                if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
-                return null;
-            }
+      } else {
+        currentUserTelegramId = 'DEMO_USER_DEV';
+        nameElem.innerText = 'Demo Partner';
+        handleElem.innerText = '@demo_partner';
+        idElem.innerText = 'ID: 88888888';
+        avatarContainer.innerHTML = `<div class="user-avatar-placeholder">D</div>`;
+        if (!localStorage.getItem('appLang')) {
+          currentLang = 'en';
         }
+      }
 
-        // --- UI Feedback & Modals ---
-        function showToast(msg, isError = false) {
-            const toast = document.getElementById('toast');
-            document.getElementById('toast-text').textContent = msg;
-            document.getElementById('toast-icon').textContent = isError ? '⚠️' : '✅';
-            toast.style.borderColor = isError ? 'var(--danger-color)' : 'var(--success-color)';
-            toast.classList.add('show');
-            setTimeout(() => toast.classList.remove('show'), 3200);
+      applyLanguage(currentLang);
+    }
+
+    function changeAppLanguage(lang) {
+      currentLang = i18n[lang] ? lang : 'en';
+      localStorage.setItem('appLang', currentLang);
+      applyLanguage(currentLang);
+      loadUserData();
+    }
+
+    function applyLanguage(lang) {
+      const activeLang = i18n[lang] ? lang : 'en';
+      document.documentElement.lang = activeLang;
+      document.documentElement.dir = activeLang === 'ar' ? 'rtl' : 'ltr';
+      document.body.style.direction = activeLang === 'ar' ? 'rtl' : 'ltr';
+
+      const langSelect = document.getElementById('language-select');
+      if (langSelect) langSelect.value = activeLang;
+
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (i18n[activeLang] && i18n[activeLang][key]) {
+          el.innerText = i18n[activeLang][key];
         }
+      });
 
-        function setLoading(btnId, isLoading) {
-            const btn = document.getElementById(btnId);
-            if (!btn) return;
-            const text = btn.querySelector('span');
-            const spinner = btn.querySelector('.spinner');
-            btn.disabled = isLoading;
-            if (text) text.style.display = isLoading ? 'none' : 'inline';
-            if (spinner) spinner.style.display = isLoading ? 'inline-block' : 'none';
+      document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+        const key = el.getAttribute('data-i18n-ph');
+        if (i18n[activeLang] && i18n[activeLang][key]) {
+          el.placeholder = i18n[activeLang][key];
         }
+      });
+    }
 
-        function switchTab(tabId, btn) {
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+    function shareReferralLink() {
+      const refUrl = document.getElementById('ref-link').value;
+      if (!refUrl) return;
+      triggerHaptic('medium');
+      const shareText = encodeURIComponent(currentLang === 'ar' ? "انضم إليّ في أفضل منصة لاختصار الروابط واكسب الأرباح بسهولة! 🚀" : "Join me on the best url shortener platform & earn money! 🚀");
+      const url = `https://t.me/share/url?url=${encodeURIComponent(refUrl)}&text=${shareText}`;
+      
+      if (tg && tg.openTelegramLink) {
+        tg.openTelegramLink(url);
+      } else {
+        window.open(url, '_blank');
+      }
+    }
 
-            document.getElementById(tabId).classList.add('active');
-            if (btn) btn.classList.add('active');
+    function toggleWalletEdit() {
+      triggerHaptic('light');
+      const walletInput = document.getElementById('default-wallet');
+      const editBtn = document.getElementById('edit-wallet-btn');
+      const saveBtn = document.getElementById('save-wallet-btn');
 
-            if (tg?.HapticFeedback) tg.HapticFeedback.selectionChanged();
+      if (walletInput.hasAttribute('readonly')) {
+        walletInput.removeAttribute('readonly');
+        walletInput.focus();
+        editBtn.innerText = i18n[currentLang].cancel;
+        editBtn.className = "btn-small btn-danger";
+        saveBtn.classList.remove('hidden');
+      } else {
+        walletInput.setAttribute('readonly', 'readonly');
+        editBtn.innerText = i18n[currentLang].btn_edit;
+        editBtn.className = "btn-small btn-warning";
+        saveBtn.classList.add('hidden');
+      }
+    }
 
-            if (tabId === 'wallet-tab') loadStats();
-            if (tabId === 'links-tab') loadLinks();
-            if (tabId === 'campaigns-tab') loadCampaigns();
-            if (tabId === 'admin-tab') loadAdminData();
+    // Check Admin Privilege
+    async function checkAdminStatus() {
+      const userId = tg?.initDataUnsafe?.user?.id || currentUserTelegramId;
+      if (!userId) return;
+
+      try {
+        const res = await safeFetch('/api/check-admin', {
+          method: 'POST',
+          body: JSON.stringify({ userId })
+        });
+        if (res) {
+          const data = await res.json();
+          if (data && data.isAdmin === true) {
+            isUserAdmin = true;
+            const adminBtn = document.getElementById('tab-btn-admin');
+            if (adminBtn) adminBtn.classList.remove('hidden');
+          } else {
+            isUserAdmin = false;
+          }
         }
+      } catch (e) {
+        console.error("Admin status error:", e);
+      }
+    }
 
-        // --- Deposit Modal Logic ---
-        function openDepositModal() {
-            document.getElementById('deposit-modal').classList.add('active');
-            updateModalWallet();
-            if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
-        }
+    // Authenticate with Server API
+    async function authLogin() {
+      const initDataStr = tg?.initData || '';
+      const userObj = tg?.initDataUnsafe?.user || { id: currentUserTelegramId || 'DEMO_USER_DEV' };
 
-        function closeDepositModal() {
-            document.getElementById('deposit-modal').classList.remove('active');
-        }
-
-        function updateModalWallet() {
-            const net = document.getElementById('modal-network-select').value;
-            document.getElementById('modal-network-label').textContent = `USDT (${net})`;
-            document.getElementById('modal-wallet-addr').textContent = walletAddresses[net];
-        }
-
-        function copyModalWallet() {
-            const addr = document.getElementById('modal-wallet-addr').textContent;
-            navigator.clipboard.writeText(addr);
-            showToast('تم نسخ عنوان المحفظة');
-            if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-        }
-
-        // --- Bridge View Simulation / Logic ---
-        function startBridgeCountdown(targetUrl) {
-            bridgeTargetUrl = targetUrl;
-            switchTab('bridge-tab', null);
-            let secondsLeft = 5;
-            const timerEl = document.getElementById('bridge-timer');
-            const progressEl = document.getElementById('bridge-progress');
-            const openBtn = document.getElementById('open-bridge-btn');
-
-            openBtn.disabled = true;
-            timerEl.textContent = secondsLeft;
-            progressEl.style.width = '0%';
-
-            if (bridgeTimerInterval) clearInterval(bridgeTimerInterval);
-
-            bridgeTimerInterval = setInterval(() => {
-                secondsLeft--;
-                timerEl.textContent = secondsLeft;
-                progressEl.style.width = `${((5 - secondsLeft) / 5) * 100}%`;
-
-                if (secondsLeft <= 0) {
-                    clearInterval(bridgeTimerInterval);
-                    openBtn.disabled = false;
-                    if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-                }
-            }, 1000);
-        }
-
-        function redirectBridgeTarget() {
-            if (bridgeTargetUrl) {
-                if (tg) tg.openLink(bridgeTargetUrl);
-                else window.location.href = bridgeTargetUrl;
-            }
-        }
-
-        // --- User Initialization ---
-        function initUserProfile() {
-            const user = tg?.initDataUnsafe?.user;
-            if (user) {
-                document.getElementById('user-name').childNodes[0].nodeValue = `${user.first_name} ${user.last_name || ''} `;
-                document.getElementById('user-id-display').textContent = `ID: ${user.id}`;
-                document.getElementById('ref-link-display').textContent = `https://t.me/${tg?.initDataUnsafe?.bot?.username || 'bot'}?start=${user.id}`;
-
-                if (user.is_premium) document.getElementById('premium-badge').style.display = 'inline-block';
-                
-                // Admin privilege check placeholder
-                if (user.id === 123456789 || user.username === 'admin') { 
-                    isAdminUser = true;
-                    document.getElementById('admin-badge').style.display = 'inline-block';
-                    document.getElementById('nav-admin-btn').style.display = 'flex';
-                }
-
-                if (user.photo_url) {
-                    const img = document.getElementById('user-avatar');
-                    img.src = user.photo_url;
-                    img.style.display = 'block';
-                    document.getElementById('avatar-fallback').style.display = 'none';
-                } else {
-                    document.getElementById('avatar-fallback').textContent = (user.first_name || 'U').charAt(0).toUpperCase();
-                }
-            }
-        }
-
-        // --- Adsgram Rewarded Integration ---
-        function showAdsgramReward() {
-            if (window.AdController) {
-                window.AdController.show().then(async (result) => {
-                    if (result.done) {
-                        const res = await safeFetch('/api/wallet/reward', 'POST', { type: 'adsgram' });
-                        if (res?.success) {
-                            showToast('تمت إتاحة المكافأة وإضافتها لحسابك!');
-                            if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-                            loadStats();
-                            if (document.getElementById('bridge-tab').classList.contains('active')) {
-                                clearInterval(bridgeTimerInterval);
-                                document.getElementById('bridge-timer').textContent = '0';
-                                document.getElementById('bridge-progress').style.width = '100%';
-                                document.getElementById('open-bridge-btn').disabled = false;
-                            }
-                        }
-                    }
-                }).catch(() => {
-                    showToast('لم يتوفر إعلان في الوقت الحالي، حاول لاحقاً', true);
-                });
-            } else {
-                showToast('الشبكة الإعلانية غير متصلة حالياً', true);
-            }
-        }
-
-        // --- Business Logic & Data Loaders ---
-        async function loadStats() {
-            const res = await safeFetch('/api/stats');
-            if (res && res.stats) {
-                document.getElementById('balance-val').textContent = `$${(res.stats.balance / 100).toFixed(2)}`;
-                document.getElementById('earned-val').textContent = `$${(res.stats.totalEarned / 100).toFixed(2)}`;
-                document.getElementById('spent-val').textContent = `$${(res.stats.totalSpent / 100).toFixed(2)}`;
-                document.getElementById('links-count').textContent = res.stats.totalLinks || 0;
-                document.getElementById('campaigns-count').textContent = res.stats.totalCampaigns || 0;
-            }
-        }
-
-        async function loadLinks() {
-            const res = await safeFetch('/api/links');
-            const container = document.getElementById('links-list');
-            if (res && res.links) {
-                if (res.links.length === 0) {
-                    container.innerHTML = '<p style="color: var(--hint-color); font-size: 12px; text-align:center;">لا توجد روابط مضافة حتى الآن</p>';
-                    return;
-                }
-                container.innerHTML = res.links.map(l => `
-                    <div class="list-item">
-                        <div>
-                            <div style="font-weight: 600; font-size: 13px;">/${escapeHtml(l.shortUrl)}</div>
-                            <div style="font-size: 11px; color: var(--hint-color); max-width: 180px; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(l.originalUrl)}</div>
-                        </div>
-                        <div style="display: flex; gap: 6px; align-items: center;">
-                            <span style="font-size: 11px; color: var(--button-color); font-weight: bold;">${l.clicksCount || 0} نقرة</span>
-                            <button class="lang-switch" onclick="startBridgeCountdown('${escapeHtml(l.originalUrl)}')">معاينة</button>
-                        </div>
-                    </div>
-                `).join('');
-            }
-        }
-
-        async function loadCampaigns() {
-            const res = await safeFetch('/api/campaigns');
-            const container = document.getElementById('campaigns-list');
-            if (res && res.campaigns) {
-                if (res.campaigns.length === 0) {
-                    container.innerHTML = '<p style="color: var(--hint-color); font-size: 12px; text-align:center;">لا توجد حملات نشطة</p>';
-                    return;
-                }
-                container.innerHTML = res.campaigns.map(c => `
-                    <div class="list-item">
-                        <div>
-                            <div style="font-weight: 600; font-size: 13px;">${escapeHtml(c.title)}</div>
-                            <div style="font-size: 11px; color: var(--hint-color);">المتبقي: ${c.remainingBudget} سنت</div>
-                        </div>
-                        <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(16,185,129,0.1); color: var(--success-color);">${escapeHtml(c.status)}</span>
-                    </div>
-                `).join('');
-            }
-        }
-
-        async function loadAdminData() {
-            const res = await safeFetch('/api/admin/deposits');
-            const container = document.getElementById('admin-deposits-list');
-            if (res && res.deposits) {
-                if (res.deposits.length === 0) {
-                    container.innerHTML = '<p style="color: var(--hint-color); font-size: 12px;">لا توجد طلبات إيداع معلقة</p>';
-                    return;
-                }
-                container.innerHTML = res.deposits.map(d => `
-                    <div class="list-item">
-                        <div>
-                            <div style="font-weight: 600; font-size: 12px;">مستخدم #${d.userId} - ${d.amount} سنت</div>
-                            <div style="font-size: 10px; color: var(--hint-color);">${escapeHtml(d.txid)}</div>
-                        </div>
-                        <div style="display: flex; gap: 4px;">
-                            <button class="lang-switch" style="background: var(--success-color);" onclick="verifyDeposit('${d.id}', true)">${i18n[currentLang].approve}</button>
-                            <button class="lang-switch" style="background: var(--danger-color);" onclick="verifyDeposit('${d.id}', false)">${i18n[currentLang].reject}</button>
-                        </div>
-                    </div>
-                `).join('');
-            }
-        }
-
-        async function verifyDeposit(depositId, approve) {
-            const res = await safeFetch('/api/admin/deposits/verify', 'POST', { depositId, approve });
-            if (res?.success) {
-                showToast(approve ? 'تم قبول الإيداع' : 'تم رفض الإيداع');
-                loadAdminData();
-            }
-        }
-
-        // --- Event Listeners ---
-        document.getElementById('link-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            setLoading('link-btn', true);
-            const originalUrl = document.getElementById('original-url').value;
-
-            const res = await safeFetch('/api/links', 'POST', { originalUrl });
-            setLoading('link-btn', false);
-
-            if (res?.success) {
-                showToast('تم اختصار الرابط بنجاح');
-                if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-                document.getElementById('original-url').value = '';
-                loadLinks();
-            }
+      try {
+        const res = await fetch(`${API_BASE}/api/auth`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            initData: initDataStr,
+            telegramId: userObj.id,
+            user: userObj
+          })
         });
 
-        document.getElementById('campaign-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            setLoading('camp-btn', true);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.token) {
+            authToken = data.token;
+            localStorage.setItem('authToken', authToken);
+            return true;
+          }
+        }
+      } catch (e) {
+        console.warn("Auth login fallback mode active:", e);
+      }
+      return false;
+    }
 
-            const body = {
-                title: document.getElementById('camp-title').value,
-                targetUrl: document.getElementById('camp-url').value,
-                budget: Number(document.getElementById('camp-budget').value),
-                costPerClick: Number(document.getElementById('camp-cpc').value)
-            };
+    // Load User Balances & Profile Info
+    async function loadUserData() {
+      const res = await safeFetch('/api/user/profile');
+      if (res && res.ok) {
+        const data = await res.json();
+        const user = data.user || data;
 
-            const res = await safeFetch('/api/campaigns', 'POST', body);
-            setLoading('camp-btn', false);
+        const pendingBal = parseFloat(user.pendingBalance || user.pending_balance || 0).toFixed(2);
+        const availBal = parseFloat(user.availableBalance || user.available_balance || user.balance || 0).toFixed(2);
+        const refEarnings = parseFloat(user.referralEarnings || user.referral_earnings || 0).toFixed(2);
 
-            if (res?.success) {
-                showToast('تم إطلاق الحملة وخصم الميزانية');
-                if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-                document.getElementById('campaign-form').reset();
-                loadCampaigns();
-            }
-        });
+        document.getElementById('pending-bal').innerText = `$${pendingBal}`;
+        document.getElementById('avail-bal').innerText = `$${availBal}`;
+        document.getElementById('ref-earnings').innerText = `$${refEarnings}`;
 
-        document.getElementById('deposit-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            setLoading('deposit-btn', true);
+        const walletAddr = user.walletAddress || user.wallet_address || '';
+        document.getElementById('default-wallet').value = walletAddr;
 
-            const body = {
-                amount: Number(document.getElementById('deposit-amount').value),
-                txid: document.getElementById('deposit-txid').value
-            };
+        const tgId = user.telegramId || currentUserTelegramId;
+        const refCode = user.referralCode || user.ref_code || tgId;
+        const refUrl = `https://t.me/Ads_telegabot?start=ref_${refCode}`;
+        document.getElementById('ref-link').value = refUrl;
+      }
+    }
 
-            const res = await safeFetch('/api/wallet/deposit', 'POST', body);
-            setLoading('deposit-btn', false);
+    // 1. Shorten Link Feature
+    async function handleShortenClick() {
+      const titleInput = document.getElementById('link-title');
+      const urlInput = document.getElementById('link-url');
+      const originalUrl = urlInput.value.trim();
+      const title = titleInput.value.trim();
 
-            if (res?.success) {
-                showToast('تم رفع طلب الإيداع للتحقق');
-                if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-                document.getElementById('deposit-form').reset();
-            }
-        });
+      if (!originalUrl) {
+        showToast(currentLang === 'ar' ? "يرجى إدخال الرابط الأصلي" : "Please enter original URL");
+        return;
+      }
 
-        document.getElementById('withdraw-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            setLoading('withdraw-btn', true);
+      if (!originalUrl.startsWith('http://') && !originalUrl.startsWith('https://')) {
+        showToast(currentLang === 'ar' ? "يجب أن يبدأ الرابط بـ https://" : "URL must start with https://");
+        return;
+      }
 
-            const body = {
-                amount: Number(document.getElementById('withdraw-amount').value),
-                address: document.getElementById('withdraw-address').value
-            };
+      setButtonLoading('btn-create-link', true);
+      triggerHaptic('medium');
 
-            const res = await safeFetch('/api/wallet/withdraw', 'POST', body);
-            setLoading('withdraw-btn', false);
+      const res = await safeFetch('/api/links/shorten', {
+        method: 'POST',
+        body: JSON.stringify({ originalUrl, title })
+      });
 
-            if (res?.success) {
-                showToast('تم إرسال طلب السحب بنجاح');
-                if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-                document.getElementById('withdraw-form').reset();
-            }
-        });
+      setButtonLoading('btn-create-link', false);
 
-        // --- Clipboard & Sharing Helpers ---
-        function copyWalletAddress() {
-            const addr = document.getElementById('wallet-address').textContent;
-            navigator.clipboard.writeText(addr);
-            showToast('تم نسخ عنوان المحفظة');
-            if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+      if (res && (res.ok || res.status === 201)) {
+        showToast(i18n[currentLang].link_success_msg);
+        titleInput.value = '';
+        urlInput.value = '';
+        await loadUserLinks();
+        await loadUserData();
+      } else {
+        const err = res ? await res.json() : null;
+        showToast(err?.message || (currentLang === 'ar' ? "فشل إنشاء الرابط المختصر" : "Failed to create short link"));
+      }
+    }
+
+    // Load & Render User Short Links List
+    async function loadUserLinks() {
+      const container = document.getElementById('links-list');
+      container.innerHTML = `<div class="spinner"></div> ${i18n[currentLang].loading}`;
+
+      const res = await safeFetch('/api/links');
+      if (res && res.ok) {
+        const data = await res.json();
+        rawUserLinksCache = Array.isArray(data) ? data : (data.links || []);
+        renderLinksList(rawUserLinksCache);
+      } else {
+        container.innerHTML = `<span style="color:var(--danger);">${currentLang === 'ar' ? "تعذر تحميل الروابط" : "Failed to load links"}</span>`;
+      }
+    }
+
+    function filterUserLinks(keyword) {
+      if (!keyword) {
+        renderLinksList(rawUserLinksCache);
+        return;
+      }
+      const lower = keyword.toLowerCase();
+      const filtered = rawUserLinksCache.filter(item => 
+        (item.title && item.title.toLowerCase().includes(lower)) ||
+        (item.originalUrl && item.originalUrl.toLowerCase().includes(lower)) ||
+        (item.shortCode && item.shortCode.toLowerCase().includes(lower)) ||
+        (item.shortUrl && item.shortUrl.toLowerCase().includes(lower))
+      );
+      renderLinksList(filtered);
+    }
+
+    function renderLinksList(links) {
+      const container = document.getElementById('links-list');
+      if (!links || links.length === 0) {
+        container.innerHTML = `<div style="text-align:center; padding:12px; color:var(--text-muted);">${currentLang === 'ar' ? "لا توجد روابط مختصرة حالياً" : "No short links found"}</div>`;
+        return;
+      }
+
+      container.innerHTML = links.map(link => {
+        const linkId = link._id || link.id;
+        const shortUrl = link.shortUrl || `${API_BASE}/s/${link.shortCode}`;
+        const clicks = link.clicks || link.clicksCount || 0;
+        const displayTitle = escapeHTML(link.title || link.shortCode || 'Short Link');
+        const origUrl = escapeHTML(link.originalUrl || '');
+
+        return `
+          <div class="link-item">
+            <div class="link-header">
+              <strong style="color:var(--accent); font-size:14px;">${displayTitle}</strong>
+              <span class="status-badge status-active">👁️ ${clicks} Clicks</span>
+            </div>
+            <div style="font-size:11px; color:var(--text-muted); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; margin-bottom:6px;">
+              ${origUrl}
+            </div>
+            <div style="font-family:monospace; font-size:12px; color:var(--success); background:#070a12; padding:6px 10px; border-radius:8px; word-break:break-all;">
+              ${escapeHTML(shortUrl)}
+            </div>
+            <div class="link-actions">
+              <button class="btn-small" onclick="copyToClipboard('${escapeHTML(shortUrl)}')">📋 ${i18n[currentLang].btn_copy}</button>
+              <button class="btn-small btn-danger" onclick="deleteLink('${linkId}')">🗑️ Delete</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function deleteLink(linkId) {
+      if (!confirm(currentLang === 'ar' ? "هل أنت تأكد من حذف هذا الرابط؟" : "Are you sure you want to delete this link?")) return;
+
+      triggerHaptic('medium');
+      const res = await safeFetch(`/api/links/${linkId}`, { method: 'DELETE' });
+      if (res && res.ok) {
+        showToast(currentLang === 'ar' ? "تم حذف الرابط بنجاح" : "Link deleted successfully");
+        await loadUserLinks();
+      } else {
+        showToast(currentLang === 'ar' ? "فشل حذف الرابط" : "Failed to delete link");
+      }
+    }
+
+    // 2. Self-Serve Ad Campaign Launch
+    async function createAdCampaign() {
+      const titleInput = document.getElementById('ad-title');
+      const targetInput = document.getElementById('ad-target-url');
+      const budgetInput = document.getElementById('ad-budget');
+
+      const title = titleInput.value.trim();
+      const targetUrl = targetInput.value.trim();
+      const budget = parseFloat(budgetInput.value);
+
+      if (!title || !targetUrl || isNaN(budget)) {
+        showToast(currentLang === 'ar' ? "يرجى ملء جميع الحقول بشكل صحيح" : "Please fill all fields correctly");
+        return;
+      }
+
+      if (budget < 5) {
+        showToast(currentLang === 'ar' ? "الحد الأدنى لميزانية الحملة هو $5" : "Minimum campaign budget is $5");
+        return;
+      }
+
+      setButtonLoading('btn-create-ad', true);
+      triggerHaptic('medium');
+
+      const res = await safeFetch('/api/ads', {
+        method: 'POST',
+        body: JSON.stringify({ title, targetUrl, budget })
+      });
+
+      setButtonLoading('btn-create-ad', false);
+
+      if (res && (res.ok || res.status === 201)) {
+        showToast(currentLang === 'ar' ? "تم إطلاق الحملة الإعلانية بنجاح!" : "Ad Campaign Launched Successfully!");
+        titleInput.value = '';
+        targetInput.value = '';
+        budgetInput.value = '';
+        await loadUserAds();
+        await loadUserData();
+      } else {
+        const err = res ? await res.json() : null;
+        showToast(err?.message || (currentLang === 'ar' ? "فشل إطلاق الحملة، تحقق من رصيدك" : "Failed to launch campaign. Check balance"));
+      }
+    }
+
+    async function loadUserAds() {
+      const container = document.getElementById('ads-list');
+      container.innerHTML = `<div class="spinner"></div> ${i18n[currentLang].loading}`;
+
+      const res = await safeFetch('/api/ads');
+      if (res && res.ok) {
+        const data = await res.json();
+        const ads = Array.isArray(data) ? data : (data.ads || []);
+
+        if (ads.length === 0) {
+          container.innerHTML = `<div style="text-align:center; padding:12px; color:var(--text-muted);">${currentLang === 'ar' ? "لا توجد حملات إعلانية نشطة" : "No ad campaigns found"}</div>`;
+          return;
         }
 
-        function shareReferralLink() {
-            const link = document.getElementById('ref-link-display').textContent;
-            const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('انضم وربح معي عبر منصة الاختصار والإعلانات!')}`;
-            if (tg) tg.openTelegramLink(shareUrl);
-            else {
-                navigator.clipboard.writeText(link);
-                showToast('تم نسخ رابط الإحالة');
-            }
+        container.innerHTML = ads.map(ad => {
+          const statusClass = ad.status === 'active' ? 'status-active' : 'status-completed';
+          const impressions = ad.impressions || 0;
+          const budget = parseFloat(ad.budget || 0).toFixed(2);
+
+          return `
+            <div class="ad-item">
+              <div class="ad-header">
+                <strong style="color:var(--accent); font-size:14px;">${escapeHTML(ad.title)}</strong>
+                <span class="status-badge ${statusClass}">${ad.status || 'Active'}</span>
+              </div>
+              <div style="font-size:11px; color:var(--text-muted); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; margin-bottom:6px;">
+                ${escapeHTML(ad.targetUrl || '')}
+              </div>
+              <div style="display:flex; justify-content:space-between; font-size:12px; margin-top:8px;">
+                <span>Budget: <b style="color:var(--success);">$${budget}</b></span>
+                <span>Impressions: <b>${impressions}</b></span>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } else {
+        container.innerHTML = `<span style="color:var(--danger);">${currentLang === 'ar' ? "تعذر تحميل الحملات" : "Failed to load campaigns"}</span>`;
+      }
+    }
+
+    // 3. Wallet Deposit Proof Submission
+    async function requestDeposit() {
+      const network = document.getElementById('deposit-network').value;
+      const amount = parseFloat(document.getElementById('deposit-amount').value);
+      const txHash = document.getElementById('deposit-txhash').value.trim();
+
+      if (!network) {
+        showToast(currentLang === 'ar' ? "اختر شبكة الدفع" : "Select payment network");
+        return;
+      }
+      if (isNaN(amount) || amount <= 0) {
+        showToast(currentLang === 'ar' ? "أدخل مبلغ إيداع صحيح" : "Enter a valid deposit amount");
+        return;
+      }
+      if (!txHash) {
+        showToast(currentLang === 'ar' ? "أدخل رمز المعاملة TxID" : "Enter TxID transaction hash");
+        return;
+      }
+
+      setButtonLoading('btn-request-deposit', true);
+      triggerHaptic('medium');
+
+      const res = await safeFetch('/api/wallet/deposit', {
+        method: 'POST',
+        body: JSON.stringify({ network, amount, txHash })
+      });
+
+      setButtonLoading('btn-request-deposit', false);
+
+      if (res && (res.ok || res.status === 201)) {
+        showToast(currentLang === 'ar' ? "تم تقديم طلب الإيداع بنجاح وسيراجع قريباً!" : "Deposit request submitted successfully!");
+        document.getElementById('deposit-amount').value = '';
+        document.getElementById('deposit-txhash').value = '';
+        await loadUserData();
+      } else {
+        const err = res ? await res.json() : null;
+        showToast(err?.message || (currentLang === 'ar' ? "فشل تقديم طلب الإيداع" : "Failed to submit deposit request"));
+      }
+    }
+
+    // 4. Withdrawal Request & Wallet Address Saving
+    async function saveSettings() {
+      const walletAddress = document.getElementById('default-wallet').value.trim();
+
+      if (!walletAddress) {
+        showToast(currentLang === 'ar' ? "يرجى أدخال عنوان المحفظة" : "Please enter wallet address");
+        return;
+      }
+
+      setButtonLoading('save-wallet-btn', true);
+      triggerHaptic('medium');
+
+      const res = await safeFetch('/api/user/wallet', {
+        method: 'POST',
+        body: JSON.stringify({ walletAddress })
+      });
+
+      setButtonLoading('save-wallet-btn', false);
+
+      if (res && res.ok) {
+        showToast(currentLang === 'ar' ? "تم حفظ عنوان المحفظة بنجاح" : "Wallet address saved!");
+        toggleWalletEdit();
+        await loadUserData();
+      } else {
+        showToast(currentLang === 'ar' ? "فشل حفظ عنوان المحفظة" : "Failed to save wallet address");
+      }
+    }
+
+    async function requestWithdrawal() {
+      const amount = parseFloat(document.getElementById('withdraw-amount').value);
+      const walletAddress = document.getElementById('default-wallet').value.trim();
+
+      if (!walletAddress) {
+        showToast(currentLang === 'ar' ? "يرجى حفظ عنوان محفظة السحب أولاً" : "Please set withdrawal wallet address first");
+        return;
+      }
+
+      if (isNaN(amount) || amount < 30) {
+        showToast(currentLang === 'ar' ? "الحد الأدنى للسحب هو $30" : "Minimum withdrawal amount is $30");
+        return;
+      }
+
+      setButtonLoading('btn-request-withdraw', true);
+      triggerHaptic('medium');
+
+      const res = await safeFetch('/api/wallet/withdraw', {
+        method: 'POST',
+        body: JSON.stringify({ amount, walletAddress })
+      });
+
+      setButtonLoading('btn-request-withdraw', false);
+
+      if (res && (res.ok || res.status === 201)) {
+        showToast(currentLang === 'ar' ? "تم تقديم طلب السحب بنجاح!" : "Withdrawal requested successfully!");
+        document.getElementById('withdraw-amount').value = '';
+        document.getElementById('withdraw-fee-box').classList.add('hidden');
+        await loadUserData();
+        await loadWithdrawals();
+      } else {
+        const err = res ? await res.json() : null;
+        showToast(err?.message || (currentLang === 'ar' ? "رصيدك غير كافٍ أو حدث خطأ" : "Insufficient balance or error"));
+      }
+    }
+
+    async function loadWithdrawals() {
+      const container = document.getElementById('withdraws-list');
+      container.innerHTML = `<div class="spinner"></div> ${i18n[currentLang].loading}`;
+
+      const res = await safeFetch('/api/wallet/withdrawals');
+      if (res && res.ok) {
+        const data = await res.json();
+        const withdrawals = Array.isArray(data) ? data : (data.withdrawals || []);
+
+        if (withdrawals.length === 0) {
+          container.innerHTML = `<div style="text-align:center; padding:10px; color:var(--text-muted);">${currentLang === 'ar' ? "لا يوجد سجل طلبات سحب" : "No withdrawal history"}</div>`;
+          return;
         }
 
-        // --- App Startup ---
-        initUserProfile();
-        loadStats();
-    </script>
+        container.innerHTML = withdrawals.map(item => {
+          const status = (item.status || 'pending').toLowerCase();
+          const badgeClass = status === 'approved' ? 'status-approved' : (status === 'rejected' ? 'status-rejected' : 'status-pending');
+          const amt = parseFloat(item.amount || 0).toFixed(2);
+          const dateStr = item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '-';
+
+          return `
+            <div class="tx-item">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <strong style="color:var(--text); font-size:13px;">Withdrawal Request</strong>
+                <span class="status-badge ${badgeClass}">${status}</span>
+              </div>
+              <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:12px;">
+                <span>Amount: <b style="color:var(--danger);">$${amt}</b></span>
+                <span style="color:var(--text-muted); font-size:11px;">${dateStr}</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } else {
+        container.innerHTML = `<span style="color:var(--danger);">${currentLang === 'ar' ? "تعذر تحميل سجل السحب" : "Failed to load withdrawal history"}</span>`;
+      }
+    }
+
+    // Load Announcements
+    async function loadAnnouncements() {
+      try {
+        const res = await safeFetch('/api/announcements');
+        if (res && res.ok) {
+          const data = await res.json();
+          const anc = Array.isArray(data) ? data[0] : (data.announcement || data);
+          if (anc && anc.title && anc.content) {
+            document.getElementById('anc-title').innerText = anc.title;
+            document.getElementById('anc-content').innerText = anc.content;
+            document.getElementById('announcement-box').classList.remove('hidden');
+          }
+        }
+      } catch (e) {}
+    }
+
+    // Navigation & Tab Switching
+    function switchTab(tabName) {
+      triggerHaptic('light');
+
+      document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.add('hidden'));
+
+      const targetBtn = document.getElementById(`tab-btn-${tabName}`);
+      const targetPane = document.getElementById(`tab-content-${tabName}`);
+
+      if (targetBtn) targetBtn.classList.add('active');
+      if (targetPane) targetPane.classList.remove('hidden');
+
+      if (tabName === 'dashboard') loadUserLinks();
+      if (tabName === 'wallet') { loadUserData(); loadWithdrawals(); }
+      if (tabName === 'ads') loadUserAds();
+      if (tabName === 'referral') loadUserData();
+      if (tabName === 'admin' && isUserAdmin) loadAdminData();
+    }
+
+    // Admin Dashboard Integration
+    async function loadAdminData() {
+      const res = await safeFetch('/api/admin/stats');
+      if (res && res.ok) {
+        const stats = await res.json();
+        document.getElementById('admin-total-users').innerText = stats.totalUsers || 0;
+        document.getElementById('admin-total-pending').innerText = `$${parseFloat(stats.totalPending || 0).toFixed(2)}`;
+      }
+
+      // Pending Deposits
+      const depRes = await safeFetch('/api/admin/deposits');
+      const depList = document.getElementById('admin-deposits-list');
+      if (depRes && depRes.ok) {
+        const deposits = await depRes.json();
+        if (!deposits || deposits.length === 0) {
+          depList.innerText = "No pending deposits.";
+        } else {
+          depList.innerHTML = deposits.map(d => `
+            <div style="background:#070a12; padding:10px; border-radius:10px; margin-bottom:8px; border:1px solid var(--card-border);">
+              <div>User: <b>${d.userId}</b> | Amount: <b style="color:var(--success);">$${d.amount}</b></div>
+              <div style="font-size:10px; word-break:break-all; color:var(--text-muted); margin:4px 0;">TxID: ${escapeHTML(d.txHash)}</div>
+              <button class="btn-small btn-success" onclick="approveDeposit('${d._id || d.id}')">Approve</button>
+            </div>
+          `).join('');
+        }
+      }
+
+      // Pending Withdrawals
+      const wRes = await safeFetch('/api/admin/withdrawals');
+      const wList = document.getElementById('admin-withdraws-list');
+      if (wRes && wRes.ok) {
+        const withdraws = await wRes.json();
+        if (!withdraws || withdraws.length === 0) {
+          wList.innerText = "No pending withdrawals.";
+        } else {
+          wList.innerHTML = withdraws.map(w => `
+            <div style="background:#070a12; padding:10px; border-radius:10px; margin-bottom:8px; border:1px solid var(--card-border);">
+              <div>User: <b>${w.userId}</b> | Amount: <b style="color:var(--danger);">$${w.amount}</b></div>
+              <div style="font-size:10px; word-break:break-all; color:var(--text-muted); margin:4px 0;">Wallet: ${escapeHTML(w.walletAddress)}</div>
+              <button class="btn-small btn-success" onclick="approveWithdrawal('${w._id || w.id}')">Approve</button>
+            </div>
+          `).join('');
+        }
+      }
+    }
+
+    async function approveDeposit(id) {
+      const res = await safeFetch('/api/admin/deposits/approve', { method: 'POST', body: JSON.stringify({ depositId: id }) });
+      if (res && res.ok) { showToast("Deposit approved!"); loadAdminData(); }
+    }
+
+    async function approveWithdrawal(id) {
+      const res = await safeFetch('/api/admin/withdrawals/approve', { method: 'POST', body: JSON.stringify({ withdrawalId: id }) });
+      if (res && res.ok) { showToast("Withdrawal approved!"); loadAdminData(); }
+    }
+
+    async function distributeRevenue() {
+      const amt = parseFloat(document.getElementById('revenue-amount').value);
+      if (isNaN(amt) || amt <= 0) return showToast("Enter valid revenue amount");
+
+      setButtonLoading('btn-distribute-rev', true);
+      const res = await safeFetch('/api/admin/distribute-revenue', { method: 'POST', body: JSON.stringify({ amount: amt }) });
+      setButtonLoading('btn-distribute-rev', false);
+
+      if (res && res.ok) {
+        showToast("Revenue pool distributed successfully!");
+        document.getElementById('revenue-amount').value = '';
+        loadAdminData();
+      }
+    }
+
+    // Short Link Landing Bridge Handler
+    function checkBridgeMode() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const shortCode = urlParams.get('s') || urlParams.get('code') || window.location.pathname.split('/s/')[1];
+
+      if (shortCode && shortCode !== 'views.html') {
+        bridgeShortCode = shortCode;
+        document.getElementById('app-view').classList.add('hidden');
+        document.getElementById('bridge-view').classList.remove('hidden');
+        initBridgeLanding(shortCode);
+        return true;
+      }
+      return false;
+    }
+
+    async function initBridgeLanding(code) {
+      try {
+        const res = await safeFetch(`/api/bridge/prepare?code=${code}`);
+        if (res && res.ok) {
+          const data = await res.json();
+          bridgeTargetUrl = data.targetUrl;
+          bridgeSessionId = data.sessionId;
+        }
+      } catch (e) {}
+
+      // Adsgram Integration
+      if (window.Adsgram) {
+        try {
+          window.Adsgram.init({ blockId: "1234" }).show().then(() => {}).catch(() => {});
+        } catch(e) {}
+      }
+
+      let seconds = 5;
+      const timerElem = document.getElementById('timer');
+      const goBtn = document.getElementById('go-btn');
+
+      bridgeTimerInterval = setInterval(() => {
+        seconds--;
+        if (timerElem) timerElem.innerText = seconds;
+        if (seconds <= 0) {
+          clearInterval(bridgeTimerInterval);
+          if (goBtn) goBtn.disabled = false;
+        }
+      }, 1000);
+    }
+
+    async function completeImpression() {
+      triggerHaptic('heavy');
+      setButtonLoading('go-btn', true);
+
+      if (bridgeShortCode && bridgeSessionId) {
+        await safeFetch('/api/bridge/complete', {
+          method: 'POST',
+          body: JSON.stringify({ code: bridgeShortCode, sessionId: bridgeSessionId })
+        });
+      }
+
+      if (bridgeTargetUrl) {
+        window.location.href = bridgeTargetUrl;
+      } else {
+        window.location.href = 'https://t.me/Ads_telegabot';
+      }
+    }
+
+    // App Initialize Bootstrapper
+    async function initApp() {
+      renderTelegramUser();
+      
+      if (checkBridgeMode()) {
+        return; // Stop main app flow if rendering shortener bridge view
+      }
+
+      await authLogin();
+      await loadUserData();
+      await loadUserLinks();
+      await loadAnnouncements();
+      await checkAdminStatus();
+    }
+
+    // Execute application load
+    document.addEventListener('DOMContentLoaded', initApp);
+  </script>
 </body>
 </html>
