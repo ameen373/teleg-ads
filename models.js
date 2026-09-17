@@ -780,12 +780,12 @@ announcementSchema.statics.getForUserIsolated = function(userId, telegramId) {
 // --------------------------------------------------
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const ShortLink = mongoose.models.ShortLink || mongoose.model('ShortLink', shortLinkSchema);
-const Link = mongoose.models.Link || mongoose.models.ShortLink || mongoose.model('Link', shortLinkSchema);
+const Link = mongoose.models.Link || mongoose.model('Link', shortLinkSchema);
 const Campaign = mongoose.models.Campaign || mongoose.model('Campaign', campaignSchema);
-const Ad = mongoose.models.Ad || mongoose.models.Campaign || mongoose.model('Ad', campaignSchema);
+const Ad = mongoose.models.Ad || mongoose.model('Ad', campaignSchema);
 const Deposit = mongoose.models.Deposit || mongoose.model('Deposit', depositSchema);
 const Withdrawal = mongoose.models.Withdrawal || mongoose.model('Withdrawal', withdrawalSchema);
-const Withdraw = mongoose.models.Withdraw || mongoose.models.Withdrawal || mongoose.model('Withdraw', withdrawalSchema);
+const Withdraw = mongoose.models.Withdraw || mongoose.model('Withdraw', withdrawalSchema);
 const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
 const Wallet = mongoose.models.Wallet || mongoose.model('Wallet', walletSchema);
 const Impression = mongoose.models.Impression || mongoose.model('Impression', impressionSchema);
