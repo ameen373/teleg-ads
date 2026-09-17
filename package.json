@@ -8,12 +8,12 @@
   "scripts": {
     "start": "node server.js",
     "dev": "cross-env NODE_ENV=development nodemon server.js",
-    "lint": "eslint . --ext .js",
-    "lint:fix": "eslint . --ext .js --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.js\"",
     "format:check": "prettier --check \"**/*.js\"",
     "test": "jest --passWithNoTests --detectOpenHandles",
-    "clean": "rimraf node_modules package-lock.json"
+    "clean": "rimraf node_modules"
   },
   "keywords": [
     "telegram",
@@ -62,6 +62,6 @@
     "supertest": "^7.0.0"
   },
   "engines": {
-    "node": "20.x"
+    "node": ">=20.0.0"
   }
 }
