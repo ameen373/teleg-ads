@@ -569,7 +569,6 @@ app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
   }
 });
 
-// مسار حذف رابط معين مع التحقق الصارم من الملكية
 app.delete('/api/links/:id', authMiddleware, async (req, res, next) => {
   try {
     const linkId = req.params.id;
@@ -620,7 +619,6 @@ app.post('/api/links/delete', authMiddleware, async (req, res, next) => {
   }
 });
 
-// مسار تتبع إحصائيات رابط معين للمستخدم الحالي
 app.get('/api/links/:id/stats', authMiddleware, async (req, res, next) => {
   try {
     const linkId = req.params.id;
@@ -897,7 +895,6 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
   }
 });
 
-// مسار جلب سجل المعاملات (إيداعات وسحوبات) الخاصة بالمستخدم الحالي فقط
 app.get('/api/user/transactions', authMiddleware, async (req, res, next) => {
   try {
     const userId = req.userId;
