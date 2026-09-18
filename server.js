@@ -1,5 +1,5 @@
 /**
- * Ultra-Enterprise Server Architecture (V6.1 - Absolute Multi-Tenant Security & High-Performance Core)
+ * Ultra-Enterprise Server Architecture (V6 - Absolute Multi-Tenant Security & High-Performance Core)
  * Telegram Link Shortener & Mini App Engine (Telega.ads)
  * Absolute Isolated Session System & Financial Security Core
  */
@@ -211,25 +211,23 @@ const isPhishingOrMalicious = (url) => {
 };
 
 // =========================================================================
-// --- Middleware للتحقق من هوية المستخدم واستخراج userId بشكل صارم وموحد ---
+// --- Middleware الموحد للتوثيق واستخراج req.user.id بشكل آمن ومغلق ---
 // =========================================================================
 const authMiddleware = async (req, res, next) => {
   try {
     let user = null;
 
-    // 1. فحص توكين Bearer JWT
+    // الخيار الأول: Authorization Bearer Token
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
       try {
         const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
-        if (decoded && decoded.userId) {
-          user = await User.findById(decoded.userId).lean();
-        }
+        user = await User.findById(decoded.userId).lean();
       } catch (err) {}
     }
 
-    // 2. التحقق الاحتياطي من رأس Telegram initData
+    // الخيار الثاني: X-Telegram-Init-Data Header
     if (!user) {
       const initData = req.headers['x-telegram-init-data'];
       const telegramUser = verifyTelegramData(initData);
@@ -246,7 +244,7 @@ const authMiddleware = async (req, res, next) => {
       return res.status(403).json({ success: false, error: 'حسابك معطل بسبب مخالفة الشروط' });
     }
 
-    // ربط البيانات بشكل آمن وموحد
+    // تعيين الهوية بشكل موحد ومضمون لضمان عدم التداخل
     req.user = user;
     req.user.id = user._id.toString();
     req.userId = user._id;
@@ -488,6 +486,8 @@ app.post('/api/links/shorten', authMiddleware, linkCreationLimiter, handleShorte
 app.post('/api/links', authMiddleware, linkCreationLimiter, handleShortenLink);
 
 const getUserLinks = async (userId, userStrId) => {
+  if (!userId) return [];
+
   const rawLinks = await Link.find({
     $or: [
       { userId: userId },
@@ -528,12 +528,14 @@ app.get('/api/user/links', authMiddleware, async (req, res, next) => {
 app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
   try {
     const { linkId } = req.body;
-    const userId = req.userId;
-
     if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
 
-    // استعلام حصري بشرط ملكية المستخدم فقط (IDOR Prevention)
-    const link = await Link.findOne({ _id: linkId, $or: [{ userId: userId }, { userId: req.user.id }] });
+    // الاستعلام حصري بشرط ملكية المستخدم فقط
+    const link = await Link.findOne({ 
+      _id: linkId, 
+      $or: [{ userId: req.userId }, { userId: req.user.id }] 
+    });
+
     if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات التعديل عليه' });
 
     link.isActive = !link.isActive;
@@ -549,16 +551,14 @@ app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
 app.delete('/api/links/:id', authMiddleware, async (req, res, next) => {
   try {
     const linkId = req.params.id;
-    const userId = req.userId;
-
     if (!mongoose.Types.ObjectId.isValid(linkId)) {
       return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
     }
 
-    // حذف حصري يضمن عدم وصول أي مستخدم لسجل غير مملوك
+    // الحذف حصري بشرط ملكية المستخدم
     const link = await Link.findOneAndDelete({ 
       _id: linkId, 
-      $or: [{ userId: userId }, { userId: req.user.id }] 
+      $or: [{ userId: req.userId }, { userId: req.user.id }] 
     });
 
     if (!link) {
@@ -575,15 +575,13 @@ app.delete('/api/links/:id', authMiddleware, async (req, res, next) => {
 app.post('/api/links/delete', authMiddleware, async (req, res, next) => {
   try {
     const { linkId } = req.body;
-    const userId = req.userId;
-
     if (!mongoose.Types.ObjectId.isValid(linkId)) {
       return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
     }
 
     const link = await Link.findOneAndDelete({ 
       _id: linkId, 
-      $or: [{ userId: userId }, { userId: req.user.id }] 
+      $or: [{ userId: req.userId }, { userId: req.user.id }] 
     });
 
     if (!link) {
@@ -600,22 +598,24 @@ app.post('/api/links/delete', authMiddleware, async (req, res, next) => {
 app.get('/api/links/:id/stats', authMiddleware, async (req, res, next) => {
   try {
     const linkId = req.params.id;
-    const userId = req.userId;
-
     if (!mongoose.Types.ObjectId.isValid(linkId)) {
       return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
     }
 
+    // التحقق الصارم من ملكية الرابط قبل جلب الإحصائيات
     const link = await Link.findOne({ 
       _id: linkId, 
-      $or: [{ userId: userId }, { userId: req.user.id }] 
+      $or: [{ userId: req.userId }, { userId: req.user.id }] 
     }).lean();
 
     if (!link) {
       return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحية الوصول إليه' });
     }
 
-    const impressions = await Impression.find({ linkId: link._id, userId: userId }).sort({ createdAt: -1 }).limit(100).lean();
+    const impressions = await Impression.find({ 
+      linkId: link._id, 
+      $or: [{ userId: req.userId }, { publisherId: req.userId }] 
+    }).sort({ createdAt: -1 }).limit(100).lean();
     
     const totalViews = link.views || 0;
     const validImp = link.validImpressions || 0;
@@ -642,7 +642,7 @@ app.get('/api/links/:id/stats', authMiddleware, async (req, res, next) => {
 });
 
 // =========================================================================
-// --- Self-Serve Ad Campaign APIs (Multi-Tenant Isolated) ---
+// --- Self-Serve Ad Campaign APIs (Multi-Tenant Isolated & Atomic) ---
 // =========================================================================
 
 app.post('/api/ads', authMiddleware, async (req, res, next) => {
@@ -667,7 +667,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'الحد الأدنى لميزانية الحملة هو $5' });
     }
 
-    // خصم ذرّي حصري لرصيد صاحب الحساب الموثق
+    // خصم ذرّي ذو أمان عالي لمنع Race Condition الرصيد
     const updatedUser = await User.findOneAndUpdate(
       { _id: req.userId, availableBalance: { $gte: budget } },
       { $inc: { availableBalance: -budget } },
@@ -718,7 +718,6 @@ app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
     const { adId } = req.body;
     if (!mongoose.Types.ObjectId.isValid(adId)) return res.status(400).json({ success: false, error: 'معرف الإعلان غير صالح' });
 
-    // التأكد التام من ملكية الإعلان
     const ad = await Ad.findOne({ _id: adId, userId: req.userId });
     if (!ad) return res.status(404).json({ success: false, error: 'الإعلان غير موجود أو لا تملك صلاحية تعديله' });
 
@@ -751,18 +750,18 @@ app.delete('/api/ads/:id', authMiddleware, async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'الإعلان غير موجود أو لا تملك صلاحيات حذفه' });
     }
 
-    // إعادة الميزانية المتبقية ذرياً للمستخدم
+    // إرجاع الميزانية المتبقية بشكل ذرّي وآمن عبر Transaction
     if (ad.remainingBudget > 0 && ad.status !== 'completed') {
-      await User.findOneAndUpdate(
-        { _id: req.userId },
+      await User.findByIdAndUpdate(
+        req.userId, 
         { $inc: { availableBalance: ad.remainingBudget } },
         { session }
       );
     }
 
     await Ad.deleteOne({ _id: adId, userId: req.userId }).session(session);
-
     await session.commitTransaction();
+
     res.json({ success: true, message: 'تم إيقاف وحذف الحملة وإعادة الميزانية المتبقية لحسابك' });
   } catch (err) {
     await session.abortTransaction();
@@ -854,7 +853,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
 
     const netAmount = numAmt - FEE;
 
-    // خصم ذرّي آمن لمنع Race Conditions
+    // خصم الرصيد بخصم ذرّي لمنع Double Spending و Race Conditions
     const updatedUser = await User.findOneAndUpdate(
       { _id: req.userId, availableBalance: { $gte: numAmt } },
       { $inc: { availableBalance: -numAmt }, defaultWallet: cleanWallet },
@@ -1424,4 +1423,4 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Enterprise Server V6.1 Active on Port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Enterprise Server V6 Active on Port ${PORT}`));
