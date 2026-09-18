@@ -108,10 +108,9 @@ const userSchema = new mongoose.Schema({
         if (!v || v === '') return true;
         const isTron = /^T[A-Za-z1-9]{33}$/.test(v);
         const isEvm = /^0x[a-fA-F0-9]{40}$/.test(v);
-        const isTon = /^[a-zA-Z0-9_-]{48}$/.test(v) \vert{}\vert{} /^0:[a-fA-F0-9]{64}$/.test(v);
-        return isTron || isEvm || isTon;
+        return isTron || isEvm;
       },
-      message: 'Invalid wallet address format (Must be USDT TRC20, BEP20/ERC20, or TON)'
+      message: 'Invalid wallet address format (Must be USDT TRC20 or BEP20/ERC20)'
     }
   },
   statsSummary: {
@@ -644,8 +643,8 @@ const withdrawSchema = new mongoose.Schema({
   },
   network: {
     type: String,
-    enum: ['BEP20', 'TRC20', 'TON'],
-    required: [true, 'Please select network (BEP20, TRC20, or TON)'],
+    enum: ['BEP20', 'TRC20'],
+    required: [true, 'Please select network (BEP20 or TRC20)'],
     trim: true,
     uppercase: true
   },
@@ -774,8 +773,8 @@ const depositSchema = new mongoose.Schema({
   },
   network: {
     type: String,
-    enum: ['BEP20', 'TRC20', 'TON'],
-    required: [true, 'Please select network (BEP20, TRC20, TON)'],
+    enum: ['BEP20', 'TRC20'],
+    required: [true, 'Please select network (BEP20 or TRC20)'],
     trim: true,
     uppercase: true
   },
@@ -853,13 +852,16 @@ announcementSchema.index({ isActive: 1, targetUser: 1, createdAt: -1 });
 announcementSchema.index({ isActive: 1, targetTelegramId: 1, createdAt: -1 });
 
 announcementSchema.statics.getForUserIsolated = function(userId, telegramId) {
+  const targetTgId = telegramId ? String(telegramId).trim() : null;
+  const orConditions = [
+    { targetUser: null, targetTelegramId: null }
+  ];
+  if (userId) orConditions.push({ targetUser: userId });
+  if (targetTgId) orConditions.push({ targetTelegramId: targetTgId });
+
   return this.find({
     isActive: true,
-    $or: [
-      { targetUser: null, targetTelegramId: null },
-      { targetUser: userId },
-      { targetTelegramId: String(telegramId) }
-    ]
+    $or: orConditions
   }).sort({ createdAt: -1 });
 };
 
