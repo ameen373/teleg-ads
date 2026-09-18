@@ -41,9 +41,9 @@ const enforceTenantKey = (tenantKey, keyName = 'userId') => {
   }
 };
 
-// --------------------------------------------------
+// ==================================================
 // 1. User Model (Isolated Profiles, Balances & Stats)
-// --------------------------------------------------
+// ==================================================
 const userSchema = new mongoose.Schema({
   telegramId: { 
     type: String, 
@@ -128,9 +128,9 @@ userSchema.statics.findByTelegramIdIsolated = function(telegramId) {
   return this.findOne({ telegramId: String(telegramId).trim() });
 };
 
-// --------------------------------------------------
+// ==================================================
 // 2. Isolated Wallet Model (Central Balance Control)
-// --------------------------------------------------
+// ==================================================
 const walletSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -185,9 +185,9 @@ walletSchema.statics.getWalletIsolated = function(userId) {
   return this.findOne({ userId });
 };
 
-// --------------------------------------------------
+// ==================================================
 // 3. Isolated Transaction History Model
-// --------------------------------------------------
+// ==================================================
 const transactionSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -238,9 +238,9 @@ transactionSchema.statics.getUserTransactionsIsolated = function(userId, filter 
   return this.find({ ...filter, userId }).sort({ createdAt: -1 });
 };
 
-// --------------------------------------------------
-// 4. Self-Serve Ad Model (Campaigns)
-// --------------------------------------------------
+// ==================================================
+// 4. Self-Serve Ad Campaign Model (Ad)
+// ==================================================
 const adSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -350,9 +350,9 @@ adSchema.statics.findAdvertiserAdsIsolated = function(userId, filter = {}) {
   return this.find({ ...filter, $or: [{ userId }, { advertiserId: userId }] }).sort({ createdAt: -1 });
 };
 
-// --------------------------------------------------
-// 5. Shortened Link Model (Links - Isolated Multi-Tenant)
-// --------------------------------------------------
+// ==================================================
+// 5. Shortened Link Model (Link)
+// ==================================================
 const linkSchema = new mongoose.Schema({
   shortCode: { 
     type: String, 
@@ -441,9 +441,9 @@ linkSchema.statics.findOneIsolated = function(shortCode, userId) {
   return this.findOne({ shortCode, userId });
 };
 
-// --------------------------------------------------
-// 6. Traffic & Impressions Model
-// --------------------------------------------------
+// ==================================================
+// 6. Traffic & Impressions Model (Impression)
+// ==================================================
 const impressionSchema = new mongoose.Schema({
   linkId: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -538,9 +538,9 @@ impressionSchema.statics.getPublisherImpressionsIsolated = function(userId, extr
   return this.find({ ...extraFilter, $or: [{ userId }, { publisherId: userId }] }).sort({ createdAt: -1 });
 };
 
-// --------------------------------------------------
-// 7. Anti-Bypass Click Session Model
-// --------------------------------------------------
+// ==================================================
+// 7. Anti-Bypass Click Session Model (ClickSession)
+// ==================================================
 const clickSessionSchema = new mongoose.Schema({
   linkId: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -609,9 +609,9 @@ clickSessionSchema.index({ userId: 1, createdAt: -1 });
 clickSessionSchema.index({ telegramId: 1, createdAt: -1 });
 clickSessionSchema.index({ bridgeToken: 1 }, { unique: true });
 
-// --------------------------------------------------
-// 8. Withdraw Request Model (Withdrawals)
-// --------------------------------------------------
+// ==================================================
+// 8. Withdrawal Model (Withdraw)
+// ==================================================
 const withdrawSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -655,7 +655,7 @@ const withdrawSchema = new mongoose.Schema({
   },
   status: { 
     type: String, 
-    enum: ['pending', 'approved', 'rejected'], 
+    enum: ['pending', 'completed', 'approved', 'rejected'], 
     default: 'pending', 
     lowercase: true,
     index: true 
@@ -694,9 +694,9 @@ withdrawSchema.statics.getUserWithdrawalsIsolated = function(userId, status = nu
   return this.find(query).sort({ createdAt: -1 });
 };
 
-// --------------------------------------------------
-// 9. Earnings Hold Model
-// --------------------------------------------------
+// ==================================================
+// 9. Earnings Hold Model (EarningsHold)
+// ==================================================
 const earningsHoldSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -737,9 +737,9 @@ earningsHoldSchema.statics.getUserHoldsIsolated = function(userId) {
   return this.find({ userId, isReleased: false }).sort({ releaseAt: 1 });
 };
 
-// --------------------------------------------------
-// 10. Advertiser Deposit Model (Deposits)
-// --------------------------------------------------
+// ==================================================
+// 10. Advertiser Deposit Model (Deposit)
+// ==================================================
 const depositSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -786,7 +786,7 @@ const depositSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'approved', 'rejected'],
+    enum: ['pending', 'completed', 'approved', 'rejected'],
     default: 'pending',
     lowercase: true,
     index: true
@@ -815,9 +815,9 @@ depositSchema.statics.getAdvertiserDepositsIsolated = function(userId) {
   return this.find({ $or: [{ userId }, { advertiserId: userId }] }).sort({ createdAt: -1 });
 };
 
-// --------------------------------------------------
-// 11. Announcement Model
-// --------------------------------------------------
+// ==================================================
+// 11. Announcement Model (Announcement)
+// ==================================================
 const announcementSchema = new mongoose.Schema({
   title: { 
     type: String, 
@@ -865,7 +865,9 @@ announcementSchema.statics.getForUserIsolated = function(userId, telegramId) {
   }).sort({ createdAt: -1 });
 };
 
-// Exporting Optimized Safe Models
+// ==================================================
+// Exporting Safe Models (Serverless Ready)
+// ==================================================
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Wallet = mongoose.models.Wallet || mongoose.model('Wallet', walletSchema);
 const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
