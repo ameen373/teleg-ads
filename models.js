@@ -1,5 +1,5 @@
 /**
- * Ultra-Enterprise Models Architecture (V5.2 - Absolute Multi-Tenant Isolation & Zero Data-Leakage)
+ * Ultra-Enterprise Models Architecture (V5.3 - Absolute Multi-Tenant Isolation & Zero Data-Leakage)
  * Platform: Telega.ads Advertising & Shortener Network
  * Security: Zero-Data-Leakage Enforcement, Dynamic Context Scoping, Dual-ID Ownership Bindings
  */
@@ -108,7 +108,7 @@ const userSchema = new mongoose.Schema({
         if (!v || v === '') return true;
         const isTron = /^T[A-Za-z1-9]{33}$/.test(v);
         const isEvm = /^0x[a-fA-F0-9]{40}$/.test(v);
-        const isTon = /^[a-zA-Z0-9_-]{48}$/.test(v) || /^0:[a-fA-F0-9]{64}$/.test(v);
+        const isTon = /^[a-zA-Z0-9_-]{48}$/.test(v) \vert{}\vert{} /^0:[a-fA-F0-9]{64}$/.test(v);
         return isTron || isEvm || isTon;
       },
       message: 'Invalid wallet address format (Must be USDT TRC20, BEP20/ERC20, or TON)'
@@ -205,17 +205,17 @@ const transactionSchema = new mongoose.Schema({
   type: { 
     type: String, 
     enum: ['deposit', 'withdrawal', 'campaign_spend', 'publisher_earning', 'referral_bonus', 'refund'], 
-    required: true,
+    required: [true, 'Transaction type is required'],
     index: true 
   },
   amount: { 
     type: Number, 
-    required: true, 
+    required: [true, 'Transaction amount is required'], 
     set: formatCurrency 
   },
   balanceAfter: { 
     type: Number, 
-    required: true, 
+    required: [true, 'Balance after transaction is required'], 
     set: formatCurrency 
   },
   description: { 
@@ -292,7 +292,7 @@ const adSchema = new mongoose.Schema({
   },
   remainingBudget: { 
     type: Number, 
-    required: true, 
+    required: [true, 'Remaining budget is required'], 
     min: [0, 'Remaining budget cannot be negative'], 
     set: formatCurrency 
   },
@@ -410,6 +410,12 @@ const linkSchema = new mongoose.Schema({
     type: Number, 
     default: 0, 
     min: 0 
+  },
+  totalEarnings: {
+    type: Number,
+    default: 0,
+    min: 0,
+    set: formatCurrency
   }
 }, globalSchemaOptions);
 
@@ -443,7 +449,7 @@ const impressionSchema = new mongoose.Schema({
   linkId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'Link', 
-    required: true, 
+    required: [true, 'Link ID is required'], 
     index: true 
   },
   userId: {
@@ -461,12 +467,12 @@ const impressionSchema = new mongoose.Schema({
   publisherId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
+    required: [true, 'Publisher ID is required'],
     index: true
   },
   publisherTelegramId: {
     type: String,
-    required: true,
+    required: [true, 'Publisher Telegram ID is required'],
     trim: true,
     index: true
   },
@@ -495,7 +501,7 @@ const impressionSchema = new mongoose.Schema({
   },
   ip: { 
     type: String, 
-    required: true, 
+    required: [true, 'IP address is required'], 
     trim: true 
   },
   userAgent: { 
@@ -540,7 +546,7 @@ const clickSessionSchema = new mongoose.Schema({
   linkId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'Link', 
-    required: true 
+    required: [true, 'Link ID is required'] 
   },
   userId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -557,7 +563,7 @@ const clickSessionSchema = new mongoose.Schema({
   publisherId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
+    required: [true, 'Publisher ID is required'],
     index: true
   },
   visitorTelegramId: { 
@@ -578,12 +584,12 @@ const clickSessionSchema = new mongoose.Schema({
   },
   ip: { 
     type: String, 
-    required: true, 
+    required: [true, 'IP address is required'], 
     trim: true 
   },
   bridgeToken: { 
     type: String, 
-    required: true,
+    required: [true, 'Bridge token is required'],
     trim: true 
   },
   createdAt: { 
@@ -633,7 +639,7 @@ const withdrawSchema = new mongoose.Schema({
   },
   netAmount: {
     type: Number,
-    required: true,
+    required: [true, 'Net withdrawal amount is required'],
     set: formatCurrency
   },
   network: {
@@ -707,13 +713,13 @@ const earningsHoldSchema = new mongoose.Schema({
   },
   amount: { 
     type: Number, 
-    required: true, 
+    required: [true, 'Hold amount is required'], 
     min: 0,
     set: formatCurrency 
   },
   releaseAt: { 
     type: Date, 
-    required: true, 
+    required: [true, 'Release date is required'], 
     default: () => new Date(Date.now() + 24 * 60 * 60 * 1000),
     index: true 
   },
@@ -814,11 +820,33 @@ depositSchema.statics.getAdvertiserDepositsIsolated = function(userId) {
 // 11. Announcement Model
 // --------------------------------------------------
 const announcementSchema = new mongoose.Schema({
-  title: { type: String, required: true, trim: true },
-  content: { type: String, required: true, trim: true },
-  isActive: { type: Boolean, default: true, index: true },
-  targetUser: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, index: true },
-  targetTelegramId: { type: String, default: null, trim: true, index: true }
+  title: { 
+    type: String, 
+    required: [true, 'Announcement title is required'], 
+    trim: true 
+  },
+  content: { 
+    type: String, 
+    required: [true, 'Announcement content is required'], 
+    trim: true 
+  },
+  isActive: { 
+    type: Boolean, 
+    default: true, 
+    index: true 
+  },
+  targetUser: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'User', 
+    default: null, 
+    index: true 
+  },
+  targetTelegramId: { 
+    type: String, 
+    default: null, 
+    trim: true, 
+    index: true 
+  }
 }, globalSchemaOptions);
 
 announcementSchema.index({ isActive: 1, targetUser: 1, createdAt: -1 });
