@@ -14,6 +14,7 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const morgan = require('morgan');
 const winston = require('winston');
+const validUrl = require('valid-url');
 const axios = require('axios');
 const Redis = require('ioredis');
 const cors = require('cors');
@@ -58,18 +59,6 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 app.use(morgan('combined', { stream: { write: (message) => logger.info(message.trim()) } }));
-
-// ==================================================
-// --- Helper Function: Native Standard URL Validation ---
-// ==================================================
-const isValidHttpUrl = (urlString) => {
-  try {
-    const parsed = new URL(urlString);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-  } catch (e) {
-    return false;
-  }
-};
 
 // ==================================================
 // --- System Constants & Environment Variables ---
@@ -444,8 +433,7 @@ const handleShortenLink = async (req, res) => {
     const { title, targetUrl, url } = req.body;
     const cleanUrl = String(targetUrl || url || '').trim();
 
-    // التحقق من صحة الرابط باستخدام new URL() والبروتوكول
-    if (!cleanUrl || !isValidHttpUrl(cleanUrl)) {
+    if (!cleanUrl || !validUrl.isWebUri(cleanUrl)) {
       return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
     }
 
@@ -669,7 +657,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'عنوان الإعلان مطلوب' });
     }
 
-    if (!targetUrl || !isValidHttpUrl(targetUrl)) {
+    if (!validUrl.isWebUri(targetUrl)) {
       await session.abortTransaction();
       return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
     }
