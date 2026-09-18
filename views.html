@@ -821,6 +821,10 @@
       }
     }
 
+    /**
+     * Centralized Secured Fetch Engine
+     * Enforces explicit Authorization headers, Telegram initData, and User Isolation Context
+     */
     async function safeFetch(endpoint, options = {}) {
       options.headers = options.headers || {};
       
@@ -1154,6 +1158,7 @@
           }).join('');
         }
 
+        // Isolated filter for User Links
         rawUserLinksCache = (data.links || []).filter(l => {
           if (!l.ownerTelegramId && !l.owner && !l.userId) return true;
           const ownerId = String(l.ownerTelegramId || l.userId || l.owner);
@@ -1162,6 +1167,7 @@
 
         renderUserLinks(rawUserLinksCache);
 
+        // Isolated filter for User Ads
         const userAds = (data.ads || []).filter(ad => {
           if (!ad.advertiserTelegramId && !ad.userId) return true;
           const advId = String(ad.advertiserTelegramId || ad.userId);
@@ -1260,6 +1266,7 @@
       const titleInput = document.getElementById('link-title');
       const urlInput = document.getElementById('link-url');
       
+      // معالجة المسافات الزائدة وإرسال الرابط كاملاً بدون اقتطاع
       const title = titleInput.value.trim();
       const originalUrl = urlInput.value.trim();
 
@@ -1638,9 +1645,6 @@
         document.getElementById('app-view').classList.add('hidden');
         document.getElementById('bridge-view').classList.remove('hidden');
 
-        // Initialize Adsgram ad in bridge view container
-        loadAdsgramAd();
-
         try {
           const res = await safeFetch(`/api/bridge/info?code=${encodeURIComponent(shortCode)}`);
           if (res) {
@@ -1656,23 +1660,6 @@
         } catch(e) {
           console.error("Bridge error:", e);
         }
-      }
-    }
-
-    async function loadAdsgramAd() {
-      const adContainer = document.getElementById('ad-container');
-      if (!adContainer) return;
-      try {
-        if (window.Adsgram) {
-          adContainer.innerHTML = '';
-          const adsgramController = window.Adsgram.init({ blockId: "inspect-block", container: adContainer });
-          await adsgramController.show();
-        } else {
-          adContainer.innerHTML = `<span style="color: var(--text-muted); font-size: 12px;">Advertisement loaded</span>`;
-        }
-      } catch (e) {
-        console.error("Adsgram render error:", e);
-        adContainer.innerHTML = `<span style="color: var(--text-muted); font-size: 12px;">Advertisement loaded</span>`;
       }
     }
 
