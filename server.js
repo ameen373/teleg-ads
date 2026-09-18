@@ -18,6 +18,7 @@ const validUrl = require('valid-url');
 const axios = require('axios');
 const Redis = require('ioredis');
 const cors = require('cors');
+const mongoSanitize = require('express-mongo-sanitize');
 const { User, Ad, Link, Impression, ClickSession, Withdraw, EarningsHold, Deposit, Announcement } = require('./models');
 
 const app = express();
@@ -32,8 +33,10 @@ app.use(cors({
 }));
 app.options('*', cors());
 
+// --- Body Parsing & NoSQL Injection Sanitization ---
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+app.use(mongoSanitize());
 app.use(express.static(__dirname));
 
 // --- Force UTF-8 JSON Response Headers & No-Cache Privacy Guard ---
@@ -211,7 +214,7 @@ const isPhishingOrMalicious = (url) => {
 };
 
 // =========================================================================
-// --- Middleware الموحد للتوثيق واستخراج req.user.id بشكل آمن ومغلق ---
+// --- Authentication Middleware (Telegram WebApp initData & Bearer Token) ---
 // =========================================================================
 const authMiddleware = async (req, res, next) => {
   try {
@@ -223,35 +226,42 @@ const authMiddleware = async (req, res, next) => {
       const token = authHeader.split(' ')[1];
       try {
         const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
-        user = await User.findById(decoded.userId).lean();
+        user = await User.findById(decoded.userId);
       } catch (err) {}
     }
 
-    // الخيار الثاني: X-Telegram-Init-Data Header
+    // الخيار الثاني: X-Telegram-Init-Data Header Validation
     if (!user) {
-      const initData = req.headers['x-telegram-init-data'];
-      const telegramUser = verifyTelegramData(initData);
-      if (telegramUser) {
-        user = await User.findOne({ telegramId: String(telegramUser.id) }).lean();
+      const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'];
+      if (initData) {
+        const telegramUser = verifyTelegramData(initData);
+        if (telegramUser) {
+          const tgId = String(telegramUser.id);
+          user = await User.findOne({ telegramId: tgId });
+          if (!user) {
+            user = await User.create({
+              telegramId: tgId,
+              username: telegramUser.username || `User_${tgId.slice(-4)}`,
+              language: telegramUser.language_code || CONFIG.DEFAULT_LANGUAGE
+            });
+          }
+        }
       }
     }
 
     if (!user) {
-      return res.status(401).json({ success: false, error: 'جلسة غير صالحة، يرجى إعادة تحميل التطبيق' });
+      return res.status(401).json({ success: false, error: 'جلسة غير صالحة أو غير مصرح بها، يرجى إعادة فتح التطبيق' });
     }
 
     if (user.isBanned) {
       return res.status(403).json({ success: false, error: 'حسابك معطل بسبب مخالفة الشروط' });
     }
 
-    // تعيين الهوية بشكل موحد ومضمون لضمان عدم التداخل
+    // تعيين بيانات المستخدم بشكل موحد
     req.user = user;
-    req.user.id = user._id.toString();
-    req.userId = user._id;
-
     next();
   } catch (err) {
-    res.status(401).json({ success: false, error: 'انتهت الجلسة، يرجى إعادة التسجيل' });
+    return res.status(401).json({ success: false, error: 'انتهت الجلسة، يرجى إعادة تسجيل الدخول' });
   }
 };
 
@@ -303,7 +313,7 @@ app.all('/api/check-admin', async (req, res) => {
   }
 });
 
-// --- Authentication & Isolated User Login ---
+// --- Authentication & Login Gateway ---
 app.post('/api/auth/login', async (req, res, next) => {
   try {
     const initData = req.headers['x-telegram-init-data'];
@@ -370,14 +380,12 @@ app.post('/api/auth/login', async (req, res, next) => {
 // --- Isolated User Data Gateway ---
 app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   try {
-    const userId = req.userId;
-
     const [rawLinks, withdraws, announcements, ads, deposits] = await Promise.all([
-      Link.find({ $or: [{ userId: userId }, { userId: req.user.id }] }).sort({ createdAt: -1 }).lean(),
-      Withdraw.find({ userId: userId }).sort({ createdAt: -1 }).lean(),
-      Announcement.find({ $or: [{ isGlobal: true }, { targetUserId: userId }] }).sort({ createdAt: -1 }).lean(),
-      Ad.find({ userId: userId }).sort({ createdAt: -1 }).lean(),
-      Deposit.find({ userId: userId }).sort({ createdAt: -1 }).lean()
+      Link.find({ userId: req.user._id }).sort({ createdAt: -1 }).lean(),
+      Withdraw.find({ userId: req.user._id }).sort({ createdAt: -1 }).lean(),
+      Announcement.find({ $or: [{ isGlobal: true }, { targetUserId: req.user._id }] }).sort({ createdAt: -1 }).lean(),
+      Ad.find({ userId: req.user._id }).sort({ createdAt: -1 }).lean(),
+      Deposit.find({ userId: req.user._id }).sort({ createdAt: -1 }).lean()
     ]);
 
     const links = rawLinks.map(link => {
@@ -426,8 +434,6 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
 
 const handleShortenLink = async (req, res) => {
   try {
-    const userId = req.userId;
-
     const { title, targetUrl, url } = req.body;
     const cleanUrl = String(targetUrl || url || '').trim();
 
@@ -447,10 +453,10 @@ const handleShortenLink = async (req, res) => {
     } catch (e) {}
 
     const shortCode = crypto.randomBytes(3).toString('hex');
-    const publisherTelegramId = req.user?.telegramId || null;
+    const publisherTelegramId = req.user.telegramId;
     
     const newLink = new Link({
-      userId: userId,
+      userId: req.user._id,
       publisherTelegramId: publisherTelegramId,
       telegramId: publisherTelegramId,
       title: title ? String(title).trim() : 'رابط بدون عنوان',
@@ -461,7 +467,7 @@ const handleShortenLink = async (req, res) => {
 
     await newLink.save();
 
-    await User.findByIdAndUpdate(userId, { $inc: { 'statsSummary.totalLinksCreated': 1 } }).catch(() => {});
+    await User.findByIdAndUpdate(req.user._id, { $inc: { 'statsSummary.totalLinksCreated': 1 } }).catch(() => {});
 
     const linkObj = newLink.toObject ? newLink.toObject() : newLink;
     const shortUrl = `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`;
@@ -485,15 +491,10 @@ const handleShortenLink = async (req, res) => {
 app.post('/api/links/shorten', authMiddleware, linkCreationLimiter, handleShortenLink);
 app.post('/api/links', authMiddleware, linkCreationLimiter, handleShortenLink);
 
-const getUserLinks = async (userId, userStrId) => {
+const getUserLinks = async (userId) => {
   if (!userId) return [];
 
-  const rawLinks = await Link.find({
-    $or: [
-      { userId: userId },
-      { userId: userStrId }
-    ]
-  }).sort({ createdAt: -1 }).lean();
+  const rawLinks = await Link.find({ userId: userId }).sort({ createdAt: -1 }).lean();
 
   return rawLinks.map(link => {
     const totalViews = link.views || 0;
@@ -509,7 +510,7 @@ const getUserLinks = async (userId, userStrId) => {
 
 app.get('/api/links', authMiddleware, async (req, res, next) => {
   try {
-    const links = await getUserLinks(req.userId, req.user.id);
+    const links = await getUserLinks(req.user._id);
     res.json({ success: true, links });
   } catch (err) {
     next(err);
@@ -518,7 +519,7 @@ app.get('/api/links', authMiddleware, async (req, res, next) => {
 
 app.get('/api/user/links', authMiddleware, async (req, res, next) => {
   try {
-    const links = await getUserLinks(req.userId, req.user.id);
+    const links = await getUserLinks(req.user._id);
     res.json({ success: true, links });
   } catch (err) {
     next(err);
@@ -530,11 +531,7 @@ app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
     const { linkId } = req.body;
     if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
 
-    // الاستعلام حصري بشرط ملكية المستخدم فقط
-    const link = await Link.findOne({ 
-      _id: linkId, 
-      $or: [{ userId: req.userId }, { userId: req.user.id }] 
-    });
+    const link = await Link.findOne({ _id: linkId, userId: req.user._id });
 
     if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات التعديل عليه' });
 
@@ -555,11 +552,7 @@ app.delete('/api/links/:id', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
     }
 
-    // الحذف حصري بشرط ملكية المستخدم
-    const link = await Link.findOneAndDelete({ 
-      _id: linkId, 
-      $or: [{ userId: req.userId }, { userId: req.user.id }] 
-    });
+    const link = await Link.findOneAndDelete({ _id: linkId, userId: req.user._id });
 
     if (!link) {
       return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات حذفه' });
@@ -579,10 +572,7 @@ app.post('/api/links/delete', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
     }
 
-    const link = await Link.findOneAndDelete({ 
-      _id: linkId, 
-      $or: [{ userId: req.userId }, { userId: req.user.id }] 
-    });
+    const link = await Link.findOneAndDelete({ _id: linkId, userId: req.user._id });
 
     if (!link) {
       return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات حذفه' });
@@ -602,20 +592,13 @@ app.get('/api/links/:id/stats', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
     }
 
-    // التحقق الصارم من ملكية الرابط قبل جلب الإحصائيات
-    const link = await Link.findOne({ 
-      _id: linkId, 
-      $or: [{ userId: req.userId }, { userId: req.user.id }] 
-    }).lean();
+    const link = await Link.findOne({ _id: linkId, userId: req.user._id }).lean();
 
     if (!link) {
       return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحية الوصول إليه' });
     }
 
-    const impressions = await Impression.find({ 
-      linkId: link._id, 
-      $or: [{ userId: req.userId }, { publisherId: req.userId }] 
-    }).sort({ createdAt: -1 }).limit(100).lean();
+    const impressions = await Impression.find({ linkId: link._id, userId: req.user._id }).sort({ createdAt: -1 }).limit(100).lean();
     
     const totalViews = link.views || 0;
     const validImp = link.validImpressions || 0;
@@ -667,9 +650,8 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'الحد الأدنى لميزانية الحملة هو $5' });
     }
 
-    // خصم ذرّي ذو أمان عالي لمنع Race Condition الرصيد
     const updatedUser = await User.findOneAndUpdate(
-      { _id: req.userId, availableBalance: { $gte: budget } },
+      { _id: req.user._id, availableBalance: { $gte: budget } },
       { $inc: { availableBalance: -budget } },
       { new: true, session }
     );
@@ -680,8 +662,8 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
     }
 
     const ad = await Ad.create([{
-      userId: req.userId,
-      advertiserId: req.userId,
+      userId: req.user._id,
+      advertiserId: req.user._id,
       advertiserTelegramId: req.user.telegramId,
       title: String(title).trim(),
       targetUrl: String(targetUrl).trim(),
@@ -706,7 +688,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
 
 app.get('/api/user/ads', authMiddleware, async (req, res, next) => {
   try {
-    const ads = await Ad.find({ userId: req.userId }).sort({ createdAt: -1 }).lean();
+    const ads = await Ad.find({ userId: req.user._id }).sort({ createdAt: -1 }).lean();
     res.json({ success: true, ads });
   } catch (err) {
     next(err);
@@ -718,7 +700,7 @@ app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
     const { adId } = req.body;
     if (!mongoose.Types.ObjectId.isValid(adId)) return res.status(400).json({ success: false, error: 'معرف الإعلان غير صالح' });
 
-    const ad = await Ad.findOne({ _id: adId, userId: req.userId });
+    const ad = await Ad.findOne({ _id: adId, userId: req.user._id });
     if (!ad) return res.status(404).json({ success: false, error: 'الإعلان غير موجود أو لا تملك صلاحية تعديله' });
 
     if (ad.status === 'completed') {
@@ -744,22 +726,21 @@ app.delete('/api/ads/:id', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'معرف الإعلان غير صالح' });
     }
 
-    const ad = await Ad.findOne({ _id: adId, userId: req.userId }).session(session);
+    const ad = await Ad.findOne({ _id: adId, userId: req.user._id }).session(session);
     if (!ad) {
       await session.abortTransaction();
       return res.status(404).json({ success: false, error: 'الإعلان غير موجود أو لا تملك صلاحيات حذفه' });
     }
 
-    // إرجاع الميزانية المتبقية بشكل ذرّي وآمن عبر Transaction
     if (ad.remainingBudget > 0 && ad.status !== 'completed') {
       await User.findByIdAndUpdate(
-        req.userId, 
+        req.user._id, 
         { $inc: { availableBalance: ad.remainingBudget } },
         { session }
       );
     }
 
-    await Ad.deleteOne({ _id: adId, userId: req.userId }).session(session);
+    await Ad.deleteOne({ _id: adId, userId: req.user._id }).session(session);
     await session.commitTransaction();
 
     res.json({ success: true, message: 'تم إيقاف وحذف الحملة وإعادة الميزانية المتبقية لحسابك' });
@@ -800,8 +781,8 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
     }
 
     const deposit = await Deposit.create({
-      userId: req.userId,
-      advertiserId: req.userId,
+      userId: req.user._id,
+      advertiserId: req.user._id,
       advertiserTelegramId: req.user.telegramId,
       amount: numAmount,
       network: cleanNetwork,
@@ -845,7 +826,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'عنوان المحفظة غير صالح' });
     }
 
-    const activePending = await Withdraw.findOne({ userId: req.userId, status: 'pending' }).session(session);
+    const activePending = await Withdraw.findOne({ userId: req.user._id, status: 'pending' }).session(session);
     if (activePending) {
       await session.abortTransaction();
       return res.status(400).json({ success: false, error: 'لديك طلب سحب قيد الانتظار حالياً، يرجى الانتظار حتى معالجته' });
@@ -853,9 +834,8 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
 
     const netAmount = numAmt - FEE;
 
-    // خصم الرصيد بخصم ذرّي لمنع Double Spending و Race Conditions
     const updatedUser = await User.findOneAndUpdate(
-      { _id: req.userId, availableBalance: { $gte: numAmt } },
+      { _id: req.user._id, availableBalance: { $gte: numAmt } },
       { $inc: { availableBalance: -numAmt }, defaultWallet: cleanWallet },
       { new: true, session }
     );
@@ -866,7 +846,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
     }
 
     const withdrawRequest = await Withdraw.create([{
-      userId: req.userId,
+      userId: req.user._id,
       telegramId: req.user.telegramId,
       amount: numAmt,
       fee: FEE,
@@ -894,11 +874,9 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
 
 app.get('/api/user/transactions', authMiddleware, async (req, res, next) => {
   try {
-    const userId = req.userId;
-
     const [deposits, withdraws] = await Promise.all([
-      Deposit.find({ userId: userId }).sort({ createdAt: -1 }).lean(),
-      Withdraw.find({ userId: userId }).sort({ createdAt: -1 }).lean()
+      Deposit.find({ userId: req.user._id }).sort({ createdAt: -1 }).lean(),
+      Withdraw.find({ userId: req.user._id }).sort({ createdAt: -1 }).lean()
     ]);
 
     res.json({
@@ -1126,7 +1104,7 @@ app.post('/api/user/settings', authMiddleware, async (req, res, next) => {
     if (defaultWallet !== undefined) updateData.defaultWallet = String(defaultWallet).trim();
     if (language !== undefined) updateData.language = String(language).trim().toLowerCase() || CONFIG.DEFAULT_LANGUAGE;
 
-    await User.findByIdAndUpdate(req.userId, updateData);
+    await User.findByIdAndUpdate(req.user._id, updateData);
     res.json({ success: true, message: 'تم تحديث الإعدادات بنجاح' });
   } catch (err) {
     next(err);
