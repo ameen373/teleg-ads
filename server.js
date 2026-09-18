@@ -49,7 +49,10 @@ app.options('*', cors());
 
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
-app.use(express.static(__dirname));
+
+// 🔒 إزالة مشاركة الجذر للحماية من تسريب الملاحظات والكود
+// في حال وجود أصول ثابتة ضعها داخل مجلد public وافتح هذا السطر:
+// app.use(express.static(path.join(__dirname, 'public')));
 
 // --- UTF-8 & Cache Control Headers ---
 app.use('/api', (req, res, next) => {
