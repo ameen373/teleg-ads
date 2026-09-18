@@ -1,47 +1,49 @@
 {
-  "name": "telega-ads-app",
+  "name": "telegram-link-shortener",
   "version": "2.0.0",
-  "description": "Enterprise High-Performance Telegram Mini App Advertising & Monetization Architecture",
+  "description": "Enterprise Telegram Mini App Shortener & Monetization Platform Architecture",
   "main": "server.js",
   "type": "commonjs",
   "private": true,
   "scripts": {
     "start": "node server.js",
     "dev": "cross-env NODE_ENV=development nodemon server.js",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
+    "build": "echo 'Build complete'",
+    "vercel-build": "echo 'Building Serverless Function for Vercel deployment...'",
+    "lint": "eslint . --ext .js --fix",
+    "lint:check": "eslint . --ext .js",
     "format": "prettier --write \"**/*.js\"",
     "format:check": "prettier --check \"**/*.js\"",
-    "test": "jest --passWithNoTests --detectOpenHandles",
-    "clean": "rimraf node_modules"
+    "test": "jest --passWithNoTests",
+    "clean": "rimraf node_modules package-lock.json"
   },
   "keywords": [
     "telegram",
     "mini-app",
-    "ads-network",
+    "url-shortener",
+    "adsgram",
     "monetization",
     "express",
     "mongoose",
     "redis",
     "serverless",
-    "vercel",
-    "security"
+    "vercel"
   ],
   "author": "Amin Al-Alimi",
   "license": "MIT",
   "dependencies": {
-    "@telegram-apps/init-data-node": "^1.0.4",
     "axios": "^1.7.9",
     "bcryptjs": "^2.4.3",
     "compression": "^1.7.5",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
+    "crypto-js": "^4.2.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "express-mongo-sanitize": "^2.2.0",
     "express-rate-limit": "^7.5.0",
+    "express-useragent": "^1.0.15",
     "helmet": "^8.0.0",
-    "hpp": "^0.2.3",
     "ioredis": "^5.4.2",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.10.0",
@@ -49,6 +51,7 @@
     "node-cron": "^3.0.3",
     "rate-limit-redis": "^4.2.0",
     "telegraf": "^4.16.3",
+    "valid-url": "^1.0.9",
     "winston": "^3.17.0",
     "zod": "^3.24.2"
   },
@@ -62,6 +65,7 @@
     "supertest": "^7.0.0"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
   }
 }
