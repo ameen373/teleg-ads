@@ -1,5 +1,5 @@
 /**
- * Ultra-Enterprise Server Architecture (V6.2 - Absolute Multi-Tenant Security & High-Performance Core)
+ * Ultra-Enterprise Server Architecture (V6.1 - Absolute Multi-Tenant Security & High-Performance Core)
  * Telegram Link Shortener & Mini App Engine (Telega.ads)
  * Absolute Isolated Session System & Financial Security Core
  */
@@ -228,6 +228,7 @@ const authMiddleware = async (req, res, next) => {
   try {
     let user = null;
 
+    // 1. فحص توكين Bearer JWT
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
@@ -239,6 +240,7 @@ const authMiddleware = async (req, res, next) => {
       } catch (err) {}
     }
 
+    // 2. التحقق الاحتياطي من رأس Telegram initData
     if (!user) {
       const initData = req.headers['x-telegram-init-data'];
       const telegramUser = verifyTelegramData(initData);
@@ -255,6 +257,7 @@ const authMiddleware = async (req, res, next) => {
       return res.status(403).json({ success: false, error: 'حسابك معطل بسبب مخالفة الشروط' });
     }
 
+    // ربط البيانات بشكل آمن وموحد
     req.user = user;
     req.user.id = user._id.toString();
     req.userId = user._id;
@@ -438,9 +441,8 @@ const handleShortenLink = async (req, res) => {
   try {
     const userId = req.userId;
 
-    // دعم مرن لجميع أسماء الحقول المحتملة القادمة من الواجهة الأمامية
-    const { title, targetUrl, url, longUrl, destination, link } = req.body;
-    let cleanUrl = String(targetUrl || url || longUrl || destination || link || '').trim();
+    const { title, targetUrl, url } = req.body;
+    let cleanUrl = String(targetUrl || url || '').trim();
 
     // تصحيح تلقائي وإضافة البروتوكول إذا قام المستخدم بإدخال نطاق بدون http:// أو https://
     if (cleanUrl && !/^https?:\/\//i.test(cleanUrl)) {
@@ -547,6 +549,7 @@ app.post('/api/links/toggle', authMiddleware, async (req, res, next) => {
 
     if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
 
+    // استعلام حصري بشرط ملكية المستخدم فقط (IDOR Prevention)
     const link = await Link.findOne({ _id: linkId, $or: [{ userId: userId }, { userId: req.user.id }] });
     if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات التعديل عليه' });
 
@@ -569,6 +572,7 @@ app.delete('/api/links/:id', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
     }
 
+    // حذف حصري يضمن عدم وصول أي مستخدم لسجل غير مملوك
     const link = await Link.findOneAndDelete({ 
       _id: linkId, 
       $or: [{ userId: userId }, { userId: req.user.id }] 
@@ -662,7 +666,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
-    const { title, targetUrl, url, longUrl, destination, totalBudget } = req.body;
+    const { title, targetUrl, totalBudget } = req.body;
     const budget = Number(totalBudget);
 
     if (!title || String(title).trim().length === 0) {
@@ -670,7 +674,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'عنوان الإعلان مطلوب' });
     }
 
-    let cleanAdUrl = String(targetUrl || url || longUrl || destination || '').trim();
+    let cleanAdUrl = String(targetUrl || '').trim();
     if (cleanAdUrl && !/^https?:\/\//i.test(cleanAdUrl)) {
       cleanAdUrl = 'https://' + cleanAdUrl;
     }
@@ -685,6 +689,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'الحد الأدنى لميزانية الحملة هو $5' });
     }
 
+    // خصم ذرّي حصري لرصيد صاحب الحساب الموثق
     const updatedUser = await User.findOneAndUpdate(
       { _id: req.userId, availableBalance: { $gte: budget } },
       { $inc: { availableBalance: -budget } },
@@ -735,6 +740,7 @@ app.post('/api/ads/toggle', authMiddleware, async (req, res, next) => {
     const { adId } = req.body;
     if (!mongoose.Types.ObjectId.isValid(adId)) return res.status(400).json({ success: false, error: 'معرف الإعلان غير صالح' });
 
+    // التأكد التام من ملكية الإعلان
     const ad = await Ad.findOne({ _id: adId, userId: req.userId });
     if (!ad) return res.status(404).json({ success: false, error: 'الإعلان غير موجود أو لا تملك صلاحية تعديله' });
 
@@ -767,6 +773,7 @@ app.delete('/api/ads/:id', authMiddleware, async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'الإعلان غير موجود أو لا تملك صلاحيات حذفه' });
     }
 
+    // إعادة الميزانية المتبقية ذرياً للمستخدم
     if (ad.remainingBudget > 0 && ad.status !== 'completed') {
       await User.findOneAndUpdate(
         { _id: req.userId },
@@ -869,6 +876,7 @@ app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
 
     const netAmount = numAmt - FEE;
 
+    // خصم ذرّي آمن لمنع Race Conditions
     const updatedUser = await User.findOneAndUpdate(
       { _id: req.userId, availableBalance: { $gte: numAmt } },
       { $inc: { availableBalance: -numAmt }, defaultWallet: cleanWallet },
@@ -953,7 +961,7 @@ app.post('/api/init-click', validateTraffic, async (req, res, next) => {
       await safeRedisSet(`link:data:${cleanCode}`, JSON.stringify({ id: linkId, userId: linkOwnerId, publisherTelegramId: linkOwnerTelegramId }), 'EX', 3600);
     }
 
-    await ClickSession.deleteMany({ linkId });
+    await ClickSession.deleteMany({ linkId, ip: req.ip });
 
     const activeAds = await Ad.aggregate([
       { 
@@ -1027,9 +1035,9 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
     }
 
     const clickSession = await ClickSession.findById(sessionId).session(sessionDb);
-    if (!clickSession) {
+    if (!clickSession || clickSession.ip !== req.ip) {
       await sessionDb.abortTransaction();
-      return res.status(403).json({ success: false, error: 'الجلسة غير صالحة أو منتهية الصلاحية' });
+      return res.status(403).json({ success: false, error: 'الجلسة غير صالحة' });
     }
 
     const dwellTime = Date.now() - new Date(clickSession.createdAt).getTime();
@@ -1263,7 +1271,7 @@ app.post('/api/admin/withdraw/action', authMiddleware, adminMiddleware, async (r
     } else if (action === 'approved') {
       sendTelegramNotification(
         withdraw.telegramId || withdraw.userId.telegramId,
-        `🎉 <b>تمت الموافقة على السحب!</b>\nإجمالي المبلغ: <code>$${withdraw.amount}</code>\nالصافي المحول: <code>$${withdraw.netAmount}</code>\nالشبكة: <code>$${withdraw.network}</code>\nشكراً لاستخدامك منصتنا!`
+        `🎉 <b>تمت الموافقة على السحب!</b>\nإجمالي المبلغ: <code>$${withdraw.amount}</code>\nالصافي المحول: <code>$${withdraw.netAmount}</code>\nالشبكة: <code>${withdraw.network}</code>\nشكراً لاستخدامك منصتنا!`
       );
     }
 
@@ -1438,4 +1446,4 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Enterprise Server V6.2 Active on Port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Enterprise Server V6.1 Active on Port ${PORT}`));
