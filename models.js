@@ -1,7 +1,7 @@
 /**
- * Ultra-Enterprise Models Architecture (V5.4 - Strict Multi-Tenant Isolation & Zero Data-Leakage)
+ * Ultra-Enterprise Models Architecture (V5.3 - Absolute Multi-Tenant Isolation & Zero Data-Leakage)
  * Platform: Telega.ads Advertising & Shortener Network
- * Security: Multi-Tenant Binding, Compound Indexes, Balance Protection
+ * Security: Zero-Data-Leakage Enforcement, Dynamic Context Scoping, Dual-ID Ownership Bindings
  */
 
 if (typeof window !== 'undefined') {
@@ -42,7 +42,7 @@ const enforceTenantKey = (tenantKey, keyName = 'userId') => {
 };
 
 // ==================================================
-// 1. User Model (Profiles, Balances & System Roles)
+// 1. User Model (Isolated Profiles, Balances & Stats)
 // ==================================================
 const userSchema = new mongoose.Schema({
   telegramId: { 
@@ -114,15 +114,14 @@ const userSchema = new mongoose.Schema({
     }
   },
   statsSummary: {
-    totalLinksCreated: { type: Number, default: 0, min: 0 },
-    totalViewsReceived: { type: Number, default: 0, min: 0 },
-    totalValidViews: { type: Number, default: 0, min: 0 },
-    totalLifetimeEarned: { type: Number, default: 0, min: 0, set: formatCurrency }
+    totalLinksCreated: { type: Number, default: 0, min: [0, 'Stats cannot be negative'] },
+    totalViewsReceived: { type: Number, default: 0, min: [0, 'Stats cannot be negative'] },
+    totalValidViews: { type: Number, default: 0, min: [0, 'Stats cannot be negative'] },
+    totalLifetimeEarned: { type: Number, default: 0, min: [0, 'Stats cannot be negative'], set: formatCurrency }
   }
 }, globalSchemaOptions);
 
 userSchema.index({ telegramId: 1, isBanned: 1 });
-userSchema.index({ createdAt: -1 });
 
 userSchema.statics.findByTelegramIdIsolated = function(telegramId) {
   enforceTenantKey(telegramId, 'telegramId');
@@ -136,7 +135,7 @@ const walletSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    required: [true, 'User ID is required for strict tenant isolation'], 
+    required: [true, 'User ID is required for tenant isolation'], 
     unique: true,
     index: true 
   },
@@ -194,7 +193,7 @@ const transactionSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    required: [true, 'User ID is required for strict tenant isolation'], 
+    required: [true, 'User ID is required for tenant isolation'], 
     index: true 
   },
   telegramId: { 
@@ -211,13 +210,14 @@ const transactionSchema = new mongoose.Schema({
   },
   amount: { 
     type: Number, 
-    required: [true, 'Transaction amount is required'], 
+    required: [true, 'Transaction amount is required'],
+    min: [0, 'Transaction amount cannot be negative'], 
     set: formatCurrency 
   },
   balanceAfter: { 
     type: Number, 
-    required: [true, 'Balance after transaction is required'], 
-    min: [0, 'Balance after transaction cannot be negative'],
+    required: [true, 'Balance after transaction is required'],
+    min: [0, 'Balance after transaction cannot be negative'], 
     set: formatCurrency 
   },
   description: { 
@@ -242,13 +242,13 @@ transactionSchema.statics.getUserTransactionsIsolated = function(userId, filter 
 };
 
 // ==================================================
-// 4. Campaign / Ad Model (Self-Serve Campaign)
+// 4. Self-Serve Ad Campaign Model (Ad / Campaign)
 // ==================================================
 const adSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    required: [true, 'User ID is required for strict tenant isolation'], 
+    required: [true, 'User ID is required for tenant isolation'], 
     index: true 
   },
   telegramId: {
@@ -325,7 +325,7 @@ const adSchema = new mongoose.Schema({
   impressionsCount: { 
     type: Number, 
     default: 0, 
-    min: 0 
+    min: [0, 'Impressions count cannot be negative'] 
   },
   status: { 
     type: String, 
@@ -346,6 +346,7 @@ adSchema.pre('validate', function(next) {
 adSchema.index({ userId: 1, createdAt: -1 });
 adSchema.index({ userId: 1, status: 1, createdAt: -1 });
 adSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
+adSchema.index({ advertiserTelegramId: 1, status: 1, createdAt: -1 });
 adSchema.index({ status: 1, remainingBudget: 1, createdAt: -1 });
 
 adSchema.statics.findAdvertiserAdsIsolated = function(userId, filter = {}) {
@@ -354,7 +355,7 @@ adSchema.statics.findAdvertiserAdsIsolated = function(userId, filter = {}) {
 };
 
 // ==================================================
-// 5. Shortened Link Model (ShortLink)
+// 5. Shortened Link Model (ShortLink / Link)
 // ==================================================
 const linkSchema = new mongoose.Schema({
   shortCode: { 
@@ -367,7 +368,7 @@ const linkSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User',
-    required: [true, 'User ID is required for strict tenant isolation'], 
+    required: [true, 'User ID is required for tenant isolation'], 
     index: true
   },
   telegramId: {
@@ -401,17 +402,17 @@ const linkSchema = new mongoose.Schema({
   views: { 
     type: Number, 
     default: 0, 
-    min: 0 
+    min: [0, 'Views count cannot be negative'] 
   },
   validImpressions: { 
     type: Number, 
     default: 0, 
-    min: 0 
+    min: [0, 'Valid impressions count cannot be negative'] 
   },
   invalidImpressions: { 
     type: Number, 
     default: 0, 
-    min: 0 
+    min: [0, 'Invalid impressions count cannot be negative'] 
   },
   totalEarnings: {
     type: Number,
@@ -429,6 +430,7 @@ linkSchema.pre('validate', function(next) {
 
 linkSchema.index({ userId: 1, createdAt: -1 });
 linkSchema.index({ telegramId: 1, createdAt: -1 });
+linkSchema.index({ publisherTelegramId: 1, createdAt: -1 });
 linkSchema.index({ userId: 1, isActive: 1, createdAt: -1 });
 linkSchema.index({ userId: 1, shortCode: 1 });
 
@@ -456,7 +458,7 @@ const impressionSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: [true, 'User ID is required for strict tenant isolation'],
+    required: [true, 'User ID is required for tenant isolation'],
     index: true
   },
   telegramId: {
@@ -498,7 +500,7 @@ const impressionSchema = new mongoose.Schema({
   publisherEarnings: {
     type: Number,
     default: 0.00135,
-    min: [0, 'Publisher earnings cannot be negative'],
+    min: [0, 'Earnings cannot be negative'],
     set: formatCurrency
   },
   ip: { 
@@ -532,6 +534,7 @@ impressionSchema.pre('validate', function(next) {
 
 impressionSchema.index({ userId: 1, createdAt: -1 });
 impressionSchema.index({ telegramId: 1, createdAt: -1 });
+impressionSchema.index({ publisherTelegramId: 1, createdAt: -1 });
 impressionSchema.index({ linkId: 1, userId: 1, createdAt: -1 });
 impressionSchema.index({ ip: 1, linkId: 1, createdAt: -1 });
 
@@ -552,7 +555,7 @@ const clickSessionSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: [true, 'User ID is required for strict tenant isolation'],
+    required: [true, 'User ID is required for tenant isolation'],
     index: true
   },
   telegramId: {
@@ -606,18 +609,19 @@ clickSessionSchema.pre('validate', function(next) {
   next();
 });
 
-clickSessionSchema.index({ userId: 1, createdAt: -1 });
 clickSessionSchema.index({ linkId: 1, ip: 1 });
+clickSessionSchema.index({ userId: 1, createdAt: -1 });
+clickSessionSchema.index({ telegramId: 1, createdAt: -1 });
 clickSessionSchema.index({ bridgeToken: 1 }, { unique: true });
 
 // ==================================================
-// 8. Withdrawal Model (Withdrawal)
+// 8. Withdrawal Model (Withdraw / Withdrawal)
 // ==================================================
 const withdrawSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    required: [true, 'User ID is required for strict tenant isolation'], 
+    required: [true, 'User ID is required for tenant isolation'], 
     index: true 
   },
   telegramId: {
@@ -641,7 +645,7 @@ const withdrawSchema = new mongoose.Schema({
   netAmount: {
     type: Number,
     required: [true, 'Net withdrawal amount is required'],
-    min: [0, 'Net withdrawal amount cannot be negative'],
+    min: [0, 'Net amount cannot be negative'],
     set: formatCurrency
   },
   network: {
@@ -705,7 +709,7 @@ const earningsHoldSchema = new mongoose.Schema({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    required: [true, 'User ID is required for strict tenant isolation'], 
+    required: [true, 'User ID is required for tenant isolation'], 
     index: true 
   },
   telegramId: {
@@ -749,7 +753,7 @@ const depositSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: [true, 'User ID is required for strict tenant isolation'],
+    required: [true, 'User ID is required for tenant isolation'],
     index: true
   },
   telegramId: {
@@ -814,6 +818,7 @@ depositSchema.pre('validate', function(next) {
 depositSchema.index({ userId: 1, createdAt: -1 });
 depositSchema.index({ userId: 1, status: 1, createdAt: -1 });
 depositSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
+depositSchema.index({ advertiserTelegramId: 1, status: 1, createdAt: -1 });
 
 depositSchema.statics.getAdvertiserDepositsIsolated = function(userId) {
   enforceTenantKey(userId, 'userId');
@@ -871,16 +876,19 @@ announcementSchema.statics.getForUserIsolated = function(userId, telegramId) {
 };
 
 // ==================================================
-// Exporting Safe Models & Aliases (Serverless Ready)
+// Exporting Safe Models (Serverless Ready)
 // ==================================================
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Wallet = mongoose.models.Wallet || mongoose.model('Wallet', walletSchema);
 const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
 const Ad = mongoose.models.Ad || mongoose.model('Ad', adSchema);
+const Campaign = Ad; // Alias compatibility
 const Link = mongoose.models.Link || mongoose.model('Link', linkSchema);
+const ShortLink = Link; // Alias compatibility
 const Impression = mongoose.models.Impression || mongoose.model('Impression', impressionSchema);
 const ClickSession = mongoose.models.ClickSession || mongoose.model('ClickSession', clickSessionSchema);
 const Withdraw = mongoose.models.Withdraw || mongoose.model('Withdraw', withdrawSchema);
+const Withdrawal = Withdraw; // Alias compatibility
 const EarningsHold = mongoose.models.EarningsHold || mongoose.model('EarningsHold', earningsHoldSchema);
 const Deposit = mongoose.models.Deposit || mongoose.model('Deposit', depositSchema);
 const Announcement = mongoose.models.Announcement || mongoose.model('Announcement', announcementSchema);
@@ -890,13 +898,13 @@ module.exports = {
   Wallet,
   Transaction,
   Ad,
-  Campaign: Ad,             // Alias support
+  Campaign,
   Link,
-  ShortLink: Link,          // Alias support
+  ShortLink,
   Impression,
   ClickSession,
   Withdraw,
-  Withdrawal: Withdraw,     // Alias support
+  Withdrawal,
   EarningsHold,
   Deposit,
   Announcement
