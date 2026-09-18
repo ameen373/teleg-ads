@@ -1,5 +1,5 @@
 /**
- * Ultra-Enterprise Models Architecture (V5.3 - Absolute Multi-Tenant Isolation & Zero Data-Leakage)
+ * Enterprise Models Architecture
  * Platform: Telega.ads Advertising & Shortener Network
  * Security: Zero-Data-Leakage Enforcement, Dynamic Context Scoping, Dual-ID Ownership Bindings
  */
@@ -10,13 +10,13 @@ if (typeof window !== 'undefined') {
 
 const mongoose = require('mongoose');
 
-// Precision currency formatter up to 5 decimal places (Prevents JS Floating-point flaws)
+// Precision currency formatter up to 5 decimal places
 const formatCurrency = (val) => {
   if (typeof val !== 'number' || isNaN(val) || !isFinite(val)) return 0;
   return Math.round((val + Number.EPSILON) * 100000) / 100000;
 };
 
-// Global Schema Options for strict data isolation and safe JSON serialization
+// Global Schema Options for strict data isolation, timestamps, and safe JSON serialization
 const globalSchemaOptions = {
   timestamps: true,
   versionKey: '__v',
@@ -129,7 +129,7 @@ userSchema.statics.findByTelegramIdIsolated = function(telegramId) {
 };
 
 // ==================================================
-// 2. Isolated Wallet Model (Central Balance Control)
+// 2. Wallet Model (Central Balance Control)
 // ==================================================
 const walletSchema = new mongoose.Schema({
   userId: { 
@@ -187,7 +187,7 @@ walletSchema.statics.getWalletIsolated = function(userId) {
 };
 
 // ==================================================
-// 3. Isolated Transaction History Model
+// 3. Transaction History Model
 // ==================================================
 const transactionSchema = new mongoose.Schema({
   userId: { 
@@ -242,7 +242,7 @@ transactionSchema.statics.getUserTransactionsIsolated = function(userId, filter 
 };
 
 // ==================================================
-// 4. Self-Serve Ad Campaign Model (Ad / Campaign)
+// 4. Ad Campaign Model (Ad / Campaign)
 // ==================================================
 const adSchema = new mongoose.Schema({
   userId: { 
@@ -355,7 +355,7 @@ adSchema.statics.findAdvertiserAdsIsolated = function(userId, filter = {}) {
 };
 
 // ==================================================
-// 5. Shortened Link Model (ShortLink / Link)
+// 5. Shortened Link Model (Link / ShortLink)
 // ==================================================
 const linkSchema = new mongoose.Schema({
   shortCode: { 
@@ -876,19 +876,19 @@ announcementSchema.statics.getForUserIsolated = function(userId, telegramId) {
 };
 
 // ==================================================
-// Exporting Safe Models (Serverless Ready)
+// Exporting Safe Models (Serverless & Alias Ready)
 // ==================================================
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Wallet = mongoose.models.Wallet || mongoose.model('Wallet', walletSchema);
 const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
 const Ad = mongoose.models.Ad || mongoose.model('Ad', adSchema);
-const Campaign = Ad; // Alias compatibility
+const Campaign = Ad;
 const Link = mongoose.models.Link || mongoose.model('Link', linkSchema);
-const ShortLink = Link; // Alias compatibility
+const ShortLink = Link;
 const Impression = mongoose.models.Impression || mongoose.model('Impression', impressionSchema);
 const ClickSession = mongoose.models.ClickSession || mongoose.model('ClickSession', clickSessionSchema);
 const Withdraw = mongoose.models.Withdraw || mongoose.model('Withdraw', withdrawSchema);
-const Withdrawal = Withdraw; // Alias compatibility
+const Withdrawal = Withdraw;
 const EarningsHold = mongoose.models.EarningsHold || mongoose.model('EarningsHold', earningsHoldSchema);
 const Deposit = mongoose.models.Deposit || mongoose.model('Deposit', depositSchema);
 const Announcement = mongoose.models.Announcement || mongoose.model('Announcement', announcementSchema);
