@@ -1265,6 +1265,8 @@
       triggerHaptic('medium');
       const titleInput = document.getElementById('link-title');
       const urlInput = document.getElementById('link-url');
+      
+      // معالجة المسافات الزائدة وإرسال الرابط كاملاً بدون اقتطاع
       const title = titleInput.value.trim();
       const originalUrl = urlInput.value.trim();
 
