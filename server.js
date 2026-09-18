@@ -442,12 +442,7 @@ const handleShortenLink = async (req, res) => {
     const userId = req.userId;
 
     const { title, targetUrl, url } = req.body;
-    let cleanUrl = String(targetUrl || url || '').trim();
-
-    // تصحيح تلقائي وإضافة البروتوكول إذا قام المستخدم بإدخال نطاق بدون http:// أو https://
-    if (cleanUrl && !/^https?:\/\//i.test(cleanUrl)) {
-      cleanUrl = 'https://' + cleanUrl;
-    }
+    const cleanUrl = String(targetUrl || url || '').trim();
 
     // التحقق من صحة الرابط باستخدام new URL() والبروتوكول
     if (!cleanUrl || !isValidHttpUrl(cleanUrl)) {
@@ -674,12 +669,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'عنوان الإعلان مطلوب' });
     }
 
-    let cleanAdUrl = String(targetUrl || '').trim();
-    if (cleanAdUrl && !/^https?:\/\//i.test(cleanAdUrl)) {
-      cleanAdUrl = 'https://' + cleanAdUrl;
-    }
-
-    if (!cleanAdUrl || !isValidHttpUrl(cleanAdUrl)) {
+    if (!targetUrl || !isValidHttpUrl(targetUrl)) {
       await session.abortTransaction();
       return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
     }
@@ -706,7 +696,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       advertiserId: req.userId,
       advertiserTelegramId: req.user.telegramId,
       title: String(title).trim(),
-      targetUrl: cleanAdUrl,
+      targetUrl: String(targetUrl).trim(),
       totalBudget: budget,
       remainingBudget: budget,
       cpmRate: 1.50,
