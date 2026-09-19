@@ -2,6 +2,7 @@
  * Ultra-Enterprise Server Architecture (V6 - Absolute Multi-Tenant Security & High-Performance Core)
  * Telegram Link Shortener & Mini App Engine (Telega.ads)
  * Absolute Isolated Session System & Financial Security Core
+ * Vercel Serverless Ready Edition
  */
 
 require('dotenv').config();
@@ -26,9 +27,11 @@ const app = express();
 // --- Setup Server Trust Proxy ---
 app.set('trust proxy', 1);
 
-// --- CORS Configuration (Strict Isolation & Security) ---
+// --- CORS Configuration (Telegram Mini App Ready) ---
 app.use(cors({
-  origin: true,
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data', 'telegram-init-data', 'X-Requested-With'],
   credentials: true
 }));
 app.options('*', cors());
@@ -40,10 +43,12 @@ app.use(mongoSanitize());
 app.use(express.static(__dirname));
 
 // --- Force UTF-8 JSON Response Headers & No-Cache Privacy Guard ---
-app.use('/api', (req, res, next) => {
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-  res.setHeader('Pragma', 'no-cache');
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/shorten') || req.path.startsWith('/deposit')) {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma', 'no-cache');
+  }
   next();
 });
 
@@ -52,14 +57,9 @@ const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(winston.format.timestamp(), winston.format.json()),
   transports: [
-    new winston.transports.File({ filename: 'error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'combined.log' })
+    new winston.transports.Console({ format: winston.format.simple() })
   ]
 });
-
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(new winston.transports.Console({ format: winston.format.simple() }));
-}
 
 app.use(morgan('combined', { stream: { write: (message) => logger.info(message.trim()) } }));
 
@@ -67,18 +67,15 @@ app.use(morgan('combined', { stream: { write: (message) => logger.info(message.t
 // --- Helper Functions for URL Sanitization ---
 // ==================================================
 
-// تنظيف اسم النطاق لمنع تكرار البروتوكول
 const sanitizeDomain = (domain) => {
   if (!domain) return 'teleg-ads.vercel.app';
   return domain.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
 };
 
-// معالجة والتحقق من صحة الرابط لمنع https://https://
 function normalizeAndValidateUrl(inputUrl) {
   if (!inputUrl) return null;
   let urlStr = String(inputUrl).trim();
   
-  // إزالة التكرار في البروتوكول مثل https://https://
   while (/^(https?:\/\/){2,}/i.test(urlStr)) {
     urlStr = urlStr.replace(/^(https?:\/\/)+/i, 'https://');
   }
@@ -90,7 +87,6 @@ function normalizeAndValidateUrl(inputUrl) {
   return validUrl.isWebUri(urlStr) ? urlStr : null;
 }
 
-// بناء رابط الاختصار بشكل نظيف
 function buildShortUrl(shortCode) {
   return `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`;
 }
@@ -119,52 +115,75 @@ const CONFIG = Object.freeze({
   SUPPORT_USERNAME: '@' + (process.env.TELEGRAM_SUPPORT_URL || 'https://t.me/Te_AdsNs_bot').split('/').pop()
 });
 
-// --- Redis Client Initialization ---
+// --- Redis Client Initialization (Fault-Tolerant) ---
 let redisIsConnected = false;
-const redis = new Redis(CONFIG.REDIS_URL, {
-  maxRetriesPerRequest: 3,
-  enableReadyCheck: true,
-  retryStrategy: (times) => Math.min(times * 50, 2000)
-});
+let redis = null;
 
-redis.on('error', (err) => {
+try {
+  redis = new Redis(CONFIG.REDIS_URL, {
+    maxRetriesPerRequest: 1,
+    enableReadyCheck: true,
+    lazyConnect: true,
+    retryStrategy: (times) => (times > 3 ? null : Math.min(times * 100, 1000))
+  });
+
+  redis.on('error', (err) => {
+    redisIsConnected = false;
+  });
+
+  redis.on('ready', () => {
+    redisIsConnected = true;
+  });
+
+  redis.connect().catch(() => {});
+} catch (e) {
   redisIsConnected = false;
-  logger.error('⚠️ Redis Connection Warning: ' + err.message);
-});
-redis.on('ready', () => {
-  redisIsConnected = true;
-  console.log('✅ Enterprise Redis Client Connected & Ready');
-});
+}
 
 async function safeRedisGet(key) {
-  if (!redisIsConnected) return null;
+  if (!redisIsConnected || !redis) return null;
   try { return await redis.get(key); } catch (e) { return null; }
 }
 
 async function safeRedisSet(key, value, mode, duration) {
-  if (!redisIsConnected) return;
+  if (!redisIsConnected || !redis) return;
   try {
     if (mode && duration) await redis.set(key, value, mode, duration);
     else await redis.set(key, value);
-  } catch (e) { logger.error('Redis Set Failed: ' + e.message); }
+  } catch (e) {}
 }
 
 async function safeRedisDel(key) {
-  if (!redisIsConnected) return;
-  try { await redis.del(key); } catch (e) { logger.error('Redis Del Failed: ' + e.message); }
+  if (!redisIsConnected || !redis) return;
+  try { await redis.del(key); } catch (e) {}
 }
 
-// --- Database Connection Pipeline ---
-mongoose.connect(CONFIG.MONGO_URI, {
-  maxPoolSize: 50,
-  minPoolSize: 10,
-  serverSelectionTimeoutMS: 5000,
-  socketTimeoutMS: 45000,
-}).then(() => console.log('✅ Enterprise MongoDB Pipeline Connected'))
-  .catch(err => {
-    logger.error('❌ Critical MongoDB Connection Failure:', err);
-    process.exit(1);
-  });
+// --- Serverless Server Database Pipeline ---
+let isMongoConnected = false;
+
+async function connectDB() {
+  if (isMongoConnected && mongoose.connection.readyState === 1) return;
+  try {
+    const db = await mongoose.connect(CONFIG.MONGO_URI, {
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+    });
+    isMongoConnected = db.connections[0].readyState === 1;
+    console.log('✅ Enterprise MongoDB Pipeline Connected');
+  } catch (err) {
+    logger.error('❌ MongoDB Connection Failure:', err);
+  }
+}
+
+connectDB();
+
+app.use(async (req, res, next) => {
+  if (mongoose.connection.readyState !== 1) {
+    await connectDB();
+  }
+  next();
+});
 
 // --- Telegram Dispatch Helper ---
 async function sendTelegramNotification(telegramId, message) {
@@ -181,7 +200,7 @@ async function sendTelegramNotification(telegramId, message) {
   }
 }
 
-// --- Cryptographic Telegram Authenticator (Strict Verification) ---
+// --- Cryptographic Telegram Authenticator ---
 function verifyTelegramData(initData) {
   if (!initData) return null;
   try {
@@ -252,7 +271,6 @@ const authMiddleware = async (req, res, next) => {
   try {
     let user = null;
 
-    // الخيار الأول: Authorization Bearer Token
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
@@ -262,7 +280,6 @@ const authMiddleware = async (req, res, next) => {
       } catch (err) {}
     }
 
-    // الخيار الثاني: X-Telegram-Init-Data Header Validation
     if (!user) {
       const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'];
       if (initData) {
@@ -289,7 +306,6 @@ const authMiddleware = async (req, res, next) => {
       return res.status(403).json({ success: false, error: 'حسابك معطل بسبب مخالفة الشروط' });
     }
 
-    // تعيين بيانات المستخدم بشكل موحد
     req.user = user;
     next();
   } catch (err) {
@@ -305,9 +321,9 @@ const adminMiddleware = async (req, res, next) => {
 };
 
 // =========================================================================
-// --- API Endpoint: Check Admin Role (/api/check-admin) ---
+// --- API Endpoint: Check Admin Role ---
 // =========================================================================
-app.all('/api/check-admin', async (req, res) => {
+const handleCheckAdmin = async (req, res) => {
   try {
     let targetUserId = req.body?.userId || req.query?.userId;
     let telegramIdToCheck = null;
@@ -343,12 +359,15 @@ app.all('/api/check-admin', async (req, res) => {
   } catch (err) {
     return res.json({ success: true, isAdmin: false });
   }
-});
+};
+
+app.all('/api/check-admin', handleCheckAdmin);
+app.all('/check-admin', handleCheckAdmin);
 
 // --- Authentication & Login Gateway ---
-app.post('/api/auth/login', async (req, res, next) => {
+const handleLogin = async (req, res, next) => {
   try {
-    const initData = req.headers['x-telegram-init-data'];
+    const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'];
     const telegramUser = verifyTelegramData(initData);
 
     const tgId = telegramUser ? String(telegramUser.id) : (process.env.NODE_ENV !== 'production' ? String(req.headers['x-demo-user-id'] || '') : null);
@@ -407,10 +426,13 @@ app.post('/api/auth/login', async (req, res, next) => {
   } catch (err) {
     next(err);
   }
-});
+};
+
+app.post('/api/auth/login', handleLogin);
+app.post('/auth/login', handleLogin);
 
 // --- Isolated User Data Gateway ---
-app.get('/api/user/data', authMiddleware, async (req, res, next) => {
+const handleUserData = async (req, res, next) => {
   try {
     const [rawLinks, withdraws, announcements, ads, deposits] = await Promise.all([
       Link.find({ userId: req.user._id }).sort({ createdAt: -1 }).lean(),
@@ -458,16 +480,19 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
   } catch (err) {
     next(err);
   }
-});
+};
+
+app.get('/api/user/data', authMiddleware, handleUserData);
+app.get('/user/data', authMiddleware, handleUserData);
 
 // =========================================================================
-// --- Link Shortener API Routes (Multi-Tenant Isolated) ---
+// --- Link Shortener API Routes (POST /api/shorten, /api/links) ---
 // =========================================================================
 
 const handleShortenLink = async (req, res) => {
   try {
-    const { title, targetUrl, url } = req.body;
-    const rawUrl = targetUrl || url;
+    const { title, targetUrl, url, originalUrl } = req.body;
+    const rawUrl = targetUrl || url || originalUrl;
     const cleanUrl = normalizeAndValidateUrl(rawUrl);
 
     if (!cleanUrl) {
@@ -494,6 +519,7 @@ const handleShortenLink = async (req, res) => {
       telegramId: publisherTelegramId,
       title: title ? String(title).trim() : 'رابط بدون عنوان',
       targetUrl: cleanUrl,
+      originalUrl: cleanUrl,
       shortCode,
       isActive: true
     });
@@ -524,11 +550,15 @@ const handleShortenLink = async (req, res) => {
   }
 };
 
-// ربط جميع المسميات والمطالبات المحتملة لمسار اختصار الروابط بصيغة POST
+// تسجيل كامل التلميحات الممكنة لطلبات اختصار الروابط بالـ POST
 app.post('/api/shorten', authMiddleware, linkCreationLimiter, handleShortenLink);
+app.post('/shorten', authMiddleware, linkCreationLimiter, handleShortenLink);
 app.post('/api/links/shorten', authMiddleware, linkCreationLimiter, handleShortenLink);
+app.post('/links/shorten', authMiddleware, linkCreationLimiter, handleShortenLink);
 app.post('/api/links', authMiddleware, linkCreationLimiter, handleShortenLink);
+app.post('/links', authMiddleware, linkCreationLimiter, handleShortenLink);
 app.post('/api/shorten-link', authMiddleware, linkCreationLimiter, handleShortenLink);
+app.post('/shorten-link', authMiddleware, linkCreationLimiter, handleShortenLink);
 
 const getUserLinks = async (userId) => {
   if (!userId) return [];
@@ -548,6 +578,15 @@ const getUserLinks = async (userId) => {
 };
 
 app.get('/api/links', authMiddleware, async (req, res, next) => {
+  try {
+    const links = await getUserLinks(req.user._id);
+    res.json({ success: true, links });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/links', authMiddleware, async (req, res, next) => {
   try {
     const links = await getUserLinks(req.user._id);
     res.json({ success: true, links });
@@ -664,7 +703,7 @@ app.get('/api/links/:id/stats', authMiddleware, async (req, res, next) => {
 });
 
 // =========================================================================
-// --- Self-Serve Ad Campaign APIs (Multi-Tenant Isolated & Atomic) ---
+// --- Self-Serve Ad Campaign APIs ---
 // =========================================================================
 
 app.post('/api/ads', authMiddleware, async (req, res, next) => {
@@ -793,7 +832,7 @@ app.delete('/api/ads/:id', authMiddleware, async (req, res, next) => {
 });
 
 // =========================================================================
-// --- Deposit & Withdraw Routes (Multi-Tenant Isolated & Atomic) ---
+// --- Deposit & Withdraw Routes (POST /api/user/deposit, /api/wallet/topup) ---
 // =========================================================================
 
 const handleDeposit = async (req, res, next) => {
@@ -841,11 +880,15 @@ const handleDeposit = async (req, res, next) => {
   }
 };
 
-// ربط جميع المسميات والمطالبات المحتملة لمسار شحن الرصيد بصيغة POST
+// تسجيل كامل التلميحات الممكنة لطلبات شحن الرصيد بالـ POST
 app.post('/api/deposit', authMiddleware, handleDeposit);
+app.post('/deposit', authMiddleware, handleDeposit);
 app.post('/api/user/deposit', authMiddleware, handleDeposit);
+app.post('/user/deposit', authMiddleware, handleDeposit);
 app.post('/api/wallet/topup', authMiddleware, handleDeposit);
+app.post('/wallet/topup', authMiddleware, handleDeposit);
 app.post('/api/deposits', authMiddleware, handleDeposit);
+app.post('/deposits', authMiddleware, handleDeposit);
 
 app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
@@ -939,7 +982,7 @@ app.get('/api/user/transactions', authMiddleware, async (req, res, next) => {
 // --- Bridge Page & Redirect Traffic Engine ---
 // =========================================================================
 
-app.post('/api/init-click', validateTraffic, async (req, res, next) => {
+const handleInitClick = async (req, res, next) => {
   try {
     const { linkCode } = req.body;
     const cleanCode = String(linkCode || '').trim();
@@ -1017,9 +1060,12 @@ app.post('/api/init-click', validateTraffic, async (req, res, next) => {
   } catch (err) {
     next(err);
   }
-});
+};
 
-app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next) => {
+app.post('/api/init-click', validateTraffic, handleInitClick);
+app.post('/init-click', validateTraffic, handleInitClick);
+
+const handleImpression = async (req, res, next) => {
   const sessionDb = await mongoose.startSession();
   try {
     sessionDb.startTransaction();
@@ -1048,7 +1094,7 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
     }
 
     let dailyIpClicks = 1;
-    if (redisIsConnected) {
+    if (redisIsConnected && redis) {
       try {
         const dailyIpClickKey = `daily:ip:${req.ip}`;
         dailyIpClicks = await redis.incr(dailyIpClickKey);
@@ -1144,7 +1190,10 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
   } finally {
     sessionDb.endSession();
   }
-});
+};
+
+app.post('/api/impression', validateTraffic, clickLimiter, handleImpression);
+app.post('/impression', validateTraffic, clickLimiter, handleImpression);
 
 app.post('/api/user/settings', authMiddleware, async (req, res, next) => {
   try {
@@ -1162,7 +1211,7 @@ app.post('/api/user/settings', authMiddleware, async (req, res, next) => {
 });
 
 // =========================================================================
-// --- Admin Panel Routes (Protected strictly with authMiddleware & adminMiddleware) ---
+// --- Admin Panel Routes ---
 // =========================================================================
 
 app.get('/api/admin/dashboard-data', authMiddleware, adminMiddleware, async (req, res, next) => {
@@ -1372,55 +1421,65 @@ app.post('/api/admin/user/toggle-ban', authMiddleware, adminMiddleware, async (r
 });
 
 // --- Automated Cron Task for Earnings Settlement ---
-cron.schedule('0 0 * * *', async () => {
-  try {
-    const readyHolds = await EarningsHold.find({ releaseAt: { $lte: new Date() }, isReleased: false }).lean();
+if (process.env.NODE_ENV !== 'production') {
+  cron.schedule('0 0 * * *', async () => {
+    try {
+      const readyHolds = await EarningsHold.find({ releaseAt: { $lte: new Date() }, isReleased: false }).lean();
 
-    for (let hold of readyHolds) {
-      const session = await mongoose.startSession();
-      try {
-        session.startTransaction();
-        
-        const userUpdate = await User.findByIdAndUpdate(
-          hold.userId,
-          { $inc: { pendingBalance: -hold.amount, availableBalance: hold.amount } },
-          { session, new: true }
-        );
-
-        await EarningsHold.findByIdAndUpdate(hold._id, { isReleased: true }, { session });
-
-        await session.commitTransaction();
-
-        if (userUpdate && userUpdate.telegramId) {
-          sendTelegramNotification(
-            userUpdate.telegramId,
-            `✅ <b>تم إطلاق الأرباح!</b>\nتم تحويل <code>$${hold.amount.toFixed(4)}</code> إلى رصيدك المتاح.`
+      for (let hold of readyHolds) {
+        const session = await mongoose.startSession();
+        try {
+          session.startTransaction();
+          
+          const userUpdate = await User.findByIdAndUpdate(
+            hold.userId,
+            { $inc: { pendingBalance: -hold.amount, availableBalance: hold.amount } },
+            { session, new: true }
           );
-        }
-      } catch (err) {
-        await session.abortTransaction();
-        logger.error(`Error processing hold release for ID ${hold._id}: ${err.message}`);
-      } finally {
-        session.endSession();
-      }
-    }
-  } catch (err) {
-    logger.error('❌ Error executing Cron Settlement: ' + err.message);
-  }
-});
 
-// --- Static HTML Delivery Routes ---
+          await EarningsHold.findByIdAndUpdate(hold._id, { isReleased: true }, { session });
+
+          await session.commitTransaction();
+
+          if (userUpdate && userUpdate.telegramId) {
+            sendTelegramNotification(
+              userUpdate.telegramId,
+              `✅ <b>تم إطلاق الأرباح!</b>\nتم تحويل <code>$${hold.amount.toFixed(4)}</code> إلى رصيدك المتاح.`
+            );
+          }
+        } catch (err) {
+          await session.abortTransaction();
+          logger.error(`Error processing hold release for ID ${hold._id}: ${err.message}`);
+        } finally {
+          session.endSession();
+        }
+      }
+    } catch (err) {
+      logger.error('❌ Error executing Cron Settlement: ' + err.message);
+    }
+  });
+}
+
+// --- Dynamic Frontend Web Delivery ---
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'views.html'));
 });
 
-app.get(['/app', '/admin', '/r/:code'], (req, res) => {
+app.get(['/app', '/admin', '/r/:code', '/dashboard'], (req, res) => {
   res.sendFile(path.join(__dirname, 'views.html'));
 });
 
-// --- Catch-all API 404 Handler ---
-app.use('/api/*', (req, res) => {
+// --- Catch-All API 404 Handler ---
+app.use(['/api/*', '/api'], (req, res) => {
   res.status(404).json({ success: false, error: 'المسار المطلوب غير موجود' });
+});
+
+// Fallback for Application Client Routes
+app.get('*', (req, res) => {
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ success: false, error: 'المسار المطلوب غير موجود' });
+  }
+  res.sendFile(path.join(__dirname, 'views.html'));
 });
 
 // ==================================================
@@ -1441,7 +1500,6 @@ app.use((err, req, res, next) => {
   });
 });
 
-// --- Global Crash Guard ---
 process.on('uncaughtException', (err) => {
   logger.error('Uncaught Exception Detected: ' + err.stack);
 });
@@ -1450,5 +1508,9 @@ process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Enterprise Server V6 Active on Port ${PORT}`));
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => console.log(`🚀 Enterprise Server V6 Active on Port ${PORT}`));
+}
+
+module.exports = app;
