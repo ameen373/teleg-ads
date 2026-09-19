@@ -64,13 +64,36 @@ const logger = winston.createLogger({
 app.use(morgan('combined', { stream: { write: (message) => logger.info(message.trim()) } }));
 
 // ==================================================
-// --- System Constants & Environment Variables ---
+// --- Helper Functions for URL Sanitization ---
 // ==================================================
+
 const sanitizeDomain = (domain) => {
   if (!domain) return 'teleg-ads.vercel.app';
   return domain.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
 };
 
+function normalizeAndValidateUrl(inputUrl) {
+  if (!inputUrl) return null;
+  let urlStr = String(inputUrl).trim();
+  
+  while (/^(https?:\/\/){2,}/i.test(urlStr)) {
+    urlStr = urlStr.replace(/^(https?:\/\/)+/i, 'https://');
+  }
+
+  if (!/^https?:\/\//i.test(urlStr)) {
+    urlStr = 'https://' + urlStr;
+  }
+
+  return validUrl.isWebUri(urlStr) ? urlStr : null;
+}
+
+function buildShortUrl(shortCode) {
+  return `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`;
+}
+
+// ==================================================
+// --- System Constants & Environment Variables ---
+// ==================================================
 const CONFIG = Object.freeze({
   BOT_TOKEN: process.env.BOT_TOKEN,
   MONGO_URI: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/shortener',
@@ -91,28 +114,6 @@ const CONFIG = Object.freeze({
   BOT_USERNAME: '@' + (process.env.OFFICIAL_BOT_URL || 'https://t.me/Ads_telegabot').split('/').pop(),
   SUPPORT_USERNAME: '@' + (process.env.TELEGRAM_SUPPORT_URL || 'https://t.me/Te_AdsNs_bot').split('/').pop()
 });
-
-// ==================================================
-// --- Helper Functions for URL Sanitization ---
-// ==================================================
-function normalizeAndValidateUrl(inputUrl) {
-  if (!inputUrl) return null;
-  let urlStr = String(inputUrl).trim();
-  
-  while (/^(https?:\/\/){2,}/i.test(urlStr)) {
-    urlStr = urlStr.replace(/^(https?:\/\/)+/i, 'https://');
-  }
-
-  if (!/^https?:\/\//i.test(urlStr)) {
-    urlStr = 'https://' + urlStr;
-  }
-
-  return validUrl.isWebUri(urlStr) ? urlStr : null;
-}
-
-function buildShortUrl(shortCode) {
-  return `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`;
-}
 
 // --- Redis Client Initialization (Fault-Tolerant) ---
 let redisIsConnected = false;
@@ -329,42 +330,16 @@ const resolveUserId = async (req, res, next) => {
 
 const adminMiddleware = async (req, res, next) => {
   try {
-    let userId = req.body?.userId || req.query?.userId || req.headers['x-user-id'] || req.headers['user-id'];
     let telegramIdToCheck = null;
 
-    if (userId) {
-      if (mongoose.Types.ObjectId.isValid(userId)) {
-        const u = await User.findById(userId).lean();
-        if (u) telegramIdToCheck = String(u.telegramId).trim();
-      } else {
-        telegramIdToCheck = String(userId).trim();
-      }
-    }
-
-    if (!telegramIdToCheck && req.user) {
+    if (req.user && req.user.telegramId) {
       telegramIdToCheck = String(req.user.telegramId).trim();
-    }
-
-    if (!telegramIdToCheck) {
-      const authHeader = req.headers.authorization;
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        try {
-          const token = authHeader.split(' ')[1];
-          const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
-          if (decoded.userId && mongoose.Types.ObjectId.isValid(decoded.userId)) {
-            const u = await User.findById(decoded.userId).lean();
-            if (u) telegramIdToCheck = String(u.telegramId).trim();
-          } else if (decoded.telegramId) {
-            telegramIdToCheck = String(decoded.telegramId).trim();
-          }
-        } catch (e) {}
-      }
     }
 
     if (!telegramIdToCheck) {
       const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'];
       const telegramUser = verifyTelegramData(initData);
-      if (telegramUser) {
+      if (telegramUser && telegramUser.id) {
         telegramIdToCheck = String(telegramUser.id).trim();
       }
     }
@@ -384,36 +359,16 @@ const adminMiddleware = async (req, res, next) => {
 // =========================================================================
 const handleCheckAdmin = async (req, res) => {
   try {
-    let targetUserId = req.body?.userId || req.query?.userId || req.headers['x-user-id'];
     let telegramIdToCheck = null;
 
-    if (targetUserId && mongoose.Types.ObjectId.isValid(targetUserId)) {
-      const u = await User.findById(targetUserId).lean();
-      if (u) telegramIdToCheck = String(u.telegramId).trim();
-    } else if (targetUserId) {
-      telegramIdToCheck = String(targetUserId).trim();
-    }
-
-    if (!telegramIdToCheck) {
-      const authHeader = req.headers.authorization;
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        try {
-          const token = authHeader.split(' ')[1];
-          const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
-          if (decoded.userId && mongoose.Types.ObjectId.isValid(decoded.userId)) {
-            const u = await User.findById(decoded.userId).lean();
-            if (u) telegramIdToCheck = String(u.telegramId).trim();
-          } else if (decoded.telegramId) {
-            telegramIdToCheck = String(decoded.telegramId).trim();
-          }
-        } catch (e) {}
-      }
+    if (req.user && req.user.telegramId) {
+      telegramIdToCheck = String(req.user.telegramId).trim();
     }
 
     if (!telegramIdToCheck) {
       const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'];
       const telegramUser = verifyTelegramData(initData);
-      if (telegramUser) {
+      if (telegramUser && telegramUser.id) {
         telegramIdToCheck = String(telegramUser.id).trim();
       }
     }
@@ -556,6 +511,7 @@ app.get('/user/data', resolveUserId, handleUserData);
 // =========================================================================
 // --- Link Shortener API Routes (Strictly Filtered by userId) ---
 // =========================================================================
+
 const handleShortenLink = async (req, res) => {
   try {
     const { title, targetUrl, url, originalUrl } = req.body;
@@ -772,6 +728,7 @@ app.get('/api/links/:id/stats', resolveUserId, async (req, res, next) => {
 // =========================================================================
 // --- Self-Serve Ad Campaign APIs (Strictly Filtered by userId) ---
 // =========================================================================
+
 app.post('/api/ads', resolveUserId, async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
@@ -901,6 +858,7 @@ app.delete('/api/ads/:id', resolveUserId, async (req, res, next) => {
 // =========================================================================
 // --- Deposit & Withdraw Routes (Strictly Filtered by userId) ---
 // =========================================================================
+
 const handleDeposit = async (req, res, next) => {
   try {
     const { amount, network, txid } = req.body;
@@ -1049,6 +1007,7 @@ app.get('/api/user/transactions', resolveUserId, async (req, res, next) => {
 // =========================================================================
 // --- Bridge Page & Redirect Traffic Engine ---
 // =========================================================================
+
 const handleInitClick = async (req, res, next) => {
   try {
     const { linkCode } = req.body;
@@ -1280,6 +1239,7 @@ app.post('/api/user/settings', resolveUserId, async (req, res, next) => {
 // =========================================================================
 // --- Admin Panel Routes (Protected by adminMiddleware with 403 enforcement) ---
 // =========================================================================
+
 app.get('/api/admin/dashboard-data', resolveUserId, adminMiddleware, async (req, res, next) => {
   try {
     const [withdraws, deposits, users, stats, totalAds] = await Promise.all([
