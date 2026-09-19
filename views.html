@@ -147,9 +147,9 @@
       margin: 0;
     }
 
-    /* زر الأدمن مخفي افتراضياً عبر CSS لضمان عدم ظهوره حتى يتم التحقق من السيرفر */
+    /* زر الأدمن مخفي افتراضياً عبر CSS */
     #tab-btn-admin {
-      display: none !important;
+      display: none;
     }
 
     .nav-btn svg { width: 22px; height: 22px; fill: currentColor; transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); }
@@ -1075,7 +1075,6 @@
       }
     }
 
-    // دالة التحقق من صلاحيات الأدمن من السيرفر وعرض زر الإدارة حصرياً إذا كان مطابقاً
     async function checkAdminStatus() {
       const userId = tg?.initDataUnsafe?.user?.id || currentUserTelegramId;
       if (!userId) return;
@@ -1091,10 +1090,10 @@
           
           if (data && data.isAdmin === true) {
             isUserAdmin = true;
-            if (adminBtn) adminBtn.style.display = 'flex'; // إظهار زر الأدمن فقط إذا طابق السيرفر
+            if (adminBtn) adminBtn.style.display = 'flex';
           } else {
             isUserAdmin = false;
-            if (adminBtn) adminBtn.style.display = 'none'; // إبقاؤه مخفياً لغير الأدمن
+            if (adminBtn) adminBtn.style.display = 'none';
             const adminContent = document.getElementById('tab-content-admin');
             if (adminContent && !adminContent.classList.contains('hidden')) {
               switchTab('dashboard');
@@ -1122,13 +1121,10 @@
           authToken = data.token;
           localStorage.setItem('authToken', authToken);
 
-          const adminBtn = document.getElementById('tab-btn-admin');
           if (data.isAdmin === true) {
             isUserAdmin = true;
+            const adminBtn = document.getElementById('tab-btn-admin');
             if (adminBtn) adminBtn.style.display = 'flex';
-          } else {
-            isUserAdmin = false;
-            if (adminBtn) adminBtn.style.display = 'none';
           }
 
           if (data.depositWallets) {
@@ -1581,13 +1577,10 @@
         const data = await res.json().catch(() => ({}));
 
         if (res.ok && data) {
-          const adminBtn = document.getElementById('tab-btn-admin');
           if (data.isAdmin === true) {
             isUserAdmin = true;
+            const adminBtn = document.getElementById('tab-btn-admin');
             if (adminBtn) adminBtn.style.display = 'flex';
-          } else {
-            isUserAdmin = false;
-            if (adminBtn) adminBtn.style.display = 'none';
           }
 
           const pending = data.user?.pendingBalance || 0;
