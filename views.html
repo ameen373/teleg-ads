@@ -545,6 +545,16 @@
           <h4 style="margin-top:0;">System User Management</h4>
           <div id="admin-users-list" style="font-size: 12px;">Loading users...</div>
         </div>
+
+        <div class="card">
+          <h4 style="margin-top:0;">Platform Links Management</h4>
+          <div id="admin-links-list" style="font-size: 12px;">Loading links...</div>
+        </div>
+
+        <div class="card">
+          <h4 style="margin-top:0;">Platform Ads Management</h4>
+          <div id="admin-ads-list" style="font-size: 12px;">Loading ads...</div>
+        </div>
       </div>
 
       <nav class="tg-nav-dock">
@@ -783,6 +793,10 @@
     }
 
     function switchTab(tabName) {
+      if (tabName === 'admin' && !isUserAdmin) {
+        showToast("غير مصرح لك بالوصول لوحة التحكم");
+        return;
+      }
       triggerHaptic('light');
       const tabs = ['dashboard', 'wallet', 'ads', 'referral', 'settings', 'admin'];
       tabs.forEach(t => {
@@ -844,7 +858,6 @@
       }
     }
 
-    // المركز الموحد لإرسال طلبات الـ API متوافق تماماً مع server.js و Vercel
     async function safeFetch(endpoint, options = {}) {
       options.headers = options.headers || {};
       
@@ -1052,14 +1065,17 @@
         });
         if (res) {
           const data = await res.json().catch(() => ({}));
+          const adminBtn = document.getElementById('tab-btn-admin');
           if (data && data.isAdmin === true) {
             isUserAdmin = true;
-            const adminBtn = document.getElementById('tab-btn-admin');
             if (adminBtn) adminBtn.classList.remove('hidden');
           } else {
             isUserAdmin = false;
-            const adminBtn = document.getElementById('tab-btn-admin');
             if (adminBtn) adminBtn.classList.add('hidden');
+            const adminContent = document.getElementById('tab-content-admin');
+            if (adminContent && !adminContent.classList.contains('hidden')) {
+              switchTab('dashboard');
+            }
           }
         }
       } catch (e) {
@@ -1081,6 +1097,12 @@
         if (data && data.token) {
           authToken = data.token;
           localStorage.setItem('authToken', authToken);
+
+          if (data.isAdmin === true) {
+            isUserAdmin = true;
+            const adminBtn = document.getElementById('tab-btn-admin');
+            if (adminBtn) adminBtn.classList.remove('hidden');
+          }
 
           if (data.depositWallets) {
             if (data.depositWallets.trc20) {
@@ -1135,7 +1157,6 @@
       return `https://${rawUrl}`;
     }
 
-    // التعامل مع دالة اختصار الرابط الموجهة لمسار /api/shorten
     async function handleShortenClick() {
       const titleInput = document.getElementById('link-title');
       const urlInput = document.getElementById('link-url');
@@ -1268,7 +1289,6 @@
       }
     }
 
-    // التعامل مع شحن الرصيد الموجه لمسار /api/user/deposit
     async function requestDeposit() {
       const network = document.getElementById('deposit-network').value;
       const amountVal = document.getElementById('deposit-amount').value;
@@ -1529,6 +1549,12 @@
         const data = await res.json().catch(() => ({}));
 
         if (res.ok && data) {
+          if (data.isAdmin === true) {
+            isUserAdmin = true;
+            const adminBtn = document.getElementById('tab-btn-admin');
+            if (adminBtn) adminBtn.classList.remove('hidden');
+          }
+
           const pending = data.user?.pendingBalance || 0;
           const available = data.user?.availableBalance || 0;
           const refEarnings = data.user?.referralEarnings || 0;
@@ -1609,17 +1635,43 @@
     async function loadAdminData() {
       if (!isUserAdmin) return;
       try {
-        const res = await safeFetch('/api/admin/dashboard-data', { method: 'GET' });
-        if (!res) return;
-        const data = await res.json().catch(() => ({}));
+        const [dashRes, usersRes, linksRes, adsRes] = await Promise.all([
+          safeFetch('/api/admin/dashboard-data', { method: 'GET' }),
+          safeFetch('/api/admin/users', { method: 'GET' }),
+          safeFetch('/api/admin/links', { method: 'GET' }),
+          safeFetch('/api/admin/ads', { method: 'GET' })
+        ]);
 
-        if (res.ok && data && data.success) {
-          document.getElementById('admin-total-users').innerText = data.stats?.totalUsers || 0;
-          document.getElementById('admin-total-pending').innerText = `$${(data.stats?.totalPending || 0).toFixed(2)}`;
+        if (dashRes && dashRes.ok) {
+          const data = await dashRes.json().catch(() => ({}));
+          if (data && data.success) {
+            document.getElementById('admin-total-users').innerText = data.stats?.totalUsers || 0;
+            document.getElementById('admin-total-pending').innerText = `$${(data.stats?.totalPending || 0).toFixed(2)}`;
 
-          renderAdminDeposits(data.deposits || []);
-          renderAdminWithdraws(data.withdraws || []);
-          renderAdminUsers(data.users || []);
+            renderAdminDeposits(data.deposits || []);
+            renderAdminWithdraws(data.withdraws || []);
+          }
+        }
+
+        if (usersRes && usersRes.ok) {
+          const uData = await usersRes.json().catch(() => ({}));
+          if (uData && uData.success) {
+            renderAdminUsers(uData.users || []);
+          }
+        }
+
+        if (linksRes && linksRes.ok) {
+          const lData = await linksRes.json().catch(() => ({}));
+          if (lData && lData.success) {
+            renderAdminLinks(lData.links || []);
+          }
+        }
+
+        if (adsRes && adsRes.ok) {
+          const aData = await adsRes.json().catch(() => ({}));
+          if (aData && aData.success) {
+            renderAdminAds(aData.ads || []);
+          }
         }
       } catch (e) {
         console.error("Error loading admin data:", e);
@@ -1635,8 +1687,8 @@
       }
       container.innerHTML = deposits.map(d => `
         <div style="background: #070a12; padding: 10px; border-radius: 8px; margin-bottom: 8px; border: 1px solid var(--card-border);">
-          <div><b>User:</b> ${d.advertiserTelegramId || d.telegramId || 'User'} | <b>Amount:</b> $${d.amount} (${d.network})</div>
-          <div style="font-size: 10px; color: var(--warning); word-break: break-all;">TxID: ${d.txid}</div>
+          <div><b>User:</b> ${escapeHTML(d.advertiserId?.username || d.advertiserTelegramId || d.telegramId || 'User')} | <b>Amount:</b> $${d.amount} (${d.network}) | <b>Status:</b> ${d.status}</div>
+          <div style="font-size: 10px; color: var(--warning); word-break: break-all;">TxID: ${escapeHTML(d.txid)}</div>
           <div style="display: flex; gap: 6px; margin-top: 8px;">
             <button class="btn-small btn-success" onclick="handleAdminDeposit('${d._id || d.id}', 'approved')">Approve</button>
             <button class="btn-small btn-danger" onclick="handleAdminDeposit('${d._id || d.id}', 'rejected')">Reject</button>
@@ -1646,14 +1698,20 @@
     }
 
     async function handleAdminDeposit(depositId, action) {
+      let reason = '';
+      if (action === 'rejected') {
+        reason = prompt('Enter rejection reason:') || 'Invalid transaction';
+      }
       try {
         const res = await safeFetch('/api/admin/deposit/action', {
           method: 'POST',
-          body: { depositId, action }
+          body: { depositId, action, reason }
         });
         if (res && res.ok) {
           showToast(`Deposit ${action} successfully`);
           loadAdminData();
+        } else {
+          showToast("Action failed");
         }
       } catch (e) {
         showToast("Action failed");
@@ -1664,13 +1722,13 @@
       const container = document.getElementById('admin-withdraws-list');
       if (!container) return;
       if (!withdraws || withdraws.length === 0) {
-        container.innerHTML = '<p style="color: var(--text-muted);">No pending withdrawal requests.</p>';
+        container.innerHTML = '<p style="color: var(--text-muted);">No withdrawal requests.</p>';
         return;
       }
       container.innerHTML = withdraws.map(w => `
         <div style="background: #070a12; padding: 10px; border-radius: 8px; margin-bottom: 8px; border: 1px solid var(--card-border);">
-          <div><b>User:</b> ${w.telegramId || 'User'} | <b>Amount:</b> $${w.amount} (Net: $${w.netAmount})</div>
-          <div style="font-size: 10px; color: var(--accent); word-break: break-all;">Wallet: ${w.walletAddress}</div>
+          <div><b>User:</b> ${escapeHTML(w.userId?.username || w.telegramId || 'User')} | <b>Amount:</b> $${w.amount} (Net: $${w.netAmount}) | <b>Status:</b> ${w.status}</div>
+          <div style="font-size: 10px; color: var(--accent); word-break: break-all;">Wallet: ${escapeHTML(w.walletAddress)} (${w.network})</div>
           <div style="display: flex; gap: 6px; margin-top: 8px;">
             <button class="btn-small btn-success" onclick="handleAdminWithdraw('${w._id || w.id}', 'approved')">Approve</button>
             <button class="btn-small btn-danger" onclick="handleAdminWithdraw('${w._id || w.id}', 'rejected')">Reject</button>
@@ -1680,14 +1738,20 @@
     }
 
     async function handleAdminWithdraw(withdrawId, action) {
+      let reason = '';
+      if (action === 'rejected') {
+        reason = prompt('Enter rejection reason:') || 'Verification failed';
+      }
       try {
         const res = await safeFetch('/api/admin/withdraw/action', {
           method: 'POST',
-          body: { withdrawId, action }
+          body: { withdrawId, action, reason }
         });
         if (res && res.ok) {
           showToast(`Withdrawal ${action} successfully`);
           loadAdminData();
+        } else {
+          showToast("Action failed");
         }
       } catch (e) {
         showToast("Action failed");
@@ -1701,16 +1765,113 @@
         container.innerHTML = '<p style="color: var(--text-muted);">No users registered yet.</p>';
         return;
       }
-      container.innerHTML = users.slice(0, 20).map(u => `
-        <div style="background: #070a12; padding: 8px 10px; border-radius: 8px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;">
-          <div>
-            <b>${escapeHTML(u.username || u.firstName || 'User')}</b> (${u.telegramId})
+      container.innerHTML = users.map(u => {
+        const userId = u._id || u.id;
+        const banStatus = u.isBanned ? '<span style="color: var(--danger);">Banned</span>' : '<span style="color: var(--success);">Active</span>';
+        const btnText = u.isBanned ? 'Unban' : 'Ban';
+        const btnClass = u.isBanned ? 'btn-small btn-success' : 'btn-small btn-danger';
+        return `
+          <div style="background: #070a12; padding: 10px; border-radius: 10px; margin-bottom: 8px; border: 1px solid var(--card-border); display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <b>${escapeHTML(u.username || u.firstName || 'User')}</b> (${escapeHTML(u.telegramId)})<br>
+              <small style="color: var(--text-muted);">Bal: $${(u.availableBalance || 0).toFixed(2)} | Status: ${banStatus}</small>
+            </div>
+            <div>
+              <button class="${btnClass}" onclick="toggleUserBan('${userId}')">${btnText}</button>
+            </div>
           </div>
-          <div style="font-size: 11px;">
-            Bal: <span style="color: var(--success);">$${(u.availableBalance || 0).toFixed(2)}</span>
+        `;
+      }).join('');
+    }
+
+    async function toggleUserBan(userId) {
+      try {
+        const res = await safeFetch('/api/admin/user/toggle-ban', {
+          method: 'POST',
+          body: { userId }
+        });
+        if (res && res.ok) {
+          showToast("User ban status updated");
+          loadAdminData();
+        } else {
+          showToast("Failed to update user status");
+        }
+      } catch (e) {
+        showToast("Error updating user status");
+      }
+    }
+
+    function renderAdminLinks(links) {
+      const container = document.getElementById('admin-links-list');
+      if (!container) return;
+      if (!links || links.length === 0) {
+        container.innerHTML = '<p style="color: var(--text-muted);">No links found.</p>';
+        return;
+      }
+      container.innerHTML = links.map(l => {
+        const linkId = l._id || l.id;
+        const title = escapeHTML(l.title || l.shortCode);
+        return `
+          <div style="background: #070a12; padding: 10px; border-radius: 10px; margin-bottom: 8px; border: 1px solid var(--card-border); display: flex; justify-content: space-between; align-items: center;">
+            <div style="overflow: hidden; flex: 1; margin-right: 8px;">
+              <b style="font-size: 13px;">${title}</b><br>
+              <span style="font-size: 11px; color: var(--text-muted); word-break: break-all;">${escapeHTML(l.targetUrl || l.originalUrl)}</span>
+            </div>
+            <button class="btn-small btn-danger" onclick="adminDeleteLink('${linkId}')">Delete</button>
           </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
+    }
+
+    async function adminDeleteLink(linkId) {
+      if (!confirm("Are you sure you want to delete this link as Admin?")) return;
+      try {
+        const res = await safeFetch(`/api/admin/links/${linkId}`, { method: 'DELETE' });
+        if (res && res.ok) {
+          showToast("Link deleted successfully");
+          loadAdminData();
+        } else {
+          showToast("Failed to delete link");
+        }
+      } catch (e) {
+        showToast("Error deleting link");
+      }
+    }
+
+    function renderAdminAds(ads) {
+      const container = document.getElementById('admin-ads-list');
+      if (!container) return;
+      if (!ads || ads.length === 0) {
+        container.innerHTML = '<p style="color: var(--text-muted);">No ads found.</p>';
+        return;
+      }
+      container.innerHTML = ads.map(a => {
+        const adId = a._id || a.id;
+        const title = escapeHTML(a.title || 'Ad');
+        return `
+          <div style="background: #070a12; padding: 10px; border-radius: 10px; margin-bottom: 8px; border: 1px solid var(--card-border); display: flex; justify-content: space-between; align-items: center;">
+            <div style="overflow: hidden; flex: 1; margin-right: 8px;">
+              <b style="font-size: 13px;">${title}</b> - Budget: $${a.totalBudget} (Rem: $${a.remainingBudget})
+            </div>
+            <button class="btn-small btn-danger" onclick="adminDeleteAd('${adId}')">Delete</button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function adminDeleteAd(adId) {
+      if (!confirm("Are you sure you want to delete this ad as Admin?")) return;
+      try {
+        const res = await safeFetch(`/api/admin/ads/${adId}`, { method: 'DELETE' });
+        if (res && res.ok) {
+          showToast("Ad deleted successfully");
+          loadAdminData();
+        } else {
+          showToast("Failed to delete ad");
+        }
+      } catch (e) {
+        showToast("Error deleting ad");
+      }
     }
 
     async function distributeRevenue() {
