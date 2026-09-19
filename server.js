@@ -524,8 +524,11 @@ const handleShortenLink = async (req, res) => {
   }
 };
 
+// ربط جميع المسميات والمطالبات المحتملة لمسار اختصار الروابط بصيغة POST
+app.post('/api/shorten', authMiddleware, linkCreationLimiter, handleShortenLink);
 app.post('/api/links/shorten', authMiddleware, linkCreationLimiter, handleShortenLink);
 app.post('/api/links', authMiddleware, linkCreationLimiter, handleShortenLink);
+app.post('/api/shorten-link', authMiddleware, linkCreationLimiter, handleShortenLink);
 
 const getUserLinks = async (userId) => {
   if (!userId) return [];
@@ -793,7 +796,7 @@ app.delete('/api/ads/:id', authMiddleware, async (req, res, next) => {
 // --- Deposit & Withdraw Routes (Multi-Tenant Isolated & Atomic) ---
 // =========================================================================
 
-app.post('/api/deposit', authMiddleware, async (req, res, next) => {
+const handleDeposit = async (req, res, next) => {
   try {
     const { amount, network, txid } = req.body;
     const numAmount = Number(amount);
@@ -836,7 +839,13 @@ app.post('/api/deposit', authMiddleware, async (req, res, next) => {
   } catch (err) {
     next(err);
   }
-});
+};
+
+// ربط جميع المسميات والمطالبات المحتملة لمسار شحن الرصيد بصيغة POST
+app.post('/api/deposit', authMiddleware, handleDeposit);
+app.post('/api/user/deposit', authMiddleware, handleDeposit);
+app.post('/api/wallet/topup', authMiddleware, handleDeposit);
+app.post('/api/deposits', authMiddleware, handleDeposit);
 
 app.post('/api/withdraw', authMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
