@@ -64,36 +64,13 @@ const logger = winston.createLogger({
 app.use(morgan('combined', { stream: { write: (message) => logger.info(message.trim()) } }));
 
 // ==================================================
-// --- Helper Functions for URL Sanitization ---
+// --- System Constants & Environment Variables ---
 // ==================================================
-
 const sanitizeDomain = (domain) => {
   if (!domain) return 'teleg-ads.vercel.app';
   return domain.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
 };
 
-function normalizeAndValidateUrl(inputUrl) {
-  if (!inputUrl) return null;
-  let urlStr = String(inputUrl).trim();
-  
-  while (/^(https?:\/\/){2,}/i.test(urlStr)) {
-    urlStr = urlStr.replace(/^(https?:\/\/)+/i, 'https://');
-  }
-
-  if (!/^https?:\/\//i.test(urlStr)) {
-    urlStr = 'https://' + urlStr;
-  }
-
-  return validUrl.isWebUri(urlStr) ? urlStr : null;
-}
-
-function buildShortUrl(shortCode) {
-  return `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`;
-}
-
-// ==================================================
-// --- System Constants & Environment Variables ---
-// ==================================================
 const CONFIG = Object.freeze({
   BOT_TOKEN: process.env.BOT_TOKEN,
   MONGO_URI: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/shortener',
@@ -114,6 +91,28 @@ const CONFIG = Object.freeze({
   BOT_USERNAME: '@' + (process.env.OFFICIAL_BOT_URL || 'https://t.me/Ads_telegabot').split('/').pop(),
   SUPPORT_USERNAME: '@' + (process.env.TELEGRAM_SUPPORT_URL || 'https://t.me/Te_AdsNs_bot').split('/').pop()
 });
+
+// ==================================================
+// --- Helper Functions for URL Sanitization ---
+// ==================================================
+function normalizeAndValidateUrl(inputUrl) {
+  if (!inputUrl) return null;
+  let urlStr = String(inputUrl).trim();
+  
+  while (/^(https?:\/\/){2,}/i.test(urlStr)) {
+    urlStr = urlStr.replace(/^(https?:\/\/)+/i, 'https://');
+  }
+
+  if (!/^https?:\/\//i.test(urlStr)) {
+    urlStr = 'https://' + urlStr;
+  }
+
+  return validUrl.isWebUri(urlStr) ? urlStr : null;
+}
+
+function buildShortUrl(shortCode) {
+  return `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`;
+}
 
 // --- Redis Client Initialization (Fault-Tolerant) ---
 let redisIsConnected = false;
@@ -557,7 +556,6 @@ app.get('/user/data', resolveUserId, handleUserData);
 // =========================================================================
 // --- Link Shortener API Routes (Strictly Filtered by userId) ---
 // =========================================================================
-
 const handleShortenLink = async (req, res) => {
   try {
     const { title, targetUrl, url, originalUrl } = req.body;
@@ -774,7 +772,6 @@ app.get('/api/links/:id/stats', resolveUserId, async (req, res, next) => {
 // =========================================================================
 // --- Self-Serve Ad Campaign APIs (Strictly Filtered by userId) ---
 // =========================================================================
-
 app.post('/api/ads', resolveUserId, async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
@@ -904,7 +901,6 @@ app.delete('/api/ads/:id', resolveUserId, async (req, res, next) => {
 // =========================================================================
 // --- Deposit & Withdraw Routes (Strictly Filtered by userId) ---
 // =========================================================================
-
 const handleDeposit = async (req, res, next) => {
   try {
     const { amount, network, txid } = req.body;
@@ -1053,7 +1049,6 @@ app.get('/api/user/transactions', resolveUserId, async (req, res, next) => {
 // =========================================================================
 // --- Bridge Page & Redirect Traffic Engine ---
 // =========================================================================
-
 const handleInitClick = async (req, res, next) => {
   try {
     const { linkCode } = req.body;
@@ -1285,7 +1280,6 @@ app.post('/api/user/settings', resolveUserId, async (req, res, next) => {
 // =========================================================================
 // --- Admin Panel Routes (Protected by adminMiddleware with 403 enforcement) ---
 // =========================================================================
-
 app.get('/api/admin/dashboard-data', resolveUserId, adminMiddleware, async (req, res, next) => {
   try {
     const [withdraws, deposits, users, stats, totalAds] = await Promise.all([
