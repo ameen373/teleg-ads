@@ -147,6 +147,11 @@
       margin: 0;
     }
 
+    /* زر الأدمن مخفي افتراضياً عبر CSS */
+    #tab-btn-admin {
+      display: none;
+    }
+
     .nav-btn svg { width: 22px; height: 22px; fill: currentColor; transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); }
     .nav-btn.active { color: var(--accent); background: rgba(59, 130, 246, 0.18); }
     .nav-btn.active svg { transform: scale(1.2); }
@@ -583,7 +588,7 @@
           <span data-i18n="nav_settings">Settings</span>
         </button>
 
-        <button onclick="switchTab('admin')" class="nav-btn hidden" id="tab-btn-admin" style="color: var(--warning);">
+        <button onclick="switchTab('admin')" class="nav-btn" id="tab-btn-admin" style="color: var(--warning);">
           <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-5.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
           <span>Admin</span>
         </button>
@@ -603,11 +608,14 @@
     let bridgeStartTime = Date.now();
     let isUserAdmin = false;
     let currentLang = localStorage.getItem('appLang') || 'en';
-    let currentUserTelegramId = null;
+    
+    // استخراج userId الحالي عند فتح التطبيق باستخدام Telegram.WebApp.initDataUnsafe?.user?.id
+    const tg = window.Telegram?.WebApp;
+    let currentUserTelegramId = tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe?.user?.id) : null;
+
     let rawUserLinksCache = [];
     let bridgeDestinationUrl = null;
     let currentShortCode = null;
-    const tg = window.Telegram?.WebApp;
 
     const i18n = {
       en: {
@@ -858,12 +866,12 @@
       }
     }
 
+    // تمرير userId ودائماً عبر كافة استدعاءات الـ API لضمان عزل بيانات المستخدم
     async function safeFetch(endpoint, options = {}) {
       options.headers = options.headers || {};
       
       const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || '';
-      const tgUser = tg?.initDataUnsafe?.user;
-      const currentTgId = tgUser?.id ? String(tgUser.id) : (currentUserTelegramId || '');
+      const currentTgId = tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe?.user?.id) : (currentUserTelegramId || '');
 
       if (authToken) {
         options.headers['Authorization'] = `Bearer ${authToken}`;
@@ -877,10 +885,18 @@
       }
       if (currentTgId) {
         options.headers['x-telegram-id'] = currentTgId;
+        options.headers['user-id'] = currentTgId;
       }
 
       if (options.body && typeof options.body === 'object') {
+        if (currentTgId && !options.body.userId) {
+          options.body.userId = currentTgId;
+        }
         options.body = JSON.stringify(options.body);
+      } else if (!options.body && ['POST', 'PUT', 'PATCH'].includes((options.method || 'GET').toUpperCase())) {
+        if (currentTgId) {
+          options.body = JSON.stringify({ userId: currentTgId });
+        }
       }
 
       if (options.body && !options.headers['Content-Type']) {
@@ -889,6 +905,13 @@
       
       let cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
       let targetUrl = endpoint.startsWith('http') ? endpoint : `${API_BASE}${cleanEndpoint}`;
+
+      if (currentTgId) {
+        const separator = targetUrl.includes('?') ? '&' : '?';
+        if (!targetUrl.includes('userId=')) {
+          targetUrl = `${targetUrl}${separator}userId=${encodeURIComponent(currentTgId)}`;
+        }
+      }
 
       try {
         let response = await fetch(targetUrl, options);
@@ -1054,6 +1077,7 @@
       }
     }
 
+    // فحص معرف المستخدم الحالي مقارنة بالأدمن عبر الـ JS لإظهار أو إبقاء زر الأدمن مخفياً نهائياً
     async function checkAdminStatus() {
       const userId = tg?.initDataUnsafe?.user?.id || currentUserTelegramId;
       if (!userId) return;
@@ -1066,12 +1090,13 @@
         if (res) {
           const data = await res.json().catch(() => ({}));
           const adminBtn = document.getElementById('tab-btn-admin');
+          
           if (data && data.isAdmin === true) {
             isUserAdmin = true;
-            if (adminBtn) adminBtn.classList.remove('hidden');
+            if (adminBtn) adminBtn.style.display = 'flex'; // إظهار الزر حصرياً للأدمن المطابق
           } else {
             isUserAdmin = false;
-            if (adminBtn) adminBtn.classList.add('hidden');
+            if (adminBtn) adminBtn.style.display = 'none'; // إبقاؤه مخفياً نهائياً لغير الأدمن
             const adminContent = document.getElementById('tab-content-admin');
             if (adminContent && !adminContent.classList.contains('hidden')) {
               switchTab('dashboard');
@@ -1089,6 +1114,7 @@
         const res = await safeFetch('/api/auth/login', {
           method: 'POST',
           body: { 
+            userId: currentUserTelegramId,
             referrerId: startParam
           }
         });
@@ -1101,7 +1127,7 @@
           if (data.isAdmin === true) {
             isUserAdmin = true;
             const adminBtn = document.getElementById('tab-btn-admin');
-            if (adminBtn) adminBtn.classList.remove('hidden');
+            if (adminBtn) adminBtn.style.display = 'flex';
           }
 
           if (data.depositWallets) {
@@ -1177,6 +1203,7 @@
 
       try {
         const payload = {
+          userId: currentUserTelegramId,
           title: title || 'Untitled Link',
           targetUrl: url,
           url: url,
@@ -1274,7 +1301,7 @@
       if (!confirm(currentLang === 'ar' ? 'هل أنت تأكد من حذف هذا الرابط؟' : 'Are you sure you want to delete this link?')) return;
       
       try {
-        const res = await safeFetch(`/api/links/${linkId}`, { method: 'DELETE' });
+        const res = await safeFetch(`/api/links/${linkId}?userId=${encodeURIComponent(currentUserTelegramId)}`, { method: 'DELETE' });
         if (res) {
           const data = await res.json().catch(() => ({}));
           if (res.ok && (data.success || data.message)) {
@@ -1314,6 +1341,7 @@
         const res = await safeFetch('/api/user/deposit', {
           method: 'POST',
           body: {
+            userId: currentUserTelegramId,
             network: network,
             amount: amount,
             txid: txHashVal
@@ -1362,6 +1390,7 @@
         const res = await safeFetch('/api/withdraw', {
           method: 'POST',
           body: {
+            userId: currentUserTelegramId,
             walletAddress: walletAddr,
             network: 'TRC20',
             amount: amount
@@ -1401,6 +1430,7 @@
         const res = await safeFetch('/api/user/settings', {
           method: 'POST',
           body: {
+            userId: currentUserTelegramId,
             defaultWallet: walletAddr,
             language: currentLang
           }
@@ -1447,6 +1477,7 @@
         const res = await safeFetch('/api/ads', {
           method: 'POST',
           body: {
+            userId: currentUserTelegramId,
             title,
             targetUrl,
             totalBudget: budget
@@ -1524,7 +1555,7 @@
     async function deleteAd(adId) {
       if (!confirm(currentLang === 'ar' ? 'هل أنت تأكد من حذف هذا الإعلان؟' : 'Are you sure you want to delete this ad campaign?')) return;
       try {
-        const res = await safeFetch(`/api/ads/${adId}`, { method: 'DELETE' });
+        const res = await safeFetch(`/api/ads/${adId}?userId=${encodeURIComponent(currentUserTelegramId)}`, { method: 'DELETE' });
         if (res) {
           const data = await res.json().catch(() => ({}));
           if (res.ok && (data.success || data.message)) {
@@ -1541,7 +1572,7 @@
 
     async function loadUserData() {
       try {
-        const res = await safeFetch('/api/user/data', {
+        const res = await safeFetch(`/api/user/data?userId=${encodeURIComponent(currentUserTelegramId)}`, {
           method: 'GET'
         });
 
@@ -1552,7 +1583,7 @@
           if (data.isAdmin === true) {
             isUserAdmin = true;
             const adminBtn = document.getElementById('tab-btn-admin');
-            if (adminBtn) adminBtn.classList.remove('hidden');
+            if (adminBtn) adminBtn.style.display = 'flex';
           }
 
           const pending = data.user?.pendingBalance || 0;
@@ -1705,7 +1736,7 @@
       try {
         const res = await safeFetch('/api/admin/deposit/action', {
           method: 'POST',
-          body: { depositId, action, reason }
+          body: { userId: currentUserTelegramId, depositId, action, reason }
         });
         if (res && res.ok) {
           showToast(`Deposit ${action} successfully`);
@@ -1745,7 +1776,7 @@
       try {
         const res = await safeFetch('/api/admin/withdraw/action', {
           method: 'POST',
-          body: { withdrawId, action, reason }
+          body: { userId: currentUserTelegramId, withdrawId, action, reason }
         });
         if (res && res.ok) {
           showToast(`Withdrawal ${action} successfully`);
@@ -1788,7 +1819,7 @@
       try {
         const res = await safeFetch('/api/admin/user/toggle-ban', {
           method: 'POST',
-          body: { userId }
+          body: { userId: currentUserTelegramId, targetUserId: userId }
         });
         if (res && res.ok) {
           showToast("User ban status updated");
@@ -1826,7 +1857,7 @@
     async function adminDeleteLink(linkId) {
       if (!confirm("Are you sure you want to delete this link as Admin?")) return;
       try {
-        const res = await safeFetch(`/api/admin/links/${linkId}`, { method: 'DELETE' });
+        const res = await safeFetch(`/api/admin/links/${linkId}?userId=${encodeURIComponent(currentUserTelegramId)}`, { method: 'DELETE' });
         if (res && res.ok) {
           showToast("Link deleted successfully");
           loadAdminData();
@@ -1862,7 +1893,7 @@
     async function adminDeleteAd(adId) {
       if (!confirm("Are you sure you want to delete this ad as Admin?")) return;
       try {
-        const res = await safeFetch(`/api/admin/ads/${adId}`, { method: 'DELETE' });
+        const res = await safeFetch(`/api/admin/ads/${adId}?userId=${encodeURIComponent(currentUserTelegramId)}`, { method: 'DELETE' });
         if (res && res.ok) {
           showToast("Ad deleted successfully");
           loadAdminData();
@@ -1886,7 +1917,7 @@
       try {
         const res = await safeFetch('/api/admin/distribute-revenue', {
           method: 'POST',
-          body: { totalRevenue: amount }
+          body: { userId: currentUserTelegramId, totalRevenue: amount }
         });
         if (res && res.ok) {
           showToast("Revenue pool distributed successfully!");
@@ -1913,7 +1944,7 @@
         try {
           const res = await safeFetch('/api/init-click', {
             method: 'POST',
-            body: { linkCode: currentShortCode }
+            body: { userId: currentUserTelegramId, linkCode: currentShortCode }
           });
 
           if (res && res.ok) {
@@ -1967,6 +1998,7 @@
         const res = await safeFetch('/api/impression', {
           method: 'POST',
           body: {
+            userId: currentUserTelegramId,
             sessionId: currentSessionId,
             bridgeToken: bridgeToken,
             duration: Math.floor((Date.now() - bridgeStartTime) / 1000)
