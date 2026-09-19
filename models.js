@@ -906,37 +906,31 @@ announcementSchema.statics.getForUserIsolated = function(userId, telegramId) {
 };
 
 // ==================================================
-// Exporting Safe Models (Serverless & Alias Ready)
+// Model Instantiation & Aliases (Serverless & Overwrite Safe)
 // ==================================================
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Wallet = mongoose.models.Wallet || mongoose.model('Wallet', walletSchema);
 const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
 
-const Ad = mongoose.models.Ad || mongoose.model('Ad', adSchema);
-if (!mongoose.models.Campaign) {
-  mongoose.model('Campaign', adSchema);
-}
-const Campaign = mongoose.models.Campaign || Ad;
+const Ad = mongoose.models.Ad || mongoose.model('Ad', adSchema, 'ads');
+const Campaign = mongoose.models.Campaign || mongoose.model('Campaign', adSchema, 'ads');
 
-const Link = mongoose.models.Link || mongoose.model('Link', linkSchema);
-if (!mongoose.models.ShortLink) {
-  mongoose.model('ShortLink', linkSchema);
-}
-const ShortLink = mongoose.models.ShortLink || Link;
+const Link = mongoose.models.Link || mongoose.model('Link', linkSchema, 'links');
+const ShortLink = mongoose.models.ShortLink || mongoose.model('ShortLink', linkSchema, 'links');
 
 const Impression = mongoose.models.Impression || mongoose.model('Impression', impressionSchema);
 const ClickSession = mongoose.models.ClickSession || mongoose.model('ClickSession', clickSessionSchema);
 
-const Withdraw = mongoose.models.Withdraw || mongoose.model('Withdraw', withdrawSchema);
-if (!mongoose.models.Withdrawal) {
-  mongoose.model('Withdrawal', withdrawSchema);
-}
-const Withdrawal = mongoose.models.Withdrawal || Withdraw;
+const Withdraw = mongoose.models.Withdraw || mongoose.model('Withdraw', withdrawSchema, 'withdraws');
+const Withdrawal = mongoose.models.Withdrawal || mongoose.model('Withdrawal', withdrawSchema, 'withdraws');
 
 const EarningsHold = mongoose.models.EarningsHold || mongoose.model('EarningsHold', earningsHoldSchema);
 const Deposit = mongoose.models.Deposit || mongoose.model('Deposit', depositSchema);
 const Announcement = mongoose.models.Announcement || mongoose.model('Announcement', announcementSchema);
 
+// ==================================================
+// Module Exports
+// ==================================================
 module.exports = {
   User,
   Wallet,
