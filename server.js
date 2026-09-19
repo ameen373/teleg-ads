@@ -330,16 +330,42 @@ const resolveUserId = async (req, res, next) => {
 
 const adminMiddleware = async (req, res, next) => {
   try {
+    let userId = req.body?.userId || req.query?.userId || req.headers['x-user-id'] || req.headers['user-id'];
     let telegramIdToCheck = null;
 
-    if (req.user && req.user.telegramId) {
+    if (userId) {
+      if (mongoose.Types.ObjectId.isValid(userId)) {
+        const u = await User.findById(userId).lean();
+        if (u) telegramIdToCheck = String(u.telegramId).trim();
+      } else {
+        telegramIdToCheck = String(userId).trim();
+      }
+    }
+
+    if (!telegramIdToCheck && req.user) {
       telegramIdToCheck = String(req.user.telegramId).trim();
+    }
+
+    if (!telegramIdToCheck) {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+          const token = authHeader.split(' ')[1];
+          const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
+          if (decoded.userId && mongoose.Types.ObjectId.isValid(decoded.userId)) {
+            const u = await User.findById(decoded.userId).lean();
+            if (u) telegramIdToCheck = String(u.telegramId).trim();
+          } else if (decoded.telegramId) {
+            telegramIdToCheck = String(decoded.telegramId).trim();
+          }
+        } catch (e) {}
+      }
     }
 
     if (!telegramIdToCheck) {
       const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'];
       const telegramUser = verifyTelegramData(initData);
-      if (telegramUser && telegramUser.id) {
+      if (telegramUser) {
         telegramIdToCheck = String(telegramUser.id).trim();
       }
     }
@@ -359,16 +385,36 @@ const adminMiddleware = async (req, res, next) => {
 // =========================================================================
 const handleCheckAdmin = async (req, res) => {
   try {
+    let targetUserId = req.body?.userId || req.query?.userId || req.headers['x-user-id'];
     let telegramIdToCheck = null;
 
-    if (req.user && req.user.telegramId) {
-      telegramIdToCheck = String(req.user.telegramId).trim();
+    if (targetUserId && mongoose.Types.ObjectId.isValid(targetUserId)) {
+      const u = await User.findById(targetUserId).lean();
+      if (u) telegramIdToCheck = String(u.telegramId).trim();
+    } else if (targetUserId) {
+      telegramIdToCheck = String(targetUserId).trim();
+    }
+
+    if (!telegramIdToCheck) {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+          const token = authHeader.split(' ')[1];
+          const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
+          if (decoded.userId && mongoose.Types.ObjectId.isValid(decoded.userId)) {
+            const u = await User.findById(decoded.userId).lean();
+            if (u) telegramIdToCheck = String(u.telegramId).trim();
+          } else if (decoded.telegramId) {
+            telegramIdToCheck = String(decoded.telegramId).trim();
+          }
+        } catch (e) {}
+      }
     }
 
     if (!telegramIdToCheck) {
       const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'];
       const telegramUser = verifyTelegramData(initData);
-      if (telegramUser && telegramUser.id) {
+      if (telegramUser) {
         telegramIdToCheck = String(telegramUser.id).trim();
       }
     }
