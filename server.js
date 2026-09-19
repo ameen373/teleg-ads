@@ -64,6 +64,38 @@ if (process.env.NODE_ENV !== 'production') {
 app.use(morgan('combined', { stream: { write: (message) => logger.info(message.trim()) } }));
 
 // ==================================================
+// --- Helper Functions for URL Sanitization ---
+// ==================================================
+
+// تنظيف اسم النطاق لمنع تكرار البروتوكول
+const sanitizeDomain = (domain) => {
+  if (!domain) return 'teleg-ads.vercel.app';
+  return domain.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+};
+
+// معالجة والتحقق من صحة الرابط لمنع https://https://
+function normalizeAndValidateUrl(inputUrl) {
+  if (!inputUrl) return null;
+  let urlStr = String(inputUrl).trim();
+  
+  // إزالة التكرار في البروتوكول مثل https://https://
+  while (/^(https?:\/\/){2,}/i.test(urlStr)) {
+    urlStr = urlStr.replace(/^(https?:\/\/)+/i, 'https://');
+  }
+
+  if (!/^https?:\/\//i.test(urlStr)) {
+    urlStr = 'https://' + urlStr;
+  }
+
+  return validUrl.isWebUri(urlStr) ? urlStr : null;
+}
+
+// بناء رابط الاختصار بشكل نظيف
+function buildShortUrl(shortCode) {
+  return `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`;
+}
+
+// ==================================================
 // --- System Constants & Environment Variables ---
 // ==================================================
 const CONFIG = Object.freeze({
@@ -72,7 +104,7 @@ const CONFIG = Object.freeze({
   ADMIN_ID: String(process.env.ADMIN_ID || '123456789').trim(),
   JWT_SECRET: process.env.JWT_SECRET || 'fallback_jwt_secret_key_32bytes_long!',
   ADSGRAM_BLOCK_ID: process.env.ADSGRAM_BLOCK_ID || '1234',
-  APP_DOMAIN: process.env.APP_DOMAIN || 'teleg-ads.vercel.app',
+  APP_DOMAIN: sanitizeDomain(process.env.APP_DOMAIN),
   REDIS_URL: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
   DEFAULT_LANGUAGE: 'ar',
   
@@ -398,7 +430,7 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
         ctr, 
         validImpressions: validImp, 
         invalidImpressions: invalidImp,
-        shortUrl: `https://${CONFIG.APP_DOMAIN}/r/${link.shortCode}`
+        shortUrl: buildShortUrl(link.shortCode)
       };
     });
 
@@ -435,25 +467,26 @@ app.get('/api/user/data', authMiddleware, async (req, res, next) => {
 const handleShortenLink = async (req, res) => {
   try {
     const { title, targetUrl, url } = req.body;
-    const cleanUrl = String(targetUrl || url || '').trim();
+    const rawUrl = targetUrl || url;
+    const cleanUrl = normalizeAndValidateUrl(rawUrl);
 
-    if (!cleanUrl || !validUrl.isWebUri(cleanUrl)) {
-      return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
+    if (!cleanUrl) {
+      return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح، يرجى التأكد من كتابة رابط صحيح' });
     }
 
     if (isPhishingOrMalicious(cleanUrl)) {
-      return res.status(400).json({ success: false, error: 'الرابط ينتهك معايير الأمان' });
+      return res.status(400).json({ success: false, error: 'الرابط ينتهك معايير الأمان والسياسات' });
     }
 
     try {
       const domainCheck = new URL(cleanUrl).hostname;
       if (domainCheck.includes(CONFIG.APP_DOMAIN)) {
-        return res.status(400).json({ success: false, error: 'لا يمكن اختصار روابط الموقع نفسه' });
+        return res.status(400).json({ success: false, error: 'لا يمكن اختصار روابط منصة الاختصار نفسها' });
       }
     } catch (e) {}
 
     const shortCode = crypto.randomBytes(3).toString('hex');
-    const publisherTelegramId = req.user.telegramId;
+    const publisherTelegramId = req.user ? req.user.telegramId : null;
     
     const newLink = new Link({
       userId: req.user._id,
@@ -467,10 +500,12 @@ const handleShortenLink = async (req, res) => {
 
     await newLink.save();
 
-    await User.findByIdAndUpdate(req.user._id, { $inc: { 'statsSummary.totalLinksCreated': 1 } }).catch(() => {});
+    if (req.user && req.user._id) {
+      await User.findByIdAndUpdate(req.user._id, { $inc: { 'statsSummary.totalLinksCreated': 1 } }).catch(() => {});
+    }
 
     const linkObj = newLink.toObject ? newLink.toObject() : newLink;
-    const shortUrl = `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`;
+    const shortUrl = buildShortUrl(shortCode);
 
     return res.json({ 
       success: true, 
@@ -481,6 +516,7 @@ const handleShortenLink = async (req, res) => {
       shortUrl
     });
   } catch (err) {
+    logger.error('Error in handleShortenLink:', err);
     return res.status(500).json({ 
       success: false, 
       error: 'حدث خطأ أثناء اختصار الرابط، يرجى المحاولة لاحقاً' 
@@ -503,7 +539,7 @@ const getUserLinks = async (userId) => {
     return { 
       ...link, 
       ctr,
-      shortUrl: `https://${CONFIG.APP_DOMAIN}/r/${link.shortCode}`
+      shortUrl: buildShortUrl(link.shortCode)
     };
   });
 };
@@ -634,15 +670,16 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
     session.startTransaction();
     const { title, targetUrl, totalBudget } = req.body;
     const budget = Number(totalBudget);
+    const cleanTarget = normalizeAndValidateUrl(targetUrl);
 
     if (!title || String(title).trim().length === 0) {
       await session.abortTransaction();
       return res.status(400).json({ success: false, error: 'عنوان الإعلان مطلوب' });
     }
 
-    if (!validUrl.isWebUri(targetUrl)) {
+    if (!cleanTarget) {
       await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح' });
+      return res.status(400).json({ success: false, error: 'الرابط المستهدف للإعلان غير صالح' });
     }
 
     if (isNaN(budget) || budget < 5) {
@@ -666,7 +703,7 @@ app.post('/api/ads', authMiddleware, async (req, res, next) => {
       advertiserId: req.user._id,
       advertiserTelegramId: req.user.telegramId,
       title: String(title).trim(),
-      targetUrl: String(targetUrl).trim(),
+      targetUrl: cleanTarget,
       totalBudget: budget,
       remainingBudget: budget,
       cpmRate: 1.50,
@@ -1003,10 +1040,14 @@ app.post('/api/impression', validateTraffic, clickLimiter, async (req, res, next
 
     let dailyIpClicks = 1;
     if (redisIsConnected) {
-      const dailyIpClickKey = `daily:ip:${req.ip}`;
-      dailyIpClicks = await redis.incr(dailyIpClickKey);
-      if (dailyIpClicks === 1) {
-        await redis.expire(dailyIpClickKey, 86400);
+      try {
+        const dailyIpClickKey = `daily:ip:${req.ip}`;
+        dailyIpClicks = await redis.incr(dailyIpClickKey);
+        if (dailyIpClicks === 1) {
+          await redis.expire(dailyIpClickKey, 86400);
+        }
+      } catch (e) {
+        dailyIpClicks = 1;
       }
     }
 
