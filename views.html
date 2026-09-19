@@ -1135,7 +1135,7 @@
       return `https://${rawUrl}`;
     }
 
-    // التعامل مع دالة اختصار الرابط
+    // التعامل مع دالة اختصار الرابط الموجهة لمسار /api/shorten
     async function handleShortenClick() {
       const titleInput = document.getElementById('link-title');
       const urlInput = document.getElementById('link-url');
@@ -1268,6 +1268,7 @@
       }
     }
 
+    // التعامل مع شحن الرصيد الموجه لمسار /api/user/deposit
     async function requestDeposit() {
       const network = document.getElementById('deposit-network').value;
       const amountVal = document.getElementById('deposit-amount').value;
