@@ -518,7 +518,7 @@
         </div>
       </div>
 
-      <!-- Tab 6: Admin Dashboard Panel -->
+      <!-- Tab 6: Admin Dashboard Panel (Hidden by default, shown only when server confirms admin status) -->
       <div id="tab-content-admin" class="tab-pane hidden">
         <div class="stats-grid" style="margin-bottom: 16px;">
           <div class="stat-box"><small>Total Platform Users</small><h3 id="admin-total-users">0</h3></div>
@@ -583,6 +583,7 @@
           <span data-i18n="nav_settings">Settings</span>
         </button>
 
+        <!-- Admin Tab Button: Hidden by default until server verifies admin status -->
         <button onclick="switchTab('admin')" class="nav-btn hidden" id="tab-btn-admin" style="color: var(--warning);">
           <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-5.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
           <span>Admin</span>
@@ -1063,7 +1064,7 @@
           method: 'POST',
           body: { userId }
         });
-        if (res) {
+        if (res && res.ok) {
           const data = await res.json().catch(() => ({}));
           const adminBtn = document.getElementById('tab-btn-admin');
           if (data && data.isAdmin === true) {
@@ -1098,10 +1099,13 @@
           authToken = data.token;
           localStorage.setItem('authToken', authToken);
 
+          const adminBtn = document.getElementById('tab-btn-admin');
           if (data.isAdmin === true) {
             isUserAdmin = true;
-            const adminBtn = document.getElementById('tab-btn-admin');
             if (adminBtn) adminBtn.classList.remove('hidden');
+          } else {
+            isUserAdmin = false;
+            if (adminBtn) adminBtn.classList.add('hidden');
           }
 
           if (data.depositWallets) {
@@ -1549,10 +1553,13 @@
         const data = await res.json().catch(() => ({}));
 
         if (res.ok && data) {
+          const adminBtn = document.getElementById('tab-btn-admin');
           if (data.isAdmin === true) {
             isUserAdmin = true;
-            const adminBtn = document.getElementById('tab-btn-admin');
             if (adminBtn) adminBtn.classList.remove('hidden');
+          } else {
+            isUserAdmin = false;
+            if (adminBtn) adminBtn.classList.add('hidden');
           }
 
           const pending = data.user?.pendingBalance || 0;
@@ -1721,7 +1728,7 @@
     function renderAdminWithdraws(withdraws) {
       const container = document.getElementById('admin-withdraws-list');
       if (!container) return;
-      if (!withdraws || withdraws.length === 0) {
+      if (!withdraws || withdrawals.length === 0) {
         container.innerHTML = '<p style="color: var(--text-muted);">No withdrawal requests.</p>';
         return;
       }
