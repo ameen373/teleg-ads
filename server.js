@@ -127,7 +127,7 @@ try {
     retryStrategy: (times) => (times > 3 ? null : Math.min(times * 100, 1000))
   });
 
-  redis.on('error', (err) => {
+  redis.on('error', () => {
     redisIsConnected = false;
   });
 
@@ -486,7 +486,7 @@ app.get('/api/user/data', authMiddleware, handleUserData);
 app.get('/user/data', authMiddleware, handleUserData);
 
 // =========================================================================
-// --- Link Shortener API Routes (POST /api/shorten, /api/links) ---
+// --- Link Shortener API Routes ---
 // =========================================================================
 
 const handleShortenLink = async (req, res) => {
@@ -550,7 +550,6 @@ const handleShortenLink = async (req, res) => {
   }
 };
 
-// تسجيل كامل التلميحات الممكنة لطلبات اختصار الروابط بالـ POST
 app.post('/api/shorten', authMiddleware, linkCreationLimiter, handleShortenLink);
 app.post('/shorten', authMiddleware, linkCreationLimiter, handleShortenLink);
 app.post('/api/links/shorten', authMiddleware, linkCreationLimiter, handleShortenLink);
@@ -832,7 +831,7 @@ app.delete('/api/ads/:id', authMiddleware, async (req, res, next) => {
 });
 
 // =========================================================================
-// --- Deposit & Withdraw Routes (POST /api/user/deposit, /api/wallet/topup) ---
+// --- Deposit & Withdraw Routes ---
 // =========================================================================
 
 const handleDeposit = async (req, res, next) => {
@@ -880,7 +879,6 @@ const handleDeposit = async (req, res, next) => {
   }
 };
 
-// تسجيل كامل التلميحات الممكنة لطلبات شحن الرصيد بالـ POST
 app.post('/api/deposit', authMiddleware, handleDeposit);
 app.post('/deposit', authMiddleware, handleDeposit);
 app.post('/api/user/deposit', authMiddleware, handleDeposit);
@@ -1227,6 +1225,58 @@ app.get('/api/admin/dashboard-data', authMiddleware, adminMiddleware, async (req
     ]);
 
     res.json({ success: true, withdraws, deposits, users, stats: { ...(stats[0] || {}), totalAds } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/admin/users', authMiddleware, adminMiddleware, async (req, res, next) => {
+  try {
+    const users = await User.find().sort({ createdAt: -1 }).lean();
+    res.json({ success: true, users });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/admin/links', authMiddleware, adminMiddleware, async (req, res, next) => {
+  try {
+    const links = await Link.find().populate('userId', 'username telegramId').sort({ createdAt: -1 }).lean();
+    res.json({ success: true, links });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/admin/ads', authMiddleware, adminMiddleware, async (req, res, next) => {
+  try {
+    const ads = await Ad.find().populate('userId', 'username telegramId').sort({ createdAt: -1 }).lean();
+    res.json({ success: true, ads });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.delete('/api/admin/links/:id', authMiddleware, adminMiddleware, async (req, res, next) => {
+  try {
+    const linkId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
+    const link = await Link.findByIdAndDelete(linkId);
+    if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود' });
+    await safeRedisDel(`link:data:${link.shortCode}`);
+    res.json({ success: true, message: 'تم حذف الرابط بنجاح' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.delete('/api/admin/ads/:id', authMiddleware, adminMiddleware, async (req, res, next) => {
+  try {
+    const adId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(adId)) return res.status(400).json({ success: false, error: 'معرف الإعلان غير صالح' });
+    const ad = await Ad.findByIdAndDelete(adId);
+    if (!ad) return res.status(404).json({ success: false, error: 'الإعلان غير موجود' });
+    res.json({ success: true, message: 'تم حذف الإعلان بنجاح' });
   } catch (err) {
     next(err);
   }
