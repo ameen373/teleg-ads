@@ -609,7 +609,6 @@
     let isUserAdmin = false;
     let currentLang = localStorage.getItem('appLang') || 'en';
     
-    // استخراج userId الحالي عند فتح التطبيق باستخدام Telegram.WebApp.initDataUnsafe?.user?.id
     const tg = window.Telegram?.WebApp;
     let currentUserTelegramId = tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe?.user?.id) : null;
 
@@ -866,7 +865,6 @@
       }
     }
 
-    // تمرير userId ودائماً عبر كافة استدعاءات الـ API لضمان عزل بيانات المستخدم
     async function safeFetch(endpoint, options = {}) {
       options.headers = options.headers || {};
       
@@ -1077,7 +1075,6 @@
       }
     }
 
-    // فحص معرف المستخدم الحالي مقارنة بالأدمن عبر الـ JS لإظهار أو إبقاء زر الأدمن مخفياً نهائياً
     async function checkAdminStatus() {
       const userId = tg?.initDataUnsafe?.user?.id || currentUserTelegramId;
       if (!userId) return;
@@ -1093,10 +1090,10 @@
           
           if (data && data.isAdmin === true) {
             isUserAdmin = true;
-            if (adminBtn) adminBtn.style.display = 'flex'; // إظهار الزر حصرياً للأدمن المطابق
+            if (adminBtn) adminBtn.style.display = 'flex';
           } else {
             isUserAdmin = false;
-            if (adminBtn) adminBtn.style.display = 'none'; // إبقاؤه مخفياً نهائياً لغير الأدمن
+            if (adminBtn) adminBtn.style.display = 'none';
             const adminContent = document.getElementById('tab-content-admin');
             if (adminContent && !adminContent.classList.contains('hidden')) {
               switchTab('dashboard');
