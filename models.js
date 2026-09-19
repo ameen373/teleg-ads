@@ -58,6 +58,16 @@ const userSchema = new mongoose.Schema({
     trim: true,
     lowercase: true 
   },
+  firstName: {
+    type: String,
+    default: '',
+    trim: true
+  },
+  lastName: {
+    type: String,
+    default: '',
+    trim: true
+  },
   language: {
     type: String,
     default: 'ar',
@@ -117,7 +127,8 @@ const userSchema = new mongoose.Schema({
     totalLinksCreated: { type: Number, default: 0, min: [0, 'Stats cannot be negative'] },
     totalViewsReceived: { type: Number, default: 0, min: [0, 'Stats cannot be negative'] },
     totalValidViews: { type: Number, default: 0, min: [0, 'Stats cannot be negative'] },
-    totalLifetimeEarned: { type: Number, default: 0, min: [0, 'Stats cannot be negative'], set: formatCurrency }
+    totalLifetimeEarned: { type: Number, default: 0, min: [0, 'Stats cannot be negative'], set: formatCurrency },
+    totalSpent: { type: Number, default: 0, min: [0, 'Stats cannot be negative'], set: formatCurrency }
   }
 }, globalSchemaOptions);
 
@@ -206,7 +217,7 @@ const transactionSchema = new mongoose.Schema({
   },
   type: { 
     type: String, 
-    enum: ['deposit', 'withdrawal', 'campaign_spend', 'publisher_earning', 'referral_bonus', 'refund'], 
+    enum: ['deposit', 'withdrawal', 'campaign_spend', 'publisher_earning', 'referral_bonus', 'refund', 'hold_release'], 
     required: [true, 'Transaction type is required'],
     index: true 
   },
@@ -331,7 +342,7 @@ const adSchema = new mongoose.Schema({
   },
   status: { 
     type: String, 
-    enum: ['active', 'paused', 'completed'], 
+    enum: ['active', 'paused', 'completed', 'cancelled', 'pending'], 
     default: 'active', 
     index: true 
   }
@@ -434,17 +445,13 @@ const linkSchema = new mongoose.Schema({
   }
 }, globalSchemaOptions);
 
-// Dynamic validation & compatibility sync hook
 linkSchema.pre('validate', function(next) {
-  // Sync originalUrl and targetUrl
   if (this.originalUrl && !this.targetUrl) this.targetUrl = this.originalUrl;
   if (this.targetUrl && !this.originalUrl) this.originalUrl = this.targetUrl;
 
-  // Sync telegramId and publisherTelegramId
   if (this.telegramId && !this.publisherTelegramId) this.publisherTelegramId = this.telegramId;
   if (this.publisherTelegramId && !this.telegramId) this.telegramId = this.publisherTelegramId;
 
-  // Sync clicks and views
   if (this.clicks > 0 && this.views === 0) this.views = this.clicks;
   if (this.views > 0 && this.clicks === 0) this.clicks = this.views;
 
@@ -551,7 +558,7 @@ impressionSchema.pre('validate', function(next) {
   if (this.publisherId && !this.userId) this.userId = this.publisherId;
   if (this.userId && !this.publisherId) this.publisherId = this.userId;
   if (this.telegramId && !this.publisherTelegramId) this.publisherTelegramId = this.telegramId;
-  if (this.publisherTelegramId && !this.telegramId) this.telegramId = this.publisherTelegramId;
+  if (this.publisherTelegramId && !this.telegramId) this.telegramId = this.telegramId;
   next();
 });
 
@@ -834,7 +841,7 @@ depositSchema.pre('validate', function(next) {
   if (this.userId && !this.advertiserId) this.advertiserId = this.userId;
   if (this.advertiserId && !this.userId) this.userId = this.advertiserId;
   if (this.telegramId && !this.advertiserTelegramId) this.advertiserTelegramId = this.telegramId;
-  if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.telegramId;
+  if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.advertiserTelegramId;
   next();
 });
 
@@ -904,14 +911,28 @@ announcementSchema.statics.getForUserIsolated = function(userId, telegramId) {
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Wallet = mongoose.models.Wallet || mongoose.model('Wallet', walletSchema);
 const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
+
 const Ad = mongoose.models.Ad || mongoose.model('Ad', adSchema);
-const Campaign = Ad;
+if (!mongoose.models.Campaign) {
+  mongoose.model('Campaign', adSchema);
+}
+const Campaign = mongoose.models.Campaign || Ad;
+
 const Link = mongoose.models.Link || mongoose.model('Link', linkSchema);
-const ShortLink = Link;
+if (!mongoose.models.ShortLink) {
+  mongoose.model('ShortLink', linkSchema);
+}
+const ShortLink = mongoose.models.ShortLink || Link;
+
 const Impression = mongoose.models.Impression || mongoose.model('Impression', impressionSchema);
 const ClickSession = mongoose.models.ClickSession || mongoose.model('ClickSession', clickSessionSchema);
+
 const Withdraw = mongoose.models.Withdraw || mongoose.model('Withdraw', withdrawSchema);
-const Withdrawal = Withdraw;
+if (!mongoose.models.Withdrawal) {
+  mongoose.model('Withdrawal', withdrawSchema);
+}
+const Withdrawal = mongoose.models.Withdrawal || Withdraw;
+
 const EarningsHold = mongoose.models.EarningsHold || mongoose.model('EarningsHold', earningsHoldSchema);
 const Deposit = mongoose.models.Deposit || mongoose.model('Deposit', depositSchema);
 const Announcement = mongoose.models.Announcement || mongoose.model('Announcement', announcementSchema);
