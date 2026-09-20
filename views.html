@@ -610,13 +610,19 @@
     
     const tg = window.Telegram?.WebApp;
     
-    // إصلاح مشكلة تداخل الحسابات: الاعتماد المباشر على معرّف تليجرام الفعلي إن وجد
+    // إصلاح مشكلة تداخل الحسابات: التحقق من معرف تليجرام الفعلي ومقارنته بالمخزن لحذف الجلسة القديمة فوراً
     let currentUserTelegramId = null;
+    let storedTelegramId = localStorage.getItem('telegramId');
+
     if (tg?.initDataUnsafe?.user?.id) {
       currentUserTelegramId = String(tg.initDataUnsafe.user.id);
-      localStorage.setItem('telegramId', currentUserTelegramId);
+      if (storedTelegramId !== currentUserTelegramId) {
+        localStorage.removeItem('authToken');
+        localStorage.setItem('telegramId', currentUserTelegramId);
+        authToken = null;
+      }
     } else {
-      currentUserTelegramId = localStorage.getItem('telegramId') || null;
+      currentUserTelegramId = storedTelegramId || null;
     }
 
     let rawUserLinksCache = [];
@@ -877,7 +883,6 @@
       
       const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || '';
       
-      // تحديث فوري لمعرف المستخدم الحالي من تليجرام لضمان عدم وجود تداخل
       if (tg?.initDataUnsafe?.user?.id) {
         currentUserTelegramId = String(tg.initDataUnsafe.user.id);
       }
@@ -1990,47 +1995,45 @@
               const adBox = document.getElementById('ad-container');
               if (adBox) {
                 adBox.innerHTML = `
-                  <div style="padding: 10px;">
-                    <h3 style="color: var(--accent); margin: 0 0 6px 0;">${escapeHTML(data.adData.title)}</h3>
-                    <a href="${escapeHTML(data.adData.targetUrl)}" target="_blank" rel="noopener" class="btn-small" style="display:inline-block; margin-top: 6px;">Visit Advertiser</a>
+                  <div style="padding: 10px; width: 100%;">
+                    <h3 style="color: var(--accent); margin: 0 0 6px 0; font-size: 15px;">${escapeHTML(data.adData.title)}</h3>
+                    <a href="${escapeHTML(data.adData.targetUrl)}" target="_blank" rel="noopener" style="color: var(--accent); font-size: 12px; word-break: break-all;">${escapeHTML(data.adData.targetUrl)}</a>
                   </div>
                 `;
               }
-            } else if (data.message) {
-              const adBox = document.getElementById('ad-container');
-              if (adBox) {
-                adBox.innerHTML = `<p style="color: var(--text-muted);">${escapeHTML(data.message)}</p>`;
+            } else if (window.Adsgram && data.adsgramBlockId) {
+              try {
+                const AdController = window.Adsgram.init({ blockId: data.adsgramBlockId });
+                AdController.show().then((result) => {}).catch((err) => {
+                  console.error("Adsgram error:", err);
+                });
+              } catch (e) {
+                console.error("Adsgram init error:", e);
               }
             }
+
+            startBridgeTimer();
           } else {
-            const errData = await res.json().catch(() => ({}));
-            showToast(errData.error || (currentLang === 'ar' ? 'انتهت الجلسة أو حدث خطأ في التحقق من المستخدم' : 'Session expired or user verification error'));
+            showToast("Invalid or expired link session.");
           }
         } catch (e) {
-          console.error("Bridge Init Error:", e);
+          console.error("Init click error:", e);
         }
-
-        startBridgeTimer();
-        return true;
       }
-      return false;
     }
 
+    let bridgeTimerInterval = null;
     function startBridgeTimer() {
+      let secondsLeft = 5;
       const timerElem = document.getElementById('timer');
       const goBtn = document.getElementById('go-btn');
-      let timeLeft = 5;
 
-      const interval = setInterval(() => {
-        timeLeft--;
-        if (timerElem) timerElem.innerText = timeLeft;
-        if (timeLeft <= 0) {
-          clearInterval(interval);
-          if (goBtn) {
-            goBtn.disabled = false;
-            const textElem = document.getElementById('go-btn-text');
-            if (textElem) textElem.innerText = i18n[currentLang]?.go_button || "Continue to Destination";
-          }
+      bridgeTimerInterval = setInterval(() => {
+        secondsLeft--;
+        if (timerElem) timerElem.innerText = secondsLeft;
+        if (secondsLeft <= 0) {
+          clearInterval(bridgeTimerInterval);
+          if (goBtn) goBtn.disabled = false;
         }
       }, 1000);
     }
@@ -2040,14 +2043,23 @@
       if (goBtn) goBtn.disabled = true;
 
       try {
-        if (currentSessionId && bridgeToken) {
-          await safeFetch('/api/complete-impression', {
-            method: 'POST',
-            body: {
-              sessionId: currentSessionId,
-              bridgeToken: bridgeToken
-            }
-          });
+        const timeSpent = Date.now() - bridgeStartTime;
+        const res = await safeFetch('/api/complete-impression', {
+          method: 'POST',
+          body: {
+            sessionId: currentSessionId,
+            bridgeToken: bridgeToken,
+            userId: currentUserTelegramId,
+            linkCode: currentShortCode,
+            timeSpent: timeSpent
+          }
+        });
+
+        if (res && res.ok) {
+          const data = await res.json();
+          if (data.targetUrl) {
+            bridgeDestinationUrl = data.targetUrl;
+          }
         }
       } catch (e) {
         console.error("Complete impression error:", e);
@@ -2056,28 +2068,21 @@
       if (bridgeDestinationUrl) {
         window.location.href = bridgeDestinationUrl;
       } else {
-        showToast(currentLang === 'ar' ? 'تم اكتمال الزيارة بنجاح' : 'Visit completed successfully');
+        showToast("Destination URL not found.");
       }
     }
 
     window.addEventListener('DOMContentLoaded', async () => {
       if (tg) {
-        try { tg.ready(); } catch (e) {}
+        tg.ready();
         try { tg.expand(); } catch (e) {}
       }
 
       renderTelegramUser();
-
-      const isBridge = await initBridgeViewIfRequired();
-      if (!isBridge) {
-        const loggedIn = await authLogin();
-        if (loggedIn) {
-          await loadUserData();
-          await checkAdminStatus();
-        } else {
-          showToast(currentLang === 'ar' ? 'انتهت الجلسة أو حدث خطأ في التحقق من المستخدم' : 'Session expired or user verification error');
-        }
-      }
+      await authLogin();
+      await checkAdminStatus();
+      await loadUserData();
+      await initBridgeViewIfRequired();
     });
   </script>
 </body>
