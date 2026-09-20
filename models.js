@@ -34,7 +34,7 @@ const globalSchemaOptions = {
   }
 };
 
-// Helper validator to enforce non-empty ownership parameters
+// Helper validator to enforce non-empty ownership parameters (safeguarding against typo issues like userld)
 const enforceTenantKey = (tenantKey, keyName = 'userId') => {
   if (!tenantKey) {
     throw new Error(`Security Violation [Tenant Isolation]: Access denied. Missing strictly required parameter: ${keyName}`);
