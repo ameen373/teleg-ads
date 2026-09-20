@@ -47,7 +47,7 @@ const enforceTenantKey = (tenantKey, keyName = 'userId') => {
 const userSchema = new mongoose.Schema({
   telegramId: { 
     type: String, 
-    required: [true, 'Telegram ID is required'], 
+    default: null,
     unique: true, 
     sparse: true,
     index: true,
@@ -136,7 +136,7 @@ const userSchema = new mongoose.Schema({
   }
 }, globalSchemaOptions);
 
-userSchema.index({ telegramId: 1, isBanned: 1 });
+userSchema.index({ telegramId: 1, isBanned: 1 }, { sparse: true });
 userSchema.index({ createdAt: -1 });
 
 userSchema.statics.findByTelegramIdIsolated = function(telegramId) {
@@ -156,7 +156,7 @@ const walletSchema = new mongoose.Schema({
   },
   telegramId: { 
     type: String, 
-    required: [true, 'Telegram ID is required for fast tenant lookup'], 
+    default: null,
     unique: true,
     sparse: true,
     index: true, 
@@ -217,7 +217,7 @@ const transactionSchema = new mongoose.Schema({
   },
   telegramId: { 
     type: String, 
-    required: [true, 'Telegram ID is required for fast tenant lookup'], 
+    default: null,
     index: true, 
     trim: true 
   },
@@ -272,7 +272,7 @@ const adSchema = new mongoose.Schema({
   },
   telegramId: {
     type: String,
-    required: [true, 'Telegram ID is required for fast tenant lookup'],
+    default: null,
     index: true,
     trim: true
   },
@@ -383,6 +383,7 @@ const linkSchema = new mongoose.Schema({
     type: String, 
     required: [true, 'Short code is required'], 
     unique: true, 
+    sparse: true,
     index: true,
     trim: true 
   },
@@ -403,7 +404,7 @@ const linkSchema = new mongoose.Schema({
   },
   telegramId: {
     type: String,
-    required: [true, 'Telegram ID is required for shortener link ownership'],
+    default: null,
     index: true,
     trim: true
   },
@@ -505,7 +506,7 @@ const impressionSchema = new mongoose.Schema({
   },
   telegramId: {
     type: String,
-    required: [true, 'Telegram ID is required for tenant isolation'],
+    default: null,
     trim: true,
     index: true
   },
@@ -603,7 +604,7 @@ const clickSessionSchema = new mongoose.Schema({
   },
   telegramId: {
     type: String,
-    required: [true, 'Telegram ID is required for tenant isolation'],
+    default: null,
     trim: true,
     index: true
   },
@@ -655,7 +656,7 @@ clickSessionSchema.pre('validate', function(next) {
 clickSessionSchema.index({ linkId: 1, ip: 1 });
 clickSessionSchema.index({ userId: 1, createdAt: -1 });
 clickSessionSchema.index({ telegramId: 1, createdAt: -1 });
-clickSessionSchema.index({ bridgeToken: 1 }, { unique: true });
+clickSessionSchema.index({ bridgeToken: 1 }, { unique: true, sparse: true });
 
 // ==================================================
 // 8. Withdrawal Model (Withdraw / Withdrawal)
@@ -669,7 +670,7 @@ const withdrawSchema = new mongoose.Schema({
   },
   telegramId: {
     type: String,
-    required: [true, 'Telegram ID is required for tenant isolation'],
+    default: null,
     trim: true,
     index: true
   },
@@ -735,7 +736,7 @@ withdrawSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
 
 withdrawSchema.index(
   { telegramId: 1, status: 'pending' }, 
-  { unique: true, partialFilterExpression: { status: 'pending' } }
+  { unique: true, sparse: true, partialFilterExpression: { status: 'pending' } }
 );
 
 withdrawSchema.statics.getUserWithdrawalsIsolated = function(telegramId, status = null) {
@@ -757,7 +758,7 @@ const earningsHoldSchema = new mongoose.Schema({
   },
   telegramId: {
     type: String,
-    required: [true, 'Telegram ID is required for tenant isolation'],
+    default: null,
     trim: true,
     index: true
   },
@@ -800,7 +801,7 @@ const depositSchema = new mongoose.Schema({
   },
   telegramId: {
     type: String,
-    required: [true, 'Telegram ID is required for fast tenant lookup'],
+    default: null,
     trim: true,
     index: true
   },
@@ -833,7 +834,8 @@ const depositSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Transaction hash (TxID) is required'],
     trim: true,
-    unique: true
+    unique: true,
+    sparse: true
   },
   status: {
     type: String,
