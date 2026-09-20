@@ -609,6 +609,8 @@
     let currentLang = localStorage.getItem('appLang') || 'en';
     
     const tg = window.Telegram?.WebApp;
+    
+    // Fix: Prioritize current Telegram WebApp user ID over stale localStorage
     let currentUserTelegramId = (tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe?.user?.id) : null) || localStorage.getItem('telegramId');
 
     let rawUserLinksCache = [];
@@ -868,12 +870,15 @@
       options.headers = options.headers || {};
       
       const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || '';
-      const currentTgId = (tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe?.user?.id) : null) || currentUserTelegramId || localStorage.getItem('telegramId') || '';
-
-      if (currentTgId && !currentUserTelegramId) {
-        currentUserTelegramId = currentTgId;
-        localStorage.setItem('telegramId', currentTgId);
+      
+      // Ensure we extract the live user ID correctly
+      const liveTgUser = tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe?.user?.id) : null;
+      if (liveTgUser) {
+        currentUserTelegramId = liveTgUser;
+        localStorage.setItem('telegramId', liveTgUser);
       }
+      
+      const currentTgId = currentUserTelegramId || localStorage.getItem('telegramId') || '';
 
       if (initDataStr) {
         options.headers['Authorization'] = `Bearer ${initDataStr}`;
@@ -1989,66 +1994,77 @@
                   </div>
                 `;
               }
-            } else if (data.blockId && window.Adsgram) {
-              try {
-                const AdController = window.Adsgram.init({ blockId: String(data.blockId), debug: false });
-                AdController.show().catch(() => {});
-              } catch (e) {}
+            } else if (data.blockReason) {
+              showToast(data.blockReason);
             }
+            startBridgeTimer();
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            showToast(errData.error || (currentLang === 'ar' ? 'انتهت الجلسة أو حدث خطأ في التحقق من المستخدم' : 'Session ended or user verification error'));
           }
         } catch (e) {
-          console.error("Bridge init click error:", e);
+          showToast(currentLang === 'ar' ? 'حدث خطأ أثناء تحميل الرابط' : 'Error loading link');
         }
-
-        let secondsLeft = 5;
-        const timerElem = document.getElementById('timer');
-        const goBtn = document.getElementById('go-btn');
-
-        const interval = setInterval(() => {
-          secondsLeft--;
-          if (timerElem) timerElem.innerText = secondsLeft;
-          if (secondsLeft <= 0) {
-            clearInterval(interval);
-            if (goBtn) {
-              goBtn.disabled = false;
-            }
-          }
-        }, 1000);
+      } else {
+        await initApp();
       }
     }
 
-    async function completeImpression() {
+    function startBridgeTimer() {
+      let secondsLeft = 5;
+      const timerElem = document.getElementById('timer');
       const goBtn = document.getElementById('go-btn');
-      if (goBtn) goBtn.disabled = true;
+      const goBtnText = document.getElementById('go-btn-text');
 
+      const interval = setInterval(() => {
+        secondsLeft--;
+        if (timerElem) timerElem.innerText = secondsLeft;
+        if (secondsLeft <= 0) {
+          clearInterval(interval);
+          if (goBtn) goBtn.disabled = false;
+          if (goBtnText) goBtnText.innerText = i18n[currentLang]?.go_button || 'Continue to Destination';
+        }
+      }, 1000);
+    }
+
+    async function completeImpression() {
+      if (!currentSessionId) {
+        if (bridgeDestinationUrl) {
+          window.location.href = bridgeDestinationUrl;
+        }
+        return;
+      }
+
+      setButtonLoading('go-btn', true);
       try {
-        const res = await safeFetch('/api/impression', {
+        const res = await safeFetch('/api/complete-click', {
           method: 'POST',
           body: {
-            userId: currentUserTelegramId,
             sessionId: currentSessionId,
             bridgeToken: bridgeToken,
-            duration: Math.floor((Date.now() - bridgeStartTime) / 1000)
+            userId: currentUserTelegramId
           }
         });
 
         if (res && res.ok) {
           const data = await res.json();
-          if (data && data.targetUrl) {
-            window.location.href = data.targetUrl;
-            return;
+          if (data.targetUrl) {
+            bridgeDestinationUrl = data.targetUrl;
           }
         }
-      } catch (e) {}
-
-      if (bridgeDestinationUrl) {
-        window.location.href = bridgeDestinationUrl;
-      } else {
-        window.location.href = '/';
+      } catch (e) {
+        console.error("Complete click error:", e);
+      } finally {
+        if (bridgeDestinationUrl) {
+          window.location.href = bridgeDestinationUrl;
+        } else {
+          showToast(currentLang === 'ar' ? 'تعذر الانتقال للرابط' : 'Could not redirect to destination');
+          setButtonLoading('go-btn', false);
+        }
       }
     }
 
-    document.addEventListener('DOMContentLoaded', async () => {
+    async function initApp() {
       if (tg) {
         try {
           tg.ready();
@@ -2057,17 +2073,25 @@
       }
 
       renderTelegramUser();
+      
+      const loggedIn = await authLogin();
+      if (loggedIn) {
+        await checkAdminStatus();
+        await loadUserData();
+      } else {
+        showToast(currentLang === 'ar' ? 'فشل التحقق من المستخدم. يرجى إعادة فتح البوت.' : 'User verification failed. Please reopen the bot.');
+      }
+    }
 
-      const path = window.location.pathname;
-      const isBridge = path.includes('/r/') || new URLSearchParams(window.location.search).has('code');
-      if (isBridge) {
-        await initBridgeViewIfRequired();
-        return;
+    window.addEventListener('DOMContentLoaded', async () => {
+      const tgUser = tg?.initDataUnsafe?.user;
+      if (tgUser && tgUser.id) {
+        currentUserTelegramId = String(tgUser.id);
+        localStorage.setItem('telegramId', currentUserTelegramId);
       }
 
-      await authLogin();
-      await checkAdminStatus();
-      await loadUserData();
+      renderTelegramUser();
+      await initBridgeViewIfRequired();
     });
   </script>
 </body>
