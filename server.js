@@ -269,7 +269,7 @@ const isPhishingOrMalicious = (url) => {
 // =========================================================================
 const resolveUserId = async (req, res, next) => {
   try {
-    let userId = req.body?.userId || req.query?.userId || req.headers['x-user-id'] || req.headers['user-id'];
+    let userId = req.body?.userId || req.body?.userld || req.query?.userId || req.query?.userld || req.headers['x-user-id'] || req.headers['user-id'];
 
     if (!userId) {
       const authHeader = req.headers.authorization;
@@ -1133,6 +1133,9 @@ const handleImpression = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'الرابط غير موجود' });
     }
 
+    const linkOwnerId = link.userId?._id || link.userId;
+    const linkOwnerTelegramId = link.userId?.telegramId || link.publisherTelegramId;
+
     if (isDuplicate || dailyIpClicks > 20) {
       await Link.findByIdAndUpdate(link._id, { $inc: { views: 1, invalidImpressions: 1 } }, { session: sessionDb });
       await sessionDb.commitTransaction();
@@ -1143,9 +1146,9 @@ const handleImpression = async (req, res, next) => {
 
     await Impression.create([{
       linkId: link._id,
-      userId: link.userId._id,
-      publisherId: link.userId._id,
-      publisherTelegramId: link.userId.telegramId,
+      userId: linkOwnerId,
+      publisherId: linkOwnerId,
+      publisherTelegramId: linkOwnerTelegramId,
       adSource: clickSession.adSource,
       adId: clickSession.adId,
       publisherEarnings: clickSession.adSource === 'internal' ? 0.00135 : 0,
@@ -1181,7 +1184,7 @@ const handleImpression = async (req, res, next) => {
         }
 
         await User.findByIdAndUpdate(
-          link.userId._id,
+          linkOwnerId,
           { $inc: { pendingBalance: publisherShare } },
           { session: sessionDb }
         );
@@ -1189,8 +1192,8 @@ const handleImpression = async (req, res, next) => {
         const releaseDate = new Date();
         releaseDate.setDate(releaseDate.getDate() + 1);
         await EarningsHold.create([{
-          userId: link.userId._id,
-          telegramId: link.userId.telegramId,
+          userId: linkOwnerId,
+          telegramId: linkOwnerTelegramId,
           amount: publisherShare,
           releaseAt: releaseDate
         }], { session: sessionDb });
@@ -1325,7 +1328,7 @@ app.post('/api/admin/deposit/action', adminMiddleware, async (req, res, next) =>
     await deposit.save({ session });
 
     if (action === 'approved') {
-      const targetUserId = deposit.userId || deposit.advertiserId._id;
+      const targetUserId = deposit.userId || deposit.advertiserId?._id || deposit.advertiserId;
       await User.findByIdAndUpdate(
         targetUserId,
         { $inc: { availableBalance: deposit.amount } },
@@ -1333,12 +1336,12 @@ app.post('/api/admin/deposit/action', adminMiddleware, async (req, res, next) =>
       );
 
       sendTelegramNotification(
-        deposit.advertiserTelegramId || deposit.advertiserId.telegramId,
+        deposit.advertiserTelegramId || deposit.advertiserId?.telegramId,
         `🎉 <b>تم تأكيد الإيداع!</b>\nتمت إضافة <code>$${deposit.amount}</code> إلى رصيدك المتاح.`
       );
     } else {
       sendTelegramNotification(
-        deposit.advertiserTelegramId || deposit.advertiserId.telegramId,
+        deposit.advertiserTelegramId || deposit.advertiserId?.telegramId,
         `❌ <b>تم رفض طلب الإيداع</b>\nالمبلغ: <code>$${deposit.amount}</code>\n⚠️ <b>السبب:</b> ${deposit.rejectReason}\n\nالدعم: ${CONFIG.SUPPORT_USERNAME}`
       );
     }
@@ -1378,20 +1381,23 @@ app.post('/api/admin/withdraw/action', adminMiddleware, async (req, res, next) =
     }
     await withdraw.save({ session });
 
+    const withdrawUserId = withdraw.userId?._id || withdraw.userId;
+    const withdrawTgId = withdraw.telegramId || withdraw.userId?.telegramId;
+
     if (action === 'rejected') {
       await User.findByIdAndUpdate(
-        withdraw.userId._id, 
+        withdrawUserId, 
         { $inc: { availableBalance: withdraw.amount } }, 
         { session }
       );
 
       sendTelegramNotification(
-        withdraw.telegramId || withdraw.userId.telegramId,
+        withdrawTgId,
         `❌ <b>تم رفض طلب السحب</b>\nإجمالي المبلغ: <code>$${withdraw.amount}</code>\n⚠️ <b>السبب:</b> ${withdraw.rejectReason}\nتم إعادة المبلغ لرصيدك المتاح.\nالدعم: ${CONFIG.SUPPORT_USERNAME}`
       );
     } else if (action === 'approved') {
       sendTelegramNotification(
-        withdraw.telegramId || withdraw.userId.telegramId,
+        withdrawTgId,
         `🎉 <b>تمت الموافقة على السحب!</b>\nإجمالي المبلغ: <code>$${withdraw.amount}</code>\nالصافي المحول: <code>$${withdraw.netAmount}</code>\nالشبكة: <code>$${withdraw.network}</code>\nشكراً لاستخدامك منصتنا!`
       );
     }
@@ -1435,6 +1441,8 @@ app.post('/api/admin/distribute-revenue', adminMiddleware, async (req, res, next
 
     for (let link of links) {
       let earned = Number(((link.validImpressions / totalImp) * revenue).toFixed(4));
+      const linkOwnerId = link.userId?._id || link.userId;
+      const linkOwnerTgId = link.userId?.telegramId || link.publisherTelegramId;
 
       if (link.userId && link.userId.referredBy) {
         const refBonus = Number((earned * 0.10).toFixed(4));
@@ -1447,9 +1455,9 @@ app.post('/api/admin/distribute-revenue', adminMiddleware, async (req, res, next
         );
       }
 
-      if (link.userId) {
-        await User.findByIdAndUpdate(link.userId._id, { $inc: { pendingBalance: earned } }, { session });
-        await EarningsHold.create([{ userId: link.userId._id, telegramId: link.userId.telegramId, amount: earned, releaseAt: releaseDate }], { session });
+      if (linkOwnerId) {
+        await User.findByIdAndUpdate(linkOwnerId, { $inc: { pendingBalance: earned } }, { session });
+        await EarningsHold.create([{ userId: linkOwnerId, telegramId: linkOwnerTgId, amount: earned, releaseAt: releaseDate }], { session });
       }
 
       link.validImpressions = 0;
