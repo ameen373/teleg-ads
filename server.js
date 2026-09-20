@@ -124,6 +124,31 @@ function buildShortUrl(shortCode) {
   return `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`;
 }
 
+// --- Robust User Upsert Helper (Prevents Duplicate Key & Race Condition Errors) ---
+async function findOrCreateUser(tgId, updateData = {}, setOnInsertData = {}) {
+  if (!tgId) return null;
+  const cleanId = String(tgId).trim();
+  if (!cleanId || cleanId === 'null' || cleanId === 'undefined' || cleanId === '' || cleanId === 'NaN') {
+    return null;
+  }
+  try {
+    return await User.findOneAndUpdate(
+      { telegramId: cleanId },
+      {
+        $setOnInsert: { telegramId: cleanId, ...setOnInsertData },
+        $set: updateData
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+  } catch (err) {
+    if (err.code === 11000) {
+      // Duplicate key error safety fallback: retrieve existing document
+      return await User.findOne({ telegramId: cleanId });
+    }
+    throw err;
+  }
+}
+
 // --- Redis Client Initialization (Fault-Tolerant) ---
 let redisIsConnected = false;
 let redis = null;
@@ -444,18 +469,15 @@ const resolveUserId = async (req, res, next) => {
           const currentUsername = telegramUser.username || `User_${tgId.slice(-4)}`;
           const userLanguage = telegramUser.language_code || CONFIG.DEFAULT_LANGUAGE;
 
-          user = await User.findOneAndUpdate(
-            { telegramId: tgId },
+          user = await findOrCreateUser(
+            tgId,
             {
-              $setOnInsert: { telegramId: tgId },
-              $set: {
-                username: currentUsername,
-                firstName: telegramUser.first_name || '',
-                lastName: telegramUser.last_name || '',
-                language: userLanguage
-              }
+              username: currentUsername,
+              firstName: telegramUser.first_name || '',
+              lastName: telegramUser.last_name || '',
+              language: userLanguage
             },
-            { upsert: true, new: true, setDefaultsOnInsert: true }
+            { telegramId: tgId }
           );
         }
       }
@@ -489,16 +511,13 @@ const resolveUserId = async (req, res, next) => {
           user = await User.findOne({ telegramId: cleanRawId });
         }
         if (!user) {
-          user = await User.findOneAndUpdate(
-            { telegramId: cleanRawId },
+          user = await findOrCreateUser(
+            cleanRawId,
             {
-              $setOnInsert: { telegramId: cleanRawId },
-              $set: {
-                username: `User_${cleanRawId.slice(-4)}`,
-                language: CONFIG.DEFAULT_LANGUAGE
-              }
+              username: `User_${cleanRawId.slice(-4)}`,
+              language: CONFIG.DEFAULT_LANGUAGE
             },
-            { upsert: true, new: true, setDefaultsOnInsert: true }
+            { telegramId: cleanRawId }
           );
         }
       }
@@ -511,16 +530,13 @@ const resolveUserId = async (req, res, next) => {
         const val = allParams[key];
         if (val && (typeof val === 'number' || /^\d{7,12}$/.test(String(val)))) {
           const possibleTgId = String(val).trim();
-          user = await User.findOneAndUpdate(
-            { telegramId: possibleTgId },
+          user = await findOrCreateUser(
+            possibleTgId,
             {
-              $setOnInsert: { telegramId: possibleTgId },
-              $set: {
-                username: `User_${possibleTgId.slice(-4)}`,
-                language: CONFIG.DEFAULT_LANGUAGE
-              }
+              username: `User_${possibleTgId.slice(-4)}`,
+              language: CONFIG.DEFAULT_LANGUAGE
             },
-            { upsert: true, new: true, setDefaultsOnInsert: true }
+            { telegramId: possibleTgId }
           );
           if (user) break;
         }
@@ -592,7 +608,7 @@ const handleCheckAdmin = async (req, res) => {
 app.all('/api/check-admin', handleCheckAdmin);
 app.all('/check-admin', handleCheckAdmin);
 
-// --- Authentication & Login Gateway ---
+// --- Authentication & Login Gateway (Secured against duplicate key errors) ---
 const handleLogin = async (req, res, next) => {
   try {
     await connectDB();
@@ -635,22 +651,26 @@ const handleLogin = async (req, res, next) => {
     const currentUsername = telegramUser?.username || `User_${tgId.slice(-4)}`;
     const userLanguage = telegramUser?.language_code || CONFIG.DEFAULT_LANGUAGE;
 
-    const user = await User.findOneAndUpdate(
-      { telegramId: tgId },
+    const user = await findOrCreateUser(
+      tgId,
       {
-        $setOnInsert: {
-          telegramId: tgId,
-          referredBy: mongoose.Types.ObjectId.isValid(referrerId) ? referrerId : null
-        },
-        $set: {
-          username: currentUsername,
-          language: userLanguage,
-          ...(telegramUser?.first_name && { firstName: telegramUser.first_name }),
-          ...(telegramUser?.last_name && { lastName: telegramUser.last_name })
-        }
+        username: currentUsername,
+        language: userLanguage,
+        ...(telegramUser?.first_name && { firstName: telegramUser.first_name }),
+        ...(telegramUser?.last_name && { lastName: telegramUser.last_name })
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      {
+        telegramId: tgId,
+        referredBy: mongoose.Types.ObjectId.isValid(referrerId) ? referrerId : null
+      }
     );
+
+    if (!user) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'فشل إنشاء أو استرجاع بيانات المستخدم بسبب تعارض في المعرف' 
+      });
+    }
 
     if (user.isBanned) {
       return res.status(403).json({ 
