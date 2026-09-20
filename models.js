@@ -1,5 +1,5 @@
 /**
- * Enterprise Models Architecture
+ * Enterprise Models Architecture (Optimized for High Scale & Concurrency)
  * Platform: Telega.ads Advertising & Shortener Network
  * Security: Zero-Data-Leakage Enforcement, Dynamic Context Scoping, Dual-ID Ownership Bindings
  */
@@ -34,7 +34,7 @@ const globalSchemaOptions = {
   }
 };
 
-// Helper validator to enforce non-empty ownership parameters (safeguarding against typo issues like userld)
+// Helper validator to enforce non-empty ownership parameters
 const enforceTenantKey = (tenantKey, keyName = 'userId') => {
   if (!tenantKey) {
     throw new Error(`Security Violation [Tenant Isolation]: Access denied. Missing strictly required parameter: ${keyName}`);
@@ -56,7 +56,8 @@ const userSchema = new mongoose.Schema({
     type: String, 
     default: '', 
     trim: true,
-    lowercase: true 
+    lowercase: true,
+    index: true
   },
   firstName: {
     type: String,
@@ -115,12 +116,14 @@ const userSchema = new mongoose.Schema({
     trim: true,
     validate: {
       validator: function(v) {
-        if (!v || v === '') return true;
-        const isTron = /^T[A-Za-z1-9]{33}$/.test(v);
-        const isEvm = /^0x[a-fA-F0-9]{40}$/.test(v);
+        if (!v || v === '' || typeof v !== 'string') return true;
+        const cleanV = v.trim();
+        if (cleanV === '') return true;
+        const isTron = /^T[A-Za-z1-9]{33}$/.test(cleanV);
+        const isEvm = /^0x[a-fA-F0-9]{40}$/.test(cleanV);
         return isTron || isEvm;
       },
-      message: 'Invalid wallet address format (Must be USDT TRC20 or BEP20/ERC20)'
+      message: 'Invalid wallet address format (Must be valid USDT TRC20 or BEP20/ERC20 address)'
     }
   },
   statsSummary: {
@@ -133,6 +136,7 @@ const userSchema = new mongoose.Schema({
 }, globalSchemaOptions);
 
 userSchema.index({ telegramId: 1, isBanned: 1 });
+userSchema.index({ createdAt: -1 });
 
 userSchema.statics.findByTelegramIdIsolated = function(telegramId) {
   enforceTenantKey(telegramId, 'telegramId');
@@ -294,6 +298,7 @@ const adSchema = new mongoose.Schema({
     trim: true,
     validate: {
       validator: function(v) {
+        if (!v) return false;
         return /^(https?:\/\/)?([\w.-]+)+[\w\-_~:/?#[\]@!$&'()*+,;=.]+$/i.test(v);
       },
       message: 'Please enter a valid target URL'
@@ -686,8 +691,8 @@ const withdrawSchema = new mongoose.Schema({
   },
   network: {
     type: String,
-    enum: ['BEP20', 'TRC20'],
-    required: [true, 'Please select network (BEP20 or TRC20)'],
+    enum: ['BEP20', 'TRC20', 'TON'],
+    required: [true, 'Please select network (BEP20, TRC20, or TON)'],
     trim: true,
     uppercase: true
   },
@@ -817,8 +822,8 @@ const depositSchema = new mongoose.Schema({
   },
   network: {
     type: String,
-    enum: ['BEP20', 'TRC20'],
-    required: [true, 'Please select network (BEP20 or TRC20)'],
+    enum: ['BEP20', 'TRC20', 'TON'],
+    required: [true, 'Please select network (BEP20, TRC20, or TON)'],
     trim: true,
     uppercase: true
   },
