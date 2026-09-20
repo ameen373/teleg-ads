@@ -145,7 +145,7 @@ const userSchema = new mongoose.Schema({
 userSchema.index({ telegramId: 1, isBanned: 1 }, { sparse: true });
 userSchema.index({ createdAt: -1 });
 
-// Fixed & Upgraded: Automatically provision/create new users if they don't exist in DB
+// Automatically provision/create new users if they don't exist in DB
 userSchema.statics.findByTelegramIdIsolated = async function(telegramId, userData = {}) {
   const tgStr = enforceTenantKey(telegramId, 'telegramId');
   if (!tgStr) return null;
