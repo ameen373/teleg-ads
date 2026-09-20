@@ -84,6 +84,13 @@ function normalizeAndValidateUrl(inputUrl) {
     urlStr = 'https://' + urlStr;
   }
 
+  try {
+    const parsed = new URL(urlStr);
+    if (parsed.protocol && parsed.hostname) {
+      return parsed.href;
+    }
+  } catch (e) {}
+
   return validUrl.isWebUri(urlStr) ? urlStr : null;
 }
 
@@ -283,7 +290,7 @@ const resolveUserId = async (req, res, next) => {
     }
 
     if (!userId) {
-      const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'];
+      const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData;
       if (initData) {
         const telegramUser = verifyTelegramData(initData);
         if (telegramUser) {
@@ -375,7 +382,7 @@ app.all('/check-admin', handleCheckAdmin);
 // --- Authentication & Login Gateway ---
 const handleLogin = async (req, res, next) => {
   try {
-    const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'];
+    const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData;
     const telegramUser = verifyTelegramData(initData);
 
     const tgId = telegramUser ? String(telegramUser.id) : (process.env.NODE_ENV !== 'production' ? String(req.headers['x-demo-user-id'] || '') : null);
@@ -618,7 +625,7 @@ app.get('/api/user/links', resolveUserId, async (req, res, next) => {
 
 app.post('/api/links/toggle', resolveUserId, async (req, res, next) => {
   try {
-    const { linkId } = req.body;
+    const linkId = req.body?.linkId || req.body?.id;
     if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
 
     const link = await Link.findOne({ _id: linkId, userId: req.userId });
@@ -657,7 +664,7 @@ app.delete('/api/links/:id', resolveUserId, async (req, res, next) => {
 
 app.post('/api/links/delete', resolveUserId, async (req, res, next) => {
   try {
-    const { linkId } = req.body;
+    const linkId = req.body?.linkId || req.body?.id;
     if (!mongoose.Types.ObjectId.isValid(linkId)) {
       return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
     }
@@ -789,7 +796,7 @@ app.get('/api/user/ads', resolveUserId, async (req, res, next) => {
 
 app.post('/api/ads/toggle', resolveUserId, async (req, res, next) => {
   try {
-    const { adId } = req.body;
+    const adId = req.body?.adId || req.body?.id;
     if (!mongoose.Types.ObjectId.isValid(adId)) return res.status(400).json({ success: false, error: 'معرف الإعلان غير صالح' });
 
     const ad = await Ad.findOne({ _id: adId, userId: req.userId });
