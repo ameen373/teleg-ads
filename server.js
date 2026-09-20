@@ -40,6 +40,8 @@ app.options('*', cors());
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(mongoSanitize());
+
+// --- Static Files Serving ---
 app.use(express.static(__dirname));
 
 // --- Force UTF-8 JSON Response Headers & No-Cache Privacy Guard ---
@@ -186,7 +188,7 @@ async function connectDB() {
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
-      bufferCommands: false,
+      bufferCommands: true
     };
 
     cached.promise = mongoose.connect(CONFIG.MONGO_URI, opts).then((m) => {
@@ -209,7 +211,7 @@ async function connectDB() {
   return cached.conn;
 }
 
-// Middleware لضمان كتمال الاتصال بقاعدة البيانات لكل طلب قبل الانتقال لأي المسار
+// Middleware لضمان اكتمال الاتصال بقاعدة البيانات لكل طلب قبل الانتقال لأي مسار
 app.use(async (req, res, next) => {
   try {
     await connectDB();
@@ -218,6 +220,17 @@ app.use(async (req, res, next) => {
     logger.error('Database connection middleware error:', err);
     return res.status(500).json({ success: false, error: 'خطأ في الاتصال بقاعدة البيانات' });
   }
+});
+
+// =========================================================================
+// --- Primary View & Static Files Routing ---
+// =========================================================================
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'views.html'));
+});
+
+app.get('/r/:code', (req, res) => {
+  res.sendFile(path.join(__dirname, 'views.html'));
 });
 
 // --- Telegram Dispatch Helper ---
@@ -406,6 +419,7 @@ const resolveUserId = async (req, res, next) => {
 
 const adminMiddleware = async (req, res, next) => {
   try {
+    await connectDB();
     const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData;
     let telegramId = null;
 
@@ -436,6 +450,7 @@ const adminMiddleware = async (req, res, next) => {
 // =========================================================================
 const handleCheckAdmin = async (req, res) => {
   try {
+    await connectDB();
     const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData;
     const telegramUser = verifyTelegramData(initData);
     const telegramIdToCheck = telegramUser ? String(telegramUser.id).trim() : null;
@@ -524,6 +539,7 @@ app.post('/auth/login', handleLogin);
 // --- Isolated User Data Gateway ---
 const handleUserData = async (req, res, next) => {
   try {
+    await connectDB();
     const targetUserId = req.userId;
 
     const [rawLinks, withdraws, announcements, ads, deposits] = await Promise.all([
@@ -584,6 +600,7 @@ app.get('/user/data', resolveUserId, handleUserData);
 
 const handleShortenLink = async (req, res) => {
   try {
+    await connectDB();
     const { title, targetUrl, url, originalUrl } = req.body;
     const rawUrl = targetUrl || url || originalUrl;
     const cleanUrl = normalizeAndValidateUrl(rawUrl);
@@ -655,6 +672,7 @@ app.post('/shorten-link', resolveUserId, linkCreationLimiter, handleShortenLink)
 
 const getUserLinks = async (userId) => {
   if (!userId) return [];
+  await connectDB();
 
   const rawLinks = await Link.find({ userId: userId }).sort({ createdAt: -1 }).lean();
 
@@ -699,6 +717,7 @@ app.get('/api/user/links', resolveUserId, async (req, res, next) => {
 
 app.post('/api/links/toggle', resolveUserId, async (req, res, next) => {
   try {
+    await connectDB();
     const linkId = req.body?.linkId || req.body?.id;
     if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
 
@@ -718,6 +737,7 @@ app.post('/api/links/toggle', resolveUserId, async (req, res, next) => {
 
 app.delete('/api/links/:id', resolveUserId, async (req, res, next) => {
   try {
+    await connectDB();
     const linkId = req.params.id;
     if (!mongoose.Types.ObjectId.isValid(linkId)) {
       return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
@@ -738,6 +758,7 @@ app.delete('/api/links/:id', resolveUserId, async (req, res, next) => {
 
 app.post('/api/links/delete', resolveUserId, async (req, res, next) => {
   try {
+    await connectDB();
     const linkId = req.body?.linkId || req.body?.id;
     if (!mongoose.Types.ObjectId.isValid(linkId)) {
       return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
@@ -758,6 +779,7 @@ app.post('/api/links/delete', resolveUserId, async (req, res, next) => {
 
 app.get('/api/links/:id/stats', resolveUserId, async (req, res, next) => {
   try {
+    await connectDB();
     const linkId = req.params.id;
     if (!mongoose.Types.ObjectId.isValid(linkId)) {
       return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
@@ -800,6 +822,7 @@ app.get('/api/links/:id/stats', resolveUserId, async (req, res, next) => {
 // =========================================================================
 
 app.post('/api/ads', resolveUserId, async (req, res, next) => {
+  await connectDB();
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -861,6 +884,7 @@ app.post('/api/ads', resolveUserId, async (req, res, next) => {
 
 app.get('/api/user/ads', resolveUserId, async (req, res, next) => {
   try {
+    await connectDB();
     const ads = await Ad.find({ userId: req.userId }).sort({ createdAt: -1 }).lean();
     res.json({ success: true, ads });
   } catch (err) {
@@ -870,6 +894,7 @@ app.get('/api/user/ads', resolveUserId, async (req, res, next) => {
 
 app.post('/api/ads/toggle', resolveUserId, async (req, res, next) => {
   try {
+    await connectDB();
     const adId = req.body?.adId || req.body?.id;
     if (!mongoose.Types.ObjectId.isValid(adId)) return res.status(400).json({ success: false, error: 'معرف الإعلان غير صالح' });
 
@@ -890,6 +915,7 @@ app.post('/api/ads/toggle', resolveUserId, async (req, res, next) => {
 });
 
 app.delete('/api/ads/:id', resolveUserId, async (req, res, next) => {
+  await connectDB();
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -931,6 +957,7 @@ app.delete('/api/ads/:id', resolveUserId, async (req, res, next) => {
 
 const handleDeposit = async (req, res, next) => {
   try {
+    await connectDB();
     const { amount, network, txid } = req.body;
     const numAmount = Number(amount);
     const cleanNetwork = String(network || '').toUpperCase();
@@ -985,6 +1012,7 @@ app.post('/api/deposits', resolveUserId, handleDeposit);
 app.post('/deposits', resolveUserId, handleDeposit);
 
 app.post('/api/withdraw', resolveUserId, async (req, res, next) => {
+  await connectDB();
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -1058,6 +1086,7 @@ app.post('/api/withdraw', resolveUserId, async (req, res, next) => {
 
 app.get('/api/user/transactions', resolveUserId, async (req, res, next) => {
   try {
+    await connectDB();
     const targetUserId = req.userId;
     const [deposits, withdraws] = await Promise.all([
       Deposit.find({ userId: targetUserId }).sort({ createdAt: -1 }).lean(),
@@ -1080,6 +1109,7 @@ app.get('/api/user/transactions', resolveUserId, async (req, res, next) => {
 
 const handleInitClick = async (req, res, next) => {
   try {
+    await connectDB();
     const { linkCode } = req.body;
     const cleanCode = String(linkCode || '').trim();
     if (!cleanCode) return res.status(400).json({ success: false, error: 'كود الرابط مطلوب' });
@@ -1162,6 +1192,7 @@ app.post('/api/init-click', validateTraffic, handleInitClick);
 app.post('/init-click', validateTraffic, handleInitClick);
 
 const handleImpression = async (req, res, next) => {
+  await connectDB();
   const sessionDb = await mongoose.startSession();
   try {
     sessionDb.startTransaction();
@@ -1296,6 +1327,7 @@ app.post('/impression', validateTraffic, clickLimiter, handleImpression);
 
 app.post('/api/user/settings', resolveUserId, async (req, res, next) => {
   try {
+    await connectDB();
     const { defaultWallet, language } = req.body;
     const updateData = {};
     
@@ -1315,6 +1347,7 @@ app.post('/api/user/settings', resolveUserId, async (req, res, next) => {
 
 app.get('/api/admin/dashboard-data', adminMiddleware, async (req, res, next) => {
   try {
+    await connectDB();
     const [withdraws, deposits, users, stats, totalAds] = await Promise.all([
       Withdraw.find().populate('userId').sort({ createdAt: -1 }).lean(),
       Deposit.find().populate('advertiserId').sort({ createdAt: -1 }).lean(),
@@ -1333,6 +1366,7 @@ app.get('/api/admin/dashboard-data', adminMiddleware, async (req, res, next) => 
 
 app.get('/api/admin/users', adminMiddleware, async (req, res, next) => {
   try {
+    await connectDB();
     const users = await User.find().sort({ createdAt: -1 }).lean();
     res.json({ success: true, users });
   } catch (err) {
@@ -1342,6 +1376,7 @@ app.get('/api/admin/users', adminMiddleware, async (req, res, next) => {
 
 app.get('/api/admin/links', adminMiddleware, async (req, res, next) => {
   try {
+    await connectDB();
     const links = await Link.find().populate('userId', 'username telegramId').sort({ createdAt: -1 }).lean();
     res.json({ success: true, links });
   } catch (err) {
@@ -1351,6 +1386,7 @@ app.get('/api/admin/links', adminMiddleware, async (req, res, next) => {
 
 app.get('/api/admin/ads', adminMiddleware, async (req, res, next) => {
   try {
+    await connectDB();
     const ads = await Ad.find().populate('userId', 'username telegramId').sort({ createdAt: -1 }).lean();
     res.json({ success: true, ads });
   } catch (err) {
@@ -1360,6 +1396,7 @@ app.get('/api/admin/ads', adminMiddleware, async (req, res, next) => {
 
 app.delete('/api/admin/links/:id', adminMiddleware, async (req, res, next) => {
   try {
+    await connectDB();
     const linkId = req.params.id;
     if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
     const link = await Link.findByIdAndDelete(linkId);
@@ -1373,6 +1410,7 @@ app.delete('/api/admin/links/:id', adminMiddleware, async (req, res, next) => {
 
 app.delete('/api/admin/ads/:id', adminMiddleware, async (req, res, next) => {
   try {
+    await connectDB();
     const adId = req.params.id;
     if (!mongoose.Types.ObjectId.isValid(adId)) return res.status(400).json({ success: false, error: 'معرف الإعلان غير صالح' });
     const ad = await Ad.findByIdAndDelete(adId);
@@ -1384,6 +1422,7 @@ app.delete('/api/admin/ads/:id', adminMiddleware, async (req, res, next) => {
 });
 
 app.post('/api/admin/deposit/action', adminMiddleware, async (req, res, next) => {
+  await connectDB();
   const { depositId, action, reason } = req.body;
   if (!mongoose.Types.ObjectId.isValid(depositId)) return res.status(400).json({ success: false, error: 'معرف الإيداع غير صالح' });
 
@@ -1438,6 +1477,7 @@ app.post('/api/admin/deposit/action', adminMiddleware, async (req, res, next) =>
 });
 
 app.post('/api/admin/withdraw/action', adminMiddleware, async (req, res, next) => {
+  await connectDB();
   const { withdrawId, action, reason } = req.body;
   if (!mongoose.Types.ObjectId.isValid(withdrawId)) return res.status(400).json({ success: false, error: 'معرف السحب غير صالح' });
 
@@ -1494,6 +1534,7 @@ app.post('/api/admin/withdraw/action', adminMiddleware, async (req, res, next) =
 });
 
 app.post('/api/admin/distribute-revenue', adminMiddleware, async (req, res, next) => {
+  await connectDB();
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -1560,6 +1601,7 @@ app.post('/api/admin/user/toggle-ban', adminMiddleware, async (req, res, next) =
   if (!mongoose.Types.ObjectId.isValid(userId)) return res.status(400).json({ success: false, error: 'معرف المستخدم غير صالح' });
 
   try {
+    await connectDB();
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ success: false, error: 'المستخدم غير موجود' });
 
@@ -1601,42 +1643,42 @@ if (!process.env.VERCEL) {
           if (userUpdate && userUpdate.telegramId) {
             sendTelegramNotification(
               userUpdate.telegramId,
-              `✅ <b>تم إطلاق الأرباح!</b>\nتم تحويل <code>$${hold.amount.toFixed(4)}</code> إلى رصيدك المتاح.`
+              `🎉 <b>تم تحرير أرباحك المعلقة!</b>\nتمت إضافة <code>$${hold.amount}</code> إلى رصيدك المتاح.`
             );
           }
         } catch (err) {
           await session.abortTransaction();
-          logger.error(`Error releasing hold ${hold._id}:`, err);
+          logger.error('Error in earnings release loop:', err);
         } finally {
           session.endSession();
         }
       }
     } catch (err) {
-      logger.error('Error in daily settlement cron:', err);
+      logger.error('Error in daily cron task:', err);
     }
   });
 }
 
-// --- Centralized Error Handler Middleware ---
-app.use((err, req, res, next) => {
-  logger.error('Unhandled Server Error:', err);
-  if (res.headersSent) {
-    return next(err);
+// --- Global 404 Handler ---
+app.use((req, res, next) => {
+  if (req.accepts('html')) {
+    return res.status(404).sendFile(path.join(__dirname, 'views.html'));
   }
+  res.status(404).json({ success: false, error: 'المسار غير موجود (404 Not Found)' });
+});
+
+// --- Centralized Error Handling Middleware ---
+app.use((err, req, res, next) => {
+  logger.error('Unhandled Error:', err);
   res.status(err.status || 500).json({
     success: false,
     error: err.message || 'حدث خطأ داخلي في الخادم'
   });
 });
 
-// --- 404 Fallback Handler ---
-app.use((req, res) => {
-  res.status(404).json({ success: false, error: 'المسار المطلوب غير موجود (404 Not Found)' });
-});
-
-// --- Server Listening & Export ---
+// --- Server Startup (Local / Production) ---
 const PORT = process.env.PORT || 3000;
-if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+if (!process.env.VERCEL) {
   app.listen(PORT, () => {
     logger.info(`🚀 Server running on port ${PORT}`);
   });
