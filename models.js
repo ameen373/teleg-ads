@@ -145,10 +145,25 @@ const userSchema = new mongoose.Schema({
 userSchema.index({ telegramId: 1, isBanned: 1 }, { sparse: true });
 userSchema.index({ createdAt: -1 });
 
-userSchema.statics.findByTelegramIdIsolated = function(telegramId) {
+// Fixed & Upgraded: Automatically provision/create new users if they don't exist in DB
+userSchema.statics.findByTelegramIdIsolated = async function(telegramId, userData = {}) {
   const tgStr = enforceTenantKey(telegramId, 'telegramId');
   if (!tgStr) return null;
-  return this.findOne({ telegramId: tgStr });
+  let user = await this.findOne({ telegramId: tgStr });
+  if (!user) {
+    try {
+      user = await this.create({
+        telegramId: tgStr,
+        username: userData.username || '',
+        firstName: userData.firstName || '',
+        lastName: userData.lastName || '',
+        language: userData.language || 'ar'
+      });
+    } catch (err) {
+      user = await this.findOne({ telegramId: tgStr });
+    }
+  }
+  return user;
 };
 
 // ==================================================
@@ -220,7 +235,14 @@ walletSchema.statics.getWalletIsolated = async function(identifier) {
   
   let wallet = await this.findOne(query);
   if (!wallet && tgStr) {
-    const user = await mongoose.models.User.findOne({ telegramId: tgStr });
+    let user = await mongoose.models.User.findOne({ telegramId: tgStr });
+    if (!user) {
+      try {
+        user = await mongoose.models.User.create({ telegramId: tgStr });
+      } catch (err) {
+        user = await mongoose.models.User.findOne({ telegramId: tgStr });
+      }
+    }
     try {
       wallet = await this.create({
         telegramId: tgStr,
@@ -952,7 +974,7 @@ const announcementSchema = new mongoose.Schema({
   targetTelegramId: { 
     type: String, 
     default: null, 
-    trim: `true`, 
+    trim: true, 
     index: true,
     set: sanitizeTelegramId 
   }
