@@ -457,7 +457,7 @@ linkSchema.pre('validate', function(next) {
   if (this.targetUrl && !this.originalUrl) this.originalUrl = this.targetUrl;
 
   if (this.telegramId && !this.publisherTelegramId) this.publisherTelegramId = this.telegramId;
-  if (this.publisherTelegramId && !this.telegramId) this.telegramId = this.publisherTelegramId;
+  if (this.publisherTelegramId && !this.telegramId) this.telegramId = this.telegramId;
 
   if (this.clicks > 0 && this.views === 0) this.views = this.clicks;
   if (this.views > 0 && this.clicks === 0) this.clicks = this.views;
