@@ -31,7 +31,7 @@ app.set('trust proxy', 1);
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data', 'telegram-init-data', 'X-Requested-With', 'x-user-id', 'user-id', 'x-user-ld', 'user-ld'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data', 'telegram-init-data', 'X-Requested-With', 'x-user-id', 'user-id', 'x-user-ld', 'user-ld', 'telegramid'],
   credentials: true
 }));
 app.options('*', cors());
@@ -272,55 +272,62 @@ const isPhishingOrMalicious = (url) => {
 };
 
 // =========================================================================
-// --- User Identification & Authentication Middleware (userId / userld enforcement) ---
+// --- User Identification & Authentication Middleware (Robust userId / userld enforcement) ---
 // =========================================================================
 const resolveUserId = async (req, res, next) => {
   try {
-    let userId = req.body?.userId || req.body?.userld || req.query?.userId || req.query?.userld || req.headers['x-user-id'] || req.headers['user-id'] || req.headers['x-user-ld'] || req.headers['user-ld'];
+    let rawUserId = req.body?.userId || req.body?.userld || req.body?.telegramId || req.query?.userId || req.query?.userld || req.query?.telegramId || req.headers['x-user-id'] || req.headers['user-id'] || req.headers['x-user-ld'] || req.headers['user-ld'] || req.headers['telegramid'];
 
-    if (!userId) {
+    let user = null;
+
+    if (!rawUserId) {
       const authHeader = req.headers.authorization;
       if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.split(' ')[1];
         try {
           const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
-          userId = decoded.userId;
+          rawUserId = decoded.userId;
         } catch (err) {}
       }
     }
 
-    if (!userId) {
+    if (!rawUserId) {
       const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData;
       if (initData) {
         const telegramUser = verifyTelegramData(initData);
         if (telegramUser) {
           const tgId = String(telegramUser.id);
-          let user = await User.findOne({ telegramId: tgId });
-          if (user) {
-            userId = user._id;
-          } else {
+          user = await User.findOne({ telegramId: tgId });
+          if (!user) {
             user = await User.create({
               telegramId: tgId,
               username: telegramUser.username || `User_${tgId.slice(-4)}`,
               language: telegramUser.language_code || CONFIG.DEFAULT_LANGUAGE
             });
-            userId = user._id;
           }
         }
       }
     }
 
-    if (!userId) {
-      return res.status(401).json({ success: false, error: 'معرف المستخدم (userId) مفقود أو غير مصرح به' });
+    if (!user && rawUserId) {
+      const cleanRawId = String(rawUserId).trim();
+      if (mongoose.Types.ObjectId.isValid(cleanRawId)) {
+        user = await User.findById(cleanRawId);
+      }
+      if (!user) {
+        user = await User.findOne({ telegramId: cleanRawId });
+      }
+      if (!user && /^\d+$/.test(cleanRawId)) {
+        user = await User.create({
+          telegramId: cleanRawId,
+          username: `User_${cleanRawId.slice(-4)}`,
+          language: CONFIG.DEFAULT_LANGUAGE
+        });
+      }
     }
 
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return res.status(400).json({ success: false, error: 'معرف المستخدم (userId) غير صالح' });
-    }
-
-    const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ success: false, error: 'المستخدم غير موجود' });
+      return res.status(401).json({ success: false, error: 'معرف المستخدم غير صالح أو مفقود (userId/userld)' });
     }
 
     if (user.isBanned) {
@@ -331,6 +338,7 @@ const resolveUserId = async (req, res, next) => {
     req.userId = user._id;
     next();
   } catch (err) {
+    logger.error('Error in resolveUserId middleware:', err);
     return res.status(401).json({ success: false, error: 'انتهت الجلسة أو حدث خطأ في التحقق من المستخدم' });
   }
 };
@@ -385,7 +393,10 @@ const handleLogin = async (req, res, next) => {
     const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData;
     const telegramUser = verifyTelegramData(initData);
 
-    const tgId = telegramUser ? String(telegramUser.id) : (process.env.NODE_ENV !== 'production' ? String(req.headers['x-demo-user-id'] || '') : null);
+    const bodyId = req.body?.userId || req.body?.userld || req.body?.telegramId || req.query?.userId || req.query?.userld || req.query?.telegramId;
+    const tgId = telegramUser 
+      ? String(telegramUser.id) 
+      : (bodyId ? String(bodyId).trim() : (process.env.NODE_ENV !== 'production' ? String(req.headers['x-demo-user-id'] || '') : null));
     const { referrerId } = req.body;
 
     if (!tgId) return res.status(401).json({ success: false, error: 'بيانات الاعتماد الخاصة بتليجرام غير صالحة' });
@@ -395,19 +406,24 @@ const handleLogin = async (req, res, next) => {
 
     let user = await User.findOne({ telegramId: tgId });
     if (!user) {
-      user = await User.create({
-        telegramId: tgId,
-        username: currentUsername,
-        language: userLanguage,
-        referredBy: mongoose.Types.ObjectId.isValid(referrerId) ? referrerId : null
-      });
+      if (mongoose.Types.ObjectId.isValid(tgId)) {
+        user = await User.findById(tgId);
+      }
+      if (!user) {
+        user = await User.create({
+          telegramId: tgId,
+          username: currentUsername,
+          language: userLanguage,
+          referredBy: mongoose.Types.ObjectId.isValid(referrerId) ? referrerId : null
+        });
+      }
     } else {
       let updated = false;
-      if (user.username !== currentUsername) {
+      if (currentUsername && user.username !== currentUsername) {
         user.username = currentUsername;
         updated = true;
       }
-      if (!user.language) {
+      if (userLanguage && !user.language) {
         user.language = userLanguage;
         updated = true;
       }
