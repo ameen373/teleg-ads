@@ -40,12 +40,9 @@ const globalSchemaOptions = {
   }
 };
 
-// Helper validator to enforce non-empty ownership parameters safely
+// Safe tenant key normalizer (prevents unhandled exceptions on new or unauthenticated users)
 const enforceTenantKey = (tenantKey, keyName = 'userId') => {
   const cleaned = sanitizeTelegramId(tenantKey);
-  if (!cleaned) {
-    throw new Error(`Security Violation [Tenant Isolation]: Access denied. Missing strictly required parameter: ${keyName}`);
-  }
   return cleaned;
 };
 
@@ -150,6 +147,7 @@ userSchema.index({ createdAt: -1 });
 
 userSchema.statics.findByTelegramIdIsolated = function(telegramId) {
   const tgStr = enforceTenantKey(telegramId, 'telegramId');
+  if (!tgStr) return null;
   return this.findOne({ telegramId: tgStr });
 };
 
@@ -207,18 +205,34 @@ const walletSchema = new mongoose.Schema({
 walletSchema.index({ userId: 1, createdAt: -1 });
 walletSchema.index({ userId: 1, telegramId: 1 });
 
-walletSchema.statics.getWalletIsolated = function(identifier) {
-  if (!identifier) {
-    throw new Error('Security Violation [Tenant Isolation]: Missing required identifier for wallet.');
-  }
+walletSchema.statics.getWalletIsolated = async function(identifier) {
+  if (!identifier) return null;
+  let query = {};
+  let tgStr = null;
+  
   if (mongoose.Types.ObjectId.isValid(identifier)) {
-    return this.findOne({ userId: identifier });
+    query = { userId: identifier };
+  } else {
+    tgStr = sanitizeTelegramId(identifier);
+    if (!tgStr) return null;
+    query = { telegramId: tgStr };
   }
-  const tgStr = sanitizeTelegramId(identifier);
-  if (!tgStr) {
-    throw new Error('Security Violation [Tenant Isolation]: Invalid identifier format for wallet.');
+  
+  let wallet = await this.findOne(query);
+  if (!wallet && tgStr) {
+    const user = await mongoose.models.User.findOne({ telegramId: tgStr });
+    try {
+      wallet = await this.create({
+        telegramId: tgStr,
+        userId: user ? user._id : null,
+        availableBalance: 0,
+        pendingBalance: 0
+      });
+    } catch (err) {
+      wallet = await this.findOne(query);
+    }
   }
-  return this.findOne({ telegramId: tgStr });
+  return wallet;
 };
 
 // ==================================================
@@ -274,7 +288,8 @@ transactionSchema.index({ userId: 1, type: 1, createdAt: -1 });
 
 transactionSchema.statics.getUserTransactionsIsolated = function(telegramId, filter = {}) {
   const tgStr = enforceTenantKey(telegramId, 'telegramId');
-  return this.find({ ...filter, telegramId: tgStr }).sort({ createdAt: -1 });
+  if (!tgStr) return this.find({ _id: { $exists: false } });
+  return this.find({ ...filter, $or: [{ telegramId: tgStr }] }).sort({ createdAt: -1 });
 };
 
 // ==================================================
@@ -390,6 +405,7 @@ adSchema.index({ status: 1, remainingBudget: 1, createdAt: -1 });
 
 adSchema.statics.findAdvertiserAdsIsolated = function(telegramId, filter = {}) {
   const tgStr = enforceTenantKey(telegramId, 'telegramId');
+  if (!tgStr) return this.find({ _id: { $exists: false } });
   return this.find({ ...filter, $or: [{ telegramId: tgStr }, { advertiserTelegramId: tgStr }] }).sort({ createdAt: -1 });
 };
 
@@ -494,13 +510,21 @@ linkSchema.index({ shortCode: 1, isActive: 1 });
 
 linkSchema.statics.getUserIsolatedLinks = function(telegramId, query = {}, options = {}) {
   const tgStr = enforceTenantKey(telegramId, 'telegramId');
-  const safeQuery = { ...query, telegramId: tgStr };
+  if (!tgStr) return this.find({ _id: { $exists: false } });
+  const safeQuery = { 
+    ...query, 
+    $or: [{ telegramId: tgStr }, { publisherTelegramId: tgStr }] 
+  };
   return this.find(safeQuery, null, options).sort({ createdAt: -1 });
 };
 
 linkSchema.statics.findOneIsolated = function(shortCode, telegramId) {
   const tgStr = enforceTenantKey(telegramId, 'telegramId');
-  return this.findOne({ shortCode: String(shortCode).trim(), telegramId: tgStr });
+  if (!tgStr || !shortCode) return null;
+  return this.findOne({ 
+    shortCode: String(shortCode).trim(), 
+    $or: [{ telegramId: tgStr }, { publisherTelegramId: tgStr }] 
+  });
 };
 
 linkSchema.statics.findByShortCode = function(shortCode) {
@@ -606,7 +630,8 @@ impressionSchema.index({ ip: 1, linkId: 1, createdAt: -1 });
 
 impressionSchema.statics.getPublisherImpressionsIsolated = function(telegramId, extraFilter = {}) {
   const tgStr = enforceTenantKey(telegramId, 'telegramId');
-  return this.find({ ...extraFilter, $or: [{ telegramId: tgStr }, { publisherTelegramId: tgStr }] }).sort({ createdAt: -1 });
+  if (!tgStr) return this.find({ _id: { $exists: false } });
+  return this.find({ ...extraFilter, $or: [{ telegramId: tgStr }, { publisherTelegramId: tgStr }, { viewerTelegramId: tgStr }] }).sort({ createdAt: -1 });
 };
 
 // ==================================================
@@ -766,7 +791,8 @@ withdrawSchema.index(
 
 withdrawSchema.statics.getUserWithdrawalsIsolated = function(telegramId, status = null) {
   const tgStr = enforceTenantKey(telegramId, 'telegramId');
-  const query = { telegramId: tgStr };
+  if (!tgStr) return this.find({ _id: { $exists: false } });
+  const query = { $or: [{ telegramId: tgStr }] };
   if (status) query.status = status;
   return this.find(query).sort({ createdAt: -1 });
 };
@@ -812,6 +838,7 @@ earningsHoldSchema.index({ telegramId: 1, isReleased: 1, releaseAt: 1 });
 
 earningsHoldSchema.statics.getUserHoldsIsolated = function(telegramId) {
   const tgStr = enforceTenantKey(telegramId, 'telegramId');
+  if (!tgStr) return this.find({ _id: { $exists: false } });
   return this.find({ telegramId: tgStr, isReleased: false }).sort({ releaseAt: 1 });
 };
 
@@ -893,6 +920,7 @@ depositSchema.index({ advertiserTelegramId: 1, status: 1, createdAt: -1 });
 
 depositSchema.statics.getAdvertiserDepositsIsolated = function(telegramId) {
   const tgStr = enforceTenantKey(telegramId, 'telegramId');
+  if (!tgStr) return this.find({ _id: { $exists: false } });
   return this.find({ $or: [{ telegramId: tgStr }, { advertiserTelegramId: tgStr }] }).sort({ createdAt: -1 });
 };
 
@@ -924,7 +952,7 @@ const announcementSchema = new mongoose.Schema({
   targetTelegramId: { 
     type: String, 
     default: null, 
-    trim: true, 
+    trim: `true`, 
     index: true,
     set: sanitizeTelegramId 
   }
