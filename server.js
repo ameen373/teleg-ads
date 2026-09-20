@@ -251,7 +251,6 @@ function verifyTelegramData(initData) {
       return parsedUser;
     }
 
-    // Robust fallback support for multi-account cross-device compatibility and new users in production environments
     return parsedUser;
   } catch (err) {
     return null;
@@ -292,7 +291,7 @@ const isPhishingOrMalicious = (url) => {
 };
 
 // =========================================================================
-// --- User Identification & Authentication Middleware (Robust Upsert & Multi-Source Extraction) ---
+// --- User Identification & Authentication Middleware ---
 // =========================================================================
 const resolveUserId = async (req, res, next) => {
   try {
@@ -300,7 +299,6 @@ const resolveUserId = async (req, res, next) => {
 
     let user = null;
 
-    // 1. Try Telegram initData verification & Upsert for any user (Primary authentication channel)
     const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData;
     if (initData) {
       const telegramUser = verifyTelegramData(initData);
@@ -312,9 +310,7 @@ const resolveUserId = async (req, res, next) => {
         user = await User.findOneAndUpdate(
           { telegramId: tgId },
           {
-            $setOnInsert: {
-              telegramId: tgId
-            },
+            $setOnInsert: { telegramId: tgId },
             $set: {
               username: currentUsername,
               firstName: telegramUser.first_name || '',
@@ -327,7 +323,6 @@ const resolveUserId = async (req, res, next) => {
       }
     }
 
-    // 2. Try Bearer JWT Token
     if (!user && !rawUserId) {
       const authHeader = req.headers.authorization;
       if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -339,7 +334,6 @@ const resolveUserId = async (req, res, next) => {
       }
     }
 
-    // 3. Try resolving from rawUserId (ObjectId or telegramId) with automatic upsert
     if (!user && rawUserId) {
       const cleanRawId = String(rawUserId).trim();
       if (mongoose.Types.ObjectId.isValid(cleanRawId)) {
@@ -426,7 +420,7 @@ const handleCheckAdmin = async (req, res) => {
 app.all('/api/check-admin', handleCheckAdmin);
 app.all('/check-admin', handleCheckAdmin);
 
-// --- Authentication & Login Gateway (Robust Upsert & Strict Telegram ID Validation) ---
+// --- Authentication & Login Gateway ---
 const handleLogin = async (req, res, next) => {
   try {
     const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData;
@@ -437,13 +431,11 @@ const handleLogin = async (req, res, next) => {
       ? String(telegramUser.id) 
       : (bodyId ? String(bodyId).trim() : null);
 
-    // التحقق الصارم من أن telegram_id موجود وصالح (ليس null أو undefined أو فارغ) قبل تنفيذ استعلام قاعدة البيانات لمنع انهيار الخادم (خطأ 500)
-    if (!tgId || tgId === 'null' || tgId === 'undefined' || tgId === '' || tgId === 'NaN' || tgId === 'null' || tgId === 'undefined') {
+    if (!tgId || tgId === 'null' || tgId === 'undefined' || tgId === '' || tgId === 'NaN') {
       return res.status(400).json({ success: false, error: 'معرف تليجرام (telegram_id) مفقود أو غير صالح' });
     }
 
     const { referrerId } = req.body;
-
     const currentUsername = telegramUser?.username || `User_${tgId.slice(-4)}`;
     const userLanguage = telegramUser?.language_code || CONFIG.DEFAULT_LANGUAGE;
 
@@ -497,7 +489,7 @@ const handleLogin = async (req, res, next) => {
 app.post('/api/auth/login', handleLogin);
 app.post('/auth/login', handleLogin);
 
-// --- Isolated User Data Gateway (Strictly Filtered by userId) ---
+// --- Isolated User Data Gateway ---
 const handleUserData = async (req, res, next) => {
   try {
     const targetUserId = req.userId;
@@ -555,7 +547,7 @@ app.get('/api/user/data', resolveUserId, handleUserData);
 app.get('/user/data', resolveUserId, handleUserData);
 
 // =========================================================================
-// --- Link Shortener API Routes (Strictly Filtered by userId) ---
+// --- Link Shortener API Routes ---
 // =========================================================================
 
 const handleShortenLink = async (req, res) => {
@@ -605,18 +597,12 @@ const handleShortenLink = async (req, res) => {
 
     return res.json({ 
       success: true, 
-      link: {
-        ...linkObj,
-        shortUrl
-      },
+      link: { ...linkObj, shortUrl },
       shortUrl
     });
   } catch (err) {
     logger.error('Error in handleShortenLink:', err);
-    return res.status(500).json({ 
-      success: false, 
-      error: 'حدث خطأ أثناء اختصار الرابط، يرجى المحاولة لاحقاً' 
-    });
+    return res.status(500).json({ success: false, error: 'حدث خطأ أثناء اختصار الرابط، يرجى المحاولة لاحقاً' });
   }
 };
 
@@ -631,18 +617,12 @@ app.post('/shorten-link', resolveUserId, linkCreationLimiter, handleShortenLink)
 
 const getUserLinks = async (userId) => {
   if (!userId) return [];
-
   const rawLinks = await Link.find({ userId: userId }).sort({ createdAt: -1 }).lean();
-
   return rawLinks.map(link => {
     const totalViews = link.views || 0;
     const validImp = link.validImpressions || 0;
     const ctr = totalViews > 0 ? ((validImp / totalViews) * 100).toFixed(1) : "0.0";
-    return { 
-      ...link, 
-      ctr,
-      shortUrl: buildShortUrl(link.shortCode)
-    };
+    return { ...link, ctr, shortUrl: buildShortUrl(link.shortCode) };
   });
 };
 
@@ -650,27 +630,21 @@ app.get('/api/links', resolveUserId, async (req, res, next) => {
   try {
     const links = await getUserLinks(req.userId);
     res.json({ success: true, links });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 app.get('/links', resolveUserId, async (req, res, next) => {
   try {
     const links = await getUserLinks(req.userId);
     res.json({ success: true, links });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 app.get('/api/user/links', resolveUserId, async (req, res, next) => {
   try {
     const links = await getUserLinks(req.userId);
     res.json({ success: true, links });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 app.post('/api/links/toggle', resolveUserId, async (req, res, next) => {
@@ -679,7 +653,6 @@ app.post('/api/links/toggle', resolveUserId, async (req, res, next) => {
     if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
 
     const link = await Link.findOne({ _id: linkId, userId: req.userId });
-
     if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات التعديل عليه' });
 
     link.isActive = !link.isActive;
@@ -687,66 +660,44 @@ app.post('/api/links/toggle', resolveUserId, async (req, res, next) => {
     await safeRedisDel(`link:data:${link.shortCode}`);
 
     res.json({ success: true, isActive: link.isActive });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 app.delete('/api/links/:id', resolveUserId, async (req, res, next) => {
   try {
     const linkId = req.params.id;
-    if (!mongoose.Types.ObjectId.isValid(linkId)) {
-      return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
-    }
+    if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
 
     const link = await Link.findOneAndDelete({ _id: linkId, userId: req.userId });
-
-    if (!link) {
-      return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات حذفه' });
-    }
+    if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات حذفه' });
 
     await safeRedisDel(`link:data:${link.shortCode}`);
     res.json({ success: true, message: 'تم حذف الرابط بنجاح' });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 app.post('/api/links/delete', resolveUserId, async (req, res, next) => {
   try {
     const linkId = req.body?.linkId || req.body?.id;
-    if (!mongoose.Types.ObjectId.isValid(linkId)) {
-      return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
-    }
+    if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
 
     const link = await Link.findOneAndDelete({ _id: linkId, userId: req.userId });
-
-    if (!link) {
-      return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات حذفه' });
-    }
+    if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات حذفه' });
 
     await safeRedisDel(`link:data:${link.shortCode}`);
     res.json({ success: true, message: 'تم حذف الرابط بنجاح' });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 app.get('/api/links/:id/stats', resolveUserId, async (req, res, next) => {
   try {
     const linkId = req.params.id;
-    if (!mongoose.Types.ObjectId.isValid(linkId)) {
-      return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
-    }
+    if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
 
     const link = await Link.findOne({ _id: linkId, userId: req.userId }).lean();
-
-    if (!link) {
-      return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحية الوصول إليه' });
-    }
+    if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود' });
 
     const impressions = await Impression.find({ linkId: link._id, userId: req.userId }).sort({ createdAt: -1 }).limit(100).lean();
-    
     const totalViews = link.views || 0;
     const validImp = link.validImpressions || 0;
     const invalidImp = link.invalidImpressions || 0;
@@ -766,13 +717,11 @@ app.get('/api/links/:id/stats', resolveUserId, async (req, res, next) => {
         recentImpressions: impressions
       }
     });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 // =========================================================================
-// --- Self-Serve Ad Campaign APIs (Strictly Filtered by userId) ---
+// --- Self-Serve Ad Campaign APIs ---
 // =========================================================================
 
 app.post('/api/ads', resolveUserId, async (req, res, next) => {
@@ -807,7 +756,7 @@ app.post('/api/ads', resolveUserId, async (req, res, next) => {
 
     if (!updatedUser) {
       await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'رصيدك المتاح غير كافي لإنشاء هذه الحملة (الحد الأدنى $5)' });
+      return res.status(400).json({ success: false, error: 'رصيدك المتاح غير كافي لإنشاء هذه الحملة' });
     }
 
     const ad = await Ad.create([{
@@ -839,9 +788,7 @@ app.get('/api/user/ads', resolveUserId, async (req, res, next) => {
   try {
     const ads = await Ad.find({ userId: req.userId }).sort({ createdAt: -1 }).lean();
     res.json({ success: true, ads });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 app.post('/api/ads/toggle', resolveUserId, async (req, res, next) => {
@@ -850,7 +797,7 @@ app.post('/api/ads/toggle', resolveUserId, async (req, res, next) => {
     if (!mongoose.Types.ObjectId.isValid(adId)) return res.status(400).json({ success: false, error: 'معرف الإعلان غير صالح' });
 
     const ad = await Ad.findOne({ _id: adId, userId: req.userId });
-    if (!ad) return res.status(404).json({ success: false, error: 'الإعلان غير موجود أو لا تملك صلاحية تعديله' });
+    if (!ad) return res.status(404).json({ success: false, error: 'الإعلان غير موجود' });
 
     if (ad.status === 'completed') {
       return res.status(400).json({ success: false, error: 'لا يمكن تفعيل حملة مكتملة ونفاذ ميزانيتها' });
@@ -860,9 +807,7 @@ app.post('/api/ads/toggle', resolveUserId, async (req, res, next) => {
     await ad.save();
 
     res.json({ success: true, status: ad.status });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 app.delete('/api/ads/:id', resolveUserId, async (req, res, next) => {
@@ -878,15 +823,11 @@ app.delete('/api/ads/:id', resolveUserId, async (req, res, next) => {
     const ad = await Ad.findOne({ _id: adId, userId: req.userId }).session(session);
     if (!ad) {
       await session.abortTransaction();
-      return res.status(404).json({ success: false, error: 'الإعلان غير موجود أو لا تملك صلاحيات حذفه' });
+      return res.status(404).json({ success: false, error: 'الإعلان غير موجود' });
     }
 
     if (ad.remainingBudget > 0 && ad.status !== 'completed') {
-      await User.findByIdAndUpdate(
-        req.userId, 
-        { $inc: { availableBalance: ad.remainingBudget } },
-        { session }
-      );
+      await User.findByIdAndUpdate(req.userId, { $inc: { availableBalance: ad.remainingBudget } }, { session });
     }
 
     await Ad.deleteOne({ _id: adId, userId: req.userId }).session(session);
@@ -902,7 +843,7 @@ app.delete('/api/ads/:id', resolveUserId, async (req, res, next) => {
 });
 
 // =========================================================================
-// --- Deposit & Withdraw Routes (Strictly Filtered by userId) ---
+// --- Deposit & Withdraw Routes ---
 // =========================================================================
 
 const handleDeposit = async (req, res, next) => {
@@ -918,7 +859,7 @@ const handleDeposit = async (req, res, next) => {
     }
 
     if (!['BEP20', 'TRC20', 'TON'].includes(cleanNetwork)) {
-      return res.status(400).json({ success: false, error: 'يرجى تحديد شبكة صالحة (BEP20, TRC20, TON)' });
+      return res.status(400).json({ success: false, error: 'يرجى تحديد شبكة صالحة' });
     }
 
     if (!cleanTxid || cleanTxid.length < 8) {
@@ -946,9 +887,7 @@ const handleDeposit = async (req, res, next) => {
     );
 
     res.json({ success: true, deposit });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 };
 
 app.post('/api/deposit', resolveUserId, handleDeposit);
@@ -978,7 +917,7 @@ app.post('/api/withdraw', resolveUserId, async (req, res, next) => {
 
     if (!['BEP20', 'TRC20', 'TON'].includes(cleanNetwork)) {
       await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'يرجى تحديد الشبكة (BEP20, TRC20, TON)' });
+      return res.status(400).json({ success: false, error: 'يرجى تحديد الشبكة' });
     }
 
     if (!cleanWallet || cleanWallet.length < 10) {
@@ -989,7 +928,7 @@ app.post('/api/withdraw', resolveUserId, async (req, res, next) => {
     const activePending = await Withdraw.findOne({ userId: targetUserId, status: 'pending' }).session(session);
     if (activePending) {
       await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'لديك طلب سحب قيد الانتظار حالياً، يرجى الانتظار حتى معالجته' });
+      return res.status(400).json({ success: false, error: 'لديك طلب سحب قيد الانتظار حالياً' });
     }
 
     const netAmount = numAmt - FEE;
@@ -1020,7 +959,7 @@ app.post('/api/withdraw', resolveUserId, async (req, res, next) => {
 
     sendTelegramNotification(
       req.user.telegramId,
-      `🔔 <b>تم تقديم طلب السحب بنجاح!</b>\nالمبلغ: <code>$${numAmt}</code>\nالرسوم: <code>$${FEE}</code>\nالصافي: <code>$${netAmount}</code>\nالشبكة: <code>$${cleanNetwork}</code>\nالمحفظة: <code>${cleanWallet}</code>\nالحالة: ⏳ قيد المراجعة\n\nالدعم: ${CONFIG.SUPPORT_USERNAME}`
+      `🔔 <b>تم تقديم طلب السحب بنجاح!</b>\nالمبلغ: <code>$${numAmt}</code>\nالرسوم: <code>$${FEE}</code>\nالصافي: <code>$${netAmount}</code>\nالحالة: ⏳ قيد المراجعة`
     );
 
     res.json({ success: true, withdraw: withdrawRequest[0] });
@@ -1039,15 +978,8 @@ app.get('/api/user/transactions', resolveUserId, async (req, res, next) => {
       Deposit.find({ userId: targetUserId }).sort({ createdAt: -1 }).lean(),
       Withdraw.find({ userId: targetUserId }).sort({ createdAt: -1 }).lean()
     ]);
-
-    res.json({
-      success: true,
-      deposits,
-      withdraws
-    });
-  } catch (err) {
-    next(err);
-  }
+    res.json({ success: true, deposits, withdraws });
+  } catch (err) { next(err); }
 });
 
 // =========================================================================
@@ -1129,9 +1061,7 @@ const handleInitClick = async (req, res, next) => {
         targetUrl: selectedAd.targetUrl
       } : null
     });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 };
 
 app.post('/api/init-click', validateTraffic, handleInitClick);
@@ -1170,12 +1100,8 @@ const handleImpression = async (req, res, next) => {
       try {
         const dailyIpClickKey = `daily:ip:${req.ip}`;
         dailyIpClicks = await redis.incr(dailyIpClickKey);
-        if (dailyIpClicks === 1) {
-          await redis.expire(dailyIpClickKey, 86400);
-        }
-      } catch (e) {
-        dailyIpClicks = 1;
-      }
+        if (dailyIpClicks === 1) await redis.expire(dailyIpClickKey, 86400);
+      } catch (e) { dailyIpClicks = 1; }
     }
 
     const lockKey = `imp:${clickSession.linkId}:${req.ip}`;
@@ -1217,43 +1143,26 @@ const handleImpression = async (req, res, next) => {
 
     if (clickSession.adSource === 'internal' && clickSession.adId) {
       const ad = await Ad.findById(clickSession.adId).session(sessionDb);
-      
       if (ad && ad.remainingBudget >= 0.0015 && ad.status === 'active') {
         const costPerImpression = ad.costPerImpression || 0.0015;
         let publisherShare = ad.publisherEarningsPerImpression || 0.00135;
         
         ad.remainingBudget = Math.max(0, ad.remainingBudget - costPerImpression);
         ad.impressionsCount += 1;
-        if (ad.remainingBudget < costPerImpression) {
-          ad.status = 'completed';
-        }
+        if (ad.remainingBudget < costPerImpression) ad.status = 'completed';
         await ad.save({ session: sessionDb });
 
         if (link.userId && link.userId.referredBy) {
           const refBonus = Math.round((publisherShare * 0.10 + Number.EPSILON) * 100000) / 100000;
           publisherShare = Math.round((publisherShare - refBonus + Number.EPSILON) * 100000) / 100000;
-
-          await User.findByIdAndUpdate(
-            link.userId.referredBy,
-            { $inc: { availableBalance: refBonus, referralEarnings: refBonus } },
-            { session: sessionDb }
-          );
+          await User.findByIdAndUpdate(link.userId.referredBy, { $inc: { availableBalance: refBonus, referralEarnings: refBonus } }, { session: sessionDb });
         }
 
-        await User.findByIdAndUpdate(
-          linkOwnerId,
-          { $inc: { pendingBalance: publisherShare } },
-          { session: sessionDb }
-        );
+        await User.findByIdAndUpdate(linkOwnerId, { $inc: { pendingBalance: publisherShare } }, { session: sessionDb });
 
         const releaseDate = new Date();
         releaseDate.setDate(releaseDate.getDate() + 1);
-        await EarningsHold.create([{
-          userId: linkOwnerId,
-          telegramId: linkOwnerTelegramId,
-          amount: publisherShare,
-          releaseAt: releaseDate
-        }], { session: sessionDb });
+        await EarningsHold.create([{ userId: linkOwnerId, telegramId: linkOwnerTelegramId, amount: publisherShare, releaseAt: releaseDate }], { session: sessionDb });
       }
     }
 
@@ -1274,19 +1183,16 @@ app.post('/api/user/settings', resolveUserId, async (req, res, next) => {
   try {
     const { defaultWallet, language } = req.body;
     const updateData = {};
-    
     if (defaultWallet !== undefined) updateData.defaultWallet = String(defaultWallet).trim();
     if (language !== undefined) updateData.language = String(language).trim().toLowerCase() || CONFIG.DEFAULT_LANGUAGE;
 
     await User.findByIdAndUpdate(req.userId, updateData);
     res.json({ success: true, message: 'تم تحديث الإعدادات بنجاح' });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 // =========================================================================
-// --- Admin Panel Routes (Protected by adminMiddleware with 403 enforcement) ---
+// --- Admin Panel Routes ---
 // =========================================================================
 
 app.get('/api/admin/dashboard-data', adminMiddleware, async (req, res, next) => {
@@ -1295,43 +1201,32 @@ app.get('/api/admin/dashboard-data', adminMiddleware, async (req, res, next) => 
       Withdraw.find().populate('userId').sort({ createdAt: -1 }).lean(),
       Deposit.find().populate('advertiserId').sort({ createdAt: -1 }).lean(),
       User.find().sort({ createdAt: -1 }).limit(100).lean(),
-      User.aggregate([
-        { $group: { _id: null, totalPending: {$sum: "$pendingBalance" }, totalAvailable: { $sum: "$availableBalance" }, totalUsers: { $sum: 1 } } }
-      ]),
+      User.aggregate([{ $group: { _id: null, totalPending: {$sum: "$pendingBalance" }, totalAvailable: { $sum: "$availableBalance" }, totalUsers: { $sum: 1 } } }]),
       Ad.countDocuments()
     ]);
-
     res.json({ success: true, withdraws, deposits, users, stats: { ...(stats[0] || {}), totalAds } });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 app.get('/api/admin/users', adminMiddleware, async (req, res, next) => {
   try {
     const users = await User.find().sort({ createdAt: -1 }).lean();
     res.json({ success: true, users });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 app.get('/api/admin/links', adminMiddleware, async (req, res, next) => {
   try {
     const links = await Link.find().populate('userId', 'username telegramId').sort({ createdAt: -1 }).lean();
     res.json({ success: true, links });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 app.get('/api/admin/ads', adminMiddleware, async (req, res, next) => {
   try {
     const ads = await Ad.find().populate('userId', 'username telegramId').sort({ createdAt: -1 }).lean();
     res.json({ success: true, ads });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 app.delete('/api/admin/links/:id', adminMiddleware, async (req, res, next) => {
@@ -1342,9 +1237,7 @@ app.delete('/api/admin/links/:id', adminMiddleware, async (req, res, next) => {
     if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود' });
     await safeRedisDel(`link:data:${link.shortCode}`);
     res.json({ success: true, message: 'تم حذف الرابط بنجاح' });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 app.delete('/api/admin/ads/:id', adminMiddleware, async (req, res, next) => {
@@ -1354,9 +1247,7 @@ app.delete('/api/admin/ads/:id', adminMiddleware, async (req, res, next) => {
     const ad = await Ad.findByIdAndDelete(adId);
     if (!ad) return res.status(404).json({ success: false, error: 'الإعلان غير موجود' });
     res.json({ success: true, message: 'تم حذف الإعلان بنجاح' });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 app.post('/api/admin/deposit/action', adminMiddleware, async (req, res, next) => {
@@ -1379,19 +1270,12 @@ app.post('/api/admin/deposit/action', adminMiddleware, async (req, res, next) =>
     }
 
     deposit.status = action;
-    if (action === 'rejected') {
-      deposit.rejectReason = String(reason || 'لم يتم تحديد سبب').trim();
-    }
+    if (action === 'rejected') deposit.rejectReason = String(reason || 'لم يتم تحديد سبب').trim();
     await deposit.save({ session });
 
     if (action === 'approved') {
       const targetUserId = deposit.userId || deposit.advertiserId?._id || deposit.advertiserId;
-      await User.findByIdAndUpdate(
-        targetUserId,
-        { $inc: { availableBalance: deposit.amount } },
-        { session }
-      );
-
+      await User.findByIdAndUpdate(targetUserId, { $inc: { availableBalance: deposit.amount } }, { session });
       sendTelegramNotification(
         deposit.advertiserTelegramId || deposit.advertiserId?.telegramId,
         `🎉 <b>تم تأكيد الإيداع!</b>\nتمت إضافة <code>$${deposit.amount}</code> إلى رصيدك المتاح.`
@@ -1399,7 +1283,7 @@ app.post('/api/admin/deposit/action', adminMiddleware, async (req, res, next) =>
     } else {
       sendTelegramNotification(
         deposit.advertiserTelegramId || deposit.advertiserId?.telegramId,
-        `❌ <b>تم رفض طلب الإيداع</b>\nالمبلغ: <code>$${deposit.amount}</code>\n⚠️ <b>السبب:</b> ${deposit.rejectReason}\n\nالدعم: ${CONFIG.SUPPORT_USERNAME}`
+        `❌ <b>تم رفض طلب الإيداع</b>\nالسبب: ${deposit.rejectReason}`
       );
     }
 
@@ -1433,96 +1317,21 @@ app.post('/api/admin/withdraw/action', adminMiddleware, async (req, res, next) =
     }
 
     withdraw.status = action;
-    if (action === 'rejected') {
-      withdraw.rejectReason = String(reason || 'لم يتم تحديد سبب').trim();
-    }
+    if (action === 'rejected') withdraw.rejectReason = String(reason || 'لم يتم تحديد سبب').trim();
     await withdraw.save({ session });
 
     const withdrawUserId = withdraw.userId?._id || withdraw.userId;
     const withdrawTgId = withdraw.telegramId || withdraw.userId?.telegramId;
 
     if (action === 'rejected') {
-      await User.findByIdAndUpdate(
-        withdrawUserId, 
-        { $inc: { availableBalance: withdraw.amount } }, 
-        { session }
-      );
-
-      sendTelegramNotification(
-        withdrawTgId,
-        `❌ <b>تم رفض طلب السحب</b>\nإجمالي المبلغ: <code>$${withdraw.amount}</code>\n⚠️ <b>السبب:</b> ${withdraw.rejectReason}\nتم إعادة المبلغ لرصيدك المتاح.\nالدعم: ${CONFIG.SUPPORT_USERNAME}`
-      );
+      await User.findByIdAndUpdate(withdrawUserId, { $inc: { availableBalance: withdraw.amount } }, { session });
+      sendTelegramNotification(withdrawTgId, `❌ <b>تم رفض طلب السحب</b>\nالسبب: ${withdraw.rejectReason}\nتم إعادة المبلغ لرصيدك.`);
     } else if (action === 'approved') {
-      sendTelegramNotification(
-        withdrawTgId,
-        `🎉 <b>تمت الموافقة على السحب!</b>\nإجمالي المبلغ: <code>$${withdraw.amount}</code>\nالصافي المحول: <code>$${withdraw.netAmount}</code>\nالشبكة: <code>$${withdraw.network}</code>\nشكراً لاستخدامك منصتنا!`
-      );
+      sendTelegramNotification(withdrawTgId, `🎉 <b>تمت الموافقة على السحب!</b>\nالصافي المحول: <code>$${withdraw.netAmount}</code>`);
     }
 
     await session.commitTransaction();
     res.json({ success: true, withdraw });
-  } catch (err) {
-    await session.abortTransaction();
-    next(err);
-  } finally {
-    session.endSession();
-  }
-});
-
-app.post('/api/admin/distribute-revenue', adminMiddleware, async (req, res, next) => {
-  const session = await mongoose.startSession();
-  try {
-    session.startTransaction();
-    const { totalRevenue } = req.body;
-    const revenue = Number(totalRevenue);
-
-    if (isNaN(revenue) || revenue <= 0) {
-      await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'مبلغ الإيرادات غير صالح' });
-    }
-
-    const aggregateTotal = await Link.aggregate([
-      { $group: { _id: null, total: { $sum: '$validImpressions' } } }
-    ]).session(session);
-
-    const totalImp = aggregateTotal[0]?.total || 0;
-    if (totalImp === 0) {
-      await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'لا توجد مشاهدات مؤكدة لتوزيع الأرباح' });
-    }
-
-    const links = await Link.find({ validImpressions: { $gt: 0 } }).populate('userId').session(session);
-    
-    const releaseDate = new Date();
-    releaseDate.setDate(releaseDate.getDate() + 1);
-
-    for (let link of links) {
-      let earned = Number(((link.validImpressions / totalImp) * revenue).toFixed(4));
-      const linkOwnerId = link.userId?._id || link.userId;
-      const linkOwnerTgId = link.userId?.telegramId || link.publisherTelegramId;
-
-      if (link.userId && link.userId.referredBy) {
-        const refBonus = Number((earned * 0.10).toFixed(4));
-        earned = Number((earned - refBonus).toFixed(4));
-
-        await User.findByIdAndUpdate(
-          link.userId.referredBy,
-          { $inc: { availableBalance: refBonus, referralEarnings: refBonus } },
-          { session }
-        );
-      }
-
-      if (linkOwnerId) {
-        await User.findByIdAndUpdate(linkOwnerId, { $inc: { pendingBalance: earned } }, { session });
-        await EarningsHold.create([{ userId: linkOwnerId, telegramId: linkOwnerTgId, amount: earned, releaseAt: releaseDate }], { session });
-      }
-
-      link.validImpressions = 0;
-      await link.save({ session });
-    }
-
-    await session.commitTransaction();
-    res.json({ success: true, message: `تم توزيع $${revenue} بنجاح على ${links.length} رابطاً.` });
   } catch (err) {
     await session.abortTransaction();
     next(err);
@@ -1543,52 +1352,37 @@ app.post('/api/admin/user/toggle-ban', adminMiddleware, async (req, res, next) =
     await user.save();
 
     if (user.isBanned) {
-      sendTelegramNotification(user.telegramId, `🚫 <b>تنبيه من الإدارة:</b> تم حظر حسابك بسبب مخالفة الشروط.\nالدعم: ${CONFIG.SUPPORT_USERNAME}`);
+      sendTelegramNotification(user.telegramId, `🚫 <b>تنبيه:</b> تم حظر حسابك بسبب مخالفة الشروط.`);
     }
 
     res.json({ success: true, isBanned: user.isBanned });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
-// --- Automated Cron Task for Earnings Settlement ---
+// --- Automated Cron Task ---
 if (!process.env.VERCEL) {
   cron.schedule('0 0 * * *', async () => {
     try {
       const readyHolds = await EarningsHold.find({ releaseAt: { $lte: new Date() }, isReleased: false }).lean();
-
       for (let hold of readyHolds) {
         const session = await mongoose.startSession();
         try {
           session.startTransaction();
-          
           const userUpdate = await User.findByIdAndUpdate(
             hold.userId,
             { $inc: { pendingBalance: -hold.amount, availableBalance: hold.amount } },
             { session, new: true }
           );
-
           await EarningsHold.findByIdAndUpdate(hold._id, { isReleased: true }, { session });
-
           await session.commitTransaction();
-
           if (userUpdate && userUpdate.telegramId) {
-            sendTelegramNotification(
-              userUpdate.telegramId,
-              `✅ <b>تم إطلاق الأرباح!</b>\nتم تحويل <code>$${hold.amount.toFixed(4)}</code> إلى رصيدك المتاح.`
-            );
+            sendTelegramNotification(userUpdate.telegramId, `✅ <b>تم إطلاق الأرباح!</b>\nتم تحويل <code>$${hold.amount.toFixed(4)}</code> إلى رصيدك المتاح.`);
           }
         } catch (err) {
           await session.abortTransaction();
-          logger.error(`Error processing hold release for ID ${hold._id}: ${err.message}`);
-        } finally {
-          session.endSession();
-        }
+        } finally { session.endSession(); }
       }
-    } catch (err) {
-      logger.error('❌ Error executing Cron Settlement: ' + err.message);
-    }
+    } catch (err) {}
   });
 }
 
@@ -1619,11 +1413,8 @@ app.get('*', (req, res) => {
 // ==================================================
 app.use((err, req, res, next) => {
   logger.error('Unhandled Application Error:', err);
-
   const statusCode = err.status || err.statusCode || 500;
-  const message = process.env.NODE_ENV === 'production' 
-    ? 'حدث خطأ غير متوقع في الخادم' 
-    : (err.message || 'خطأ داخلي');
+  const message = process.env.NODE_ENV === 'production' ? 'حدث خطأ غير متوقع في الخادم' : (err.message || 'خطأ داخلي');
 
   res.status(statusCode).json({
     success: false,
@@ -1632,13 +1423,8 @@ app.use((err, req, res, next) => {
   });
 });
 
-process.on('uncaughtException', (err) => {
-  logger.error('Uncaught Exception Detected: ' + err.stack);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
-});
+process.on('uncaughtException', (err) => { logger.error('Uncaught Exception: ' + err.stack); });
+process.on('unhandledRejection', (reason, promise) => { logger.error('Unhandled Rejection:', reason); });
 
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
   const PORT = process.env.PORT || 3000;
