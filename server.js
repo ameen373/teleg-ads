@@ -272,7 +272,7 @@ const isPhishingOrMalicious = (url) => {
 };
 
 // =========================================================================
-// --- User Identification & Authentication Middleware (Robust userId / userld enforcement) ---
+// --- User Identification & Authentication Middleware (Robust Upsert & Multi-Source Extraction) ---
 // =========================================================================
 const resolveUserId = async (req, res, next) => {
   try {
@@ -280,35 +280,38 @@ const resolveUserId = async (req, res, next) => {
 
     let user = null;
 
+    // 1. Try Bearer JWT Token
     if (!rawUserId) {
       const authHeader = req.headers.authorization;
       if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.split(' ')[1];
         try {
           const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
-          rawUserId = decoded.userId;
+          rawUserId = decoded.userId || decoded.telegramId;
         } catch (err) {}
       }
     }
 
-    if (!rawUserId) {
-      const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData;
-      if (initData) {
-        const telegramUser = verifyTelegramData(initData);
-        if (telegramUser) {
-          const tgId = String(telegramUser.id);
-          user = await User.findOne({ telegramId: tgId });
-          if (!user) {
-            user = await User.create({
-              telegramId: tgId,
-              username: telegramUser.username || `User_${tgId.slice(-4)}`,
-              language: telegramUser.language_code || CONFIG.DEFAULT_LANGUAGE
-            });
-          }
+    // 2. Try Telegram initData verification
+    const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData;
+    if (initData) {
+      const telegramUser = verifyTelegramData(initData);
+      if (telegramUser && telegramUser.id) {
+        const tgId = String(telegramUser.id).trim();
+        user = await User.findOne({ telegramId: tgId });
+        if (!user) {
+          user = await User.create({
+            telegramId: tgId,
+            username: telegramUser.username || `User_${tgId.slice(-4)}`,
+            firstName: telegramUser.first_name || '',
+            lastName: telegramUser.last_name || '',
+            language: telegramUser.language_code || CONFIG.DEFAULT_LANGUAGE
+          });
         }
       }
     }
 
+    // 3. Try resolving from rawUserId (ObjectId or telegramId)
     if (!user && rawUserId) {
       const cleanRawId = String(rawUserId).trim();
       if (mongoose.Types.ObjectId.isValid(cleanRawId)) {
@@ -317,6 +320,7 @@ const resolveUserId = async (req, res, next) => {
       if (!user) {
         user = await User.findOne({ telegramId: cleanRawId });
       }
+      // If it looks like a numeric Telegram ID, auto-create via upsert
       if (!user && /^\d+$/.test(cleanRawId)) {
         user = await User.create({
           telegramId: cleanRawId,
@@ -326,8 +330,9 @@ const resolveUserId = async (req, res, next) => {
       }
     }
 
+    // 4. Fallback: If still no user found, but initData had a fallback or demo headers exist
     if (!user) {
-      return res.status(401).json({ success: false, error: 'معرف المستخدم غير صالح أو مفقود (userId/userld)' });
+      return res.status(401).json({ success: false, error: 'انتهت الجلسة أو حدث خطا في التحقق من المستخدم' });
     }
 
     if (user.isBanned) {
@@ -339,7 +344,7 @@ const resolveUserId = async (req, res, next) => {
     next();
   } catch (err) {
     logger.error('Error in resolveUserId middleware:', err);
-    return res.status(401).json({ success: false, error: 'انتهت الجلسة أو حدث خطأ في التحقق من المستخدم' });
+    return res.status(401).json({ success: false, error: 'انتهت الجلسة أو حدث خطا في التحقق من المستخدم' });
   }
 };
 
@@ -396,7 +401,7 @@ const handleLogin = async (req, res, next) => {
     const bodyId = req.body?.userId || req.body?.userld || req.body?.telegramId || req.query?.userId || req.query?.userld || req.query?.telegramId;
     const tgId = telegramUser 
       ? String(telegramUser.id) 
-      : (bodyId ? String(bodyId).trim() : (process.env.NODE_ENV !== 'production' ? String(req.headers['x-demo-user-id'] || '') : null));
+      : (bodyId ? String(bodyId).trim() : null);
     const { referrerId } = req.body;
 
     if (!tgId) return res.status(401).json({ success: false, error: 'بيانات الاعتماد الخاصة بتليجرام غير صالحة' });
