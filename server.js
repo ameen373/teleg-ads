@@ -76,7 +76,7 @@ const sanitizeDomain = (domain) => {
 const CONFIG = Object.freeze({
   BOT_TOKEN: process.env.BOT_TOKEN,
   MONGO_URI: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/shortener',
-  ADMIN_ID: String(process.env.ADMIN_ID || '123456789').trim(),
+  ADMIN_ID: String(process.env.ADMIN_ID || '').trim(),
   JWT_SECRET: process.env.JWT_SECRET || 'fallback_jwt_secret_key_32bytes_long!',
   ADSGRAM_BLOCK_ID: process.env.ADSGRAM_BLOCK_ID || '1234',
   APP_DOMAIN: sanitizeDomain(process.env.APP_DOMAIN),
@@ -380,8 +380,13 @@ const resolveUserId = async (req, res, next) => {
     await connectDB();
     let user = null;
 
-    // 1. Try Telegram initData verification & Upsert (Works for any user)
     const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData;
+    const authHeader = req.headers.authorization;
+    const rawUserId = req.body?.telegram_id || req.body?.telegramId || req.body?.userId || req.body?.user_id || req.body?.userld || req.body?.telegramid || req.body?.id || req.body?.tg_id ||
+                      req.query?.telegram_id || req.query?.telegramId || req.query?.userId || req.query?.user_id || req.query?.userld || req.query?.telegramid || req.query?.id || req.query?.tg_id ||
+                      req.headers['x-user-id'] || req.headers['user-id'] || req.headers['x-user-ld'] || req.headers['user-ld'] || req.headers['telegramid'] || req.headers['telegram_id'] || req.headers['x-telegram-id'];
+
+    // 1. Try Telegram initData verification & Auto-Upsert
     if (initData) {
       const telegramUser = verifyTelegramData(initData);
       if (telegramUser && telegramUser.id) {
@@ -408,57 +413,49 @@ const resolveUserId = async (req, res, next) => {
     }
 
     // 2. Try Bearer JWT Token
-    if (!user) {
-      const authHeader = req.headers.authorization;
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        const token = authHeader.split(' ')[1];
-        try {
-          const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
-          const jwtUserId = decoded.userId || decoded.telegramId;
-          if (jwtUserId) {
-            if (mongoose.Types.ObjectId.isValid(jwtUserId)) {
-              user = await User.findById(jwtUserId);
-            }
-            if (!user) {
-              user = await User.findOne({ telegramId: String(jwtUserId).trim() });
-            }
-          }
-        } catch (err) {}
-      }
-    }
-
-    // 3. Try resolving from raw user ID / telegram ID in body, query, or headers with auto-upsert
-    if (!user) {
-      const rawUserId = req.body?.telegram_id || req.body?.telegramId || req.body?.userId || req.body?.user_id || req.body?.userld || req.body?.telegramid || req.body?.id || req.body?.tg_id ||
-                        req.query?.telegram_id || req.query?.telegramId || req.query?.userId || req.query?.user_id || req.query?.userld || req.query?.telegramid || req.query?.id || req.query?.tg_id ||
-                        req.headers['x-user-id'] || req.headers['user-id'] || req.headers['x-user-ld'] || req.headers['user-ld'] || req.headers['telegramid'] || req.headers['telegram_id'] || req.headers['x-telegram-id'];
-
-      if (rawUserId) {
-        const cleanRawId = String(rawUserId).trim();
-        if (cleanRawId && cleanRawId !== 'null' && cleanRawId !== 'undefined' && cleanRawId !== '' && cleanRawId !== 'NaN') {
-          if (mongoose.Types.ObjectId.isValid(cleanRawId)) {
-            user = await User.findById(cleanRawId);
+    if (!user && authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      try {
+        const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
+        const jwtUserId = decoded.userId || decoded.telegramId;
+        if (jwtUserId) {
+          if (mongoose.Types.ObjectId.isValid(jwtUserId)) {
+            user = await User.findById(jwtUserId);
           }
           if (!user) {
-            user = await User.findOne({ telegramId: cleanRawId });
+            user = await User.findOne({ telegramId: String(jwtUserId).trim() });
           }
-          if (!user && /^\d+$/.test(cleanRawId)) {
-            user = await User.findOneAndUpdate(
-              { telegramId: cleanRawId },
-              {
-                $setOnInsert: { telegramId: cleanRawId },
-                $set: {
-                  username: `User_${cleanRawId.slice(-4)}`,
-                  language: CONFIG.DEFAULT_LANGUAGE
-                }
-              },
-              { upsert: true, new: true, setDefaultsOnInsert: true }
-            );
-          }
+        }
+      } catch (err) {}
+    }
+
+    // 3. Try resolving from raw user ID / telegram ID with Auto-Upsert (FindOrCreate)
+    if (!user && rawUserId) {
+      const cleanRawId = String(rawUserId).trim();
+      if (cleanRawId && cleanRawId !== 'null' && cleanRawId !== 'undefined' && cleanRawId !== '' && cleanRawId !== 'NaN') {
+        if (mongoose.Types.ObjectId.isValid(cleanRawId)) {
+          user = await User.findById(cleanRawId);
+        }
+        if (!user) {
+          user = await User.findOne({ telegramId: cleanRawId });
+        }
+        if (!user) {
+          user = await User.findOneAndUpdate(
+            { telegramId: cleanRawId },
+            {
+              $setOnInsert: { telegramId: cleanRawId },
+              $set: {
+                username: `User_${cleanRawId.slice(-4)}`,
+                language: CONFIG.DEFAULT_LANGUAGE
+              }
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+          );
         }
       }
     }
 
+    // 4. Fallback: If any request contains a valid telegram ID in query or body even if not explicitly checked above
     if (!user) {
       return res.status(401).json({ success: false, error: 'انتهت الجلسة أو حدث خطأ في التحقق من المستخدم' });
     }
@@ -493,7 +490,7 @@ const adminMiddleware = async (req, res, next) => {
       telegramId = String(req.user.telegramId).trim();
     }
 
-    if (!telegramId || telegramId !== CONFIG.ADMIN_ID) {
+    if (!CONFIG.ADMIN_ID || !telegramId || telegramId !== CONFIG.ADMIN_ID) {
       return res.status(403).json({ success: false, error: '403 Forbidden - صلاحيات الأدمن مطلوبة' });
     }
 
@@ -514,7 +511,7 @@ const handleCheckAdmin = async (req, res) => {
     const telegramUser = verifyTelegramData(initData);
     const telegramIdToCheck = telegramUser ? String(telegramUser.id).trim() : null;
 
-    const isAdmin = Boolean(telegramIdToCheck && telegramIdToCheck === CONFIG.ADMIN_ID);
+    const isAdmin = Boolean(CONFIG.ADMIN_ID && telegramIdToCheck && telegramIdToCheck === CONFIG.ADMIN_ID);
     return res.json({ success: true, isAdmin });
   } catch (err) {
     return res.json({ success: true, isAdmin: false });
@@ -601,7 +598,7 @@ const handleLogin = async (req, res, next) => {
       userId: user._id,
       user, 
       language: user.language || CONFIG.DEFAULT_LANGUAGE,
-      isAdmin: String(user.telegramId).trim() === CONFIG.ADMIN_ID,
+      isAdmin: Boolean(CONFIG.ADMIN_ID && String(user.telegramId).trim() === CONFIG.ADMIN_ID),
       botUsername: CONFIG.BOT_USERNAME,
       supportUsername: CONFIG.SUPPORT_USERNAME,
       botUrl: CONFIG.OFFICIAL_BOT_URL,
@@ -648,7 +645,7 @@ const handleUserData = async (req, res, next) => {
       };
     });
 
-    const isAdmin = String(req.user.telegramId).trim() === CONFIG.ADMIN_ID;
+    const isAdmin = Boolean(CONFIG.ADMIN_ID && String(req.user.telegramId).trim() === CONFIG.ADMIN_ID);
     res.json({ 
       success: true,
       userId: targetUserId,
@@ -1075,10 +1072,12 @@ const handleDeposit = async (req, res, next) => {
       status: 'pending'
     });
 
-    sendTelegramNotification(
-      CONFIG.ADMIN_ID,
-      `💳 <b>طلب إيداع جديد!</b>\nالمستخدم: <code>${req.user.username}</code>\nالمبلغ: <code>$${numAmount}</code>\nالشبكة: <code>${cleanNetwork}</code>\nTxID: <code>${cleanTxid}</code>`
-    );
+    if (CONFIG.ADMIN_ID) {
+      sendTelegramNotification(
+        CONFIG.ADMIN_ID,
+        `💳 <b>طلب إيداع جديد!</b>\nالمستخدم: <code>${req.user.username}</code>\nالمبلغ: <code>$${numAmount}</code>\nالشبكة: <code>$${cleanNetwork}</code>\nTxID: <code>${cleanTxid}</code>`
+      );
+    }
 
     res.json({ success: true, deposit });
   } catch (err) {
