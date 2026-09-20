@@ -31,7 +31,7 @@ app.set('trust proxy', 1);
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data', 'telegram-init-data', 'X-Requested-With', 'x-user-id', 'user-id', 'x-user-ld', 'user-ld', 'telegramid'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data', 'telegram-init-data', 'X-Requested-With', 'x-user-id', 'user-id', 'x-user-ld', 'user-ld', 'telegramid', 'telegram_id'],
   credentials: true
 }));
 app.options('*', cors());
@@ -333,7 +333,10 @@ const isPhishingOrMalicious = (url) => {
 const resolveUserId = async (req, res, next) => {
   try {
     await connectDB();
-    let rawUserId = req.body?.userId || req.body?.userld || req.body?.telegramId || req.query?.userId || req.query?.userld || req.query?.telegramId || req.headers['x-user-id'] || req.headers['user-id'] || req.headers['x-user-ld'] || req.headers['user-ld'] || req.headers['telegramid'];
+    let rawUserId = req.body?.telegram_id || req.body?.telegramId || req.body?.userId || req.body?.userld || 
+                    req.query?.telegram_id || req.query?.telegramId || req.query?.userId || req.query?.userld || 
+                    req.headers['x-user-id'] || req.headers['user-id'] || req.headers['x-user-ld'] || 
+                    req.headers['user-ld'] || req.headers['telegramid'] || req.headers['telegram_id'];
 
     let user = null;
 
@@ -343,24 +346,26 @@ const resolveUserId = async (req, res, next) => {
       const telegramUser = verifyTelegramData(initData);
       if (telegramUser && telegramUser.id) {
         const tgId = String(telegramUser.id).trim();
-        const currentUsername = telegramUser.username || `User_${tgId.slice(-4)}`;
-        const userLanguage = telegramUser.language_code || CONFIG.DEFAULT_LANGUAGE;
+        if (tgId && tgId !== 'null' && tgId !== 'undefined' && tgId !== '') {
+          const currentUsername = telegramUser.username || `User_${tgId.slice(-4)}`;
+          const userLanguage = telegramUser.language_code || CONFIG.DEFAULT_LANGUAGE;
 
-        user = await User.findOneAndUpdate(
-          { telegramId: tgId },
-          {
-            $setOnInsert: {
-              telegramId: tgId
+          user = await User.findOneAndUpdate(
+            { telegramId: tgId },
+            {
+              $setOnInsert: {
+                telegramId: tgId
+              },
+              $set: {
+                username: currentUsername,
+                firstName: telegramUser.first_name || '',
+                lastName: telegramUser.last_name || '',
+                language: userLanguage
+              }
             },
-            $set: {
-              username: currentUsername,
-              firstName: telegramUser.first_name || '',
-              lastName: telegramUser.last_name || '',
-              language: userLanguage
-            }
-          },
-          { upsert: true, new: true, setDefaultsOnInsert: true }
-        );
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+          );
+        }
       }
     }
 
@@ -379,29 +384,31 @@ const resolveUserId = async (req, res, next) => {
     // 3. Try resolving from rawUserId with automatic upsert
     if (!user && rawUserId) {
       const cleanRawId = String(rawUserId).trim();
-      if (mongoose.Types.ObjectId.isValid(cleanRawId)) {
-        user = await User.findById(cleanRawId);
-      }
-      if (!user) {
-        user = await User.findOne({ telegramId: cleanRawId });
-      }
-      if (!user && /^\d+$/.test(cleanRawId)) {
-        user = await User.findOneAndUpdate(
-          { telegramId: cleanRawId },
-          {
-            $setOnInsert: { telegramId: cleanRawId },
-            $set: {
-              username: `User_${cleanRawId.slice(-4)}`,
-              language: CONFIG.DEFAULT_LANGUAGE
-            }
-          },
-          { upsert: true, new: true, setDefaultsOnInsert: true }
-        );
+      if (cleanRawId && cleanRawId !== 'null' && cleanRawId !== 'undefined' && cleanRawId !== '' && cleanRawId !== 'NaN') {
+        if (mongoose.Types.ObjectId.isValid(cleanRawId)) {
+          user = await User.findById(cleanRawId);
+        }
+        if (!user) {
+          user = await User.findOne({ telegramId: cleanRawId });
+        }
+        if (!user && /^\d+$/.test(cleanRawId)) {
+          user = await User.findOneAndUpdate(
+            { telegramId: cleanRawId },
+            {
+              $setOnInsert: { telegramId: cleanRawId },
+              $set: {
+                username: `User_${cleanRawId.slice(-4)}`,
+                language: CONFIG.DEFAULT_LANGUAGE
+              }
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+          );
+        }
       }
     }
 
     if (!user) {
-      return res.status(401).json({ success: false, error: 'انتهت الجلسة أو حدث خطا في التحقق من المستخدم' });
+      return res.status(401).json({ success: false, error: 'انتهت الجلسة أو حدث خطأ في التحقق من المستخدم' });
     }
 
     if (user.isBanned) {
@@ -413,7 +420,7 @@ const resolveUserId = async (req, res, next) => {
     next();
   } catch (err) {
     logger.error('Error in resolveUserId middleware:', err);
-    return res.status(401).json({ success: false, error: 'انتهت الجلسة أو حدث خطا في التحقق من المستخدم' });
+    return res.status(401).json({ success: false, error: 'انتهت الجلسة أو حدث خطأ في التحقق من المستخدم' });
   }
 };
 
@@ -472,16 +479,31 @@ const handleLogin = async (req, res, next) => {
     const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData;
     const telegramUser = verifyTelegramData(initData);
 
-    const bodyId = req.body?.userId || req.body?.userld || req.body?.telegramId || req.query?.userId || req.query?.userld || req.query?.telegramId;
-    let tgId = telegramUser 
-      ? String(telegramUser.id) 
-      : (bodyId ? String(bodyId).trim() : null);
+    const rawId = telegramUser?.id || 
+                  req.body?.telegram_id || 
+                  req.body?.telegramId || 
+                  req.body?.userId || 
+                  req.body?.userld || 
+                  req.query?.telegram_id || 
+                  req.query?.telegramId || 
+                  req.query?.userId || 
+                  req.query?.userld ||
+                  req.headers['x-user-id'] || 
+                  req.headers['user-id'] || 
+                  req.headers['telegramid'] || 
+                  req.headers['telegram_id'];
 
+    let tgId = rawId ? String(rawId).trim() : null;
+
+    // التحقق الصارم: إذا لم يصل المعرف أو كان غير صالح يرجع خطأ 400 فوراً دون استعلام
     if (!tgId || tgId === 'null' || tgId === 'undefined' || tgId === '' || tgId === 'NaN') {
-      return res.status(400).json({ success: false, error: 'معرف تليجرام (telegram_id) مفقود أو غير صالح' });
+      return res.status(400).json({ 
+        success: false, 
+        error: 'معرف تليجرام (telegram_id) مفقود أو غير صالح' 
+      });
     }
 
-    const { referrerId } = req.body;
+    const { referrerId } = req.body || {};
 
     const currentUsername = telegramUser?.username || `User_${tgId.slice(-4)}`;
     const userLanguage = telegramUser?.language_code || CONFIG.DEFAULT_LANGUAGE;
@@ -503,7 +525,12 @@ const handleLogin = async (req, res, next) => {
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
-    if (user.isBanned) return res.status(403).json({ success: false, error: `حسابك معطل بسبب مخالفة الشروط. التواصل مع الدعم: ${CONFIG.SUPPORT_USERNAME}` });
+    if (user.isBanned) {
+      return res.status(403).json({ 
+        success: false, 
+        error: `حسابك معطل بسبب مخالفة الشروط. التواصل مع الدعم: ${CONFIG.SUPPORT_USERNAME}` 
+      });
+    }
 
     const token = jwt.sign(
       { userId: user._id, telegramId: user.telegramId, role: user.role },
@@ -1609,7 +1636,9 @@ app.post('/api/admin/user/toggle-ban', adminMiddleware, async (req, res, next) =
     await user.save();
 
     if (user.isBanned) {
-      sendTelegramNotification(user.telegramId, `🚫 <b>تنبيه من الإدارة:</b> تم حظر حسابك بسبب مخالفة الشروط.\nالدعم: ${CONFIG.SUPPORT_USERNAME}`);
+      sendTelegramNotification(user.telegramId, `🚫 <b>تنبيه من الإدارة:</b> تم حظر حسابك بسبب مخالفة الشروط.`);
+    } else {
+      sendTelegramNotification(user.telegramId, `✅ <b>تنبيه من الإدارة:</b> تم إلغاء حظر حسابك واستعادة الوصول للنظام.`);
     }
 
     res.json({ success: true, isBanned: user.isBanned });
@@ -1618,69 +1647,65 @@ app.post('/api/admin/user/toggle-ban', adminMiddleware, async (req, res, next) =
   }
 });
 
-// --- Automated Cron Task for Earnings Settlement ---
-if (!process.env.VERCEL) {
-  cron.schedule('0 0 * * *', async () => {
-    try {
-      await connectDB();
-      const readyHolds = await EarningsHold.find({ releaseAt: { $lte: new Date() }, isReleased: false }).lean();
+// =========================================================================
+// --- Cron Job: Auto-Release Earnings Holds (Runs Hourly) ---
+// =========================================================================
+cron.schedule('0 * * * *', async () => {
+  try {
+    await connectDB();
+    const now = new Date();
+    const holdsToRelease = await EarningsHold.find({ releaseAt: { $lte: now }, isReleased: false });
 
-      for (let hold of readyHolds) {
-        const session = await mongoose.startSession();
-        try {
-          session.startTransaction();
-          
-          const userUpdate = await User.findByIdAndUpdate(
-            hold.userId,
-            { $inc: { pendingBalance: -hold.amount, availableBalance: hold.amount } },
-            { session, new: true }
-          );
-
-          await EarningsHold.findByIdAndUpdate(hold._id, { isReleased: true }, { session });
-
-          await session.commitTransaction();
-
-          if (userUpdate && userUpdate.telegramId) {
-            sendTelegramNotification(
-              userUpdate.telegramId,
-              `🎉 <b>تم تحرير أرباحك المعلقة!</b>\nتمت إضافة <code>$${hold.amount}</code> إلى رصيدك المتاح.`
-            );
-          }
-        } catch (err) {
-          await session.abortTransaction();
-          logger.error('Error in earnings release loop:', err);
-        } finally {
-          session.endSession();
-        }
+    for (const hold of holdsToRelease) {
+      const session = await mongoose.startSession();
+      try {
+        session.startTransaction();
+        await User.findByIdAndUpdate(
+          hold.userId,
+          { 
+            $inc: { 
+              pendingBalance: -hold.amount, 
+              availableBalance: hold.amount,
+              totalEarned: hold.amount 
+            } 
+          },
+          { session }
+        );
+        hold.isReleased = true;
+        await hold.save({ session });
+        await session.commitTransaction();
+      } catch (e) {
+        await session.abortTransaction();
+      } finally {
+        session.endSession();
       }
-    } catch (err) {
-      logger.error('Error in daily cron task:', err);
     }
-  });
-}
-
-// --- Global 404 Handler ---
-app.use((req, res, next) => {
-  if (req.accepts('html')) {
-    return res.status(404).sendFile(path.join(__dirname, 'views.html'));
+  } catch (err) {
+    logger.error('Error running earnings release cron:', err);
   }
-  res.status(404).json({ success: false, error: 'المسار غير موجود (404 Not Found)' });
 });
 
+// =========================================================================
 // --- Centralized Error Handling Middleware ---
+// =========================================================================
 app.use((err, req, res, next) => {
-  logger.error('Unhandled Error:', err);
-  res.status(err.status || 500).json({
+  logger.error(`Unhandled Server Error: ${err.message}`, { stack: err.stack });
+  if (res.headersSent) {
+    return next(err);
+  }
+  return res.status(500).json({
     success: false,
-    error: err.message || 'حدث خطأ داخلي في الخادم'
+    error: err.message || 'حدث خطأ غير متوقع في الخادم'
   });
 });
 
-// --- Server Startup (Local / Production) ---
+// =========================================================================
+// --- Server Startup & Standalone Main Module Export ---
+// =========================================================================
 const PORT = process.env.PORT || 3000;
-if (!process.env.VERCEL) {
+if (require.main === module) {
   app.listen(PORT, () => {
-    logger.info(`🚀 Server running on port ${PORT}`);
+    logger.info(`🚀 Telega.ads Server is running on port ${PORT}`);
   });
 }
 
