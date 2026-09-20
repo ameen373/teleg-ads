@@ -250,13 +250,27 @@ async function sendTelegramNotification(telegramId, message) {
 
 // --- Cryptographic Telegram Authenticator (Multi-Tenant Robust Edition) ---
 function verifyTelegramData(initData) {
-  if (!initData || initData === 'undefined' || initData === 'null' || typeof initData !== 'string') {
-    if (typeof initData === 'number' || /^\d+$/.test(String(initData || '').trim())) {
-      const idVal = Number(String(initData).trim());
-      return { id: idVal, username: `User_${String(idVal).slice(-4)}` };
+  if (!initData) return null;
+
+  if (typeof initData === 'object' && initData !== null) {
+    const idVal = Number(initData.id || initData.telegramId || initData.userId || initData.user_id);
+    if (idVal && !isNaN(idVal)) {
+      return {
+        id: idVal,
+        username: initData.username || `User_${String(idVal).slice(-4)}`,
+        first_name: initData.first_name || initData.firstName || '',
+        last_name: initData.last_name || initData.lastName || '',
+        language_code: initData.language_code || initData.language || CONFIG.DEFAULT_LANGUAGE
+      };
     }
-    return null;
   }
+
+  if (typeof initData === 'number' || /^\d+$/.test(String(initData).trim())) {
+    const idVal = Number(String(initData).trim());
+    return { id: idVal, username: `User_${String(idVal).slice(-4)}`, language_code: CONFIG.DEFAULT_LANGUAGE };
+  }
+
+  if (typeof initData !== 'string') return null;
 
   try {
     let cleanInitData = initData.trim();
@@ -264,10 +278,11 @@ function verifyTelegramData(initData) {
     // 1. Direct JSON string representing user
     if (cleanInitData.startsWith('{') && cleanInitData.endsWith('}')) {
       const parsed = JSON.parse(cleanInitData);
-      if (parsed && (parsed.id || parsed.telegramId)) {
+      if (parsed && (parsed.id || parsed.telegramId || parsed.userId || parsed.user_id)) {
+        const idVal = Number(parsed.id || parsed.telegramId || parsed.userId || parsed.user_id);
         return {
-          id: Number(parsed.id || parsed.telegramId),
-          username: parsed.username || `User_${String(parsed.id || parsed.telegramId).slice(-4)}`,
+          id: idVal,
+          username: parsed.username || `User_${String(idVal).slice(-4)}`,
           first_name: parsed.first_name || parsed.firstName || '',
           last_name: parsed.last_name || parsed.lastName || '',
           language_code: parsed.language_code || parsed.language || CONFIG.DEFAULT_LANGUAGE
@@ -278,16 +293,17 @@ function verifyTelegramData(initData) {
     // 2. Direct numeric ID string
     if (/^\d+$/.test(cleanInitData)) {
       const idVal = Number(cleanInitData);
-      return { id: idVal, username: `User_${String(idVal).slice(-4)}` };
+      return { id: idVal, username: `User_${String(idVal).slice(-4)}`, language_code: CONFIG.DEFAULT_LANGUAGE };
     }
 
-    // 3. URLSearchParams parsing (Telegram WebApp initData query string)
-    let decodedInitData = cleanInitData;
+    // 3. URLSearchParams parsing (Telegram WebApp initData query string) safely
+    let urlParams;
     try {
-      decodedInitData = decodeURIComponent(decodedInitData);
-    } catch (e) {}
+      urlParams = new URLSearchParams(cleanInitData);
+    } catch (e) {
+      urlParams = new URLSearchParams();
+    }
 
-    const urlParams = new URLSearchParams(decodedInitData);
     const userParam = urlParams.get('user');
     if (userParam) {
       let userData = userParam;
@@ -300,10 +316,11 @@ function verifyTelegramData(initData) {
           } catch (err) {}
         }
       }
-      if (userData && userData.id) {
+      if (userData && (userData.id || userData.telegramId)) {
+        const idVal = Number(userData.id || userData.telegramId);
         return {
-          id: Number(userData.id),
-          username: userData.username || `User_${String(userData.id).slice(-4)}`,
+          id: idVal,
+          username: userData.username || `User_${String(idVal).slice(-4)}`,
           first_name: userData.first_name || userData.firstName || '',
           last_name: userData.last_name || userData.lastName || '',
           language_code: userData.language_code || userData.language || CONFIG.DEFAULT_LANGUAGE
@@ -312,10 +329,11 @@ function verifyTelegramData(initData) {
     }
 
     const idParam = urlParams.get('id') || urlParams.get('telegram_id') || urlParams.get('userId') || urlParams.get('user_id');
-    if (idParam) {
+    if (idParam && /^\d+$/.test(idParam)) {
+      const idVal = Number(idParam);
       return {
-        id: Number(idParam),
-        username: urlParams.get('username') || `User_${String(idParam).slice(-4)}`,
+        id: idVal,
+        username: urlParams.get('username') || `User_${String(idVal).slice(-4)}`,
         first_name: urlParams.get('first_name') || '',
         last_name: urlParams.get('last_name') || '',
         language_code: urlParams.get('language_code') || CONFIG.DEFAULT_LANGUAGE
@@ -323,7 +341,7 @@ function verifyTelegramData(initData) {
     }
 
     // 4. Regex fallback for encoded user id in raw query
-    const matchUser = cleanInitData.match(/%22id%22%3A(\d+)/) || cleanInitData.match(/"id":(\d+)/);
+    const matchUser = cleanInitData.match(/%22id%22%3A(\d+)/) || cleanInitData.match(/"id":(\d+)/) || cleanInitData.match(/id[=:](\d+)/);
     if (matchUser && matchUser[1]) {
       const idVal = Number(matchUser[1]);
       return {
@@ -380,7 +398,7 @@ const resolveUserId = async (req, res, next) => {
     await connectDB();
     let user = null;
 
-    const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData;
+    const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData || req.body?.user;
     const authHeader = req.headers.authorization;
     const rawUserId = req.body?.telegram_id || req.body?.telegramId || req.body?.userId || req.body?.user_id || req.body?.userld || req.body?.telegramid || req.body?.id || req.body?.tg_id ||
                       req.query?.telegram_id || req.query?.telegramId || req.query?.userId || req.query?.user_id || req.query?.userld || req.query?.telegramid || req.query?.id || req.query?.tg_id ||
@@ -525,7 +543,7 @@ app.all('/check-admin', handleCheckAdmin);
 const handleLogin = async (req, res, next) => {
   try {
     await connectDB();
-    const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData;
+    const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData || req.body?.user;
     const telegramUser = verifyTelegramData(initData);
 
     const rawId = telegramUser?.id || 
