@@ -250,23 +250,23 @@ async function sendTelegramNotification(telegramId, message) {
 
 // --- Cryptographic Telegram Authenticator (Multi-Tenant Robust Edition) ---
 function verifyTelegramData(initData) {
-  if (!initData || initData === 'undefined' || initData === 'null') return null;
-  try {
-    if (typeof initData === 'number' || /^\d+$/.test(String(initData).trim())) {
+  if (!initData || initData === 'undefined' || initData === 'null' || typeof initData !== 'string') {
+    if (typeof initData === 'number' || /^\d+$/.test(String(initData || '').trim())) {
       const idVal = Number(String(initData).trim());
       return { id: idVal, username: `User_${String(idVal).slice(-4)}` };
     }
+    return null;
+  }
 
-    let decodedInitData = String(initData);
-    try {
-      decodedInitData = decodeURIComponent(decodedInitData);
-    } catch (e) {}
+  try {
+    let cleanInitData = initData.trim();
 
-    if (decodedInitData.startsWith('{') && decodedInitData.endsWith('}')) {
-      const parsed = JSON.parse(decodedInitData);
+    // 1. Direct JSON string representing user
+    if (cleanInitData.startsWith('{') && cleanInitData.endsWith('}')) {
+      const parsed = JSON.parse(cleanInitData);
       if (parsed && (parsed.id || parsed.telegramId)) {
         return {
-          id: parsed.id || parsed.telegramId,
+          id: Number(parsed.id || parsed.telegramId),
           username: parsed.username || `User_${String(parsed.id || parsed.telegramId).slice(-4)}`,
           first_name: parsed.first_name || parsed.firstName || '',
           last_name: parsed.last_name || parsed.lastName || '',
@@ -275,16 +275,43 @@ function verifyTelegramData(initData) {
       }
     }
 
+    // 2. Direct numeric ID string
+    if (/^\d+$/.test(cleanInitData)) {
+      const idVal = Number(cleanInitData);
+      return { id: idVal, username: `User_${String(idVal).slice(-4)}` };
+    }
+
+    // 3. URLSearchParams parsing (Telegram WebApp initData query string)
+    let decodedInitData = cleanInitData;
+    try {
+      decodedInitData = decodeURIComponent(decodedInitData);
+    } catch (e) {}
+
     const urlParams = new URLSearchParams(decodedInitData);
     const userParam = urlParams.get('user');
     if (userParam) {
-      const parsedUser = JSON.parse(userParam);
-      if (parsedUser && parsedUser.id) {
-        return parsedUser;
+      let userData = userParam;
+      if (typeof userData === 'string') {
+        try {
+          userData = JSON.parse(userData);
+        } catch (e) {
+          try {
+            userData = JSON.parse(decodeURIComponent(userParam));
+          } catch (err) {}
+        }
+      }
+      if (userData && userData.id) {
+        return {
+          id: Number(userData.id),
+          username: userData.username || `User_${String(userData.id).slice(-4)}`,
+          first_name: userData.first_name || userData.firstName || '',
+          last_name: userData.last_name || userData.lastName || '',
+          language_code: userData.language_code || userData.language || CONFIG.DEFAULT_LANGUAGE
+        };
       }
     }
 
-    const idParam = urlParams.get('id') || urlParams.get('telegram_id') || urlParams.get('userId');
+    const idParam = urlParams.get('id') || urlParams.get('telegram_id') || urlParams.get('userId') || urlParams.get('user_id');
     if (idParam) {
       return {
         id: Number(idParam),
@@ -292,6 +319,17 @@ function verifyTelegramData(initData) {
         first_name: urlParams.get('first_name') || '',
         last_name: urlParams.get('last_name') || '',
         language_code: urlParams.get('language_code') || CONFIG.DEFAULT_LANGUAGE
+      };
+    }
+
+    // 4. Regex fallback for encoded user id in raw query
+    const matchUser = cleanInitData.match(/%22id%22%3A(\d+)/) || cleanInitData.match(/"id":(\d+)/);
+    if (matchUser && matchUser[1]) {
+      const idVal = Number(matchUser[1]);
+      return {
+        id: idVal,
+        username: `User_${String(idVal).slice(-4)}`,
+        language_code: CONFIG.DEFAULT_LANGUAGE
       };
     }
 
@@ -342,9 +380,9 @@ const resolveUserId = async (req, res, next) => {
     await connectDB();
     let user = null;
 
-    // 1. Try Telegram initData verification & Upsert
+    // 1. Try Telegram initData verification & Upsert (Works for any user)
     const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData;
-    if (initData && initData !== 'undefined' && initData !== 'null' && initData !== '') {
+    if (initData) {
       const telegramUser = verifyTelegramData(initData);
       if (telegramUser && telegramUser.id) {
         const tgId = String(telegramUser.id).trim();
@@ -389,7 +427,7 @@ const resolveUserId = async (req, res, next) => {
       }
     }
 
-    // 3. Try resolving from raw user ID / telegram ID in body, query, or headers
+    // 3. Try resolving from raw user ID / telegram ID in body, query, or headers with auto-upsert
     if (!user) {
       const rawUserId = req.body?.telegram_id || req.body?.telegramId || req.body?.userId || req.body?.user_id || req.body?.userld || req.body?.telegramid || req.body?.id || req.body?.tg_id ||
                         req.query?.telegram_id || req.query?.telegramId || req.query?.userId || req.query?.user_id || req.query?.userld || req.query?.telegramid || req.query?.id || req.query?.tg_id ||
@@ -421,10 +459,6 @@ const resolveUserId = async (req, res, next) => {
       }
     }
 
-    // 4. Ultimate New User Auto-Provisioning Fallback:
-    // If request has no explicit header/token/ID but we can detect admin or auto-fallback if needed,
-    // otherwise return 401. To ensure new users never fail during deposit/shorten if frontend omits headers,
-    // we also check if ADMIN_ID is matched or allow auto-upsert if a valid identifier exists.
     if (!user) {
       return res.status(401).json({ success: false, error: 'انتهت الجلسة أو حدث خطأ في التحقق من المستخدم' });
     }
