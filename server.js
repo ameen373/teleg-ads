@@ -330,50 +330,23 @@ const resolveUserId = async (req, res, next) => {
 
 const adminMiddleware = async (req, res, next) => {
   try {
-    let userId = req.body?.userId || req.query?.userId || req.headers['x-user-id'] || req.headers['user-id'];
-    let telegramIdToCheck = null;
-
-    if (userId) {
-      if (mongoose.Types.ObjectId.isValid(userId)) {
-        const u = await User.findById(userId).lean();
-        if (u) telegramIdToCheck = String(u.telegramId).trim();
-      } else {
-        telegramIdToCheck = String(userId).trim();
-      }
+    const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData;
+    
+    if (!initData) {
+      return res.status(403).json({ success: false, error: '403 Forbidden - بيانات المصادقة (initData) مفقودة' });
     }
 
-    if (!telegramIdToCheck && req.user) {
-      telegramIdToCheck = String(req.user.telegramId).trim();
+    const telegramUser = verifyTelegramData(initData);
+    if (!telegramUser || !telegramUser.id) {
+      return res.status(403).json({ success: false, error: '403 Forbidden - فشل التحقق من صحة بيانات تليجرام (initData)' });
     }
 
-    if (!telegramIdToCheck) {
-      const authHeader = req.headers.authorization;
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        try {
-          const token = authHeader.split(' ')[1];
-          const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
-          if (decoded.userId && mongoose.Types.ObjectId.isValid(decoded.userId)) {
-            const u = await User.findById(decoded.userId).lean();
-            if (u) telegramIdToCheck = String(u.telegramId).trim();
-          } else if (decoded.telegramId) {
-            telegramIdToCheck = String(decoded.telegramId).trim();
-          }
-        } catch (e) {}
-      }
+    const telegramId = String(telegramUser.id).trim();
+    if (telegramId !== CONFIG.ADMIN_ID) {
+      return res.status(403).json({ success: false, error: '403 Forbidden - معرّف المستخدم لا يطابق صلاحيات الأدمن' });
     }
 
-    if (!telegramIdToCheck) {
-      const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'];
-      const telegramUser = verifyTelegramData(initData);
-      if (telegramUser) {
-        telegramIdToCheck = String(telegramUser.id).trim();
-      }
-    }
-
-    if (!telegramIdToCheck || telegramIdToCheck !== CONFIG.ADMIN_ID) {
-      return res.status(403).json({ success: false, error: '403 Forbidden - غير مصرح لك بالوصول لمسارات الأدمن' });
-    }
-
+    req.adminTelegramId = telegramId;
     next();
   } catch (err) {
     return res.status(403).json({ success: false, error: '403 Forbidden' });
@@ -385,39 +358,9 @@ const adminMiddleware = async (req, res, next) => {
 // =========================================================================
 const handleCheckAdmin = async (req, res) => {
   try {
-    let targetUserId = req.body?.userId || req.query?.userId || req.headers['x-user-id'];
-    let telegramIdToCheck = null;
-
-    if (targetUserId && mongoose.Types.ObjectId.isValid(targetUserId)) {
-      const u = await User.findById(targetUserId).lean();
-      if (u) telegramIdToCheck = String(u.telegramId).trim();
-    } else if (targetUserId) {
-      telegramIdToCheck = String(targetUserId).trim();
-    }
-
-    if (!telegramIdToCheck) {
-      const authHeader = req.headers.authorization;
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        try {
-          const token = authHeader.split(' ')[1];
-          const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
-          if (decoded.userId && mongoose.Types.ObjectId.isValid(decoded.userId)) {
-            const u = await User.findById(decoded.userId).lean();
-            if (u) telegramIdToCheck = String(u.telegramId).trim();
-          } else if (decoded.telegramId) {
-            telegramIdToCheck = String(decoded.telegramId).trim();
-          }
-        } catch (e) {}
-      }
-    }
-
-    if (!telegramIdToCheck) {
-      const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'];
-      const telegramUser = verifyTelegramData(initData);
-      if (telegramUser) {
-        telegramIdToCheck = String(telegramUser.id).trim();
-      }
-    }
+    const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData;
+    const telegramUser = verifyTelegramData(initData);
+    const telegramIdToCheck = telegramUser ? String(telegramUser.id).trim() : null;
 
     const isAdmin = Boolean(telegramIdToCheck && telegramIdToCheck === CONFIG.ADMIN_ID);
     return res.json({ success: true, isAdmin });
@@ -1286,7 +1229,7 @@ app.post('/api/user/settings', resolveUserId, async (req, res, next) => {
 // --- Admin Panel Routes (Protected by adminMiddleware with 403 enforcement) ---
 // =========================================================================
 
-app.get('/api/admin/dashboard-data', resolveUserId, adminMiddleware, async (req, res, next) => {
+app.get('/api/admin/dashboard-data', adminMiddleware, async (req, res, next) => {
   try {
     const [withdraws, deposits, users, stats, totalAds] = await Promise.all([
       Withdraw.find().populate('userId').sort({ createdAt: -1 }).lean(),
@@ -1304,7 +1247,7 @@ app.get('/api/admin/dashboard-data', resolveUserId, adminMiddleware, async (req,
   }
 });
 
-app.get('/api/admin/users', resolveUserId, adminMiddleware, async (req, res, next) => {
+app.get('/api/admin/users', adminMiddleware, async (req, res, next) => {
   try {
     const users = await User.find().sort({ createdAt: -1 }).lean();
     res.json({ success: true, users });
@@ -1313,7 +1256,7 @@ app.get('/api/admin/users', resolveUserId, adminMiddleware, async (req, res, nex
   }
 });
 
-app.get('/api/admin/links', resolveUserId, adminMiddleware, async (req, res, next) => {
+app.get('/api/admin/links', adminMiddleware, async (req, res, next) => {
   try {
     const links = await Link.find().populate('userId', 'username telegramId').sort({ createdAt: -1 }).lean();
     res.json({ success: true, links });
@@ -1322,7 +1265,7 @@ app.get('/api/admin/links', resolveUserId, adminMiddleware, async (req, res, nex
   }
 });
 
-app.get('/api/admin/ads', resolveUserId, adminMiddleware, async (req, res, next) => {
+app.get('/api/admin/ads', adminMiddleware, async (req, res, next) => {
   try {
     const ads = await Ad.find().populate('userId', 'username telegramId').sort({ createdAt: -1 }).lean();
     res.json({ success: true, ads });
@@ -1331,7 +1274,7 @@ app.get('/api/admin/ads', resolveUserId, adminMiddleware, async (req, res, next)
   }
 });
 
-app.delete('/api/admin/links/:id', resolveUserId, adminMiddleware, async (req, res, next) => {
+app.delete('/api/admin/links/:id', adminMiddleware, async (req, res, next) => {
   try {
     const linkId = req.params.id;
     if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
@@ -1344,7 +1287,7 @@ app.delete('/api/admin/links/:id', resolveUserId, adminMiddleware, async (req, r
   }
 });
 
-app.delete('/api/admin/ads/:id', resolveUserId, adminMiddleware, async (req, res, next) => {
+app.delete('/api/admin/ads/:id', adminMiddleware, async (req, res, next) => {
   try {
     const adId = req.params.id;
     if (!mongoose.Types.ObjectId.isValid(adId)) return res.status(400).json({ success: false, error: 'معرف الإعلان غير صالح' });
@@ -1356,7 +1299,7 @@ app.delete('/api/admin/ads/:id', resolveUserId, adminMiddleware, async (req, res
   }
 });
 
-app.post('/api/admin/deposit/action', resolveUserId, adminMiddleware, async (req, res, next) => {
+app.post('/api/admin/deposit/action', adminMiddleware, async (req, res, next) => {
   const { depositId, action, reason } = req.body;
   if (!mongoose.Types.ObjectId.isValid(depositId)) return res.status(400).json({ success: false, error: 'معرف الإيداع غير صالح' });
 
@@ -1410,7 +1353,7 @@ app.post('/api/admin/deposit/action', resolveUserId, adminMiddleware, async (req
   }
 });
 
-app.post('/api/admin/withdraw/action', resolveUserId, adminMiddleware, async (req, res, next) => {
+app.post('/api/admin/withdraw/action', adminMiddleware, async (req, res, next) => {
   const { withdrawId, action, reason } = req.body;
   if (!mongoose.Types.ObjectId.isValid(withdrawId)) return res.status(400).json({ success: false, error: 'معرف السحب غير صالح' });
 
@@ -1463,7 +1406,7 @@ app.post('/api/admin/withdraw/action', resolveUserId, adminMiddleware, async (re
   }
 });
 
-app.post('/api/admin/distribute-revenue', resolveUserId, adminMiddleware, async (req, res, next) => {
+app.post('/api/admin/distribute-revenue', adminMiddleware, async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -1523,7 +1466,7 @@ app.post('/api/admin/distribute-revenue', resolveUserId, adminMiddleware, async 
   }
 });
 
-app.post('/api/admin/user/toggle-ban', resolveUserId, adminMiddleware, async (req, res, next) => {
+app.post('/api/admin/user/toggle-ban', adminMiddleware, async (req, res, next) => {
   const { userId } = req.body;
   if (!mongoose.Types.ObjectId.isValid(userId)) return res.status(400).json({ success: false, error: 'معرف المستخدم غير صالح' });
 
