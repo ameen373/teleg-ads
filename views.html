@@ -610,8 +610,14 @@
     
     const tg = window.Telegram?.WebApp;
     
-    // Fix: Prioritize current Telegram WebApp user ID over stale localStorage
-    let currentUserTelegramId = (tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe?.user?.id) : null) || localStorage.getItem('telegramId');
+    // إصلاح مشكلة تداخل الحسابات: الاعتماد المباشر على معرّف تليجرام الفعلي إن وجد
+    let currentUserTelegramId = null;
+    if (tg?.initDataUnsafe?.user?.id) {
+      currentUserTelegramId = String(tg.initDataUnsafe.user.id);
+      localStorage.setItem('telegramId', currentUserTelegramId);
+    } else {
+      currentUserTelegramId = localStorage.getItem('telegramId') || null;
+    }
 
     let rawUserLinksCache = [];
     let bridgeDestinationUrl = null;
@@ -871,14 +877,10 @@
       
       const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || '';
       
-      // Ensure we extract the live user ID correctly
-      const liveTgUser = tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe?.user?.id) : null;
-      if (liveTgUser) {
-        currentUserTelegramId = liveTgUser;
-        localStorage.setItem('telegramId', liveTgUser);
+      // تحديث فوري لمعرف المستخدم الحالي من تليجرام لضمان عدم وجود تداخل
+      if (tg?.initDataUnsafe?.user?.id) {
+        currentUserTelegramId = String(tg.initDataUnsafe.user.id);
       }
-      
-      const currentTgId = currentUserTelegramId || localStorage.getItem('telegramId') || '';
 
       if (initDataStr) {
         options.headers['Authorization'] = `Bearer ${initDataStr}`;
@@ -888,19 +890,19 @@
         options.headers['Authorization'] = `Bearer ${authToken}`;
       }
 
-      if (currentTgId) {
-        options.headers['x-telegram-id'] = currentTgId;
-        options.headers['user-id'] = currentTgId;
+      if (currentUserTelegramId) {
+        options.headers['x-telegram-id'] = currentUserTelegramId;
+        options.headers['user-id'] = currentUserTelegramId;
       }
 
       if (options.body && typeof options.body === 'object') {
-        if (currentTgId && !options.body.userId) {
-          options.body.userId = currentTgId;
+        if (currentUserTelegramId && !options.body.userId) {
+          options.body.userId = currentUserTelegramId;
         }
         options.body = JSON.stringify(options.body);
       } else if (!options.body && ['POST', 'PUT', 'PATCH'].includes((options.method || 'GET').toUpperCase())) {
-        if (currentTgId) {
-          options.body = JSON.stringify({ userId: currentTgId });
+        if (currentUserTelegramId) {
+          options.body = JSON.stringify({ userId: currentUserTelegramId });
         }
       }
 
@@ -911,10 +913,10 @@
       let cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
       let targetUrl = endpoint.startsWith('http') ? endpoint : `${API_BASE}${cleanEndpoint}`;
 
-      if (currentTgId) {
+      if (currentUserTelegramId) {
         const separator = targetUrl.includes('?') ? '&' : '?';
         if (!targetUrl.includes('userId=')) {
-          targetUrl = `${targetUrl}${separator}userId=${encodeURIComponent(currentTgId)}`;
+          targetUrl = `${targetUrl}${separator}userId=${encodeURIComponent(currentUserTelegramId)}`;
         }
       }
 
@@ -1994,104 +1996,88 @@
                   </div>
                 `;
               }
-            } else if (data.blockReason) {
-              showToast(data.blockReason);
+            } else if (data.message) {
+              const adBox = document.getElementById('ad-container');
+              if (adBox) {
+                adBox.innerHTML = `<p style="color: var(--text-muted);">${escapeHTML(data.message)}</p>`;
+              }
             }
-            startBridgeTimer();
           } else {
             const errData = await res.json().catch(() => ({}));
-            showToast(errData.error || (currentLang === 'ar' ? 'انتهت الجلسة أو حدث خطأ في التحقق من المستخدم' : 'Session ended or user verification error'));
+            showToast(errData.error || (currentLang === 'ar' ? 'انتهت الجلسة أو حدث خطأ في التحقق من المستخدم' : 'Session expired or user verification error'));
           }
         } catch (e) {
-          showToast(currentLang === 'ar' ? 'حدث خطأ أثناء تحميل الرابط' : 'Error loading link');
+          console.error("Bridge Init Error:", e);
         }
-      } else {
-        await initApp();
+
+        startBridgeTimer();
+        return true;
       }
+      return false;
     }
 
     function startBridgeTimer() {
-      let secondsLeft = 5;
       const timerElem = document.getElementById('timer');
       const goBtn = document.getElementById('go-btn');
-      const goBtnText = document.getElementById('go-btn-text');
+      let timeLeft = 5;
 
       const interval = setInterval(() => {
-        secondsLeft--;
-        if (timerElem) timerElem.innerText = secondsLeft;
-        if (secondsLeft <= 0) {
+        timeLeft--;
+        if (timerElem) timerElem.innerText = timeLeft;
+        if (timeLeft <= 0) {
           clearInterval(interval);
-          if (goBtn) goBtn.disabled = false;
-          if (goBtnText) goBtnText.innerText = i18n[currentLang]?.go_button || 'Continue to Destination';
+          if (goBtn) {
+            goBtn.disabled = false;
+            const textElem = document.getElementById('go-btn-text');
+            if (textElem) textElem.innerText = i18n[currentLang]?.go_button || "Continue to Destination";
+          }
         }
       }, 1000);
     }
 
     async function completeImpression() {
-      if (!currentSessionId) {
-        if (bridgeDestinationUrl) {
-          window.location.href = bridgeDestinationUrl;
-        }
-        return;
-      }
+      const goBtn = document.getElementById('go-btn');
+      if (goBtn) goBtn.disabled = true;
 
-      setButtonLoading('go-btn', true);
       try {
-        const res = await safeFetch('/api/complete-click', {
-          method: 'POST',
-          body: {
-            sessionId: currentSessionId,
-            bridgeToken: bridgeToken,
-            userId: currentUserTelegramId
-          }
-        });
-
-        if (res && res.ok) {
-          const data = await res.json();
-          if (data.targetUrl) {
-            bridgeDestinationUrl = data.targetUrl;
-          }
+        if (currentSessionId && bridgeToken) {
+          await safeFetch('/api/complete-impression', {
+            method: 'POST',
+            body: {
+              sessionId: currentSessionId,
+              bridgeToken: bridgeToken
+            }
+          });
         }
       } catch (e) {
-        console.error("Complete click error:", e);
-      } finally {
-        if (bridgeDestinationUrl) {
-          window.location.href = bridgeDestinationUrl;
-        } else {
-          showToast(currentLang === 'ar' ? 'تعذر الانتقال للرابط' : 'Could not redirect to destination');
-          setButtonLoading('go-btn', false);
-        }
-      }
-    }
-
-    async function initApp() {
-      if (tg) {
-        try {
-          tg.ready();
-          tg.expand();
-        } catch (e) {}
+        console.error("Complete impression error:", e);
       }
 
-      renderTelegramUser();
-      
-      const loggedIn = await authLogin();
-      if (loggedIn) {
-        await checkAdminStatus();
-        await loadUserData();
+      if (bridgeDestinationUrl) {
+        window.location.href = bridgeDestinationUrl;
       } else {
-        showToast(currentLang === 'ar' ? 'فشل التحقق من المستخدم. يرجى إعادة فتح البوت.' : 'User verification failed. Please reopen the bot.');
+        showToast(currentLang === 'ar' ? 'تم اكتمال الزيارة بنجاح' : 'Visit completed successfully');
       }
     }
 
     window.addEventListener('DOMContentLoaded', async () => {
-      const tgUser = tg?.initDataUnsafe?.user;
-      if (tgUser && tgUser.id) {
-        currentUserTelegramId = String(tgUser.id);
-        localStorage.setItem('telegramId', currentUserTelegramId);
+      if (tg) {
+        try { tg.ready(); } catch (e) {}
+        try { tg.expand(); } catch (e) {}
       }
 
       renderTelegramUser();
-      await initBridgeViewIfRequired();
+
+      const isBridge = await initBridgeViewIfRequired();
+      if (!isBridge) {
+        const loggedIn = await authLogin();
+        if (loggedIn) {
+          await loadUserData();
+          await checkAdminStatus();
+        } else {
+          showToast(currentLang === 'ar' ? 'انتهت الجلسة أو حدث خطأ في التحقق من المستخدم' : 'Session expired or user verification error');
+        }
+      }
     });
   </script>
 </body>
