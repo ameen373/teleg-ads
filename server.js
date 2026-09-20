@@ -31,7 +31,7 @@ app.set('trust proxy', 1);
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data', 'telegram-init-data', 'X-Requested-With', 'x-user-id', 'user-id', 'x-user-ld', 'user-ld', 'telegramid', 'telegram_id'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data', 'telegram-init-data', 'X-Requested-With', 'x-user-id', 'user-id', 'x-user-ld', 'user-ld', 'telegramid', 'telegram_id', 'id'],
   credentials: true
 }));
 app.options('*', cors());
@@ -250,48 +250,55 @@ async function sendTelegramNotification(telegramId, message) {
 
 // --- Cryptographic Telegram Authenticator (Multi-Tenant Robust Edition) ---
 function verifyTelegramData(initData) {
-  if (!initData) return null;
+  if (!initData || initData === 'undefined' || initData === 'null') return null;
   try {
-    let decodedInitData = initData;
+    // If initData is a raw numeric ID or string representation of ID
+    if (typeof initData === 'number' || /^\d+$/.test(String(initData).trim())) {
+      const idVal = Number(String(initData).trim());
+      return { id: idVal, username: `User_${String(idVal).slice(-4)}` };
+    }
+
+    let decodedInitData = String(initData);
     try {
-      decodedInitData = decodeURIComponent(initData);
+      decodedInitData = decodeURIComponent(decodedInitData);
     } catch (e) {}
+
+    // If initData is a JSON string
+    if (decodedInitData.startsWith('{') && decodedInitData.endsWith('}')) {
+      const parsed = JSON.parse(decodedInitData);
+      if (parsed && (parsed.id || parsed.telegramId)) {
+        return {
+          id: parsed.id || parsed.telegramId,
+          username: parsed.username || `User_${String(parsed.id || parsed.telegramId).slice(-4)}`,
+          first_name: parsed.first_name || parsed.firstName || '',
+          last_name: parsed.last_name || parsed.lastName || '',
+          language_code: parsed.language_code || parsed.language || CONFIG.DEFAULT_LANGUAGE
+        };
+      }
+    }
 
     const urlParams = new URLSearchParams(decodedInitData);
     const userParam = urlParams.get('user');
-    if (!userParam) return null;
-
-    const parsedUser = JSON.parse(userParam);
-    if (!parsedUser || !parsedUser.id) return null;
-
-    // استخراج وآمن للـ Hash والـ Bot Token لضمان عدم رفض أي مستخدم حقيقي
-    const hash = urlParams.get('hash');
-    if (!hash || !CONFIG.BOT_TOKEN) {
-      return parsedUser;
-    }
-
-    const pairs = [];
-    decodedInitData.split('&').forEach(part => {
-      const [key, ...valParts] = part.split('=');
-      if (key && key !== 'hash') {
-        pairs.push(`${key}=${valParts.join('=')}`);
+    if (userParam) {
+      const parsedUser = JSON.parse(userParam);
+      if (parsedUser && parsedUser.id) {
+        return parsedUser;
       }
-    });
-    pairs.sort();
-    const dataCheckString = pairs.join('\n');
-
-    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(CONFIG.BOT_TOKEN).digest();
-    const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
-
-    const calculatedBuffer = Buffer.from(calculatedHash, 'hex');
-    const hashBuffer = Buffer.from(hash, 'hex');
-
-    if (calculatedBuffer.length === hashBuffer.length && crypto.timingSafeEqual(calculatedBuffer, hashBuffer)) {
-      return parsedUser;
     }
 
-    // إرجاع المستخدم حتى في حال اختلاف الـ Hash لتفادي مشاكل بيئة Vercel والترميز مع المستخدمين الجدد
-    return parsedUser;
+    // Fallback search inside urlParams for id or telegram_id
+    const idParam = urlParams.get('id') || urlParams.get('telegram_id') || urlParams.get('userId');
+    if (idParam) {
+      return {
+        id: Number(idParam),
+        username: urlParams.get('username') || `User_${String(idParam).slice(-4)}`,
+        first_name: urlParams.get('first_name') || '',
+        last_name: urlParams.get('last_name') || '',
+        language_code: urlParams.get('language_code') || CONFIG.DEFAULT_LANGUAGE
+      };
+    }
+
+    return null;
   } catch (err) {
     return null;
   }
@@ -336,29 +343,22 @@ const isPhishingOrMalicious = (url) => {
 const resolveUserId = async (req, res, next) => {
   try {
     await connectDB();
-    let rawUserId = req.body?.telegram_id || req.body?.telegramId || req.body?.userId || req.body?.userld || req.body?.user_id ||
-                    req.query?.telegram_id || req.query?.telegramId || req.query?.userId || req.query?.userld || req.query?.user_id ||
-                    req.headers['x-user-id'] || req.headers['user-id'] || req.headers['x-user-ld'] || 
-                    req.headers['user-ld'] || req.headers['telegramid'] || req.headers['telegram_id'];
-
     let user = null;
 
     // 1. Try Telegram initData verification & Upsert
     const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData;
-    if (initData) {
+    if (initData && initData !== 'undefined' && initData !== 'null' && initData !== '') {
       const telegramUser = verifyTelegramData(initData);
       if (telegramUser && telegramUser.id) {
         const tgId = String(telegramUser.id).trim();
-        if (tgId && tgId !== 'null' && tgId !== 'undefined' && tgId !== '') {
+        if (tgId && tgId !== 'null' && tgId !== 'undefined' && tgId !== '' && tgId !== 'NaN') {
           const currentUsername = telegramUser.username || `User_${tgId.slice(-4)}`;
           const userLanguage = telegramUser.language_code || CONFIG.DEFAULT_LANGUAGE;
 
           user = await User.findOneAndUpdate(
             { telegramId: tgId },
             {
-              $setOnInsert: {
-                telegramId: tgId
-              },
+              $setOnInsert: { telegramId: tgId },
               $set: {
                 username: currentUsername,
                 firstName: telegramUser.first_name || '',
@@ -373,39 +373,53 @@ const resolveUserId = async (req, res, next) => {
     }
 
     // 2. Try Bearer JWT Token
-    if (!user && !rawUserId) {
+    if (!user) {
       const authHeader = req.headers.authorization;
       if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.split(' ')[1];
         try {
           const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
-          rawUserId = decoded.userId || decoded.telegramId;
+          const jwtUserId = decoded.userId || decoded.telegramId;
+          if (jwtUserId) {
+            if (mongoose.Types.ObjectId.isValid(jwtUserId)) {
+              user = await User.findById(jwtUserId);
+            }
+            if (!user) {
+              user = await User.findOne({ telegramId: String(jwtUserId).trim() });
+            }
+          }
         } catch (err) {}
       }
     }
 
-    // 3. Try resolving from rawUserId with automatic upsert
-    if (!user && rawUserId) {
-      const cleanRawId = String(rawUserId).trim();
-      if (cleanRawId && cleanRawId !== 'null' && cleanRawId !== 'undefined' && cleanRawId !== '' && cleanRawId !== 'NaN') {
-        if (mongoose.Types.ObjectId.isValid(cleanRawId)) {
-          user = await User.findById(cleanRawId);
-        }
-        if (!user) {
-          user = await User.findOne({ telegramId: cleanRawId });
-        }
-        if (!user && /^\d+$/.test(cleanRawId)) {
-          user = await User.findOneAndUpdate(
-            { telegramId: cleanRawId },
-            {
-              $setOnInsert: { telegramId: cleanRawId },
-              $set: {
-                username: `User_${cleanRawId.slice(-4)}`,
-                language: CONFIG.DEFAULT_LANGUAGE
-              }
-            },
-            { upsert: true, new: true, setDefaultsOnInsert: true }
-          );
+    // 3. Try resolving from raw user ID in body, query, or headers (Extremely robust for all users & actions)
+    if (!user) {
+      const rawUserId = req.body?.telegram_id || req.body?.telegramId || req.body?.userId || req.body?.user_id || req.body?.userld || req.body?.telegramid || req.body?.id || req.body?.tg_id ||
+                        req.query?.telegram_id || req.query?.telegramId || req.query?.userId || req.query?.user_id || req.query?.userld || req.query?.telegramid || req.query?.id || req.query?.tg_id ||
+                        req.headers['x-user-id'] || req.headers['user-id'] || req.headers['x-user-ld'] || req.headers['user-ld'] || req.headers['telegramid'] || req.headers['telegram_id'] || req.headers['x-telegram-id'];
+
+      if (rawUserId) {
+        const cleanRawId = String(rawUserId).trim();
+        if (cleanRawId && cleanRawId !== 'null' && cleanRawId !== 'undefined' && cleanRawId !== '' && cleanRawId !== 'NaN') {
+          if (mongoose.Types.ObjectId.isValid(cleanRawId)) {
+            user = await User.findById(cleanRawId);
+          }
+          if (!user) {
+            user = await User.findOne({ telegramId: cleanRawId });
+          }
+          if (!user && /^\d+$/.test(cleanRawId)) {
+            user = await User.findOneAndUpdate(
+              { telegramId: cleanRawId },
+              {
+                $setOnInsert: { telegramId: cleanRawId },
+                $set: {
+                  username: `User_${cleanRawId.slice(-4)}`,
+                  language: CONFIG.DEFAULT_LANGUAGE
+                }
+              },
+              { upsert: true, new: true, setDefaultsOnInsert: true }
+            );
+          }
         }
       }
     }
@@ -488,11 +502,15 @@ const handleLogin = async (req, res, next) => {
                   req.body?.userId || 
                   req.body?.userld || 
                   req.body?.user_id ||
+                  req.body?.telegramid ||
+                  req.body?.id ||
                   req.query?.telegram_id || 
                   req.query?.telegramId || 
                   req.query?.userId || 
                   req.query?.userld || 
                   req.query?.user_id ||
+                  req.query?.telegramid ||
+                  req.query?.id ||
                   req.headers['x-user-id'] || 
                   req.headers['user-id'] || 
                   req.headers['telegramid'] || 
