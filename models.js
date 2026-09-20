@@ -49,6 +49,7 @@ const userSchema = new mongoose.Schema({
     type: String, 
     required: [true, 'Telegram ID is required'], 
     unique: true, 
+    sparse: true,
     index: true,
     trim: true 
   },
@@ -157,6 +158,7 @@ const walletSchema = new mongoose.Schema({
     type: String, 
     required: [true, 'Telegram ID is required for fast tenant lookup'], 
     unique: true,
+    sparse: true,
     index: true, 
     trim: true 
   },
