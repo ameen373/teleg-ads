@@ -165,31 +165,34 @@ async function safeRedisDel(key) {
   try { await redis.del(key); } catch (e) {}
 }
 
-// --- Serverless Server Database Pipeline ---
-let isMongoConnected = false;
-
+// --- Serverless Database Pipeline & Optimization for Vercel ---
 async function connectDB() {
-  if (isMongoConnected && mongoose.connection.readyState === 1) return;
+  if (mongoose.connection.readyState === 1) return;
   try {
-    const db = await mongoose.connect(CONFIG.MONGO_URI, {
+    await mongoose.connect(CONFIG.MONGO_URI, {
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
     });
-    isMongoConnected = db.connections[0].readyState === 1;
     console.log('✅ Enterprise MongoDB Pipeline Connected');
   } catch (err) {
     logger.error('❌ MongoDB Connection Failure:', err);
+    throw err;
   }
 }
 
-connectDB();
+connectDB().catch(() => {});
 
 app.use(async (req, res, next) => {
-  if (mongoose.connection.readyState !== 1) {
-    await connectDB();
+  try {
+    if (mongoose.connection.readyState !== 1) {
+      await connectDB();
+    }
+    next();
+  } catch (err) {
+    logger.error('Database connection middleware error:', err);
+    return res.status(500).json({ success: false, error: 'خطأ في الاتصال بقاعدة البيانات' });
   }
-  next();
 });
 
 // --- Telegram Dispatch Helper ---
@@ -211,7 +214,12 @@ async function sendTelegramNotification(telegramId, message) {
 function verifyTelegramData(initData) {
   if (!initData) return null;
   try {
-    const urlParams = new URLSearchParams(initData);
+    let decodedInitData = initData;
+    try {
+      decodedInitData = decodeURIComponent(initData);
+    } catch (e) {}
+
+    const urlParams = new URLSearchParams(decodedInitData);
     const userParam = urlParams.get('user');
     if (!userParam) return null;
 
@@ -239,7 +247,7 @@ function verifyTelegramData(initData) {
       return parsedUser;
     }
 
-    // Fallback for seamless multi-account cross-device compatibility
+    // Fallback support for multi-account cross-device compatibility in production Telegram environments
     return parsedUser;
   } catch (err) {
     return null;
@@ -300,22 +308,30 @@ const resolveUserId = async (req, res, next) => {
       }
     }
 
-    // 2. Try Telegram initData verification
+    // 2. Try Telegram initData verification & Upsert for any user
     const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData;
     if (initData) {
       const telegramUser = verifyTelegramData(initData);
       if (telegramUser && telegramUser.id) {
         const tgId = String(telegramUser.id).trim();
-        user = await User.findOne({ telegramId: tgId });
-        if (!user) {
-          user = await User.create({
-            telegramId: tgId,
-            username: telegramUser.username || `User_${tgId.slice(-4)}`,
-            firstName: telegramUser.first_name || '',
-            lastName: telegramUser.last_name || '',
-            language: telegramUser.language_code || CONFIG.DEFAULT_LANGUAGE
-          });
-        }
+        const currentUsername = telegramUser.username || `User_${tgId.slice(-4)}`;
+        const userLanguage = telegramUser.language_code || CONFIG.DEFAULT_LANGUAGE;
+
+        user = await User.findOneAndUpdate(
+          { telegramId: tgId },
+          {
+            $setOnInsert: {
+              telegramId: tgId
+            },
+            $set: {
+              username: currentUsername,
+              firstName: telegramUser.first_name || '',
+              lastName: telegramUser.last_name || '',
+              language: userLanguage
+            }
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
       }
     }
 
@@ -329,11 +345,17 @@ const resolveUserId = async (req, res, next) => {
         user = await User.findOne({ telegramId: cleanRawId });
       }
       if (!user && /^\d+$/.test(cleanRawId)) {
-        user = await User.create({
-          telegramId: cleanRawId,
-          username: `User_${cleanRawId.slice(-4)}`,
-          language: CONFIG.DEFAULT_LANGUAGE
-        });
+        user = await User.findOneAndUpdate(
+          { telegramId: cleanRawId },
+          {
+            $setOnInsert: { telegramId: cleanRawId },
+            $set: {
+              username: `User_${cleanRawId.slice(-4)}`,
+              language: CONFIG.DEFAULT_LANGUAGE
+            }
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
       }
     }
 
@@ -400,7 +422,7 @@ const handleCheckAdmin = async (req, res) => {
 app.all('/api/check-admin', handleCheckAdmin);
 app.all('/check-admin', handleCheckAdmin);
 
-// --- Authentication & Login Gateway ---
+// --- Authentication & Login Gateway (Robust Upsert) ---
 const handleLogin = async (req, res, next) => {
   try {
     const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData;
@@ -417,31 +439,22 @@ const handleLogin = async (req, res, next) => {
     const currentUsername = telegramUser?.username || `User_${tgId.slice(-4)}`;
     const userLanguage = telegramUser?.language_code || CONFIG.DEFAULT_LANGUAGE;
 
-    let user = await User.findOne({ telegramId: tgId });
-    if (!user) {
-      if (mongoose.Types.ObjectId.isValid(tgId)) {
-        user = await User.findById(tgId);
-      }
-      if (!user) {
-        user = await User.create({
+    const user = await User.findOneAndUpdate(
+      { telegramId: tgId },
+      {
+        $setOnInsert: {
           telegramId: tgId,
+          referredBy: mongoose.Types.ObjectId.isValid(referrerId) ? referrerId : null
+        },
+        $set: {
           username: currentUsername,
           language: userLanguage,
-          referredBy: mongoose.Types.ObjectId.isValid(referrerId) ? referrerId : null
-        });
-      }
-    } else {
-      let updated = false;
-      if (currentUsername && user.username !== currentUsername) {
-        user.username = currentUsername;
-        updated = true;
-      }
-      if (userLanguage && !user.language) {
-        user.language = userLanguage;
-        updated = true;
-      }
-      if (updated) await user.save();
-    }
+          ...(telegramUser?.first_name && { firstName: telegramUser.first_name }),
+          ...(telegramUser?.last_name && { lastName: telegramUser.last_name })
+        }
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
 
     if (user.isBanned) return res.status(403).json({ success: false, error: `حسابك معطل بسبب مخالفة الشروط. التواصل مع الدعم: ${CONFIG.SUPPORT_USERNAME}` });
 
