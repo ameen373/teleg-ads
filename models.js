@@ -16,9 +16,9 @@ const formatCurrency = (val) => {
   return Math.round((val + Number.EPSILON) * 100000) / 100000;
 };
 
-// Robust Telegram ID normalizer to prevent sparse unique index collisions with empty/undefined strings
+// Robust Telegram ID normalizer to prevent sparse unique index collisions with empty/undefined/null values
 const sanitizeTelegramId = (v) => {
-  if (!v || v === 'undefined' || v === 'null' || String(v).trim() === '') return null;
+  if (!v || v === 'undefined' || v === 'null' || String(v).trim() === '') return undefined;
   return String(v).trim();
 };
 
@@ -54,7 +54,6 @@ const enforceTenantKey = (tenantKey, keyName = 'userId') => {
 const userSchema = new mongoose.Schema({
   telegramId: { 
     type: String, 
-    default: null,
     unique: true, 
     sparse: true,
     index: true,
@@ -190,7 +189,6 @@ const walletSchema = new mongoose.Schema({
   },
   telegramId: { 
     type: String, 
-    default: null,
     unique: true,
     sparse: true,
     index: true, 
