@@ -64,13 +64,37 @@ const logger = winston.createLogger({
 app.use(morgan('combined', { stream: { write: (message) => logger.info(message.trim()) } }));
 
 // ==================================================
-// --- Helper Functions for URL Sanitization ---
+// --- System Constants & Environment Variables ---
 // ==================================================
-
 const sanitizeDomain = (domain) => {
   if (!domain) return 'teleg-ads.vercel.app';
   return domain.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
 };
+
+const CONFIG = Object.freeze({
+  BOT_TOKEN: process.env.BOT_TOKEN,
+  MONGO_URI: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/shortener',
+  ADMIN_ID: String(process.env.ADMIN_ID || '123456789').trim(),
+  JWT_SECRET: process.env.JWT_SECRET || 'fallback_jwt_secret_key_32bytes_long!',
+  ADSGRAM_BLOCK_ID: process.env.ADSGRAM_BLOCK_ID || '1234',
+  APP_DOMAIN: sanitizeDomain(process.env.APP_DOMAIN),
+  REDIS_URL: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
+  DEFAULT_LANGUAGE: 'ar',
+  
+  OFFICIAL_BOT_URL: process.env.OFFICIAL_BOT_URL || 'https://t.me/Ads_telegabot',
+  OFFICIAL_CHANNEL_URL: process.env.OFFICIAL_CHANNEL_URL || 'https://t.me/ttelega_ads',
+  TELEGRAM_SUPPORT_URL: process.env.TELEGRAM_SUPPORT_URL || 'https://t.me/Te_AdsNs_bot',
+  
+  DEPOSIT_USDT_BEP20: process.env.DEPOSIT_USDT_BEP20 || '',
+  DEPOSIT_USDT_TRC20: process.env.DEPOSIT_USDT_TRC20 || '',
+
+  BOT_USERNAME: '@' + (process.env.OFFICIAL_BOT_URL || 'https://t.me/Ads_telegabot').split('/').pop(),
+  SUPPORT_USERNAME: '@' + (process.env.TELEGRAM_SUPPORT_URL || 'https://t.me/Te_AdsNs_bot').split('/').pop()
+});
+
+// ==================================================
+// --- Helper Functions for URL & Routing ---
+// ==================================================
 
 function normalizeAndValidateUrl(inputUrl) {
   if (!inputUrl) return null;
@@ -97,30 +121,6 @@ function normalizeAndValidateUrl(inputUrl) {
 function buildShortUrl(shortCode) {
   return `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`;
 }
-
-// ==================================================
-// --- System Constants & Environment Variables ---
-// ==================================================
-const CONFIG = Object.freeze({
-  BOT_TOKEN: process.env.BOT_TOKEN,
-  MONGO_URI: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/shortener',
-  ADMIN_ID: String(process.env.ADMIN_ID || '123456789').trim(),
-  JWT_SECRET: process.env.JWT_SECRET || 'fallback_jwt_secret_key_32bytes_long!',
-  ADSGRAM_BLOCK_ID: process.env.ADSGRAM_BLOCK_ID || '1234',
-  APP_DOMAIN: sanitizeDomain(process.env.APP_DOMAIN),
-  REDIS_URL: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
-  DEFAULT_LANGUAGE: 'ar',
-  
-  OFFICIAL_BOT_URL: process.env.OFFICIAL_BOT_URL || 'https://t.me/Ads_telegabot',
-  OFFICIAL_CHANNEL_URL: process.env.OFFICIAL_CHANNEL_URL || 'https://t.me/ttelega_ads',
-  TELEGRAM_SUPPORT_URL: process.env.TELEGRAM_SUPPORT_URL || 'https://t.me/Te_AdsNs_bot',
-  
-  DEPOSIT_USDT_BEP20: process.env.DEPOSIT_USDT_BEP20 || '',
-  DEPOSIT_USDT_TRC20: process.env.DEPOSIT_USDT_TRC20 || '',
-
-  BOT_USERNAME: '@' + (process.env.OFFICIAL_BOT_URL || 'https://t.me/Ads_telegabot').split('/').pop(),
-  SUPPORT_USERNAME: '@' + (process.env.TELEGRAM_SUPPORT_URL || 'https://t.me/Te_AdsNs_bot').split('/').pop()
-});
 
 // --- Redis Client Initialization (Fault-Tolerant) ---
 let redisIsConnected = false;
@@ -272,7 +272,7 @@ const isPhishingOrMalicious = (url) => {
 };
 
 // =========================================================================
-// --- User Identification & Authentication Middleware (userId enforcement) ---
+// --- User Identification & Authentication Middleware (userId / userld enforcement) ---
 // =========================================================================
 const resolveUserId = async (req, res, next) => {
   try {
