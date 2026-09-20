@@ -142,7 +142,9 @@ try {
     redisIsConnected = true;
   });
 
-  redis.connect().catch(() => {});
+  redis.connect().catch(() => {
+    redisIsConnected = false;
+  });
 } catch (e) {
   redisIsConnected = false;
 }
@@ -165,30 +167,52 @@ async function safeRedisDel(key) {
   try { await redis.del(key); } catch (e) {}
 }
 
-// --- Serverless Database Pipeline & Optimization for Vercel ---
+// =========================================================================
+// --- Serverless Cached Database Connection Optimization for Vercel ---
+// =========================================================================
+let cached = global.mongoose;
+
+if (!cached) {
+  cached = global.mongoose = { conn: null, promise: null };
+}
+
 async function connectDB() {
-  if (mongoose.connection.readyState === 1) return;
-  try {
-    await mongoose.connect(CONFIG.MONGO_URI, {
+  if (cached.conn && mongoose.connection.readyState === 1) {
+    return cached.conn;
+  }
+
+  if (!cached.promise) {
+    const opts = {
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
       bufferCommands: false,
+    };
+
+    cached.promise = mongoose.connect(CONFIG.MONGO_URI, opts).then((m) => {
+      logger.info('✅ Enterprise MongoDB Pipeline Connected');
+      return m;
+    }).catch((err) => {
+      cached.promise = null;
+      throw err;
     });
-    console.log('✅ Enterprise MongoDB Pipeline Connected');
+  }
+
+  try {
+    cached.conn = await cached.promise;
   } catch (err) {
+    cached.promise = null;
     logger.error('❌ MongoDB Connection Failure:', err);
     throw err;
   }
+
+  return cached.conn;
 }
 
-connectDB().catch(() => {});
-
+// Middleware لضمان كتمال الاتصال بقاعدة البيانات لكل طلب قبل الانتقال لأي المسار
 app.use(async (req, res, next) => {
   try {
-    if (mongoose.connection.readyState !== 1 && mongoose.connection.readyState !== 2) {
-      await connectDB();
-    }
+    await connectDB();
     next();
   } catch (err) {
     logger.error('Database connection middleware error:', err);
@@ -251,7 +275,6 @@ function verifyTelegramData(initData) {
       return parsedUser;
     }
 
-    // Robust fallback support for multi-account cross-device compatibility and new users in production environments
     return parsedUser;
   } catch (err) {
     return null;
@@ -292,15 +315,16 @@ const isPhishingOrMalicious = (url) => {
 };
 
 // =========================================================================
-// --- User Identification & Authentication Middleware (Robust Upsert & Multi-Source Extraction) ---
+// --- User Identification & Authentication Middleware ---
 // =========================================================================
 const resolveUserId = async (req, res, next) => {
   try {
+    await connectDB();
     let rawUserId = req.body?.userId || req.body?.userld || req.body?.telegramId || req.query?.userId || req.query?.userld || req.query?.telegramId || req.headers['x-user-id'] || req.headers['user-id'] || req.headers['x-user-ld'] || req.headers['user-ld'] || req.headers['telegramid'];
 
     let user = null;
 
-    // 1. Try Telegram initData verification & Upsert for any user (Primary authentication channel)
+    // 1. Try Telegram initData verification & Upsert
     const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData;
     if (initData) {
       const telegramUser = verifyTelegramData(initData);
@@ -339,7 +363,7 @@ const resolveUserId = async (req, res, next) => {
       }
     }
 
-    // 3. Try resolving from rawUserId (ObjectId or telegramId) with automatic upsert
+    // 3. Try resolving from rawUserId with automatic upsert
     if (!user && rawUserId) {
       const cleanRawId = String(rawUserId).trim();
       if (mongoose.Types.ObjectId.isValid(cleanRawId)) {
@@ -426,9 +450,10 @@ const handleCheckAdmin = async (req, res) => {
 app.all('/api/check-admin', handleCheckAdmin);
 app.all('/check-admin', handleCheckAdmin);
 
-// --- Authentication & Login Gateway (Robust Upsert & Strict Telegram ID Validation) ---
+// --- Authentication & Login Gateway ---
 const handleLogin = async (req, res, next) => {
   try {
+    await connectDB();
     const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData;
     const telegramUser = verifyTelegramData(initData);
 
@@ -437,8 +462,7 @@ const handleLogin = async (req, res, next) => {
       ? String(telegramUser.id) 
       : (bodyId ? String(bodyId).trim() : null);
 
-    // التحقق الصارم من أن telegram_id موجود وصالح (ليس null أو undefined أو فارغ) قبل تنفيذ استعلام قاعدة البيانات لمنع انهيار الخادم (خطأ 500)
-    if (!tgId || tgId === 'null' || tgId === 'undefined' || tgId === '' || tgId === 'NaN' || tgId === 'null' || tgId === 'undefined') {
+    if (!tgId || tgId === 'null' || tgId === 'undefined' || tgId === '' || tgId === 'NaN') {
       return res.status(400).json({ success: false, error: 'معرف تليجرام (telegram_id) مفقود أو غير صالح' });
     }
 
@@ -497,7 +521,7 @@ const handleLogin = async (req, res, next) => {
 app.post('/api/auth/login', handleLogin);
 app.post('/auth/login', handleLogin);
 
-// --- Isolated User Data Gateway (Strictly Filtered by userId) ---
+// --- Isolated User Data Gateway ---
 const handleUserData = async (req, res, next) => {
   try {
     const targetUserId = req.userId;
@@ -555,7 +579,7 @@ app.get('/api/user/data', resolveUserId, handleUserData);
 app.get('/user/data', resolveUserId, handleUserData);
 
 // =========================================================================
-// --- Link Shortener API Routes (Strictly Filtered by userId) ---
+// --- Link Shortener API Routes ---
 // =========================================================================
 
 const handleShortenLink = async (req, res) => {
@@ -772,7 +796,7 @@ app.get('/api/links/:id/stats', resolveUserId, async (req, res, next) => {
 });
 
 // =========================================================================
-// --- Self-Serve Ad Campaign APIs (Strictly Filtered by userId) ---
+// --- Self-Serve Ad Campaign APIs ---
 // =========================================================================
 
 app.post('/api/ads', resolveUserId, async (req, res, next) => {
@@ -902,7 +926,7 @@ app.delete('/api/ads/:id', resolveUserId, async (req, res, next) => {
 });
 
 // =========================================================================
-// --- Deposit & Withdraw Routes (Strictly Filtered by userId) ---
+// --- Deposit & Withdraw Routes ---
 // =========================================================================
 
 const handleDeposit = async (req, res, next) => {
@@ -1286,7 +1310,7 @@ app.post('/api/user/settings', resolveUserId, async (req, res, next) => {
 });
 
 // =========================================================================
-// --- Admin Panel Routes (Protected by adminMiddleware with 403 enforcement) ---
+// --- Admin Panel Routes ---
 // =========================================================================
 
 app.get('/api/admin/dashboard-data', adminMiddleware, async (req, res, next) => {
@@ -1556,6 +1580,7 @@ app.post('/api/admin/user/toggle-ban', adminMiddleware, async (req, res, next) =
 if (!process.env.VERCEL) {
   cron.schedule('0 0 * * *', async () => {
     try {
+      await connectDB();
       const readyHolds = await EarningsHold.find({ releaseAt: { $lte: new Date() }, isReleased: false }).lean();
 
       for (let hold of readyHolds) {
@@ -1581,68 +1606,40 @@ if (!process.env.VERCEL) {
           }
         } catch (err) {
           await session.abortTransaction();
-          logger.error(`Error processing hold release for ID ${hold._id}: ${err.message}`);
+          logger.error(`Error releasing hold ${hold._id}:`, err);
         } finally {
           session.endSession();
         }
       }
     } catch (err) {
-      logger.error('❌ Error executing Cron Settlement: ' + err.message);
+      logger.error('Error in daily settlement cron:', err);
     }
   });
 }
 
-// --- Dynamic Frontend Web Delivery ---
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'views.html'));
-});
-
-app.get(['/app', '/admin', '/r/:code', '/dashboard'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'views.html'));
-});
-
-// --- Catch-All API 404 Handler ---
-app.use(['/api/*', '/api'], (req, res) => {
-  res.status(404).json({ success: false, error: 'المسار المطلوب غير موجود' });
-});
-
-// Fallback for Application Client Routes
-app.get('*', (req, res) => {
-  if (req.path.startsWith('/api/')) {
-    return res.status(404).json({ success: false, error: 'المسار المطلوب غير موجود' });
-  }
-  res.sendFile(path.join(__dirname, 'views.html'));
-});
-
-// ==================================================
-// --- Global Error Handling Middleware ---
-// ==================================================
+// --- Centralized Error Handler Middleware ---
 app.use((err, req, res, next) => {
-  logger.error('Unhandled Application Error:', err);
-
-  const statusCode = err.status || err.statusCode || 500;
-  const message = process.env.NODE_ENV === 'production' 
-    ? 'حدث خطأ غير متوقع في الخادم' 
-    : (err.message || 'خطأ داخلي');
-
-  res.status(statusCode).json({
+  logger.error('Unhandled Server Error:', err);
+  if (res.headersSent) {
+    return next(err);
+  }
+  res.status(err.status || 500).json({
     success: false,
-    error: message,
-    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+    error: err.message || 'حدث خطأ داخلي في الخادم'
   });
 });
 
-process.on('uncaughtException', (err) => {
-  logger.error('Uncaught Exception Detected: ' + err.stack);
+// --- 404 Fallback Handler ---
+app.use((req, res) => {
+  res.status(404).json({ success: false, error: 'المسار المطلوب غير موجود (404 Not Found)' });
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
-});
-
-if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
-  const PORT = process.env.PORT || 3000;
-  app.listen(PORT, () => console.log(`🚀 Enterprise Server V6 Active on Port ${PORT}`));
+// --- Server Listening & Export ---
+const PORT = process.env.PORT || 3000;
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+  app.listen(PORT, () => {
+    logger.info(`🚀 Server running on port ${PORT}`);
+  });
 }
 
 module.exports = app;
