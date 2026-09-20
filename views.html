@@ -867,7 +867,6 @@
     async function safeFetch(endpoint, options = {}) {
       options.headers = options.headers || {};
       
-      // جلب initData صراحةً من Telegram WebApp مع دعم احتياطي للتوافق
       const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || '';
       const currentTgId = (tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe?.user?.id) : null) || currentUserTelegramId || localStorage.getItem('telegramId') || '';
 
@@ -876,7 +875,6 @@
         localStorage.setItem('telegramId', currentTgId);
       }
 
-      // إرسال initData في ترويسات الطلبات (Headers) بشكل صريح وبأكثر من صيغة لضمان التحقق من المستخدم بنجاح
       if (initDataStr) {
         options.headers['Authorization'] = `Bearer ${initDataStr}`;
         options.headers['x-telegram-init-data'] = initDataStr;
@@ -1772,7 +1770,7 @@
     function renderAdminWithdraws(withdraws) {
       const container = document.getElementById('admin-withdraws-list');
       if (!container) return;
-      if (!withdraws || withdrawals.length === 0) {
+      if (!withdraws || withdraws.length === 0) {
         container.innerHTML = '<p style="color: var(--text-muted);">No withdrawal requests.</p>';
         return;
       }
@@ -1835,11 +1833,11 @@
       }).join('');
     }
 
-    async function toggleUserBan(userId) {
+    async function toggleUserBan(targetUserId) {
       try {
         const res = await safeFetch('/api/admin/user/toggle-ban', {
           method: 'POST',
-          body: { userId: currentUserTelegramId, targetUserId: userId }
+          body: { userId: targetUserId }
         });
         if (res && res.ok) {
           showToast("User ban status updated");
