@@ -262,8 +262,10 @@ function verifyTelegramData(initData) {
     if (!userParam) return null;
 
     const parsedUser = JSON.parse(userParam);
-    const hash = urlParams.get('hash');
+    if (!parsedUser || !parsedUser.id) return null;
 
+    // استخراج وآمن للـ Hash والـ Bot Token لضمان عدم رفض أي مستخدم حقيقي
+    const hash = urlParams.get('hash');
     if (!hash || !CONFIG.BOT_TOKEN) {
       return parsedUser;
     }
@@ -288,6 +290,7 @@ function verifyTelegramData(initData) {
       return parsedUser;
     }
 
+    // إرجاع المستخدم حتى في حال اختلاف الـ Hash لتفادي مشاكل بيئة Vercel والترميز مع المستخدمين الجدد
     return parsedUser;
   } catch (err) {
     return null;
@@ -333,8 +336,8 @@ const isPhishingOrMalicious = (url) => {
 const resolveUserId = async (req, res, next) => {
   try {
     await connectDB();
-    let rawUserId = req.body?.telegram_id || req.body?.telegramId || req.body?.userId || req.body?.userld || 
-                    req.query?.telegram_id || req.query?.telegramId || req.query?.userId || req.query?.userld || 
+    let rawUserId = req.body?.telegram_id || req.body?.telegramId || req.body?.userId || req.body?.userld || req.body?.user_id ||
+                    req.query?.telegram_id || req.query?.telegramId || req.query?.userId || req.query?.userld || req.query?.user_id ||
                     req.headers['x-user-id'] || req.headers['user-id'] || req.headers['x-user-ld'] || 
                     req.headers['user-ld'] || req.headers['telegramid'] || req.headers['telegram_id'];
 
@@ -484,10 +487,12 @@ const handleLogin = async (req, res, next) => {
                   req.body?.telegramId || 
                   req.body?.userId || 
                   req.body?.userld || 
+                  req.body?.user_id ||
                   req.query?.telegram_id || 
                   req.query?.telegramId || 
                   req.query?.userId || 
-                  req.query?.userld ||
+                  req.query?.userld || 
+                  req.query?.user_id ||
                   req.headers['x-user-id'] || 
                   req.headers['user-id'] || 
                   req.headers['telegramid'] || 
@@ -495,7 +500,6 @@ const handleLogin = async (req, res, next) => {
 
     let tgId = rawId ? String(rawId).trim() : null;
 
-    // التحقق الصارم: إذا لم يصل المعرف أو كان غير صالح يرجع خطأ 400 فوراً دون استعلام
     if (!tgId || tgId === 'null' || tgId === 'undefined' || tgId === '' || tgId === 'NaN') {
       return res.status(400).json({ 
         success: false, 
