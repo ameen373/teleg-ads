@@ -426,19 +426,23 @@ const handleCheckAdmin = async (req, res) => {
 app.all('/api/check-admin', handleCheckAdmin);
 app.all('/check-admin', handleCheckAdmin);
 
-// --- Authentication & Login Gateway (Robust Upsert) ---
+// --- Authentication & Login Gateway (Robust Upsert & Strict Telegram ID Validation) ---
 const handleLogin = async (req, res, next) => {
   try {
     const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData;
     const telegramUser = verifyTelegramData(initData);
 
     const bodyId = req.body?.userId || req.body?.userld || req.body?.telegramId || req.query?.userId || req.query?.userld || req.query?.telegramId;
-    const tgId = telegramUser 
+    let tgId = telegramUser 
       ? String(telegramUser.id) 
       : (bodyId ? String(bodyId).trim() : null);
-    const { referrerId } = req.body;
 
-    if (!tgId) return res.status(401).json({ success: false, error: 'بيانات الاعتماد الخاصة بتليجرام غير صالحة' });
+    // التحقق الصارم من أن telegram_id موجود وصالح (ليس null أو undefined أو فارغ) قبل تنفيذ استعلام قاعدة البيانات لمنع انهيار الخادم (خطأ 500)
+    if (!tgId || tgId === 'null' || tgId === 'undefined' || tgId === '' || tgId === 'NaN' || tgId === 'null' || tgId === 'undefined') {
+      return res.status(400).json({ success: false, error: 'معرف تليجرام (telegram_id) مفقود أو غير صالح' });
+    }
+
+    const { referrerId } = req.body;
 
     const currentUsername = telegramUser?.username || `User_${tgId.slice(-4)}`;
     const userLanguage = telegramUser?.language_code || CONFIG.DEFAULT_LANGUAGE;
