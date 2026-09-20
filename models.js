@@ -475,6 +475,11 @@ linkSchema.statics.findOneIsolated = function(shortCode, telegramId) {
   return this.findOne({ shortCode: String(shortCode).trim(), telegramId: String(telegramId).trim() });
 };
 
+linkSchema.statics.findByShortCode = function(shortCode) {
+  if (!shortCode) return null;
+  return this.findOne({ shortCode: String(shortCode).trim(), isActive: true });
+};
+
 // ==================================================
 // 6. Traffic & Impressions Model (Impression)
 // ==================================================
