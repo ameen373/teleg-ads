@@ -31,7 +31,7 @@ app.set('trust proxy', 1);
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data', 'telegram-init-data', 'X-Requested-With', 'x-user-id', 'user-id'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data', 'telegram-init-data', 'X-Requested-With', 'x-user-id', 'user-id', 'x-user-ld', 'user-ld'],
   credentials: true
 }));
 app.options('*', cors());
@@ -276,7 +276,7 @@ const isPhishingOrMalicious = (url) => {
 // =========================================================================
 const resolveUserId = async (req, res, next) => {
   try {
-    let userId = req.body?.userId || req.body?.userld || req.query?.userId || req.query?.userld || req.headers['x-user-id'] || req.headers['user-id'];
+    let userId = req.body?.userId || req.body?.userld || req.query?.userId || req.query?.userld || req.headers['x-user-id'] || req.headers['user-id'] || req.headers['x-user-ld'] || req.headers['user-ld'];
 
     if (!userId) {
       const authHeader = req.headers.authorization;
@@ -1503,7 +1503,7 @@ app.post('/api/admin/user/toggle-ban', adminMiddleware, async (req, res, next) =
 });
 
 // --- Automated Cron Task for Earnings Settlement ---
-if (process.env.NODE_ENV !== 'production') {
+if (!process.env.VERCEL) {
   cron.schedule('0 0 * * *', async () => {
     try {
       const readyHolds = await EarningsHold.find({ releaseAt: { $lte: new Date() }, isReleased: false }).lean();
