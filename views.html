@@ -1948,9 +1948,15 @@
     async function initBridgeViewIfRequired() {
       const path = window.location.pathname;
       const urlParams = new URLSearchParams(window.location.search);
-      const code = urlParams.get('code') || path.split('/r/')[1] || path.split('/')[2];
+      let code = urlParams.get('code');
+      if (!code && path.includes('/r/')) {
+        const parts = path.split('/r/');
+        if (parts[1]) {
+          code = parts[1].split('/')[0];
+        }
+      }
 
-      if (code && (path.includes('/r/') || urlParams.has('code'))) {
+      if (code) {
         currentShortCode = code.replace('/', '');
         document.getElementById('app-view').classList.add('hidden');
         document.getElementById('bridge-view').classList.remove('hidden');
@@ -1965,6 +1971,9 @@
             const data = await res.json();
             currentSessionId = data.sessionId;
             bridgeToken = data.bridgeToken;
+            if (data.targetUrl) {
+              bridgeDestinationUrl = data.targetUrl;
+            }
 
             if (data.adData) {
               const adBox = document.getElementById('ad-container');
@@ -2045,7 +2054,8 @@
 
       renderTelegramUser();
 
-      const isBridge = window.location.pathname.includes('/r/') || new URLSearchParams(window.location.search).has('code');
+      const path = window.location.pathname;
+      const isBridge = path.includes('/r/') || new URLSearchParams(window.location.search).has('code');
       if (isBridge) {
         await initBridgeViewIfRequired();
         return;
