@@ -867,6 +867,7 @@
     async function safeFetch(endpoint, options = {}) {
       options.headers = options.headers || {};
       
+      // جلب initData صراحةً من Telegram WebApp مع دعم احتياطي للتوافق
       const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || '';
       const currentTgId = (tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe?.user?.id) : null) || currentUserTelegramId || localStorage.getItem('telegramId') || '';
 
@@ -875,16 +876,15 @@
         localStorage.setItem('telegramId', currentTgId);
       }
 
-      if (authToken) {
-        options.headers['Authorization'] = `Bearer ${authToken}`;
-      } else if (initDataStr) {
-        options.headers['Authorization'] = `Bearer ${initDataStr}`;
-      }
-
+      // إرسال initData في ترويسات الطلبات (Headers) بشكل صريح وبأكثر من صيغة لضمان التحقق من المستخدم بنجاح
       if (initDataStr) {
+        options.headers['Authorization'] = `Bearer ${initDataStr}`;
         options.headers['x-telegram-init-data'] = initDataStr;
         options.headers['telegram-init-data'] = initDataStr;
+      } else if (authToken) {
+        options.headers['Authorization'] = `Bearer ${authToken}`;
       }
+
       if (currentTgId) {
         options.headers['x-telegram-id'] = currentTgId;
         options.headers['user-id'] = currentTgId;
@@ -922,15 +922,21 @@
           options._isRetry = true;
           const reAuth = await authLogin();
           if (reAuth) {
-            if (authToken) options.headers['Authorization'] = `Bearer ${authToken}`;
-            if (initDataStr) options.headers['x-telegram-init-data'] = initDataStr;
+            const freshInitData = window.Telegram?.WebApp?.initData || tg?.initData || '';
+            if (freshInitData) {
+              options.headers['Authorization'] = `Bearer ${freshInitData}`;
+              options.headers['x-telegram-init-data'] = freshInitData;
+              options.headers['telegram-init-data'] = freshInitData;
+            } else if (authToken) {
+              options.headers['Authorization'] = `Bearer ${authToken}`;
+            }
             response = await fetch(targetUrl, options);
           }
         }
         return response;
       } catch (err) {
         console.error("Fetch Network Error:", err);
-        showToast(i18n[currentLang]?.network_error || "Network error. Please try again.");
+        showToast(i18n[currentLang]?.network_error || "Network error. Please check your internet connection.");
         return null;
       }
     }
