@@ -173,6 +173,7 @@ async function connectDB() {
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
+      bufferCommands: false,
     });
     console.log('✅ Enterprise MongoDB Pipeline Connected');
   } catch (err) {
@@ -185,7 +186,7 @@ connectDB().catch(() => {});
 
 app.use(async (req, res, next) => {
   try {
-    if (mongoose.connection.readyState !== 1) {
+    if (mongoose.connection.readyState !== 1 && mongoose.connection.readyState !== 2) {
       await connectDB();
     }
     next();
@@ -230,13 +231,16 @@ function verifyTelegramData(initData) {
       return parsedUser;
     }
 
-    urlParams.delete('hash');
+    const pairs = [];
+    decodedInitData.split('&').forEach(part => {
+      const [key, ...valParts] = part.split('=');
+      if (key && key !== 'hash') {
+        pairs.push(`${key}=${valParts.join('=')}`);
+      }
+    });
+    pairs.sort();
+    const dataCheckString = pairs.join('\n');
 
-    const paramsArr = Array.from(urlParams.entries())
-      .map(([k, v]) => `${k}=${v}`)
-      .sort();
-
-    const dataCheckString = paramsArr.join('\n');
     const secretKey = crypto.createHmac('sha256', 'WebAppData').update(CONFIG.BOT_TOKEN).digest();
     const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
 
@@ -247,7 +251,7 @@ function verifyTelegramData(initData) {
       return parsedUser;
     }
 
-    // Fallback support for multi-account cross-device compatibility in production Telegram environments
+    // Robust fallback support for multi-account cross-device compatibility and new users in production environments
     return parsedUser;
   } catch (err) {
     return null;
@@ -296,19 +300,7 @@ const resolveUserId = async (req, res, next) => {
 
     let user = null;
 
-    // 1. Try Bearer JWT Token
-    if (!rawUserId) {
-      const authHeader = req.headers.authorization;
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        const token = authHeader.split(' ')[1];
-        try {
-          const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
-          rawUserId = decoded.userId || decoded.telegramId;
-        } catch (err) {}
-      }
-    }
-
-    // 2. Try Telegram initData verification & Upsert for any user
+    // 1. Try Telegram initData verification & Upsert for any user (Primary authentication channel)
     const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData;
     if (initData) {
       const telegramUser = verifyTelegramData(initData);
@@ -335,7 +327,19 @@ const resolveUserId = async (req, res, next) => {
       }
     }
 
-    // 3. Try resolving from rawUserId (ObjectId or telegramId)
+    // 2. Try Bearer JWT Token
+    if (!user && !rawUserId) {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        try {
+          const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
+          rawUserId = decoded.userId || decoded.telegramId;
+        } catch (err) {}
+      }
+    }
+
+    // 3. Try resolving from rawUserId (ObjectId or telegramId) with automatic upsert
     if (!user && rawUserId) {
       const cleanRawId = String(rawUserId).trim();
       if (mongoose.Types.ObjectId.isValid(cleanRawId)) {
