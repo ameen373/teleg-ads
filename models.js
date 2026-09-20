@@ -22,17 +22,19 @@ const sanitizeTelegramId = (v) => {
   return String(v).trim();
 };
 
-// Global Schema Options for strict data isolation, timestamps, and safe JSON serialization
+// Global Schema Options for strict data isolation, timestamps, and safe JSON serialization (including Virtuals)
 const globalSchemaOptions = {
   timestamps: true,
   versionKey: '__v',
   toJSON: {
+    virtuals: true,
     transform: function (doc, ret) {
       delete ret.__v;
       return ret;
     }
   },
   toObject: {
+    virtuals: true,
     transform: function (doc, ret) {
       delete ret.__v;
       return ret;
@@ -142,10 +144,18 @@ const userSchema = new mongoose.Schema({
   }
 }, globalSchemaOptions);
 
+// Virtual populate for user links
+userSchema.virtual('links', {
+  ref: 'Link',
+  localField: 'telegramId',
+  foreignField: 'telegramId',
+  justOne: false
+});
+
 userSchema.index({ telegramId: 1, isBanned: 1 }, { sparse: true });
 userSchema.index({ createdAt: -1 });
 
-// Automatically provision/create new users if they don't exist in DB
+// Automatically provision/create new users if they don't exist in DB (Robust & Concurrency-Safe)
 userSchema.statics.findByTelegramIdIsolated = async function(telegramId, userData = {}) {
   const tgStr = enforceTenantKey(telegramId, 'telegramId');
   if (!tgStr) return null;
@@ -157,7 +167,9 @@ userSchema.statics.findByTelegramIdIsolated = async function(telegramId, userDat
         username: userData.username || '',
         firstName: userData.firstName || '',
         lastName: userData.lastName || '',
-        language: userData.language || 'ar'
+        language: userData.language || 'ar',
+        referredBy: userData.referredBy || null,
+        ...userData
       });
     } catch (err) {
       user = await this.findOne({ telegramId: tgStr });
