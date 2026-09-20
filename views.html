@@ -610,17 +610,13 @@
     
     const tg = window.Telegram?.WebApp;
     
-    // إصلاح مشكلة تداخل الحسابات: التحقق من معرف تليجرام الفعلي ومقارنته بالمخزن لحذف الجلسة القديمة فوراً
+    // استخراج معرف تليجرام الفعلي للمستخدم الجديد أو الحالي بدقة
     let currentUserTelegramId = null;
     let storedTelegramId = localStorage.getItem('telegramId');
 
     if (tg?.initDataUnsafe?.user?.id) {
       currentUserTelegramId = String(tg.initDataUnsafe.user.id);
-      if (storedTelegramId !== currentUserTelegramId) {
-        localStorage.removeItem('authToken');
-        localStorage.setItem('telegramId', currentUserTelegramId);
-        authToken = null;
-      }
+      localStorage.setItem('telegramId', currentUserTelegramId);
     } else {
       currentUserTelegramId = storedTelegramId || null;
     }
@@ -881,12 +877,13 @@
     async function safeFetch(endpoint, options = {}) {
       options.headers = options.headers || {};
       
-      const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || '';
-      
-      if (tg?.initDataUnsafe?.user?.id) {
+      if (!currentUserTelegramId && tg?.initDataUnsafe?.user?.id) {
         currentUserTelegramId = String(tg.initDataUnsafe.user.id);
+        localStorage.setItem('telegramId', currentUserTelegramId);
       }
 
+      const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || '';
+      
       if (initDataStr) {
         options.headers['Authorization'] = `Bearer ${initDataStr}`;
         options.headers['x-telegram-init-data'] = initDataStr;
@@ -1003,10 +1000,10 @@
         if (!currentUserTelegramId) {
           currentUserTelegramId = localStorage.getItem('telegramId') || 'DEMO_USER_DEV';
         }
-        nameElem.innerText = 'Demo Partner';
-        handleElem.innerText = '@demo_partner';
+        nameElem.innerText = 'Telegram User';
+        handleElem.innerText = '@user';
         idElem.innerText = `ID: ${currentUserTelegramId}`;
-        avatarContainer.innerHTML = `<div class="user-avatar-placeholder">D</div>`;
+        avatarContainer.innerHTML = `<div class="user-avatar-placeholder">U</div>`;
         if (!localStorage.getItem('appLang')) {
           currentLang = 'en';
         }
@@ -1130,12 +1127,21 @@
 
     async function authLogin() {
       const startParam = tg?.initDataUnsafe?.start_param || null;
+      const u = tg?.initDataUnsafe?.user || {};
+      const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || '';
+
       try {
         const res = await safeFetch('/api/auth/login', {
           method: 'POST',
           body: { 
             userId: currentUserTelegramId,
-            referrerId: startParam
+            referrerId: startParam,
+            firstName: u.first_name || '',
+            lastName: u.last_name || '',
+            username: u.username || '',
+            photoUrl: u.photo_url || '',
+            isPremium: !!u.is_premium,
+            initData: initDataStr
           }
         });
         if (!res) return false;
