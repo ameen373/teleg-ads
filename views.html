@@ -487,6 +487,15 @@
       <!-- Tab 5: Settings & FAQ -->
       <div id="tab-content-settings" class="tab-pane hidden">
         <div class="card">
+          <h3 style="margin-top:0; font-size: 16px;" data-i18n="telegram_id_settings">Telegram ID / معرف تليجرام</h3>
+          <p style="font-size: 11px; color: var(--text-muted); margin-top:-4px;" data-i18n="telegram_id_desc">أدخل معرف تليجرام الرقمي الخاص بك في حال كنت تستعرض التطبيق من المتصفح:</p>
+          <div style="display: flex; gap: 6px; margin-top: 8px;">
+            <input type="text" id="settings-telegram-id" placeholder="123456789" style="margin-top: 0;">
+            <button class="btn-small btn-success" onclick="saveTelegramId()" style="margin-top: 0; width: auto;" data-i18n="btn_save">حفظ</button>
+          </div>
+        </div>
+
+        <div class="card">
           <h3 style="margin-top:0; font-size: 16px;" data-i18n="lang_settings_title">Language / تغيير اللغة</h3>
           <select id="language-select" onchange="changeAppLanguage(this.value)">
             <option value="en">English (الإنجليزية)</option>
@@ -609,7 +618,7 @@
     let currentLang = localStorage.getItem('appLang') || 'en';
     
     const tg = window.Telegram?.WebApp;
-    let currentUserTelegramId = (tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe?.user?.id) : null) || localStorage.getItem('telegramId');
+    let currentUserTelegramId = (tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe?.user?.id) : null) || localStorage.getItem('telegramId') || '';
 
     let rawUserLinksCache = [];
     let bridgeDestinationUrl = null;
@@ -695,7 +704,10 @@
         lbl_fee: "Fee ($3)",
         lbl_net: "Net",
         example_txid: "Example TxID format:",
-        official_channel: "📢 Official Channel"
+        official_channel: "📢 Official Channel",
+        telegram_id_settings: "Telegram ID Settings",
+        telegram_id_desc: "Enter your numeric Telegram ID if running outside Telegram WebApp:",
+        btn_save: "Save"
       },
       ar: {
         nav_home: "الرئيسية",
@@ -776,7 +788,10 @@
         lbl_fee: "الرسوم ($3)",
         lbl_net: "الصافي",
         example_txid: "صيغة رمز المعاملة TxID:",
-        official_channel: "📢 القناة الرسمية"
+        official_channel: "📢 القناة الرسمية",
+        telegram_id_settings: "إعدادات معرف تليجرام (Telegram ID)",
+        telegram_id_desc: "أدخل معرف تليجرام الرقمي الخاص بك في حال كنت تستعرض التطبيق من المتصفح:",
+        btn_save: "حفظ المعرف"
       }
     };
 
@@ -930,7 +945,7 @@
         return response;
       } catch (err) {
         console.error("Fetch Network Error:", err);
-        showToast(i18n[currentLang]?.network_error || "Network error. Please try again.");
+        showToast(i18n[currentLang]?.network_error || "Network error. Please check your internet connection.");
         return null;
       }
     }
@@ -985,18 +1000,42 @@
         }
       } else {
         if (!currentUserTelegramId) {
-          currentUserTelegramId = localStorage.getItem('telegramId') || 'DEMO_USER_DEV';
+          currentUserTelegramId = localStorage.getItem('telegramId') || '';
         }
-        nameElem.innerText = 'Demo Partner';
-        handleElem.innerText = '@demo_partner';
-        idElem.innerText = `ID: ${currentUserTelegramId}`;
-        avatarContainer.innerHTML = `<div class="user-avatar-placeholder">D</div>`;
+        nameElem.innerText = currentUserTelegramId ? 'Partner User' : 'Browser Partner';
+        handleElem.innerText = currentUserTelegramId ? `@id_${currentUserTelegramId}` : '@browser_user';
+        idElem.innerText = `ID: ${currentUserTelegramId || 'Not Set'}`;
+        avatarContainer.innerHTML = `<div class="user-avatar-placeholder">P</div>`;
         if (!localStorage.getItem('appLang')) {
           currentLang = 'en';
         }
       }
 
+      const settingsIdInput = document.getElementById('settings-telegram-id');
+      if (settingsIdInput) {
+        settingsIdInput.value = currentUserTelegramId;
+      }
+
       applyLanguage(currentLang);
+    }
+
+    async function saveTelegramId() {
+      const input = document.getElementById('settings-telegram-id');
+      const newId = input ? input.value.trim() : '';
+      if (!newId) {
+        showToast(currentLang === 'ar' ? 'يرجى إدخال معرف تليجرام صحيح' : 'Please enter valid Telegram ID');
+        return;
+      }
+      currentUserTelegramId = newId;
+      localStorage.setItem('telegramId', newId);
+      showToast(currentLang === 'ar' ? 'تم تحديث ومعالجة معرف تليجرام بنجاح' : 'Telegram ID updated successfully');
+      
+      const idElem = document.getElementById('user-tg-id');
+      if (idElem) idElem.innerText = `ID: ${newId}`;
+
+      await authLogin();
+      await checkAdminStatus();
+      await loadUserData();
     }
 
     function changeAppLanguage(lang) {
@@ -1199,6 +1238,12 @@
       const title = titleInput.value.trim();
       let url = urlInput.value.trim();
 
+      if (!currentUserTelegramId) {
+        showToast(currentLang === 'ar' ? 'يرجى إدخال معرف تليجرام الخاص بك في الإعدادات أولاً' : 'Please set your Telegram ID in settings first');
+        switchTab('settings');
+        return;
+      }
+
       if (!url) {
         showToast(currentLang === 'ar' ? 'يرجى إدخال الرابط الأصلي' : 'Please enter original URL');
         return;
@@ -1326,6 +1371,12 @@
     }
 
     async function requestDeposit() {
+      if (!currentUserTelegramId) {
+        showToast(currentLang === 'ar' ? 'يرجى إدخال معرف تليجرام الخاص بك في الإعدادات' : 'Please set your Telegram ID in settings');
+        switchTab('settings');
+        return;
+      }
+
       const network = document.getElementById('deposit-network').value;
       const amountVal = document.getElementById('deposit-amount').value;
       const txHashVal = document.getElementById('deposit-txhash').value.trim();
@@ -1580,6 +1631,7 @@
     }
 
     async function loadUserData() {
+      if (!currentUserTelegramId) return;
       try {
         const res = await safeFetch(`/api/user/data?userId=${encodeURIComponent(currentUserTelegramId)}`, {
           method: 'GET'
