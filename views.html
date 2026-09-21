@@ -1259,11 +1259,30 @@
 
         const data = await res.json().catch(() => ({}));
 
-        if (res.ok && (data.success || data.link)) {
+        if (res.ok && (data.success || data.link || data.shortCode)) {
           showToast(i18n[currentLang]?.link_success_msg || 'Link shortened successfully!');
           titleInput.value = '';
           urlInput.value = '';
-          await loadUserData();
+          
+          // تحديث واجهة المستخدم فوراً وإضافة الرابط الجديد إلى الذاكرة المؤقتة وقائمة العرض
+          const newLink = data.link || {
+            _id: data._id || data.id || ('temp_' + Date.now()),
+            title: title || data.title || 'Untitled Link',
+            originalUrl: url,
+            targetUrl: url,
+            shortCode: data.shortCode || data.code || '',
+            shortUrl: data.shortUrl || data.shortLink || (data.shortCode ? `${API_BASE}/r/${data.shortCode}` : ''),
+            views: 0,
+            validImpressions: 0,
+            totalEarnings: 0
+          };
+
+          if (!rawUserLinksCache) rawUserLinksCache = [];
+          rawUserLinksCache.unshift(newLink);
+          renderUserLinks(rawUserLinksCache);
+
+          // مزامنة البيانات من السيرفر في الخلفية
+          loadUserData();
         } else {
           const errorMsg = data.error || data.message || (currentLang === 'ar' ? 'فشل إنشاء الرابط المختصر' : 'Failed to create short link');
           showToast(errorMsg);
@@ -1794,7 +1813,7 @@
     function renderAdminWithdraws(withdraws) {
       const container = document.getElementById('admin-withdraws-list');
       if (!container) return;
-      if (!withdraws || withdraws.length === 0) {
+      if (!withdraws || withdrawals.length === 0) {
         container.innerHTML = '<p style="color: var(--text-muted);">No withdrawal requests.</p>';
         return;
       }
@@ -2102,7 +2121,7 @@
       } else {
         await loadUserData();
       }
-
+      
       await initBridgeViewIfRequired();
     });
   </script>
