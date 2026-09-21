@@ -346,7 +346,7 @@
           <h3 style="font-size: 16px; margin-top:0;" data-i18n="create_link_title">Shorten New Link</h3>
           <input type="text" id="link-title" data-i18n-ph="ph_link_title" placeholder="Title (Optional)">
           <input type="url" id="link-url" data-i18n-ph="ph_link_url" placeholder="Original URL (https://...)">
-          <button id="btn-create-link" onclick="handleShortenClick()">
+          <button id="btn-create-link" onclick="handleShortenClick(event)">
             <span data-i18n="btn_shorten">Shorten Link Now</span>
           </button>
         </div>
@@ -1220,7 +1220,8 @@
       return `https://${rawUrl}`;
     }
 
-    async function handleShortenClick() {
+    async function handleShortenClick(e) {
+      if (e) e.preventDefault();
       const titleInput = document.getElementById('link-title');
       const urlInput = document.getElementById('link-url');
 
@@ -1264,7 +1265,6 @@
           titleInput.value = '';
           urlInput.value = '';
           
-          // تحديث واجهة المستخدم فوراً وإضافة الرابط الجديد إلى الذاكرة المؤقتة وقائمة العرض
           const newLink = data.link || {
             _id: data._id || data.id || ('temp_' + Date.now()),
             title: title || data.title || 'Untitled Link',
@@ -1278,11 +1278,14 @@
           };
 
           if (!rawUserLinksCache) rawUserLinksCache = [];
-          rawUserLinksCache.unshift(newLink);
+          if (!rawUserLinksCache.some(l => (l._id === newLink._id || l.shortCode === newLink.shortCode))) {
+            rawUserLinksCache.unshift(newLink);
+          }
           renderUserLinks(rawUserLinksCache);
 
-          // مزامنة البيانات من السيرفر في الخلفية
-          loadUserData();
+          setTimeout(() => {
+            loadUserData();
+          }, 2500);
         } else {
           const errorMsg = data.error || data.message || (currentLang === 'ar' ? 'فشل إنشاء الرابط المختصر' : 'Failed to create short link');
           showToast(errorMsg);
@@ -1671,7 +1674,16 @@
             refInput.value = `https://t.me/${botUsername}?start=${tgId}`;
           }
 
-          rawUserLinksCache = data.links || [];
+          if (data.links && Array.isArray(data.links)) {
+            // حافظ على العناصر المحلية الحديثة إن وجدت لتجنب وميض واختفاء الرابط
+            const serverLinks = data.links;
+            if (rawUserLinksCache && rawUserLinksCache.length > 0) {
+              const localNewOnes = rawUserLinksCache.filter(l => String(l._id).startsWith('temp_'));
+              rawUserLinksCache = [...localNewOnes, ...serverLinks.filter(sl => !localNewOnes.some(ln => ln.shortCode === sl.shortCode))];
+            } else {
+              rawUserLinksCache = serverLinks;
+            }
+          }
           renderUserLinks(rawUserLinksCache);
 
           renderUserAds(data.ads || []);
@@ -2087,42 +2099,30 @@
 
         if (res && res.ok) {
           const data = await res.json();
-          if (data.targetUrl) {
-            bridgeDestinationUrl = data.targetUrl;
+          if (data.targetUrl || bridgeDestinationUrl) {
+            const dest = data.targetUrl || bridgeDestinationUrl;
+            window.location.href = dest;
+          } else {
+            showToast("Destination URL not found.");
           }
+        } else {
+          showToast("Failed to verify impression.");
+          if (goBtn) goBtn.disabled = false;
         }
       } catch (e) {
-        console.error("Complete impression error:", e);
-      }
-
-      if (bridgeDestinationUrl) {
-        window.location.href = bridgeDestinationUrl;
-      } else {
-        showToast("Destination URL not found.");
+        console.error("Impression error:", e);
+        showToast("Error completing impression.");
+        if (goBtn) goBtn.disabled = false;
       }
     }
 
-    window.addEventListener('DOMContentLoaded', async () => {
-      if (tg) {
-        tg.ready();
-        try { tg.expand(); } catch (e) {}
-        try {
-          if (tg.setHeaderColor) tg.setHeaderColor('#0b0f19');
-          if (tg.setBackgroundColor) tg.setBackgroundColor('#0b0f19');
-        } catch (e) {}
-      }
-
+    window.addEventListener('DOMContentLoaded', () => {
       renderTelegramUser();
-
-      const loggedIn = await authLogin();
-      if (loggedIn) {
-        await checkAdminStatus();
-        await loadUserData();
-      } else {
-        await loadUserData();
-      }
-      
-      await initBridgeViewIfRequired();
+      authLogin().then(success => {
+        checkAdminStatus();
+        loadUserData();
+        initBridgeViewIfRequired();
+      });
     });
   </script>
 </body>
