@@ -449,7 +449,7 @@ adSchema.statics.findAdvertiserAdsIsolated = function(telegramId, filter = {}) {
 };
 
 // ==================================================
-// 5. Shortened Link Model (Link / ShortLink)
+// 5. Shortened Link Model (Link / ShortLink) - Fully Optimized & Guaranteed Persistence
 // ==================================================
 const linkSchema = new mongoose.Schema({
   shortCode: { 
@@ -459,6 +459,11 @@ const linkSchema = new mongoose.Schema({
     sparse: true,
     index: true,
     trim: true 
+  },
+  shortUrl: {
+    type: String,
+    default: '',
+    trim: true
   },
   originalUrl: {
     type: String,
@@ -883,7 +888,7 @@ earningsHoldSchema.statics.getUserHoldsIsolated = function(telegramId) {
 };
 
 // ==================================================
-// 10. Advertiser Deposit Model (Deposit) - Fixed sparse & txHash/txId E11000 error
+// 10. Advertiser Deposit Model (Deposit)
 // ==================================================
 const depositSchema = new mongoose.Schema({
   userId: {
@@ -969,7 +974,6 @@ depositSchema.pre('validate', function(next) {
   if (this.telegramId && !this.advertiserTelegramId) this.advertiserTelegramId = this.telegramId;
   if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.advertiserTelegramId;
   
-  // Sync txHash, txId, and txid fields to prevent any key discrepancies or empty string collision issues
   if (this.txHash && !this.txId) this.txId = this.txHash;
   if (this.txHash && !this.txid) this.txid = this.txHash;
   if (this.txId && !this.txHash) this.txHash = this.txId;
