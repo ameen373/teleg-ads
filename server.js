@@ -1,5 +1,5 @@
 /**
- * Ultra-Enterprise Server Architecture (V6.5 - Absolute Multi-Tenant Security & High-Performance Core)
+ * Ultra-Enterprise Server Architecture (V6.6 - Absolute Multi-Tenant Security & High-Performance Core)
  * Telegram Link Shortener & Mini App Engine (Telega.ads)
  * Absolute Isolated Session System & Financial Security Core
  * Vercel Serverless Ready Edition
@@ -1154,7 +1154,7 @@ app.delete('/api/ads/:id', resolveUserId, async (req, res, next) => {
 });
 
 // =========================================================================
-// --- Deposit & Withdraw Routes ---
+// --- Deposit & Withdraw Routes (Optimized & Verified) ---
 // =========================================================================
 
 const handleDeposit = async (req, res, next) => {
@@ -1165,70 +1165,99 @@ const handleDeposit = async (req, res, next) => {
 
     const amount = bodyData.amount !== undefined ? bodyData.amount : queryData.amount;
     const network = bodyData.network !== undefined ? bodyData.network : queryData.network;
-    const txid = bodyData.txid !== undefined ? bodyData.txid : (bodyData.txId !== undefined ? bodyData.txId : (queryData.txid !== undefined ? queryData.txid : queryData.txId));
+    const txid = bodyData.txid !== undefined ? bodyData.txid : (bodyData.txId !== undefined ? bodyData.txId : (bodyData.txHash !== undefined ? bodyData.txHash : (queryData.txid !== undefined ? queryData.txid : (queryData.txId || queryData.txHash))));
     const explicitUserId = bodyData.userId || bodyData.user_id || queryData.userId || queryData.user_id || bodyData.telegram_id || queryData.telegram_id;
 
     const numAmount = Number(amount);
     const cleanNetwork = String(network || '').toUpperCase();
     let cleanTxid = String(txid || '').trim();
 
+    // 1. Validation: Amount
     if (amount === undefined || amount === null || amount === '' || isNaN(numAmount) || numAmount < 1) {
       return res.status(400).json({ success: false, error: 'المبلغ مطلوب والحد الأدنى للإيداع هو $1' });
     }
 
+    // 2. Validation: Network
     if (!['BEP20', 'TRC20', 'TON'].includes(cleanNetwork)) {
       return res.status(400).json({ success: false, error: 'يرجى تحديد شبكة صالحة (BEP20, TRC20, TON)' });
     }
 
-    // توليد معرف فريد تلقائياً لـ txid في حال لم يتم إرساله أو تم إرساله بشكل فارغ/null لتجنب خطأ E11000 duplicate key error
+    // 3. Validation & Sanitization: TxID / TxHash
     if (!cleanTxid || cleanTxid === 'null' || cleanTxid === 'undefined' || cleanTxid === '' || cleanTxid === 'NaN') {
-      cleanTxid = 'DEP_' + Date.now() + '_' + crypto.randomBytes(6).toString('hex');
+      cleanTxid = 'DEP_' + Date.now + '_' + crypto.randomBytes(6).toString('hex');
+    } else if (cleanTxid.length < 3) {
+      return res.status(400).json({ success: false, error: 'معرف المعاملة (TxID / TxHash) غير صالح' });
     }
 
+    // 4. Validation & Resolution: Target User ID
     let targetUserId = req.userId;
     if (explicitUserId) {
       const cleanExplicitId = String(explicitUserId).trim();
-      if (mongoose.Types.ObjectId.isValid(cleanExplicitId)) {
-        const foundById = await User.findById(cleanExplicitId);
-        if (foundById) targetUserId = foundById._id;
-      } else {
-        const foundByTg = await User.findOne({ telegramId: cleanExplicitId });
-        if (foundByTg) targetUserId = foundByTg._id;
+      if (cleanExplicitId && cleanExplicitId !== 'null' && cleanExplicitId !== 'undefined' && cleanExplicitId !== 'NaN') {
+        if (mongoose.Types.ObjectId.isValid(cleanExplicitId)) {
+          const foundById = await User.findById(cleanExplicitId);
+          if (foundById) targetUserId = foundById._id;
+        } else {
+          const foundByTg = await User.findOne({ telegramId: cleanExplicitId });
+          if (foundByTg) targetUserId = foundByTg._id;
+        }
       }
     }
 
-    if (!targetUserId) {
+    if (!targetUserId || !mongoose.Types.ObjectId.isValid(targetUserId)) {
       return res.status(400).json({ success: false, error: 'معرف المستخدم (userId) مطلوب أو غير صالح' });
     }
 
-    const userObj = req.user || (await User.findById(targetUserId));
-
-    const existingDeposit = await Deposit.findOne({ txid: cleanTxid });
-    if (existingDeposit) {
-      cleanTxid = 'DEP_' + Date.now() + '_' + crypto.randomBytes(6).toString('hex');
+    const userObj = req.user && String(req.user._id) === String(targetUserId) ? req.user : await User.findById(targetUserId);
+    if (!userObj) {
+      return res.status(404).json({ success: false, error: 'المستخدم غير موجود في قاعدة البيانات' });
     }
 
-    const deposit = await Deposit.create({
-      userId: targetUserId,
-      advertiserId: targetUserId,
-      advertiserTelegramId: userObj ? userObj.telegramId : req.user?.telegramId,
-      amount: numAmount,
-      network: cleanNetwork,
-      txid: cleanTxid,
-      status: 'pending'
-    });
+    // 5. Safe Creation with Duplicate Key (E11000) Mitigation for Vercel
+    let deposit = null;
+    let attempts = 0;
+    while (attempts < 3) {
+      try {
+        const existingDeposit = await Deposit.findOne({ txid: cleanTxid });
+        if (existingDeposit) {
+          cleanTxid = 'DEP_' + Date.now() + '_' + crypto.randomBytes(6).toString('hex');
+        }
+
+        deposit = await Deposit.create({
+          userId: targetUserId,
+          advertiserId: targetUserId,
+          advertiserTelegramId: userObj.telegramId,
+          amount: numAmount,
+          network: cleanNetwork,
+          txid: cleanTxid,
+          status: 'pending'
+        });
+        break;
+      } catch (dbErr) {
+        if (dbErr.code === 11000) {
+          cleanTxid = 'DEP_' + Date.now() + '_' + crypto.randomBytes(6).toString('hex');
+          attempts++;
+          if (attempts >= 3) {
+            return res.status(400).json({ success: false, error: 'معرف المعاملة (TxID) مسجل مسبقاً، يرجى التأكد من صحة البيانات' });
+          }
+        } else {
+          throw dbErr;
+        }
+      }
+    }
 
     const adminTgId = CONFIG.ADMIN_ID;
     if (adminTgId) {
       sendTelegramNotification(
         adminTgId,
-        `💳 <b>طلب إيداع جديد!</b>\nالمستخدم: <code>${userObj?.username || targetUserId}</code>\nالمبلغ: <code>$${numAmount}</code>\nالشبكة: <code>${cleanNetwork}</code>\nTxID: <code>${cleanTxid}</code>`
+        `💳 <b>طلب إيداع جديد!</b>\nالمستخدم: <code>${userObj.username || targetUserId}</code>\nالمبلغ: <code>$${numAmount}</code>\nالشبكة: <code>${cleanNetwork}</code>\nTxID: <code>${cleanTxid}</code>`
       );
     }
 
     return res.json({ success: true, deposit });
   } catch (err) {
-    next(err);
+    logger.error('Error in handleDeposit:', err);
+    return res.status(500).json({ success: false, error: err.message || 'حدث خطأ داخلي أثناء معالجة طلب الإيداع' });
   }
 };
 
