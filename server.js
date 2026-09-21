@@ -761,14 +761,12 @@ const handleUserData = async (req, res, next) => {
       const validImp = link.validImpressions || 0;
       const invalidImp = link.invalidImpressions || 0;
       const ctr = totalViews > 0 ? ((validImp / totalViews) * 100).toFixed(1) : "0.0";
-      const shortUrl = buildShortUrl(link.shortCode);
       return { 
         ...link, 
         ctr, 
         validImpressions: validImp, 
         invalidImpressions: invalidImp,
-        shortUrl,
-        short_url: shortUrl
+        shortUrl: buildShortUrl(link.shortCode)
       };
     });
 
@@ -856,13 +854,9 @@ const handleShortenLink = async (req, res) => {
       success: true, 
       link: {
         ...linkObj,
-        shortUrl,
-        short_url: shortUrl,
-        shortCode
+        shortUrl
       },
-      shortUrl,
-      short_url: shortUrl,
-      shortcode: shortCode
+      shortUrl
     });
   } catch (err) {
     logger.error('Error in handleShortenLink:', err);
@@ -892,12 +886,10 @@ const getUserLinks = async (userId) => {
     const totalViews = link.views || 0;
     const validImp = link.validImpressions || 0;
     const ctr = totalViews > 0 ? ((validImp / totalViews) * 100).toFixed(1) : "0.0";
-    const shortUrl = buildShortUrl(link.shortCode);
     return { 
       ...link, 
       ctr,
-      shortUrl,
-      short_url: shortUrl
+      shortUrl: buildShortUrl(link.shortCode)
     };
   });
 };
