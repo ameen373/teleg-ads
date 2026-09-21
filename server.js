@@ -1,5 +1,5 @@
 /**
- * Ultra-Enterprise Server Architecture (V6.2 - Absolute Multi-Tenant Security & High-Performance Core)
+ * Ultra-Enterprise Server Architecture (V6.3 - Absolute Multi-Tenant Security & High-Performance Core)
  * Telegram Link Shortener & Mini App Engine (Telega.ads)
  * Absolute Isolated Session System & Financial Security Core
  * Vercel Serverless Ready Edition
@@ -31,7 +31,7 @@ app.set('trust proxy', 1);
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data', 'telegram-init-data', 'X-Requested-With', 'x-user-id', 'user-id', 'x-user-ld', 'user-ld', 'telegramid', 'telegram_id', 'id'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data', 'telegram-init-data', 'X-Requested-With', 'x-user-id', 'user-id', 'x-user-ld', 'user-ld', 'telegramid', 'telegram_id', 'id', 'x-init-data'],
   credentials: true
 }));
 app.options('*', cors());
@@ -451,8 +451,27 @@ const resolveUserId = async (req, res, next) => {
                       req.query?.telegram_id || req.query?.telegramId || req.query?.userId || req.query?.user_id || req.query?.userld || req.query?.telegramid || req.query?.id || req.query?.tg_id || req.query?.telegram_user_id ||
                       req.headers['x-user-id'] || req.headers['user-id'] || req.headers['x-user-ld'] || req.headers['user-ld'] || req.headers['telegramid'] || req.headers['telegram_id'] || req.headers['x-telegram-id'] || req.headers['telegram-id'];
 
-    // 1. Try Telegram initData verification & Auto-Upsert
-    if (initData) {
+    // 1. Try Bearer JWT Token first
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      try {
+        const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
+        const jwtUserId = decoded.userId || decoded.telegramId;
+        if (jwtUserId) {
+          if (mongoose.Types.ObjectId.isValid(jwtUserId)) {
+            user = await User.findById(jwtUserId);
+          }
+          if (!user) {
+            user = await User.findOne({ telegramId: String(jwtUserId).trim() });
+          }
+        }
+      } catch (err) {
+        // Token expired or invalid, continue to fallback methods instead of failing immediately
+      }
+    }
+
+    // 2. Try Telegram initData verification & Auto-Upsert
+    if (!user && initData) {
       const telegramUser = verifyTelegramData(initData);
       if (telegramUser && telegramUser.id) {
         const tgId = String(telegramUser.id).trim();
@@ -469,23 +488,6 @@ const resolveUserId = async (req, res, next) => {
           );
         }
       }
-    }
-
-    // 2. Try Bearer JWT Token
-    if (!user && authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
-      try {
-        const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
-        const jwtUserId = decoded.userId || decoded.telegramId;
-        if (jwtUserId) {
-          if (mongoose.Types.ObjectId.isValid(jwtUserId)) {
-            user = await User.findById(jwtUserId);
-          }
-          if (!user) {
-            user = await User.findOne({ telegramId: String(jwtUserId).trim() });
-          }
-        }
-      } catch (err) {}
     }
 
     // 3. Try resolving from raw user ID / telegram ID with Auto-Upsert
@@ -532,7 +534,7 @@ const resolveUserId = async (req, res, next) => {
     }
 
     if (!user) {
-      return res.status(401).json({ success: false, error: 'انتهت الجلسة أو حدث خطأ في التحقق من المستخدم' });
+      return res.status(401).json({ success: false, error: 'انتهت الجلسة أو حدث خطأ في التحقق من المستخدم (401 Unauthorized)' });
     }
 
     if (user.isBanned) {
@@ -544,7 +546,7 @@ const resolveUserId = async (req, res, next) => {
     next();
   } catch (err) {
     logger.error('Error in resolveUserId middleware:', err);
-    return res.status(401).json({ success: false, error: 'انتهت الجلسة أو حدث خطأ في التحقق من المستخدم' });
+    return res.status(401).json({ success: false, error: 'انتهت الجلسة أو حدث خطأ في التحقق من المستخدم (401 Unauthorized)' });
   }
 };
 
@@ -600,7 +602,14 @@ app.all('/check-admin', handleCheckAdmin);
 const handleLogin = async (req, res, next) => {
   try {
     await connectDB();
-    const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData || req.body?.user || req.query?.user;
+    const initData = req.headers['x-telegram-init-data'] || 
+                     req.headers['telegram-init-data'] || 
+                     req.query?.initData || 
+                     req.body?.initData || 
+                     req.body?.user || 
+                     req.query?.user ||
+                     req.headers['x-init-data'];
+
     const telegramUser = verifyTelegramData(initData);
 
     const rawId = telegramUser?.id || 
@@ -630,7 +639,7 @@ const handleLogin = async (req, res, next) => {
     if (!tgId || tgId === 'null' || tgId === 'undefined' || tgId === '' || tgId === 'NaN') {
       return res.status(400).json({ 
         success: false, 
-        error: 'معرف تليجرام (telegram_id) مفقود أو غير صالح' 
+        error: 'معرف تليجرام (telegram_id) أو بيانات الـ initData مفقودة أو غير صالحة' 
       });
     }
 
@@ -697,6 +706,8 @@ const handleLogin = async (req, res, next) => {
 
 app.post('/api/auth/login', handleLogin);
 app.post('/auth/login', handleLogin);
+app.post('/api/login', handleLogin);
+app.post('/login', handleLogin);
 
 // --- Isolated User Data Gateway ---
 const handleUserData = async (req, res, next) => {
@@ -1232,7 +1243,7 @@ app.post('/api/withdraw', resolveUserId, async (req, res, next) => {
 
     sendTelegramNotification(
       req.user.telegramId,
-      `🔔 <b>تم تقديم طلب السحب بنجاح!</b>\nالمبلغ: <code>$${numAmt}</code>\nالرسوم: <code>$${FEE}</code>\nالصافي: <code>$${netAmount}</code>\nالشبكة: <code>${cleanNetwork}</code>\nالمحفظة: <code>${cleanWallet}</code>\nالحالة: ⏳ قيد المراجعة\n\nالدعم: ${CONFIG.SUPPORT_USERNAME}`
+      `🔔 <b>تم تقديم طلب السحب بنجاح!</b>\nالمبلغ: <code>$${numAmt}</code>\nالرسوم: <code>$${FEE}</code>\nالصافي: <code>$${netAmount}</code>\nالشبكة: <code>$${cleanNetwork}</code>\nالمحفظة: <code>${cleanWallet}</code>\nالحالة: ⏳ قيد المراجعة\n\nالدعم: ${CONFIG.SUPPORT_USERNAME}`
     );
 
     res.json({ success: true, withdraw: withdrawRequest[0] });
