@@ -2056,14 +2056,13 @@
 
       try {
         const timeSpent = Date.now() - bridgeStartTime;
-        const res = await safeFetch('/api/complete-impression', {
+        const res = await safeFetch('/api/impression', {
           method: 'POST',
           body: {
             sessionId: currentSessionId,
             bridgeToken: bridgeToken,
             userId: currentUserTelegramId,
-            linkCode: currentShortCode,
-            timeSpent: timeSpent
+            duration: Math.round(timeSpent / 1000)
           }
         });
 
