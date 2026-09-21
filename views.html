@@ -873,7 +873,7 @@
     }
 
     /**
-     * دالة آمنة لإرسال طلبات الـ fetch مع تضمين initData و userId تلقائياً في Headers و Body و Query Params
+     * دالة آمنة لإرسال طلبات الـ fetch مع تضمين initData و userId تلقائياً في الترويسات (Headers)، جسم الطلب (Body)، ومعلمات الرابط (Query Params)
      */
     async function safeFetch(endpoint, options = {}) {
       options.headers = options.headers || {};
@@ -885,7 +885,7 @@
 
       const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || '';
       
-      // إرسال initData في الـ Headers بجميع الصيغ المتوقعة من السيرفر
+      // إرسال initData و Bearer Token في الترويسات بجميع الصيغ التي يتوقعها السيرفر
       if (initDataStr) {
         options.headers['Authorization'] = `Bearer ${initDataStr}`;
         options.headers['x-telegram-init-data'] = initDataStr;
@@ -894,7 +894,7 @@
         options.headers['Authorization'] = `Bearer ${authToken}`;
       }
 
-      // إرسال userId في الـ Headers
+      // إرسال معرف المستخدم في الترويسات
       if (currentUserTelegramId) {
         options.headers['x-telegram-id'] = currentUserTelegramId;
         options.headers['user-id'] = currentUserTelegramId;
@@ -902,7 +902,7 @@
 
       const method = (options.method || 'GET').toUpperCase();
 
-      // معالجة الـ Body للطلبات التي تحتويه (POST, PUT, PATCH, DELETE إذا لزم)
+      // معالجة وإرفاق بيانات المستخدم في جسم الطلب (Body) للطلبات التي تتطلب ذلك
       if (options.body && typeof options.body === 'object') {
         if (currentUserTelegramId && !options.body.userId) {
           options.body.userId = currentUserTelegramId;
@@ -925,7 +925,7 @@
       let cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
       let targetUrl = endpoint.startsWith('http') ? endpoint : `${API_BASE}${cleanEndpoint}`;
 
-      // إلحاق userId و initData بـ Query Parameters لتلبية متطلبات جميع مسارات الخادم
+      // إلحاق userId كـ Query Parameter لضمان التقاطه من قبل مسارات الخادم عبر الـ Query
       if (currentUserTelegramId) {
         const separator = targetUrl.includes('?') ? '&' : '?';
         if (!targetUrl.includes('userId=')) {
@@ -936,6 +936,7 @@
       try {
         let response = await fetch(targetUrl, options);
         
+        // التعامل التلقائي مع انتهاء الصلاحية أو عدم المصادقة (401) وإعادة محاولة الطلب مرة واحدة
         if (response && response.status === 401 && !options._isRetry) {
           options._isRetry = true;
           const reAuth = await authLogin();
