@@ -1,5 +1,5 @@
 /**
- * Ultra-Enterprise Server Architecture (V6.6 - Absolute Multi-Tenant Security & High-Performance Core)
+ * Ultra-Enterprise Server Architecture (V6.7 - Absolute Multi-Tenant Security & High-Performance Core)
  * Telegram Link Shortener & Mini App Engine (Telega.ads)
  * Absolute Isolated Session System & Financial Security Core
  * Vercel Serverless Ready Edition
@@ -459,7 +459,7 @@ const resolveUserId = async (req, res, next) => {
                      req.query?.initData || 
                      req.body?.initData || 
                      req.body?.user || 
-                     req.query?.user ||
+                     req.query?.user || 
                      req.headers['x-init-data'];
 
     const rawUserId = req.headers['x-user-id'] || req.headers['user-id'] || 
@@ -660,7 +660,7 @@ const handleLogin = async (req, res, next) => {
                      req.query?.initData || 
                      req.body?.initData || 
                      req.body?.user || 
-                     req.query?.user ||
+                     req.query?.user || 
                      req.headers['x-init-data'];
 
     const telegramUser = verifyTelegramData(initData);
@@ -673,7 +673,7 @@ const handleLogin = async (req, res, next) => {
     let tgId = rawId ? String(rawId).trim() : null;
 
     if (!tgId || tgId === 'null' || tgId === 'undefined' || tgId === '' || tgId === 'NaN') {
-      tgId = '123456789'; // Fallback default safe ID to prevent 400 errors during login requests
+      tgId = '123456789';
     }
 
     const { referrerId } = req.body || {};
@@ -742,34 +742,83 @@ app.post('/auth/login', handleLogin);
 app.post('/api/login', handleLogin);
 app.post('/login', handleLogin);
 
+// --- Robust Link Fetcher Helper (Ensures Exact User ID match & Descending Order) ---
+const getUserLinks = async (userIdOrTgId) => {
+  if (!userIdOrTgId) return [];
+  await connectDB();
+
+  let query = {};
+  const cleanId = String(userIdOrTgId).trim();
+
+  if (mongoose.Types.ObjectId.isValid(cleanId)) {
+    query = {
+      $or: [
+        { userId: cleanId },
+        { userId: new mongoose.Types.ObjectId(cleanId) }
+      ]
+    };
+  } else {
+    query = {
+      $or: [
+        { userId: cleanId },
+        { telegramId: cleanId },
+        { publisherTelegramId: cleanId }
+      ]
+    };
+  }
+
+  // البحث في قاعدة البيانات عن الروابط التابعة للمستخدم فقط مرتبة تنازلياً (الأحدث أولاً)
+  const rawLinks = await Link.find(query).sort({ createdAt: -1 }).lean();
+
+  return rawLinks.map(link => {
+    const totalViews = link.views || 0;
+    const validImp = link.validImpressions || 0;
+    const invalidImp = link.invalidImpressions || 0;
+    const ctr = totalViews > 0 ? ((validImp / totalViews) * 100).toFixed(1) : "0.0";
+    return { 
+      ...link, 
+      id: link._id,
+      ctr,
+      validImpressions: validImp,
+      invalidImpressions: invalidImp,
+      shortUrl: link.shortUrl || buildShortUrl(link.shortCode)
+    };
+  });
+};
+
+const handleGetLinks = async (req, res, next) => {
+  try {
+    await connectDB();
+    const explicitId = req.query.userId || req.query.telegramId || req.query.telegram_id || req.query.id || req.headers['x-user-id'] || req.headers['telegramid'] || req.headers['telegram_id'];
+    const targetIdentifier = explicitId || req.userId || (req.user ? req.user._id : null) || (req.user ? req.user.telegramId : null);
+    
+    const links = await getUserLinks(targetIdentifier);
+    res.json({ success: true, links });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// --- Dedicated Link API Routes ---
+app.get('/api/links', resolveUserId, handleGetLinks);
+app.get('/links', resolveUserId, handleGetLinks);
+app.get('/api/user/links', resolveUserId, handleGetLinks);
+app.get('/user/links', resolveUserId, handleGetLinks);
+
 // --- Isolated User Data Gateway ---
 const handleUserData = async (req, res, next) => {
   try {
     await connectDB();
     const targetUserId = req.userId;
+    const targetTelegramId = req.user ? req.user.telegramId : null;
 
-    const [rawLinks, withdraws, announcements, ads, deposits] = await Promise.all([
-      Link.find({ userId: targetUserId }).sort({ createdAt: -1 }).lean(),
+    const [links, withdraws, announcements, ads, deposits] = await Promise.all([
+      getUserLinks(targetUserId),
       Withdraw.find({ userId: targetUserId }).sort({ createdAt: -1 }).lean(),
       Announcement.find({ $or: [{ isGlobal: true }, { targetUserId: targetUserId }] }).sort({ createdAt: -1 }).lean(),
       Ad.find({ userId: targetUserId }).sort({ createdAt: -1 }).lean(),
       Deposit.find({ userId: targetUserId }).sort({ createdAt: -1 }).lean()
     ]);
-
-    const links = rawLinks.map(link => {
-      const totalViews = link.views || 0;
-      const validImp = link.validImpressions || 0;
-      const invalidImp = link.invalidImpressions || 0;
-      const ctr = totalViews > 0 ? ((validImp / totalViews) * 100).toFixed(1) : "0.0";
-      return { 
-        ...link, 
-        id: link._id,
-        ctr, 
-        validImpressions: validImp, 
-        invalidImpressions: invalidImp,
-        shortUrl: link.shortUrl || buildShortUrl(link.shortCode)
-      };
-    });
 
     const isAdmin = Boolean(CONFIG.ADMIN_ID && String(req.user.telegramId).trim() === CONFIG.ADMIN_ID);
     res.json({ 
@@ -879,52 +928,6 @@ app.post('/api/links', resolveUserId, linkCreationLimiter, handleShortenLink);
 app.post('/links', resolveUserId, linkCreationLimiter, handleShortenLink);
 app.post('/api/shorten-link', resolveUserId, linkCreationLimiter, handleShortenLink);
 app.post('/shorten-link', resolveUserId, linkCreationLimiter, handleShortenLink);
-
-const getUserLinks = async (userId) => {
-  if (!userId) return [];
-  await connectDB();
-
-  const rawLinks = await Link.find({ userId: userId }).sort({ createdAt: -1 }).lean();
-
-  return rawLinks.map(link => {
-    const totalViews = link.views || 0;
-    const validImp = link.validImpressions || 0;
-    const ctr = totalViews > 0 ? ((validImp / totalViews) * 100).toFixed(1) : "0.0";
-    return { 
-      ...link, 
-      id: link._id,
-      ctr,
-      shortUrl: link.shortUrl || buildShortUrl(link.shortCode)
-    };
-  });
-};
-
-app.get('/api/links', resolveUserId, async (req, res, next) => {
-  try {
-    const links = await getUserLinks(req.userId);
-    res.json({ success: true, links });
-  } catch (err) {
-    next(err);
-  }
-});
-
-app.get('/links', resolveUserId, async (req, res, next) => {
-  try {
-    const links = await getUserLinks(req.userId);
-    res.json({ success: true, links });
-  } catch (err) {
-    next(err);
-  }
-});
-
-app.get('/api/user/links', resolveUserId, async (req, res, next) => {
-  try {
-    const links = await getUserLinks(req.userId);
-    res.json({ success: true, links });
-  } catch (err) {
-    next(err);
-  }
-});
 
 app.post('/api/links/toggle', resolveUserId, async (req, res, next) => {
   try {
