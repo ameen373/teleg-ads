@@ -871,9 +871,6 @@
       }
     }
 
-    /**
-     * دالة آمنة لإرسال طلبات الـ fetch مع تضمين initData و userId تلقائياً في الترويسات (Headers)، جسم الطلب (Body)، ومعلمات الرابط (Query Params)
-     */
     async function safeFetch(endpoint, options = {}) {
       options.headers = options.headers || {};
       
@@ -1281,11 +1278,11 @@
           if (!rawUserLinksCache.some(l => (l._id === newLink._id || l.shortCode === newLink.shortCode))) {
             rawUserLinksCache.unshift(newLink);
           }
+          // عرض الرابط الجديد بشكل دائم في القائمة وعدم استخدام أي مؤقت لإخفائه
           renderUserLinks(rawUserLinksCache);
 
-          setTimeout(() => {
-            loadUserData();
-          }, 2500);
+          // جلب البيانات المحدثة من السيرفر بعد الاختصار لضمان التزامن الكامل دون أي اختفاء
+          await loadUserData();
         } else {
           const errorMsg = data.error || data.message || (currentLang === 'ar' ? 'فشل إنشاء الرابط المختصر' : 'Failed to create short link');
           showToast(errorMsg);
@@ -1675,7 +1672,6 @@
           }
 
           if (data.links && Array.isArray(data.links)) {
-            // حافظ على العناصر المحلية الحديثة إن وجدت لتجنب وميض واختفاء الرابط
             const serverLinks = data.links;
             if (rawUserLinksCache && rawUserLinksCache.length > 0) {
               const localNewOnes = rawUserLinksCache.filter(l => String(l._id).startsWith('temp_'));
@@ -1684,10 +1680,10 @@
               rawUserLinksCache = serverLinks;
             }
           }
+          // عرض القائمة المحدثة باستمرار بشكل دائم
           renderUserLinks(rawUserLinksCache);
 
           renderUserAds(data.ads || []);
-
           renderWithdrawalsHistory(data.withdraws || []);
 
           if (data.announcements && data.announcements.length > 0) {
@@ -2076,53 +2072,48 @@
         if (timerElem) timerElem.innerText = secondsLeft;
         if (secondsLeft <= 0) {
           clearInterval(bridgeTimerInterval);
-          if (goBtn) goBtn.disabled = false;
+          if (goBtn) {
+            goBtn.disabled = false;
+            const btnText = document.getElementById('go-btn-text');
+            if (btnText) btnText.innerText = i18n[currentLang]?.go_button || 'Continue to Destination';
+          }
         }
       }, 1000);
     }
 
     async function completeImpression() {
-      const goBtn = document.getElementById('go-btn');
-      if (goBtn) goBtn.disabled = true;
-
+      if (!currentShortCode) return;
+      triggerHaptic('medium');
       try {
-        const timeSpent = Date.now() - bridgeStartTime;
-        const res = await safeFetch('/api/impression', {
+        const res = await safeFetch('/api/complete-click', {
           method: 'POST',
-          body: {
-            sessionId: currentSessionId,
-            bridgeToken: bridgeToken,
-            userId: currentUserTelegramId,
-            duration: Math.round(timeSpent / 1000)
-          }
+          body: { sessionId: currentSessionId, bridgeToken: bridgeToken, linkCode: currentShortCode }
         });
-
         if (res && res.ok) {
           const data = await res.json();
-          if (data.targetUrl || bridgeDestinationUrl) {
-            const dest = data.targetUrl || bridgeDestinationUrl;
-            window.location.href = dest;
-          } else {
-            showToast("Destination URL not found.");
+          if (data.redirectUrl) {
+            window.location.href = data.redirectUrl;
+            return;
           }
-        } else {
-          showToast("Failed to verify impression.");
-          if (goBtn) goBtn.disabled = false;
         }
       } catch (e) {
-        console.error("Impression error:", e);
-        showToast("Error completing impression.");
-        if (goBtn) goBtn.disabled = false;
+        console.error("Complete click error:", e);
+      }
+      if (bridgeDestinationUrl) {
+        window.location.href = bridgeDestinationUrl;
+      } else {
+        window.location.href = 'https://t.me/Ads_telegabot';
       }
     }
 
-    window.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('DOMContentLoaded', async () => {
       renderTelegramUser();
-      authLogin().then(success => {
-        checkAdminStatus();
-        loadUserData();
-        initBridgeViewIfRequired();
-      });
+      await checkAdminStatus();
+      const logged = await authLogin();
+      if (logged) {
+        await loadUserData();
+      }
+      await initBridgeViewIfRequired();
     });
   </script>
 </body>
