@@ -10,14 +10,21 @@ if (typeof window !== 'undefined') {
 
 const mongoose = require('mongoose');
 
-// Precision currency formatter up to 5 decimal places
+// Precision currency formatter up to 5 decimal places (Supports both Numbers and numeric Strings)
 const formatCurrency = (val) => {
-  if (typeof val !== 'number' || isNaN(val) || !isFinite(val)) return 0;
-  return Math.round((val + Number.EPSILON) * 100000) / 100000;
+  const num = typeof val === 'string' ? parseFloat(val) : val;
+  if (typeof num !== 'number' || isNaN(num) || !isFinite(num)) return 0;
+  return Math.round((num + Number.EPSILON) * 100000) / 100000;
 };
 
 // Robust Telegram ID normalizer to prevent sparse unique index collisions with empty/undefined/null values
 const sanitizeTelegramId = (v) => {
+  if (!v || v === 'undefined' || v === 'null' || String(v).trim() === '') return undefined;
+  return String(v).trim();
+};
+
+// Robust general string normalizer for unique fields (like txid, tokens)
+const sanitizeString = (v) => {
   if (!v || v === 'undefined' || v === 'null' || String(v).trim() === '') return undefined;
   return String(v).trim();
 };
@@ -552,7 +559,7 @@ linkSchema.statics.getUserIsolatedLinks = function(telegramId, query = {}, optio
 
 linkSchema.statics.findOneIsolated = function(shortCode, telegramId) {
   const tgStr = enforceTenantKey(telegramId, 'telegramId');
-  if (!tgStr || !shortCode) return null;
+  if (!tgStr || !shortCode) return this.findOne({ _id: null });
   return this.findOne({ 
     shortCode: String(shortCode).trim(), 
     $or: [{ telegramId: tgStr }, { publisherTelegramId: tgStr }] 
@@ -560,7 +567,7 @@ linkSchema.statics.findOneIsolated = function(shortCode, telegramId) {
 };
 
 linkSchema.statics.findByShortCode = function(shortCode) {
-  if (!shortCode) return null;
+  if (!shortCode) return this.findOne({ _id: null });
   return this.findOne({ shortCode: String(shortCode).trim(), isActive: true });
 };
 
@@ -719,7 +726,8 @@ const clickSessionSchema = new mongoose.Schema({
   bridgeToken: { 
     type: String, 
     required: [true, 'Bridge token is required'],
-    trim: true 
+    trim: true,
+    set: sanitizeString
   },
   createdAt: { 
     type: Date, 
@@ -806,8 +814,8 @@ const withdrawSchema = new mongoose.Schema({
 }, globalSchemaOptions);
 
 withdrawSchema.pre('validate', function(next) {
-  const amount = typeof this.amount === 'number' ? this.amount : 0;
-  const fee = typeof this.fee === 'number' ? this.fee : 3;
+  const amount = typeof this.amount === 'number' ? this.amount : parseFloat(this.amount) || 0;
+  const fee = typeof this.fee === 'number' ? this.fee : parseFloat(this.fee) || 3;
   this.netAmount = formatCurrency(Math.max(0, amount - fee));
   next();
 });
@@ -922,7 +930,8 @@ const depositSchema = new mongoose.Schema({
     required: [true, 'Transaction hash (TxID) is required'],
     trim: true,
     unique: true,
-    sparse: true
+    sparse: true,
+    set: sanitizeString
   },
   status: {
     type: String,
