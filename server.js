@@ -852,8 +852,10 @@ const handleShortenLink = async (req, res) => {
 
     return res.json({ 
       success: true, 
+      message: 'تم اختصار الرابط بنجاح',
       link: {
         ...linkObj,
+        id: linkObj._id,
         shortUrl
       },
       shortUrl
@@ -888,6 +890,7 @@ const getUserLinks = async (userId) => {
     const ctr = totalViews > 0 ? ((validImp / totalViews) * 100).toFixed(1) : "0.0";
     return { 
       ...link, 
+      id: link._id,
       ctr,
       shortUrl: buildShortUrl(link.shortCode)
     };
@@ -1184,7 +1187,7 @@ const handleDeposit = async (req, res, next) => {
 
     // 3. Validation & Sanitization: TxID / TxHash
     if (!cleanTxid || cleanTxid === 'null' || cleanTxid === 'undefined' || cleanTxid === '' || cleanTxid === 'NaN') {
-      cleanTxid = 'DEP_' + Date.now + '_' + crypto.randomBytes(6).toString('hex');
+      cleanTxid = 'DEP_' + Date.now() + '_' + crypto.randomBytes(6).toString('hex');
     } else if (cleanTxid.length < 3) {
       return res.status(400).json({ success: false, error: 'معرف المعاملة (TxID / TxHash) غير صالح' });
     }
