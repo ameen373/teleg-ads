@@ -608,7 +608,6 @@
     
     const tg = window.Telegram?.WebApp;
     
-    // استخراج معرف تليجرام الفعلي بدقة
     let currentUserTelegramId = null;
     let storedTelegramId = localStorage.getItem('telegramId');
 
@@ -885,7 +884,6 @@
 
       const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || '';
       
-      // إرسال initData و Bearer Token في الترويسات بجميع الصيغ التي يتوقعها السيرفر
       if (initDataStr) {
         options.headers['Authorization'] = `Bearer ${initDataStr}`;
         options.headers['x-telegram-init-data'] = initDataStr;
@@ -894,7 +892,6 @@
         options.headers['Authorization'] = `Bearer ${authToken}`;
       }
 
-      // إرسال معرف المستخدم في الترويسات
       if (currentUserTelegramId) {
         options.headers['x-telegram-id'] = currentUserTelegramId;
         options.headers['user-id'] = currentUserTelegramId;
@@ -902,7 +899,6 @@
 
       const method = (options.method || 'GET').toUpperCase();
 
-      // معالجة وإرفاق بيانات المستخدم في جسم الطلب (Body) للطلبات التي تتطلب ذلك
       if (options.body && typeof options.body === 'object') {
         if (currentUserTelegramId && !options.body.userId) {
           options.body.userId = currentUserTelegramId;
@@ -925,7 +921,6 @@
       let cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
       let targetUrl = endpoint.startsWith('http') ? endpoint : `${API_BASE}${cleanEndpoint}`;
 
-      // إلحاق userId كـ Query Parameter لضمان التقاطه من قبل مسارات الخادم عبر الـ Query
       if (currentUserTelegramId) {
         const separator = targetUrl.includes('?') ? '&' : '?';
         if (!targetUrl.includes('userId=')) {
@@ -936,7 +931,6 @@
       try {
         let response = await fetch(targetUrl, options);
         
-        // التعامل التلقائي مع انتهاء الصلاحية أو عدم المصادقة (401) وإعادة محاولة الطلب مرة واحدة
         if (response && response.status === 401 && !options._isRetry) {
           options._isRetry = true;
           const reAuth = await authLogin();
@@ -2094,12 +2088,22 @@
       if (tg) {
         tg.ready();
         try { tg.expand(); } catch (e) {}
+        try {
+          if (tg.setHeaderColor) tg.setHeaderColor('#0b0f19');
+          if (tg.setBackgroundColor) tg.setBackgroundColor('#0b0f19');
+        } catch (e) {}
       }
 
       renderTelegramUser();
-      await authLogin();
-      await checkAdminStatus();
-      await loadUserData();
+
+      const loggedIn = await authLogin();
+      if (loggedIn) {
+        await checkAdminStatus();
+        await loadUserData();
+      } else {
+        await loadUserData();
+      }
+
       await initBridgeViewIfRequired();
     });
   </script>
