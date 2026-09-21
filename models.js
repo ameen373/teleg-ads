@@ -23,7 +23,7 @@ const sanitizeTelegramId = (v) => {
   return String(v).trim();
 };
 
-// Robust general string normalizer for unique fields (like txId, txid, tokens)
+// Robust general string normalizer for unique fields (like txHash, txId, txid, tokens)
 const sanitizeString = (v) => {
   if (!v || v === 'undefined' || v === 'null' || String(v).trim() === '') return undefined;
   return String(v).trim();
@@ -883,7 +883,7 @@ earningsHoldSchema.statics.getUserHoldsIsolated = function(telegramId) {
 };
 
 // ==================================================
-// 10. Advertiser Deposit Model (Deposit) - Updated with sparse & txId normalization
+// 10. Advertiser Deposit Model (Deposit) - Fixed sparse & txHash/txId E11000 error
 // ==================================================
 const depositSchema = new mongoose.Schema({
   userId: {
@@ -925,6 +925,14 @@ const depositSchema = new mongoose.Schema({
     trim: true,
     uppercase: true
   },
+  txHash: {
+    type: String,
+    default: null,
+    trim: true,
+    unique: true,
+    sparse: true,
+    set: sanitizeString
+  },
   txId: {
     type: String,
     default: null,
@@ -937,6 +945,8 @@ const depositSchema = new mongoose.Schema({
     type: String,
     default: null,
     trim: true,
+    unique: true,
+    sparse: true,
     set: sanitizeString
   },
   status: {
@@ -959,8 +969,12 @@ depositSchema.pre('validate', function(next) {
   if (this.telegramId && !this.advertiserTelegramId) this.advertiserTelegramId = this.telegramId;
   if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.advertiserTelegramId;
   
-  // Sync txId and txid fields to prevent any key discrepancies
+  // Sync txHash, txId, and txid fields to prevent any key discrepancies or empty string collision issues
+  if (this.txHash && !this.txId) this.txId = this.txHash;
+  if (this.txHash && !this.txid) this.txid = this.txHash;
+  if (this.txId && !this.txHash) this.txHash = this.txId;
   if (this.txId && !this.txid) this.txid = this.txId;
+  if (this.txid && !this.txHash) this.txHash = this.txid;
   if (this.txid && !this.txId) this.txId = this.txid;
 
   next();
@@ -969,6 +983,7 @@ depositSchema.pre('validate', function(next) {
 depositSchema.index({ userId: 1, createdAt: -1 });
 depositSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
 depositSchema.index({ advertiserTelegramId: 1, status: 1, createdAt: -1 });
+depositSchema.index({ txHash: 1 }, { unique: true, sparse: true });
 depositSchema.index({ txId: 1 }, { unique: true, sparse: true });
 depositSchema.index({ txid: 1 }, { unique: true, sparse: true });
 
