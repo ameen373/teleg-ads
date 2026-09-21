@@ -1,5 +1,5 @@
 /**
- * Ultra-Enterprise Server Architecture (V6 - Absolute Multi-Tenant Security & High-Performance Core)
+ * Ultra-Enterprise Server Architecture (V6.1 - Absolute Multi-Tenant Security & High-Performance Core)
  * Telegram Link Shortener & Mini App Engine (Telega.ads)
  * Absolute Isolated Session System & Financial Security Core
  * Vercel Serverless Ready Edition
@@ -46,7 +46,7 @@ app.use(express.static(__dirname));
 
 // --- Force UTF-8 JSON Response Headers & No-Cache Privacy Guard ---
 app.use((req, res, next) => {
-  if (req.path.startsWith('/api') || req.path.startsWith('/shorten') || req.path.startsWith('/deposit')) {
+  if (req.path.startsWith('/api') || req.path.startsWith('/shorten') || req.path.startsWith('/deposit') || req.path.startsWith('/auth')) {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.setHeader('Pragma', 'no-cache');
@@ -142,7 +142,6 @@ async function findOrCreateUser(tgId, updateData = {}, setOnInsertData = {}) {
     );
   } catch (err) {
     if (err.code === 11000) {
-      // Duplicate key error safety fallback: retrieve existing document
       return await User.findOne({ telegramId: cleanId });
     }
     throw err;
@@ -161,17 +160,9 @@ try {
     retryStrategy: (times) => (times > 3 ? null : Math.min(times * 100, 1000))
   });
 
-  redis.on('error', () => {
-    redisIsConnected = false;
-  });
-
-  redis.on('ready', () => {
-    redisIsConnected = true;
-  });
-
-  redis.connect().catch(() => {
-    redisIsConnected = false;
-  });
+  redis.on('error', () => { redisIsConnected = false; });
+  redis.on('ready', () => { redisIsConnected = true; });
+  redis.connect().catch(() => { redisIsConnected = false; });
 } catch (e) {
   redisIsConnected = false;
 }
@@ -236,7 +227,7 @@ async function connectDB() {
   return cached.conn;
 }
 
-// Middleware لضمان اكتمال الاتصال بقاعدة البيانات لكل طلب قبل الانتقال لأي مسار
+// Middleware لضمان اكتمال الاتصال بقاعدة البيانات لكل طلب
 app.use(async (req, res, next) => {
   try {
     await connectDB();
@@ -252,6 +243,10 @@ app.use(async (req, res, next) => {
 // =========================================================================
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'views.html'));
+});
+
+app.post('/', (req, res) => {
+  res.json({ success: true, message: 'Telega.ads API Gateway Active' });
 });
 
 app.get('/r/:code', (req, res) => {
@@ -273,7 +268,7 @@ async function sendTelegramNotification(telegramId, message) {
   }
 }
 
-// --- Cryptographic Telegram Authenticator (Robust & Foolproof Edition) ---
+// --- Cryptographic Telegram Authenticator ---
 function verifyTelegramData(initData) {
   if (!initData) return null;
 
@@ -307,7 +302,6 @@ function verifyTelegramData(initData) {
     } catch (e) {}
 
     for (const str of [cleanInitData, decodedInitData]) {
-      // 1. Direct JSON string representing user
       if (str.startsWith('{') && str.endsWith('}')) {
         try {
           const parsed = JSON.parse(str);
@@ -324,13 +318,11 @@ function verifyTelegramData(initData) {
         } catch (e) {}
       }
 
-      // 2. Direct numeric ID string
       if (/^\d+$/.test(str)) {
         const idVal = Number(str);
         return { id: idVal, username: `User_${String(idVal).slice(-4)}`, language_code: CONFIG.DEFAULT_LANGUAGE };
       }
 
-      // 3. URLSearchParams parsing safely
       let urlParams = null;
       try {
         urlParams = new URLSearchParams(str);
@@ -380,7 +372,6 @@ function verifyTelegramData(initData) {
         }
       }
 
-      // 4. Regex fallback for encoded user id
       const matchRegex = str.match(/%22id%22%3A(\d+)/) || 
                          str.match(/"id"\s*:\s*(\d+)/) || 
                          str.match(/id\s*[=:]\s*(\d+)/i) || 
@@ -439,7 +430,7 @@ const isPhishingOrMalicious = (url) => {
 };
 
 // =========================================================================
-// --- User Identification & Authentication Middleware (Fixed & Robust) ---
+// --- User Identification & Authentication Middleware (Foolproof Edition) ---
 // =========================================================================
 const resolveUserId = async (req, res, next) => {
   try {
@@ -466,16 +457,13 @@ const resolveUserId = async (req, res, next) => {
       if (telegramUser && telegramUser.id) {
         const tgId = String(telegramUser.id).trim();
         if (tgId && tgId !== 'null' && tgId !== 'undefined' && tgId !== '' && tgId !== 'NaN') {
-          const currentUsername = telegramUser.username || `User_${tgId.slice(-4)}`;
-          const userLanguage = telegramUser.language_code || CONFIG.DEFAULT_LANGUAGE;
-
           user = await findOrCreateUser(
             tgId,
             {
-              username: currentUsername,
+              username: telegramUser.username || `User_${tgId.slice(-4)}`,
               firstName: telegramUser.first_name || '',
               lastName: telegramUser.last_name || '',
-              language: userLanguage
+              language: telegramUser.language_code || CONFIG.DEFAULT_LANGUAGE
             },
             { telegramId: tgId }
           );
@@ -500,7 +488,7 @@ const resolveUserId = async (req, res, next) => {
       } catch (err) {}
     }
 
-    // 3. Try resolving from raw user ID / telegram ID with Auto-Upsert (FindOrCreate)
+    // 3. Try resolving from raw user ID / telegram ID with Auto-Upsert
     if (!user && rawUserId) {
       const cleanRawId = String(rawUserId).trim();
       if (cleanRawId && cleanRawId !== 'null' && cleanRawId !== 'undefined' && cleanRawId !== '' && cleanRawId !== 'NaN') {
@@ -523,7 +511,7 @@ const resolveUserId = async (req, res, next) => {
       }
     }
 
-    // 4. Deep search fallback in query and body for new users without headers
+    // 4. Deep search fallback in query and body
     if (!user) {
       const allParams = { ...(req.query || {}), ...(req.body || {}) };
       for (const key of Object.keys(allParams)) {
@@ -608,7 +596,7 @@ const handleCheckAdmin = async (req, res) => {
 app.all('/api/check-admin', handleCheckAdmin);
 app.all('/check-admin', handleCheckAdmin);
 
-// --- Authentication & Login Gateway (Secured against duplicate key errors) ---
+// --- Authentication & Login Gateway ---
 const handleLogin = async (req, res, next) => {
   try {
     await connectDB();
@@ -668,7 +656,7 @@ const handleLogin = async (req, res, next) => {
     if (!user) {
       return res.status(400).json({ 
         success: false, 
-        error: 'فشل إنشاء أو استرجاع بيانات المستخدم بسبب تعارض في المعرف' 
+        error: 'فشل إنشاء أو استرجاع بيانات المستخدم' 
       });
     }
 
@@ -896,7 +884,6 @@ app.post('/api/links/toggle', resolveUserId, async (req, res, next) => {
     if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
 
     const link = await Link.findOne({ _id: linkId, userId: req.userId });
-
     if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات التعديل عليه' });
 
     link.isActive = !link.isActive;
@@ -918,7 +905,6 @@ app.delete('/api/links/:id', resolveUserId, async (req, res, next) => {
     }
 
     const link = await Link.findOneAndDelete({ _id: linkId, userId: req.userId });
-
     if (!link) {
       return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات حذفه' });
     }
@@ -939,7 +925,6 @@ app.post('/api/links/delete', resolveUserId, async (req, res, next) => {
     }
 
     const link = await Link.findOneAndDelete({ _id: linkId, userId: req.userId });
-
     if (!link) {
       return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات حذفه' });
     }
@@ -960,7 +945,6 @@ app.get('/api/links/:id/stats', resolveUserId, async (req, res, next) => {
     }
 
     const link = await Link.findOne({ _id: linkId, userId: req.userId }).lean();
-
     if (!link) {
       return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحية الوصول إليه' });
     }
@@ -1168,7 +1152,7 @@ const handleDeposit = async (req, res, next) => {
     if (CONFIG.ADMIN_ID) {
       sendTelegramNotification(
         CONFIG.ADMIN_ID,
-        `💳 <b>طلب إيداع جديد!</b>\nالمستخدم: <code>${req.user.username}</code>\nالمبلغ: <code>$${numAmount}</code>\nالشبكة: <code>$${cleanNetwork}</code>\nTxID: <code>${cleanTxid}</code>`
+        `💳 <b>طلب إيداع جديد!</b>\nالمستخدم: <code>${req.user.username}</code>\nالمبلغ: <code>$${numAmount}</code>\nالشبكة: <code>${cleanNetwork}</code>\nTxID: <code>${cleanTxid}</code>`
       );
     }
 
@@ -1248,7 +1232,7 @@ app.post('/api/withdraw', resolveUserId, async (req, res, next) => {
 
     sendTelegramNotification(
       req.user.telegramId,
-      `🔔 <b>تم تقديم طلب السحب بنجاح!</b>\nالمبلغ: <code>$${numAmt}</code>\nالرسوم: <code>$${FEE}</code>\nالصافي: <code>$${netAmount}</code>\nالشبكة: <code>$${cleanNetwork}</code>\nالمحفظة: <code>${cleanWallet}</code>\nالحالة: ⏳ قيد المراجعة\n\nالدعم: ${CONFIG.SUPPORT_USERNAME}`
+      `🔔 <b>تم تقديم طلب السحب بنجاح!</b>\nالمبلغ: <code>$${numAmt}</code>\nالرسوم: <code>$${FEE}</code>\nالصافي: <code>$${netAmount}</code>\nالشبكة: <code>${cleanNetwork}</code>\nالمحفظة: <code>${cleanWallet}</code>\nالحالة: ⏳ قيد المراجعة\n\nالدعم: ${CONFIG.SUPPORT_USERNAME}`
     );
 
     res.json({ success: true, withdraw: withdrawRequest[0] });
@@ -1269,11 +1253,7 @@ app.get('/api/user/transactions', resolveUserId, async (req, res, next) => {
       Withdraw.find({ userId: targetUserId }).sort({ createdAt: -1 }).lean()
     ]);
 
-    res.json({
-      success: true,
-      deposits,
-      withdraws
-    });
+    res.json({ success: true, deposits, withdraws });
   } catch (err) {
     next(err);
   }
@@ -1695,7 +1675,7 @@ app.post('/api/admin/withdraw/action', adminMiddleware, async (req, res, next) =
     } else if (action === 'approved') {
       sendTelegramNotification(
         withdrawTgId,
-        `🎉 <b>تمت الموافقة على السحب!</b>\nإجمالي المبلغ: <code>$${withdraw.amount}</code>\nالصافي المحول: <code>$${withdraw.netAmount}</code>\nالشبكة: <code>$${withdraw.network}</code>\nشكراً لاستخدامك منصتنا!`
+        `🎉 <b>تمت الموافقة على السحب!</b>\nإجمالي المبلغ: <code>$${withdraw.amount}</code>\nالصافي المحول: <code>$${withdraw.netAmount}</code>\nالشبكة: <code>${withdraw.network}</code>\nشكراً لاستخدامك منصتنا!`
       );
     }
 
@@ -1850,7 +1830,7 @@ app.use((err, req, res, next) => {
 
 // =========================================================================
 // --- Server Startup & Standalone Main Module Export ---
-// ==================================================
+// =========================================================================
 const PORT = process.env.PORT || 3000;
 if (require.main === module) {
   app.listen(PORT, () => {
