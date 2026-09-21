@@ -1263,7 +1263,7 @@
           urlInput.value = '';
           
           const newLink = data.link || {
-            _id: data._id || data.id || ('temp_' + Date.now()),
+            _id: data._id || data.id || ('link_' + Date.now()),
             title: title || data.title || 'Untitled Link',
             originalUrl: url,
             targetUrl: url,
@@ -1275,13 +1275,21 @@
           };
 
           if (!rawUserLinksCache) rawUserLinksCache = [];
-          if (!rawUserLinksCache.some(l => (l._id === newLink._id || l.shortCode === newLink.shortCode))) {
+          
+          const existingIndex = rawUserLinksCache.findIndex(l => 
+            (l._id && newLink._id && String(l._id) === String(newLink._id)) ||
+            (l.shortCode && newLink.shortCode && l.shortCode === newLink.shortCode)
+          );
+
+          if (existingIndex !== -1) {
+            rawUserLinksCache[existingIndex] = { ...rawUserLinksCache[existingIndex], ...newLink };
+          } else {
             rawUserLinksCache.unshift(newLink);
           }
-          // عرض الرابط الجديد بشكل دائم في القائمة وعدم استخدام أي مؤقت لإخفائه
+
           renderUserLinks(rawUserLinksCache);
 
-          // جلب البيانات المحدثة من السيرفر بعد الاختصار لضمان التزامن الكامل دون أي اختفاء
+          // جلب بيانات المستخدم المحدثة مباشرة دون أي مؤقت زمني
           await loadUserData();
         } else {
           const errorMsg = data.error || data.message || (currentLang === 'ar' ? 'فشل إنشاء الرابط المختصر' : 'Failed to create short link');
@@ -1673,17 +1681,32 @@
 
           if (data.links && Array.isArray(data.links)) {
             const serverLinks = data.links;
-            if (rawUserLinksCache && rawUserLinksCache.length > 0) {
-              const localNewOnes = rawUserLinksCache.filter(l => String(l._id).startsWith('temp_'));
-              rawUserLinksCache = [...localNewOnes, ...serverLinks.filter(sl => !localNewOnes.some(ln => ln.shortCode === sl.shortCode))];
-            } else {
+            if (!rawUserLinksCache || rawUserLinksCache.length === 0) {
               rawUserLinksCache = serverLinks;
+            } else {
+              // دمج الروابط القادمة من السيرفر مع الروابط المحلية الحالية بشكل ذكي لتجنب مسح أي رابط جديد
+              const linkMap = new Map();
+              
+              rawUserLinksCache.forEach(link => {
+                const key = link.shortCode || String(link._id || link.id || '');
+                if (key) linkMap.set(key, link);
+              });
+
+              serverLinks.forEach(serverLink => {
+                const key = serverLink.shortCode || String(serverLink._id || serverLink.id || '');
+                if (key) {
+                  const existing = linkMap.get(key) || {};
+                  linkMap.set(key, { ...existing, ...serverLink });
+                }
+              });
+
+              rawUserLinksCache = Array.from(linkMap.values());
             }
           }
-          // عرض القائمة المحدثة باستمرار بشكل دائم
           renderUserLinks(rawUserLinksCache);
 
           renderUserAds(data.ads || []);
+
           renderWithdrawalsHistory(data.withdraws || []);
 
           if (data.announcements && data.announcements.length > 0) {
@@ -2072,48 +2095,53 @@
         if (timerElem) timerElem.innerText = secondsLeft;
         if (secondsLeft <= 0) {
           clearInterval(bridgeTimerInterval);
-          if (goBtn) {
-            goBtn.disabled = false;
-            const btnText = document.getElementById('go-btn-text');
-            if (btnText) btnText.innerText = i18n[currentLang]?.go_button || 'Continue to Destination';
-          }
+          if (goBtn) goBtn.disabled = false;
         }
       }, 1000);
     }
 
     async function completeImpression() {
-      if (!currentShortCode) return;
-      triggerHaptic('medium');
+      const goBtn = document.getElementById('go-btn');
+      if (goBtn) goBtn.disabled = true;
+
       try {
-        const res = await safeFetch('/api/complete-click', {
+        const timeSpent = Date.now() - bridgeStartTime;
+        const res = await safeFetch('/api/impression', {
           method: 'POST',
-          body: { sessionId: currentSessionId, bridgeToken: bridgeToken, linkCode: currentShortCode }
+          body: {
+            sessionId: currentSessionId,
+            bridgeToken: bridgeToken,
+            userId: currentUserTelegramId,
+            duration: Math.round(timeSpent / 1000)
+          }
         });
+
         if (res && res.ok) {
           const data = await res.json();
-          if (data.redirectUrl) {
-            window.location.href = data.redirectUrl;
-            return;
+          if (data.targetUrl || bridgeDestinationUrl) {
+            const dest = data.targetUrl || bridgeDestinationUrl;
+            window.location.href = dest;
+          } else {
+            showToast("Destination URL not found.");
           }
+        } else {
+          showToast("Failed to verify impression.");
+          if (goBtn) goBtn.disabled = false;
         }
       } catch (e) {
-        console.error("Complete click error:", e);
-      }
-      if (bridgeDestinationUrl) {
-        window.location.href = bridgeDestinationUrl;
-      } else {
-        window.location.href = 'https://t.me/Ads_telegabot';
+        console.error("Impression error:", e);
+        showToast("Error completing impression.");
+        if (goBtn) goBtn.disabled = false;
       }
     }
 
-    window.addEventListener('DOMContentLoaded', async () => {
+    window.addEventListener('DOMContentLoaded', () => {
       renderTelegramUser();
-      await checkAdminStatus();
-      const logged = await authLogin();
-      if (logged) {
-        await loadUserData();
-      }
-      await initBridgeViewIfRequired();
+      authLogin().then(success => {
+        checkAdminStatus();
+        loadUserData();
+        initBridgeViewIfRequired();
+      });
     });
   </script>
 </body>
