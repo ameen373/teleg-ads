@@ -1160,14 +1160,20 @@ app.delete('/api/ads/:id', resolveUserId, async (req, res, next) => {
 const handleDeposit = async (req, res, next) => {
   try {
     await connectDB();
-    const { amount, network, txid } = req.body;
+    const bodyData = req.body || {};
+    const queryData = req.query || {};
+
+    const amount = bodyData.amount !== undefined ? bodyData.amount : queryData.amount;
+    const network = bodyData.network !== undefined ? bodyData.network : queryData.network;
+    const txid = bodyData.txid !== undefined ? bodyData.txid : queryData.txid;
+    const explicitUserId = bodyData.userId || bodyData.user_id || query.userId || query.user_id || bodyData.telegram_id || query.telegram_id;
+
     const numAmount = Number(amount);
     const cleanNetwork = String(network || '').toUpperCase();
     const cleanTxid = String(txid || '').trim();
-    const targetUserId = req.userId;
 
-    if (isNaN(numAmount) || numAmount < 1) {
-      return res.status(400).json({ success: false, error: 'الحد الأدنى للإيداع هو $1' });
+    if (amount === undefined || amount === null || amount === '' || isNaN(numAmount) || numAmount < 1) {
+      return res.status(400).json({ success: false, error: 'المبلغ مطلوب والحد الأدنى للإيداع هو $1' });
     }
 
     if (!['BEP20', 'TRC20', 'TON'].includes(cleanNetwork)) {
@@ -1178,6 +1184,24 @@ const handleDeposit = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'يرجى إدخال هاش المعاملة الصحيح (TxID)' });
     }
 
+    let targetUserId = req.userId;
+    if (explicitUserId) {
+      const cleanExplicitId = String(explicitUserId).trim();
+      if (mongoose.Types.ObjectId.isValid(cleanExplicitId)) {
+        const foundById = await User.findById(cleanExplicitId);
+        if (foundById) targetUserId = foundById._id;
+      } else {
+        const foundByTg = await User.findOne({ telegramId: cleanExplicitId });
+        if (foundByTg) targetUserId = foundByTg._id;
+      }
+    }
+
+    if (!targetUserId) {
+      return res.status(400).json({ success: false, error: 'معرف المستخدم (userId) مطلوب أو غير صالح' });
+    }
+
+    const userObj = req.user || (await User.findById(targetUserId));
+
     const existingDeposit = await Deposit.findOne({ txid: cleanTxid });
     if (existingDeposit) {
       return res.status(400).json({ success: false, error: 'تم تقديم رقم هذه المعاملة (TxID) من قبل' });
@@ -1186,34 +1210,35 @@ const handleDeposit = async (req, res, next) => {
     const deposit = await Deposit.create({
       userId: targetUserId,
       advertiserId: targetUserId,
-      advertiserTelegramId: req.user.telegramId,
+      advertiserTelegramId: userObj ? userObj.telegramId : req.user?.telegramId,
       amount: numAmount,
       network: cleanNetwork,
       txid: cleanTxid,
       status: 'pending'
     });
 
-    if (CONFIG.ADMIN_ID) {
+    const adminTgId = CONFIG.ADMIN_ID;
+    if (adminTgId) {
       sendTelegramNotification(
-        CONFIG.ADMIN_ID,
-        `💳 <b>طلب إيداع جديد!</b>\nالمستخدم: <code>${req.user.username}</code>\nالمبلغ: <code>$${numAmount}</code>\nالشبكة: <code>${cleanNetwork}</code>\nTxID: <code>${cleanTxid}</code>`
+        adminTgId,
+        `💳 <b>طلب إيداع جديد!</b>\nالمستخدم: <code>${userObj?.username || targetUserId}</code>\nالمبلغ: <code>$${numAmount}</code>\nالشبكة: <code>${cleanNetwork}</code>\nTxID: <code>${cleanTxid}</code>`
       );
     }
 
-    res.json({ success: true, deposit });
+    return res.json({ success: true, deposit });
   } catch (err) {
     next(err);
   }
 };
 
-app.post('/api/deposit', resolveUserId, handleDeposit);
-app.post('/deposit', resolveUserId, handleDeposit);
-app.post('/api/user/deposit', resolveUserId, handleDeposit);
-app.post('/user/deposit', resolveUserId, handleDeposit);
-app.post('/api/wallet/topup', resolveUserId, handleDeposit);
-app.post('/wallet/topup', resolveUserId, handleDeposit);
-app.post('/api/deposits', resolveUserId, handleDeposit);
-app.post('/deposits', resolveUserId, handleDeposit);
+app.all('/api/deposit', resolveUserId, handleDeposit);
+app.all('/deposit', resolveUserId, handleDeposit);
+app.all('/api/user/deposit', resolveUserId, handleDeposit);
+app.all('/user/deposit', resolveUserId, handleDeposit);
+app.all('/api/wallet/topup', resolveUserId, handleDeposit);
+app.all('/wallet/topup', resolveUserId, handleDeposit);
+app.all('/api/deposits', resolveUserId, handleDeposit);
+app.all('/deposits', resolveUserId, handleDeposit);
 
 app.post('/api/withdraw', resolveUserId, async (req, res, next) => {
   await connectDB();
