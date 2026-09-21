@@ -1,5 +1,5 @@
 /**
- * Ultra-Enterprise Server Architecture (V6.3 - Absolute Multi-Tenant Security & High-Performance Core)
+ * Ultra-Enterprise Server Architecture (V6.4 - Absolute Multi-Tenant Security & High-Performance Core)
  * Telegram Link Shortener & Mini App Engine (Telega.ads)
  * Absolute Isolated Session System & Financial Security Core
  * Vercel Serverless Ready Edition
@@ -36,9 +36,25 @@ app.use(cors({
 }));
 app.options('*', cors());
 
-// --- Body Parsing & NoSQL Injection Sanitization ---
+// --- Robust Body Parsing & Vercel Payload Normalization ---
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+app.use(express.text({ type: ['text/*', 'application/json'], limit: '10kb' }));
+
+app.use((req, res, next) => {
+  if (typeof req.body === 'string' && req.body.trim().length > 0) {
+    try {
+      req.body = JSON.parse(req.body);
+    } catch (e) {
+      // If not JSON, keep as text or empty object if not needed
+    }
+  }
+  if (!req.body || typeof req.body !== 'object') {
+    req.body = {};
+  }
+  next();
+});
+
 app.use(mongoSanitize());
 
 // --- Static Files Serving ---
@@ -466,7 +482,7 @@ const resolveUserId = async (req, res, next) => {
           }
         }
       } catch (err) {
-        // Token expired or invalid, continue to fallback methods instead of failing immediately
+        // Token expired or invalid, continue to fallback methods
       }
     }
 
