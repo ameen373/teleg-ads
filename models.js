@@ -23,7 +23,7 @@ const sanitizeTelegramId = (v) => {
   return String(v).trim();
 };
 
-// Robust general string normalizer for unique fields (like txid, tokens)
+// Robust general string normalizer for unique fields (like txId, tokens)
 const sanitizeString = (v) => {
   if (!v || v === 'undefined' || v === 'null' || String(v).trim() === '') return undefined;
   return String(v).trim();
@@ -925,12 +925,18 @@ const depositSchema = new mongoose.Schema({
     trim: true,
     uppercase: true
   },
-  txid: {
+  txId: {
     type: String,
-    required: [true, 'Transaction hash (TxID) is required'],
+    default: null,
     trim: true,
     unique: true,
     sparse: true,
+    set: sanitizeString
+  },
+  txid: {
+    type: String,
+    default: null,
+    trim: true,
     set: sanitizeString
   },
   status: {
@@ -952,6 +958,11 @@ depositSchema.pre('validate', function(next) {
   if (this.advertiserId && !this.userId) this.userId = this.advertiserId;
   if (this.telegramId && !this.advertiserTelegramId) this.advertiserTelegramId = this.telegramId;
   if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.advertiserTelegramId;
+
+  // Sync both txId and txid for seamless compatibility across queries
+  if (this.txId && !this.txid) this.txid = this.txId;
+  if (this.txid && !this.txId) this.txId = this.txid;
+
   next();
 });
 
