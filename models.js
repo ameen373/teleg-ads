@@ -23,7 +23,7 @@ const sanitizeTelegramId = (v) => {
   return String(v).trim();
 };
 
-// Robust general string normalizer for unique fields (like txId, tokens)
+// Robust general string normalizer for unique fields (like txId, txid, tokens)
 const sanitizeString = (v) => {
   if (!v || v === 'undefined' || v === 'null' || String(v).trim() === '') return undefined;
   return String(v).trim();
@@ -883,7 +883,7 @@ earningsHoldSchema.statics.getUserHoldsIsolated = function(telegramId) {
 };
 
 // ==================================================
-// 10. Advertiser Deposit Model (Deposit)
+// 10. Advertiser Deposit Model (Deposit) - Updated with sparse & txId normalization
 // ==================================================
 const depositSchema = new mongoose.Schema({
   userId: {
@@ -958,8 +958,8 @@ depositSchema.pre('validate', function(next) {
   if (this.advertiserId && !this.userId) this.userId = this.advertiserId;
   if (this.telegramId && !this.advertiserTelegramId) this.advertiserTelegramId = this.telegramId;
   if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.advertiserTelegramId;
-
-  // Sync both txId and txid for seamless compatibility across queries
+  
+  // Sync txId and txid fields to prevent any key discrepancies
   if (this.txId && !this.txid) this.txid = this.txId;
   if (this.txid && !this.txId) this.txId = this.txid;
 
@@ -969,6 +969,8 @@ depositSchema.pre('validate', function(next) {
 depositSchema.index({ userId: 1, createdAt: -1 });
 depositSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
 depositSchema.index({ advertiserTelegramId: 1, status: 1, createdAt: -1 });
+depositSchema.index({ txId: 1 }, { unique: true, sparse: true });
+depositSchema.index({ txid: 1 }, { unique: true, sparse: true });
 
 depositSchema.statics.getAdvertiserDepositsIsolated = function(telegramId) {
   const tgStr = enforceTenantKey(telegramId, 'telegramId');
