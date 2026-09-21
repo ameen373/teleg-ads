@@ -1,5 +1,5 @@
 /**
- * Ultra-Enterprise Server Architecture (V6.1 - Absolute Multi-Tenant Security & High-Performance Core)
+ * Ultra-Enterprise Server Architecture (V6.2 - Absolute Multi-Tenant Security & High-Performance Core)
  * Telegram Link Shortener & Mini App Engine (Telega.ads)
  * Absolute Isolated Session System & Financial Security Core
  * Vercel Serverless Ready Edition
@@ -268,7 +268,7 @@ async function sendTelegramNotification(telegramId, message) {
   }
 }
 
-// --- Cryptographic Telegram Authenticator ---
+// --- Cryptographic Telegram Authenticator (Enhanced Multi-Format Parser) ---
 function verifyTelegramData(initData) {
   if (!initData) return null;
 
@@ -1675,7 +1675,7 @@ app.post('/api/admin/withdraw/action', adminMiddleware, async (req, res, next) =
     } else if (action === 'approved') {
       sendTelegramNotification(
         withdrawTgId,
-        `🎉 <b>تمت الموافقة على السحب!</b>\nإجمالي المبلغ: <code>$${withdraw.amount}</code>\nالصافي المحول: <code>$${withdraw.netAmount}</code>\nالشبكة: <code>${withdraw.network}</code>\nشكراً لاستخدامك منصتنا!`
+        `🎉 <b>تمت الموافقة على السحب!</b>\nإجمالي المبلغ: <code>$${withdraw.amount}</code>\nالصافي المحول: <code>$${withdraw.netAmount}</code>\nالشبكة: <code>$${withdraw.network}</code>\nشكراً لاستخدامك منصتنا!`
       );
     }
 
