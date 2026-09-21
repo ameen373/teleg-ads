@@ -1154,7 +1154,7 @@ app.delete('/api/ads/:id', resolveUserId, async (req, res, next) => {
 });
 
 // =========================================================================
-// --- Deposit & Withdraw Routes (Fixed TxID Duplication Logic) ---
+// --- Deposit & Withdraw Routes ---
 // =========================================================================
 
 const handleDeposit = async (req, res, next) => {
@@ -1165,7 +1165,7 @@ const handleDeposit = async (req, res, next) => {
 
     const amount = bodyData.amount !== undefined ? bodyData.amount : queryData.amount;
     const network = bodyData.network !== undefined ? bodyData.network : queryData.network;
-    const txid = bodyData.txid !== undefined ? bodyData.txid : (queryData.txid || bodyData.txId || queryData.txId);
+    const txid = bodyData.txid !== undefined ? bodyData.txid : (bodyData.txId !== undefined ? bodyData.txId : (queryData.txid !== undefined ? queryData.txid : queryData.txId));
     const explicitUserId = bodyData.userId || bodyData.user_id || queryData.userId || queryData.user_id || bodyData.telegram_id || queryData.telegram_id;
 
     const numAmount = Number(amount);
@@ -1180,9 +1180,9 @@ const handleDeposit = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'يرجى تحديد شبكة صالحة (BEP20, TRC20, TON)' });
     }
 
-    // توليد معرف معاملة فريد تلقائياً في حال لم يتم إرساله أو كان فارغاً لمنع خطأ E11000 duplicate key
-    if (!cleanTxid || cleanTxid === 'null' || cleanTxid === 'undefined' || cleanTxid === '' || cleanTxid.length < 3) {
-      cleanTxid = `AUTO_TX_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
+    // توليد معرف فريد تلقائياً لـ txid في حال لم يتم إرساله أو تم إرساله بشكل فارغ/null لتجنب خطأ E11000 duplicate key error
+    if (!cleanTxid || cleanTxid === 'null' || cleanTxid === 'undefined' || cleanTxid === '' || cleanTxid === 'NaN') {
+      cleanTxid = 'DEP_' + Date.now() + '_' + crypto.randomBytes(6).toString('hex');
     }
 
     let targetUserId = req.userId;
@@ -1203,10 +1203,9 @@ const handleDeposit = async (req, res, next) => {
 
     const userObj = req.user || (await User.findById(targetUserId));
 
-    // التحقق من عدم تكرار رقم المعاملة الحقيقي (إذا تم إدخاله يدوياً)
     const existingDeposit = await Deposit.findOne({ txid: cleanTxid });
-    if (existingDeposit && !cleanTxid.startsWith('AUTO_TX_')) {
-      cleanTxid = `AUTO_TX_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
+    if (existingDeposit) {
+      cleanTxid = 'DEP_' + Date.now() + '_' + crypto.randomBytes(6).toString('hex');
     }
 
     const deposit = await Deposit.create({
@@ -1337,7 +1336,7 @@ app.get('/api/user/transactions', resolveUserId, async (req, res, next) => {
 const handleInitClick = async (req, res, next) => {
   try {
     await connectDB();
-    const linkCode = req.body?.linkCode || req.query?.linkCode;
+    const { linkCode } = req.body;
     const cleanCode = String(linkCode || '').trim();
     if (!cleanCode) return res.status(400).json({ success: false, error: 'كود الرابط مطلوب' });
 
