@@ -349,15 +349,6 @@
           <button id="btn-create-link" onclick="handleShortenClick()">
             <span data-i18n="btn_shorten">Shorten Link Now</span>
           </button>
-
-          <!-- Result Card for Shortened Link (Instantly Displayed) -->
-          <div id="shorten-result-card" class="address-card hidden" style="margin-top: 14px; border-color: var(--success); background: rgba(16, 185, 129, 0.05);">
-            <small style="color: var(--success); font-weight: bold;" data-i18n="lbl_shortened_result">🎉 Shortened Link Ready:</small>
-            <div class="address-row" style="margin-top: 6px;">
-              <span class="address-text" id="result-short-url" style="color: var(--success); font-weight: bold; background: #070a12;"></span>
-              <button class="btn-small btn-success" onclick="copyToClipboard(document.getElementById('result-short-url').innerText)" data-i18n="btn_copy">Copy</button>
-            </div>
-          </div>
         </div>
 
         <div class="card">
@@ -685,7 +676,6 @@
         about_title: "ℹ️ About & Terms of Use",
         about_desc: "This platform allows you to shorten links safely and manage promotion campaigns efficiently. By using our service, you agree to our traffic quality and safety guidelines.",
         link_success_msg: "Link shortened successfully!",
-        lbl_shortened_result: "🎉 Shortened Link Ready:",
         guide_modal_title: "Deposit & TxID Guide",
         guide_step1_b: "Select Network:",
         guide_step1_t: "Choose USDT (TRC20 or BEP20) to reveal your dedicated deposit address and copy it.",
@@ -767,7 +757,6 @@
         about_title: "ℹ️ نبذة وشروط الاستخدام",
         about_desc: "هذا البوت مخصص لاختصار الروابط بأمان وإدارة الحملات الإعلانية بكفاءة عالية. باستخدامك لهذه المنصة، فإنك توافق على الالتزام بشروط الاستخدام وسياسة الجودة لدينا.",
         link_success_msg: "تم اختصار الرابط بنجاح!",
-        lbl_shortened_result: "🎉 الرابط المختصر جاهز:",
         guide_modal_title: "دليل الشحن ورمز المعاملة TxID",
         guide_step1_b: "اختر الشبكة:",
         guide_step1_t: "حدد شبكة USDT (TRC20 أو BEP20) لإظهار عنوان المحفظة ثم قم بنسخه.",
@@ -1270,22 +1259,8 @@
 
         const data = await res.json().catch(() => ({}));
 
-        if (res.ok && (data.success || data.link || data.shortUrl || data.shortLink)) {
+        if (res.ok && (data.success || data.link)) {
           showToast(i18n[currentLang]?.link_success_msg || 'Link shortened successfully!');
-          
-          // التقاط الرابط المختصر وعرضه فوراً داخل العنصر المخصص له في الصفحة
-          const linkObj = data.link || data;
-          const finalShortUrl = formatShortUrl(linkObj) || data.shortUrl || data.shortLink;
-          
-          if (finalShortUrl) {
-            const resultCard = document.getElementById('shorten-result-card');
-            const resultUrlSpan = document.getElementById('result-short-url');
-            if (resultCard && resultUrlSpan) {
-              resultUrlSpan.innerText = finalShortUrl;
-              resultCard.classList.remove('hidden');
-            }
-          }
-
           titleInput.value = '';
           urlInput.value = '';
           await loadUserData();
