@@ -763,10 +763,11 @@ const handleUserData = async (req, res, next) => {
       const ctr = totalViews > 0 ? ((validImp / totalViews) * 100).toFixed(1) : "0.0";
       return { 
         ...link, 
+        id: link._id,
         ctr, 
         validImpressions: validImp, 
         invalidImpressions: invalidImp,
-        shortUrl: buildShortUrl(link.shortCode)
+        shortUrl: link.shortUrl || buildShortUrl(link.shortCode)
       };
     });
 
@@ -801,7 +802,7 @@ app.get('/api/user/data', resolveUserId, handleUserData);
 app.get('/user/data', resolveUserId, handleUserData);
 
 // =========================================================================
-// --- Link Shortener API Routes ---
+// --- Link Shortener API Routes (Guaranteed Permanent DB Save & Sync) ---
 // =========================================================================
 
 const handleShortenLink = async (req, res) => {
@@ -827,6 +828,7 @@ const handleShortenLink = async (req, res) => {
     } catch (e) {}
 
     const shortCode = crypto.randomBytes(3).toString('hex');
+    const shortUrl = buildShortUrl(shortCode);
     const publisherTelegramId = req.user ? req.user.telegramId : null;
     const targetUserId = req.userId;
     
@@ -838,6 +840,7 @@ const handleShortenLink = async (req, res) => {
       targetUrl: cleanUrl,
       originalUrl: cleanUrl,
       shortCode,
+      shortUrl,
       isActive: true
     });
 
@@ -848,7 +851,6 @@ const handleShortenLink = async (req, res) => {
     }
 
     const linkObj = newLink.toObject ? newLink.toObject() : newLink;
-    const shortUrl = buildShortUrl(shortCode);
 
     return res.json({ 
       success: true, 
@@ -892,7 +894,7 @@ const getUserLinks = async (userId) => {
       ...link, 
       id: link._id,
       ctr,
-      shortUrl: buildShortUrl(link.shortCode)
+      shortUrl: link.shortUrl || buildShortUrl(link.shortCode)
     };
   });
 };
@@ -1008,6 +1010,7 @@ app.get('/api/links/:id/stats', resolveUserId, async (req, res, next) => {
       stats: {
         linkId: link._id,
         shortCode: link.shortCode,
+        shortUrl: link.shortUrl || buildShortUrl(link.shortCode),
         title: link.title,
         targetUrl: link.targetUrl,
         totalViews,
@@ -1175,24 +1178,20 @@ const handleDeposit = async (req, res, next) => {
     const cleanNetwork = String(network || '').toUpperCase();
     let cleanTxid = String(txid || '').trim();
 
-    // 1. Validation: Amount
     if (amount === undefined || amount === null || amount === '' || isNaN(numAmount) || numAmount < 1) {
       return res.status(400).json({ success: false, error: 'المبلغ مطلوب والحد الأدنى للإيداع هو $1' });
     }
 
-    // 2. Validation: Network
     if (!['BEP20', 'TRC20', 'TON'].includes(cleanNetwork)) {
       return res.status(400).json({ success: false, error: 'يرجى تحديد شبكة صالحة (BEP20, TRC20, TON)' });
     }
 
-    // 3. Validation & Sanitization: TxID / TxHash
     if (!cleanTxid || cleanTxid === 'null' || cleanTxid === 'undefined' || cleanTxid === '' || cleanTxid === 'NaN') {
       cleanTxid = 'DEP_' + Date.now() + '_' + crypto.randomBytes(6).toString('hex');
     } else if (cleanTxid.length < 3) {
       return res.status(400).json({ success: false, error: 'معرف المعاملة (TxID / TxHash) غير صالح' });
     }
 
-    // 4. Validation & Resolution: Target User ID
     let targetUserId = req.userId;
     if (explicitUserId) {
       const cleanExplicitId = String(explicitUserId).trim();
@@ -1216,7 +1215,6 @@ const handleDeposit = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'المستخدم غير موجود في قاعدة البيانات' });
     }
 
-    // 5. Safe Creation with Duplicate Key (E11000) Mitigation for Vercel
     let deposit = null;
     let attempts = 0;
     while (attempts < 3) {
