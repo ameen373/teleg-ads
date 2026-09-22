@@ -147,18 +147,30 @@ async function findOrCreateUser(tgId, updateData = {}, setOnInsertData = {}) {
   if (!cleanId || cleanId === 'null' || cleanId === 'undefined' || cleanId === '' || cleanId === 'NaN') {
     return null;
   }
+
+  const cleanUpdate = {};
+  for (const key of Object.keys(updateData)) {
+    if (updateData[key] !== undefined && updateData[key] !== null) {
+      cleanUpdate[key] = updateData[key];
+    }
+  }
+
   try {
     return await User.findOneAndUpdate(
       { telegramId: cleanId },
       {
         $setOnInsert: { telegramId: cleanId, ...setOnInsertData },
-        $set: updateData
+        $set: cleanUpdate
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
   } catch (err) {
     if (err.code === 11000) {
-      return await User.findOne({ telegramId: cleanId });
+      return await User.findOneAndUpdate(
+        { telegramId: cleanId },
+        { $set: cleanUpdate },
+        { new: true }
+      );
     }
     throw err;
   }
@@ -529,7 +541,7 @@ const resolveUserId = async (req, res, next) => {
     }
 
     // 2. Try Telegram initData verification & Auto-Upsert
-    if (!user && initData) {
+    if (initData) {
       const telegramUser = verifyTelegramData(initData);
       if (telegramUser && telegramUser.id) {
         const tgId = String(telegramUser.id).trim();
@@ -548,15 +560,12 @@ const resolveUserId = async (req, res, next) => {
       }
     }
 
-    // 3. Try resolving from raw user ID / telegram ID across Query, Body, or Headers with Auto-Upsert
+    // 3. Try resolving from raw user ID / telegram ID with Auto-Upsert
     if (!user && rawUserId) {
       const cleanRawId = String(rawUserId).trim();
       if (cleanRawId && cleanRawId !== 'null' && cleanRawId !== 'undefined' && cleanRawId !== '' && cleanRawId !== 'NaN') {
         if (mongoose.Types.ObjectId.isValid(cleanRawId)) {
           user = await User.findById(cleanRawId);
-        }
-        if (!user) {
-          user = await User.findOne({ telegramId: cleanRawId });
         }
         if (!user) {
           user = await findOrCreateUser(
@@ -591,7 +600,7 @@ const resolveUserId = async (req, res, next) => {
       }
     }
 
-    // 5. Ultimate Fallback: Auto-create/retrieve default demo user if identification is completely missing
+    // 5. Ultimate Fallback: Auto-create/retrieve default demo user if identification is missing
     if (!user) {
       const defaultTgId = '123456789';
       user = await findOrCreateUser(
@@ -687,7 +696,7 @@ const handleCheckAdmin = async (req, res) => {
 app.all('/api/check-admin', handleCheckAdmin);
 app.all('/check-admin', handleCheckAdmin);
 
-// --- Authentication & Login Gateway ---
+// --- Authentication & Login Gateway (Automatic Telegram User Upsert) ---
 const handleLogin = async (req, res, next) => {
   try {
     await connectDB();
@@ -712,19 +721,23 @@ const handleLogin = async (req, res, next) => {
       tgId = '123456789';
     }
 
-    const { referrerId } = req.body || {};
+    const { referrerId, username, firstName, lastName, language } = req.body || {};
 
-    const currentUsername = telegramUser?.username || `User_${tgId.slice(-4)}`;
-    const userLanguage = telegramUser?.language_code || CONFIG.DEFAULT_LANGUAGE;
+    const updateData = {
+      username: telegramUser?.username || username || `User_${tgId.slice(-4)}`,
+      language: telegramUser?.language_code || language || CONFIG.DEFAULT_LANGUAGE
+    };
+
+    if (telegramUser?.first_name || firstName) {
+      updateData.firstName = telegramUser?.first_name || firstName;
+    }
+    if (telegramUser?.last_name || lastName) {
+      updateData.lastName = telegramUser?.last_name || lastName;
+    }
 
     const user = await findOrCreateUser(
       tgId,
-      {
-        username: currentUsername,
-        language: userLanguage,
-        ...(telegramUser?.first_name && { firstName: telegramUser.first_name }),
-        ...(telegramUser?.last_name && { lastName: telegramUser.last_name })
-      },
+      updateData,
       {
         telegramId: tgId,
         referredBy: mongoose.Types.ObjectId.isValid(referrerId) ? referrerId : null
@@ -1684,15 +1697,22 @@ app.post('/api/user/settings', resolveUserId, async (req, res, next) => {
 });
 
 // =========================================================================
-// --- Admin Panel Routes ---
+// --- Admin Panel Routes (With Populated User & Financial Requests) ---
 // =========================================================================
 
 app.get('/api/admin/dashboard-data', adminMiddleware, async (req, res, next) => {
   try {
     await connectDB();
     const [withdraws, deposits, users, stats, totalAds] = await Promise.all([
-      Withdraw.find().populate('userId').sort({ createdAt: -1 }).lean(),
-      Deposit.find().populate('advertiserId').sort({ createdAt: -1 }).lean(),
+      Withdraw.find()
+        .populate('userId', 'username firstName lastName telegramId')
+        .sort({ createdAt: -1 })
+        .lean(),
+      Deposit.find()
+        .populate('userId', 'username firstName lastName telegramId')
+        .populate('advertiserId', 'username firstName lastName telegramId')
+        .sort({ createdAt: -1 })
+        .lean(),
       User.find().sort({ createdAt: -1 }).limit(100).lean(),
       User.aggregate([
         { $group: { _id: null, totalPending: {$sum: "$pendingBalance" }, totalAvailable: { $sum: "$availableBalance" }, totalUsers: { $sum: 1 } } }
@@ -1716,10 +1736,40 @@ app.get('/api/admin/users', adminMiddleware, async (req, res, next) => {
   }
 });
 
+app.get('/api/admin/withdraws', adminMiddleware, async (req, res, next) => {
+  try {
+    await connectDB();
+    const withdraws = await Withdraw.find()
+      .populate('userId', 'username firstName lastName telegramId')
+      .sort({ createdAt: -1 })
+      .lean();
+    res.json({ success: true, withdraws });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/admin/deposits', adminMiddleware, async (req, res, next) => {
+  try {
+    await connectDB();
+    const deposits = await Deposit.find()
+      .populate('userId', 'username firstName lastName telegramId')
+      .populate('advertiserId', 'username firstName lastName telegramId')
+      .sort({ createdAt: -1 })
+      .lean();
+    res.json({ success: true, deposits });
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.get('/api/admin/links', adminMiddleware, async (req, res, next) => {
   try {
     await connectDB();
-    const links = await Link.find().populate('userId', 'username telegramId').sort({ createdAt: -1 }).lean();
+    const links = await Link.find()
+      .populate('userId', 'username firstName lastName telegramId')
+      .sort({ createdAt: -1 })
+      .lean();
     res.json({ success: true, links });
   } catch (err) {
     next(err);
@@ -1729,7 +1779,10 @@ app.get('/api/admin/links', adminMiddleware, async (req, res, next) => {
 app.get('/api/admin/ads', adminMiddleware, async (req, res, next) => {
   try {
     await connectDB();
-    const ads = await Ad.find().populate('userId', 'username telegramId').sort({ createdAt: -1 }).lean();
+    const ads = await Ad.find()
+      .populate('userId', 'username firstName lastName telegramId')
+      .sort({ createdAt: -1 })
+      .lean();
     res.json({ success: true, ads });
   } catch (err) {
     next(err);
