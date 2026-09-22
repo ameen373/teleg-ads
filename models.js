@@ -193,7 +193,7 @@ userSchema.virtual('referrals', {
 userSchema.index({ telegramId: 1, isBanned: 1 }, { sparse: true });
 userSchema.index({ createdAt: -1 });
 
-// Automatically provision/create new users if they don't exist in DB (Robust & Concurrency-Safe)
+// Automatically provision/create new users or sync profile info if changed
 userSchema.statics.findByTelegramIdIsolated = async function(telegramId, userData = {}) {
   const tgStr = sanitizeTelegramId(telegramId);
   if (!tgStr) return null;
@@ -213,6 +213,12 @@ userSchema.statics.findByTelegramIdIsolated = async function(telegramId, userDat
     } catch (err) {
       user = await this.findOne({ telegramId: tgStr });
     }
+  } else if (userData && (userData.username || userData.firstName || userData.lastName)) {
+    let updated = false;
+    if (userData.username !== undefined && user.username !== userData.username) { user.username = userData.username; updated = true; }
+    if (userData.firstName !== undefined && user.firstName !== userData.firstName) { user.firstName = userData.firstName; updated = true; }
+    if (userData.lastName !== undefined && user.lastName !== userData.lastName) { user.lastName = userData.lastName; updated = true; }
+    if (updated) await user.save();
   }
   return user;
 };
@@ -974,6 +980,21 @@ const withdrawSchema = new mongoose.Schema({
   }
 }, globalSchemaOptions);
 
+// Virtual relationship to automatically populate applicant user details
+withdrawSchema.virtual('user', {
+  ref: 'User',
+  localField: 'userId',
+  foreignField: '_id',
+  justOne: true
+});
+
+withdrawSchema.virtual('userData', {
+  ref: 'User',
+  localField: 'telegramId',
+  foreignField: 'telegramId',
+  justOne: true
+});
+
 withdrawSchema.pre('validate', function(next) {
   const amount = typeof this.amount === 'number' ? this.amount : parseFloat(this.amount) || 0;
   const fee = typeof this.fee === 'number' ? this.fee : parseFloat(this.fee) || 3;
@@ -985,7 +1006,6 @@ withdrawSchema.index({ userId: 1, createdAt: -1 });
 withdrawSchema.index({ telegramId: 1, createdAt: -1 });
 withdrawSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
 
-// Fixed compound partial index specification for status 'pending'
 withdrawSchema.index(
   { telegramId: 1, status: 1 }, 
   { unique: true, sparse: true, partialFilterExpression: { status: 'pending' } }
@@ -1007,7 +1027,7 @@ withdrawSchema.statics.getUserWithdrawalsIsolated = function(identifier, status 
 
   const query = { $or: conditions };
   if (status) query.status = status;
-  return this.find(query).sort({ createdAt: -1 });
+  return this.find(query).populate('user').sort({ createdAt: -1 });
 };
 
 // ==================================================
@@ -1147,6 +1167,28 @@ const depositSchema = new mongoose.Schema({
   }
 }, globalSchemaOptions);
 
+// Virtual relationships to automatically populate deposit user details
+depositSchema.virtual('user', {
+  ref: 'User',
+  localField: 'userId',
+  foreignField: '_id',
+  justOne: true
+});
+
+depositSchema.virtual('userData', {
+  ref: 'User',
+  localField: 'telegramId',
+  foreignField: 'telegramId',
+  justOne: true
+});
+
+depositSchema.virtual('advertiser', {
+  ref: 'User',
+  localField: 'advertiserId',
+  foreignField: '_id',
+  justOne: true
+});
+
 depositSchema.pre('validate', function(next) {
   if (this.userId && !this.advertiserId) this.advertiserId = this.userId;
   if (this.advertiserId && !this.userId) this.userId = this.advertiserId;
@@ -1186,7 +1228,7 @@ depositSchema.statics.getAdvertiserDepositsIsolated = function(identifier) {
 
   if (conditions.length === 0) return this.find({ _id: { $exists: false } });
 
-  return this.find({ $or: conditions }).sort({ createdAt: -1 });
+  return this.find({ $or: conditions }).populate('user').sort({ createdAt: -1 });
 };
 
 // ==================================================
@@ -1245,25 +1287,25 @@ announcementSchema.statics.getForUserIsolated = function(userId, telegramId) {
 };
 
 // ==================================================
-// Model Instantiation & Aliases (Serverless & Overwrite Safe)
+// Model Instantiation & Aliases (Duplication & Serverless Safe)
 // ==================================================
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Wallet = mongoose.models.Wallet || mongoose.model('Wallet', walletSchema);
 const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
-
 const Referral = mongoose.models.Referral || mongoose.model('Referral', referralSchema);
 
-const Ad = mongoose.models.Ad || mongoose.model('Ad', adSchema, 'ads');
-const Campaign = mongoose.models.Campaign || mongoose.model('Campaign', adSchema, 'ads');
+// Reuse model instance to avoid duplicate schema compilation / model overwrite errors
+const Ad = mongoose.models.Ad || mongoose.models.Campaign || mongoose.model('Ad', adSchema, 'ads');
+const Campaign = Ad;
 
-const Link = mongoose.models.Link || mongoose.model('Link', linkSchema, 'links');
-const ShortLink = mongoose.models.ShortLink || mongoose.model('ShortLink', linkSchema, 'links');
+const Link = mongoose.models.Link || mongoose.models.ShortLink || mongoose.model('Link', linkSchema, 'links');
+const ShortLink = Link;
 
 const Impression = mongoose.models.Impression || mongoose.model('Impression', impressionSchema);
 const ClickSession = mongoose.models.ClickSession || mongoose.model('ClickSession', clickSessionSchema);
 
-const Withdraw = mongoose.models.Withdraw || mongoose.model('Withdraw', withdrawSchema, 'withdraws');
-const Withdrawal = mongoose.models.Withdrawal || mongoose.model('Withdrawal', withdrawSchema, 'withdraws');
+const Withdraw = mongoose.models.Withdraw || mongoose.models.Withdrawal || mongoose.model('Withdraw', withdrawSchema, 'withdraws');
+const Withdrawal = Withdraw;
 
 const EarningsHold = mongoose.models.EarningsHold || mongoose.model('EarningsHold', earningsHoldSchema);
 const Deposit = mongoose.models.Deposit || mongoose.model('Deposit', depositSchema);
