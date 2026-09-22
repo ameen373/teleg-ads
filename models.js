@@ -135,6 +135,13 @@ const userSchema = new mongoose.Schema({
     default: null, 
     index: true 
   },
+  referredByTelegramId: {
+    type: String,
+    default: null,
+    index: true,
+    trim: true,
+    set: sanitizeTelegramId
+  },
   referralEarnings: { 
     type: Number, 
     default: 0, 
@@ -175,6 +182,14 @@ userSchema.virtual('links', {
   justOne: false
 });
 
+// Virtual populate for user referrals
+userSchema.virtual('referrals', {
+  ref: 'Referral',
+  localField: 'telegramId',
+  foreignField: 'referrerTelegramId',
+  justOne: false
+});
+
 userSchema.index({ telegramId: 1, isBanned: 1 }, { sparse: true });
 userSchema.index({ createdAt: -1 });
 
@@ -192,6 +207,7 @@ userSchema.statics.findByTelegramIdIsolated = async function(telegramId, userDat
         lastName: userData.lastName || '',
         language: userData.language || 'ar',
         referredBy: isObjectId(userData.referredBy) ? userData.referredBy : null,
+        referredByTelegramId: sanitizeTelegramId(userData.referredByTelegramId) || null,
         ...userData
       });
     } catch (err) {
@@ -292,7 +308,7 @@ walletSchema.statics.getWalletIsolated = async function(identifier) {
 };
 
 // ==================================================
-// 3. Transaction History Model
+// 3. Transaction History Model (Deposits, Withdrawals, Earnings)
 // ==================================================
 const transactionSchema = new mongoose.Schema({
   userId: { 
@@ -488,7 +504,7 @@ adSchema.statics.findAdvertiserAdsIsolated = function(identifier, filter = {}) {
 };
 
 // ==================================================
-// 5. Shortened Link Model (Link / ShortLink) - Fully Optimized & Guaranteed Persistence
+// 5. Shortened Link Model (Link / ShortLink)
 // ==================================================
 const linkSchema = new mongoose.Schema({
   shortCode: { 
@@ -638,7 +654,73 @@ linkSchema.statics.findByShortCode = function(shortCode) {
 };
 
 // ==================================================
-// 6. Traffic & Impressions Model (Impression)
+// 6. Referral Model (Explicit Referral Tracking)
+// ==================================================
+const referralSchema = new mongoose.Schema({
+  referrerTelegramId: {
+    type: String,
+    required: [true, 'Referrer Telegram ID is required'],
+    index: true,
+    trim: true,
+    set: sanitizeTelegramId
+  },
+  referrerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+    index: true
+  },
+  referredTelegramId: {
+    type: String,
+    required: [true, 'Referred Telegram ID is required'],
+    unique: true,
+    sparse: true,
+    index: true,
+    trim: true,
+    set: sanitizeTelegramId
+  },
+  referredId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+    index: true
+  },
+  totalEarned: {
+    type: Number,
+    default: 0,
+    min: [0, 'Earnings cannot be negative'],
+    set: formatCurrency
+  },
+  status: {
+    type: String,
+    enum: ['active', 'pending', 'banned'],
+    default: 'active',
+    index: true
+  }
+}, globalSchemaOptions);
+
+referralSchema.index({ referrerTelegramId: 1, createdAt: -1 });
+referralSchema.index({ referrerId: 1, createdAt: -1 });
+
+referralSchema.statics.getReferralsIsolated = function(identifier) {
+  if (!identifier) return this.find({ _id: { $exists: false } });
+  
+  const conditions = [];
+  if (isObjectId(identifier)) {
+    conditions.push({ referrerId: identifier });
+  }
+  const tgStr = sanitizeTelegramId(identifier);
+  if (tgStr) {
+    conditions.push({ referrerTelegramId: tgStr });
+  }
+
+  if (conditions.length === 0) return this.find({ _id: { $exists: false } });
+
+  return this.find({ $or: conditions }).sort({ createdAt: -1 });
+};
+
+// ==================================================
+// 7. Traffic & Impressions Model (Impression)
 // ==================================================
 const impressionSchema = new mongoose.Schema({
   linkId: { 
@@ -751,7 +833,7 @@ impressionSchema.statics.getPublisherImpressionsIsolated = function(identifier, 
 };
 
 // ==================================================
-// 7. Anti-Bypass Click Session Model (ClickSession)
+// 8. Anti-Bypass Click Session Model (ClickSession)
 // ==================================================
 const clickSessionSchema = new mongoose.Schema({
   linkId: { 
@@ -825,7 +907,7 @@ clickSessionSchema.index({ telegramId: 1, createdAt: -1 });
 clickSessionSchema.index({ bridgeToken: 1 }, { unique: true, sparse: true });
 
 // ==================================================
-// 8. Withdrawal Model (Withdraw / Withdrawal)
+// 9. Withdrawal Model (Withdraw / Withdrawal)
 // ==================================================
 const withdrawSchema = new mongoose.Schema({
   userId: { 
@@ -901,7 +983,7 @@ withdrawSchema.index({ userId: 1, createdAt: -1 });
 withdrawSchema.index({ telegramId: 1, createdAt: -1 });
 withdrawSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
 
-// Fixed compound partial index specification for status 'pending'
+// Partial unique index preventing duplicate concurrent 'pending' withdrawals per user
 withdrawSchema.index(
   { telegramId: 1, status: 1 }, 
   { unique: true, sparse: true, partialFilterExpression: { status: 'pending' } }
@@ -927,7 +1009,7 @@ withdrawSchema.statics.getUserWithdrawalsIsolated = function(identifier, status 
 };
 
 // ==================================================
-// 9. Earnings Hold Model (EarningsHold)
+// 10. Earnings Hold Model (EarningsHold)
 // ==================================================
 const earningsHoldSchema = new mongoose.Schema({
   userId: { 
@@ -983,7 +1065,7 @@ earningsHoldSchema.statics.getUserHoldsIsolated = function(identifier) {
 };
 
 // ==================================================
-// 10. Advertiser Deposit Model (Deposit)
+// 11. Advertiser Deposit Model (Deposit)
 // ==================================================
 const depositSchema = new mongoose.Schema({
   userId: {
@@ -1101,7 +1183,7 @@ depositSchema.statics.getAdvertiserDepositsIsolated = function(identifier) {
 };
 
 // ==================================================
-// 11. Announcement Model (Announcement)
+// 12. Announcement Model (Announcement)
 // ==================================================
 const announcementSchema = new mongoose.Schema({
   title: { 
@@ -1168,6 +1250,8 @@ const Campaign = mongoose.models.Campaign || mongoose.model('Campaign', adSchema
 const Link = mongoose.models.Link || mongoose.model('Link', linkSchema, 'links');
 const ShortLink = mongoose.models.ShortLink || mongoose.model('ShortLink', linkSchema, 'links');
 
+const Referral = mongoose.models.Referral || mongoose.model('Referral', referralSchema, 'referrals');
+
 const Impression = mongoose.models.Impression || mongoose.model('Impression', impressionSchema);
 const ClickSession = mongoose.models.ClickSession || mongoose.model('ClickSession', clickSessionSchema);
 
@@ -1189,6 +1273,7 @@ module.exports = {
   Campaign,
   Link,
   ShortLink,
+  Referral,
   Impression,
   ClickSession,
   Withdraw,
