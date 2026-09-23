@@ -1,14 +1,15 @@
-// =========================================================================
-// --- Primary View & Static Files Routing ---
-// =========================================================================
-app.get('/', (req, res) => {
-  res.sendFile(path.join(process.cwd(), 'public', 'views.html'));
-});
-
-app.post('/', (req, res) => {
-  res.json({ success: true, message: 'Telega.ads API Gateway Active' });
-});
-
-app.get('/r/:code', (req, res) => {
-  res.sendFile(path.join(process.cwd(), 'public', 'views.html'));
-});
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "server.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "server.js"
+    }
+  ]
+}
