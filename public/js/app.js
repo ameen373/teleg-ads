@@ -2,6 +2,7 @@ const API_BASE = window.location.protocol.startsWith('file')
   ? 'http://localhost:3000' 
   : window.location.origin;
 
+let currentLang = localStorage.getItem('appLang') || 'ar';
 let authToken = localStorage.getItem('authToken');
 let currentSessionId = null;
 let bridgeToken = null;
@@ -20,9 +21,38 @@ if (tg?.initDataUnsafe?.user?.id) {
   currentUserTelegramId = storedTelegramId || null;
 }
 
+// حفظ initData احتياطياً في localStorage
+if (window.Telegram?.WebApp?.initData) {
+  localStorage.setItem('telegramInitData', window.Telegram.WebApp.initData);
+}
+
+const i18n = window.i18n || {
+  ar: {
+    copied: "تم النسخ بنجاح!",
+    network_error: "خطأ في الاتصال بالشبكة",
+    cancel: "إلغاء",
+    btn_edit: "تعديل",
+    btn_copy: "نسخ",
+    link_success_msg: "تم اختصار الرابط بنجاح!"
+  },
+  en: {
+    copied: "Copied successfully!",
+    network_error: "Network connection error",
+    cancel: "Cancel",
+    btn_edit: "Edit",
+    btn_copy: "Copy",
+    link_success_msg: "Link shortened successfully!"
+  }
+};
+
 let rawUserLinksCache = [];
 let bridgeDestinationUrl = null;
 let currentShortCode = null;
+
+function applyLanguage(lang) {
+  currentLang = lang || 'ar';
+  localStorage.setItem('appLang', currentLang);
+}
 
 function escapeHTML(str) {
   if (!str) return '';
@@ -73,6 +103,10 @@ function setButtonLoading(btnId, isLoading, originalText) {
   }
 }
 
+/**
+ * دالة جلب البيانات الذكية (safeFetch)
+ * تقوم بإرسال Telegram.WebApp.initData ذكياً في جميع الطلبات
+ */
 async function safeFetch(endpoint, options = {}) {
   options.headers = options.headers || {};
   
@@ -81,7 +115,11 @@ async function safeFetch(endpoint, options = {}) {
     localStorage.setItem('telegramId', currentUserTelegramId);
   }
 
-  const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || '';
+  // استخراج initData ذكياً من التليجرام أو تخزينه/استرجاعه من localStorage
+  const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || localStorage.getItem('telegramInitData') || '';
+  if (window.Telegram?.WebApp?.initData) {
+    localStorage.setItem('telegramInitData', window.Telegram.WebApp.initData);
+  }
   
   if (initDataStr) {
     options.headers['Authorization'] = `Bearer ${initDataStr}`;
@@ -214,10 +252,10 @@ function renderTelegramUser() {
     localStorage.setItem('telegramId', currentUserTelegramId);
     const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || 'Telegram User';
     nameElem.innerText = fullName;
-    handleElem.innerText = u.username ? `@${u.username}` : '@no_username';
+    handleElem.innerText = u.username ? `@${u.username}` : (fullName || `ID: ${u.id}`);
     idElem.innerText = `ID: ${u.id}`;
 
-    if (u.is_premium) {
+    if (u.is_premium && premiumBadge) {
       premiumBadge.classList.remove('hidden');
     }
 
@@ -275,12 +313,12 @@ function toggleWalletEdit() {
   if (walletInput.hasAttribute('readonly')) {
     walletInput.removeAttribute('readonly');
     walletInput.focus();
-    editBtn.innerText = i18n[currentLang].cancel;
+    editBtn.innerText = i18n[currentLang]?.cancel || 'إلغاء';
     editBtn.className = "btn-small btn-danger";
     saveBtn.classList.remove('hidden');
   } else {
     walletInput.setAttribute('readonly', 'readonly');
-    editBtn.innerText = i18n[currentLang].btn_edit;
+    editBtn.innerText = i18n[currentLang]?.btn_edit || 'تعديل';
     editBtn.className = "btn-small btn-warning";
     saveBtn.classList.add('hidden');
   }
@@ -289,7 +327,7 @@ function toggleWalletEdit() {
 async function authLogin() {
   const startParam = tg?.initDataUnsafe?.start_param || null;
   const u = tg?.initDataUnsafe?.user || {};
-  const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || '';
+  const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || localStorage.getItem('telegramInitData') || '';
 
   try {
     const res = await safeFetch('/api/auth/login', {
@@ -298,11 +336,11 @@ async function authLogin() {
         userId: currentUserTelegramId,
         telegramId: currentUserTelegramId,
         referrerId: startParam,
-        firstName: u.first_name || '',
-        lastName: u.last_name || '',
+        firstName: u.first_name || u.firstName || '',
+        lastName: u.last_name || u.lastName || '',
         username: u.username || '',
-        photoUrl: u.photo_url || '',
-        isPremium: !!u.is_premium,
+        photoUrl: u.photo_url || u.photoUrl || '',
+        isPremium: !!(u.is_premium || u.isPremium),
         initData: initDataStr
       }
     });
@@ -963,46 +1001,153 @@ async function loadAdminData() {
   }
 }
 
+/**
+ * دالة معالجة واستخراج بيانات المستخدم الذكية للعرض في لوحة الإدارة
+ * تضمن عرض الاسم الكامل، الـ Username، والـ Telegram ID مع البدائل الذكية
+ */
+function formatUserInfo(u) {
+  if (!u) u = {};
+
+  // استخراج معرف التليجرام
+  const tgId = u.telegramId || u.userId || u.id || (typeof u === 'string' || typeof u === 'number' ? String(u) : '');
+
+  // استخراج الاسم الأول واللقب
+  const firstName = u.firstName || u.first_name || u.name || '';
+  const lastName = u.lastName || u.last_name || '';
+  let fullName = `${firstName} ${lastName}`.trim();
+  if (!fullName && u.fullName) fullName = u.fullName;
+
+  // استخراج اسم المستخدم (Username)
+  let rawUsername = u.username || u.user_name || u.handle || '';
+  if (rawUsername) {
+    rawUsername = String(rawUsername).replace(/^@/, '').trim();
+  }
+
+  // معالجة اسم المستخدم ذكياً عند غيابه
+  let usernameDisplay = '';
+  if (rawUsername) {
+    usernameDisplay = `@${rawUsername}`;
+  } else if (fullName) {
+    usernameDisplay = `${fullName}`;
+  } else if (tgId) {
+    usernameDisplay = `ID: ${tgId}`;
+  } else {
+    usernameDisplay = 'بدون اسم مستخدم';
+  }
+
+  // معالجة الاسم الكامل عند غيابه
+  if (!fullName) {
+    if (rawUsername) {
+      fullName = `@${rawUsername}`;
+    } else if (tgId) {
+      fullName = `مستخدم (${tgId})`;
+    } else {
+      fullName = 'مستخدم غير معروف';
+    }
+  }
+
+  return {
+    fullName: escapeHTML(fullName),
+    username: escapeHTML(usernameDisplay),
+    telegramId: escapeHTML(String(tgId || 'غير محدد')),
+    hasUsername: !!rawUsername
+  };
+}
+
 function renderAdminDeposits(list) {
   const c = document.getElementById('admin-deposits-list');
   if (!c) return;
-  if (!list.length) { c.innerHTML = '<p style="color:var(--text-muted);">لا توجد طلبات إيداع معلقة</p>'; return; }
-  c.innerHTML = list.map(d => `
-    <div style="background:#070a12; padding:10px; border-radius:10px; margin-bottom:8px; border:1px solid var(--card-border);">
-      <div><b>مستخدم:</b> ${d.userId} | <b>المبلغ:</b> $${d.amount}</div>
-      <div style="font-size:10px; color:var(--text-muted); word-break:break-all;"><b>TxID:</b> ${d.txid || d.txHash}</div>
-      <div style="margin-top:6px;">
-        <button class="btn-small btn-success" onclick="processAdminAction('deposit', '${d._id}', 'approve')">قبول</button>
-        <button class="btn-small btn-danger" onclick="processAdminAction('deposit', '${d._id}', 'reject')">رفض</button>
+  if (!list || !list.length) { c.innerHTML = '<p style="color:var(--text-muted);">لا توجد طلبات إيداع معلقة</p>'; return; }
+  
+  c.innerHTML = list.map(d => {
+    const userInfo = formatUserInfo(d.user || d);
+    const amount = (d.amount || 0).toFixed(2);
+    const txid = escapeHTML(d.txid || d.txHash || 'N/A');
+    const network = escapeHTML(d.network || 'TRC20');
+
+    return `
+      <div style="background:#070a12; padding:10px; border-radius:10px; margin-bottom:8px; border:1px solid var(--card-border);">
+        <div style="margin-bottom: 4px;">
+          <strong style="color:var(--text); font-size:12px;">👤 الاسم: ${userInfo.fullName}</strong>
+        </div>
+        <div style="font-size:11px; color:var(--text-muted); margin-bottom: 4px;">
+          <span><b>اسم المستخدم:</b> ${userInfo.username}</span> | 
+          <span><b>آيدي تليجرام:</b> ${userInfo.telegramId}</span>
+        </div>
+        <div style="font-size:11px; color:var(--accent); margin-bottom: 4px;">
+          <b>المبلغ:</b> $${amount} | <b>الشبكة:</b> ${network}
+        </div>
+        <div style="font-size:10px; color:var(--text-muted); word-break:break-all; margin-bottom: 6px;">
+          <b>TxID:</b> ${txid}
+        </div>
+        <div style="margin-top:6px; display: flex; gap: 6px;">
+          <button class="btn-small btn-success" onclick="processAdminAction('deposit', '${d._id}', 'approve')">قبول</button>
+          <button class="btn-small btn-danger" onclick="processAdminAction('deposit', '${d._id}', 'reject')">رفض</button>
+        </div>
       </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 function renderAdminWithdraws(list) {
   const c = document.getElementById('admin-withdraws-list');
   if (!c) return;
-  if (!list.length) { c.innerHTML = '<p style="color:var(--text-muted);">لا توجد طلبات سحب معلقة</p>'; return; }
-  c.innerHTML = list.map(w => `
-    <div style="background:#070a12; padding:10px; border-radius:10px; margin-bottom:8px; border:1px solid var(--card-border);">
-      <div><b>مستخدم:</b> ${w.userId} | <b>المبلغ:</b> $${w.amount}</div>
-      <div style="font-size:10px; color:var(--text-muted); word-break:break-all;"><b>المحفظة:</b> ${w.wallet}</div>
-      <div style="margin-top:6px;">
-        <button class="btn-small btn-success" onclick="processAdminAction('withdraw', '${w._id}', 'approve')">تأكيد الدفع</button>
-        <button class="btn-small btn-danger" onclick="processAdminAction('withdraw', '${w._id}', 'reject')">إلغاء الطلب</button>
+  if (!list || !list.length) { c.innerHTML = '<p style="color:var(--text-muted);">لا توجد طلبات سحب معلقة</p>'; return; }
+  
+  c.innerHTML = list.map(w => {
+    const userInfo = formatUserInfo(w.user || w);
+    const amount = (w.amount || 0).toFixed(2);
+    const wallet = escapeHTML(w.wallet || 'N/A');
+
+    return `
+      <div style="background:#070a12; padding:10px; border-radius:10px; margin-bottom:8px; border:1px solid var(--card-border);">
+        <div style="margin-bottom: 4px;">
+          <strong style="color:var(--text); font-size:12px;">👤 الاسم: ${userInfo.fullName}</strong>
+        </div>
+        <div style="font-size:11px; color:var(--text-muted); margin-bottom: 4px;">
+          <span><b>اسم المستخدم:</b> ${userInfo.username}</span> | 
+          <span><b>آيدي تليجرام:</b> ${userInfo.telegramId}</span>
+        </div>
+        <div style="font-size:11px; color:var(--warning); margin-bottom: 4px;">
+          <b>المبلغ:</b> $${amount}
+        </div>
+        <div style="font-size:10px; color:var(--text-muted); word-break:break-all; margin-bottom: 6px;">
+          <b>المحفظة:</b> ${wallet}
+        </div>
+        <div style="margin-top:6px; display: flex; gap: 6px;">
+          <button class="btn-small btn-success" onclick="processAdminAction('withdraw', '${w._id}', 'approve')">تأكيد الدفع</button>
+          <button class="btn-small btn-danger" onclick="processAdminAction('withdraw', '${w._id}', 'reject')">إلغاء الطلب</button>
+        </div>
       </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 function renderAdminUsers(list) {
   const c = document.getElementById('admin-users-list');
   if (!c) return;
-  c.innerHTML = list.map(u => `
-    <div style="background:#070a12; padding:8px; border-radius:8px; margin-bottom:6px; font-size:11px;">
-      <b>ID:</b> ${u.telegramId} | <b>المتاح:</b> $${(u.availableBalance||0).toFixed(2)} | <b>المعلق:</b> $${(u.pendingBalance||0).toFixed(2)}
-    </div>
-  `).join('');
+  if (!list || !list.length) { c.innerHTML = '<p style="color:var(--text-muted);">لا يوجد مستخدمون</p>'; return; }
+
+  c.innerHTML = list.map(u => {
+    const userInfo = formatUserInfo(u);
+    const avail = (u.availableBalance || 0).toFixed(2);
+    const pending = (u.pendingBalance || 0).toFixed(2);
+
+    return `
+      <div style="background:#070a12; padding:10px; border-radius:10px; margin-bottom:6px; border:1px solid var(--card-border); font-size:11px;">
+        <div style="margin-bottom: 3px;">
+          <strong style="color:var(--text); font-size:12px;">👤 ${userInfo.fullName}</strong>
+        </div>
+        <div style="color:var(--text-muted); margin-bottom: 4px;">
+          <span><b>المستخدم:</b> ${userInfo.username}</span> | 
+          <span><b>ID:</b> ${userInfo.telegramId}</span>
+        </div>
+        <div style="color:var(--success);">
+          <b>المتاح:</b> $${avail} | <b>المعلق:</b> $${pending}
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 function renderAdminLinks(list) {
@@ -1010,7 +1155,7 @@ function renderAdminLinks(list) {
   if (!c) return;
   c.innerHTML = list.map(l => `
     <div style="background:#070a12; padding:8px; border-radius:8px; margin-bottom:6px; font-size:11px;">
-      <b>كود:</b> ${l.shortCode} | <b>الزيارات:</b> ${l.views||0}
+      <b>كود:</b> ${escapeHTML(l.shortCode)} | <b>الزيارات:</b> ${l.views||0}
     </div>
   `).join('');
 }
@@ -1020,7 +1165,7 @@ function renderAdminAds(list) {
   if (!c) return;
   c.innerHTML = list.map(a => `
     <div style="background:#070a12; padding:8px; border-radius:8px; margin-bottom:6px; font-size:11px;">
-      <b>عنوان:</b> ${escapeHTML(a.title)} | <b>الميزانية:</b> $${a.budget}
+      <b>عنوان:</b> ${escapeHTML(a.title)} | <b>الميزانية:</b> $${(a.budget||0).toFixed(2)}
     </div>
   `).join('');
 }
