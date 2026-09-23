@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" id="html-root">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -8,13 +8,14 @@
   <!-- External CSS Integration -->
   <link rel="stylesheet" href="/css/style.css">
 
-  <!-- External Scripts Integration -->
+  <!-- Official Telegram WebApp SDK & Ads SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 </head>
 <body>
 
   <div class="container">
+    <!-- Global Toast Notification Container -->
     <div id="toast"></div>
 
     <!-- Deposit Guide Modal -->
@@ -22,7 +23,7 @@
       <div class="modal-content">
         <h3 style="margin-top: 0; color: var(--accent); font-size: 18px;" data-i18n="guide_modal_title">دليل الشحن ورمز المعاملة TxID</h3>
         <hr style="border: 0; border-top: 1px solid var(--card-border); margin: 14px 0;">
-        <ol style="font-size: 12px; color: var(--text); padding: 0 18px; line-height: 1.8;">
+        <ol style="font-size: 12px; color: var(--text); padding-left: 18px; padding-right: 18px; line-height: 1.8;">
           <li><b data-i18n="guide_step1_b">اختر الشبكة:</b> <span data-i18n="guide_step1_t">حدد شبكة USDT (TRC20 أو BEP20) لإظهار عنوان المحفظة ثم قم بنسخه.</span></li>
           <li><b data-i18n="guide_step2_b">تحويل الأموال:</b> <span data-i18n="guide_step2_t">افتح تطبيق محفظتك (Binance, Trust Wallet) وقم بتحويل المبلغ إلى العنوان المنسوخ.</span></li>
           <li><b data-i18n="guide_step3_b">نسخ رمز العملية (TxID):</b> <span data-i18n="guide_step3_t">بعد نجاح التحويل، انسخ معرف المعاملة TxHash/TxID.</span>
@@ -53,7 +54,7 @@
 
       <div style="margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--card-border); text-align: center; font-size: 11px; color: var(--text-muted);">
         <p style="margin: 0 0 8px 0;">
-          <span data-i18n="all_rights_reserved">جميع الحقوق محفوظة لمنصة</span> <a id="official-bot-link" href="https://t.me/Ads_telegabot" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: none; font-weight: bold;">Telega.ads</a>
+          <span data-i18n="rights_reserved">جميع الحقوق محفوظة لمنصة</span> <a id="official-bot-link" href="https://t.me/Ads_telegabot" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: none; font-weight: bold;">Telega.ads</a>
         </p>
         <div>
           <a id="official-channel-link" href="https://t.me/ttelega_ads" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; background: rgba(59, 130, 246, 0.15); border: 1px solid var(--accent); border-radius: 20px; color: var(--accent); text-decoration: none; font-weight: bold;" data-i18n="official_channel">
@@ -66,6 +67,7 @@
     <!-- Main Telegram App View -->
     <div id="app-view">
       
+      <!-- User Profile Header -->
       <div class="user-profile-header">
         <div id="user-avatar-container"></div>
         <div style="flex: 1; overflow: hidden;">
@@ -268,13 +270,13 @@
             <span data-i18n="support_text">للتواصل والدعم الفني عبر التليجرام:</span>
             <div style="display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;">
               <a id="support-bot-btn" href="https://t.me/Ads_telegabot" target="_blank" rel="noopener" style="flex: 1; text-decoration: none;">
-                <button class="btn-small" style="width: 100%; background: var(--accent);" data-i18n="btn_bot">🤖 البوت</button>
+                <button class="btn-small" style="width: 100%; background: var(--accent);" data-i18n="support_btn_bot">🤖 البوت</button>
               </a>
               <a id="support-channel-btn" href="https://t.me/ttelega_ads" target="_blank" rel="noopener" style="flex: 1; text-decoration: none;">
-                <button class="btn-small btn-success" style="width: 100%;" data-i18n="btn_channel">📢 القناة</button>
+                <button class="btn-small btn-success" style="width: 100%;" data-i18n="support_btn_channel">📢 القناة</button>
               </a>
               <a id="support-contact-btn" href="https://t.me/Te_AdsNs_bot" target="_blank" rel="noopener" style="flex: 1; text-decoration: none;">
-                <button class="btn-small btn-warning" style="width: 100%;" data-i18n="btn_support">🎧 الدعم</button>
+                <button class="btn-small btn-warning" style="width: 100%;" data-i18n="support_btn_chat">🎧 الدعم</button>
               </a>
             </div>
           </div>
@@ -284,14 +286,8 @@
       <!-- Tab 6: Admin Dashboard Panel -->
       <div id="tab-content-admin" class="tab-pane hidden">
         <div class="stats-grid" style="margin-bottom: 16px;">
-          <div class="stat-box">
-            <small data-i18n="admin_total_users">إجمالي المستخدمين</small>
-            <h3 id="admin-total-users">0</h3>
-          </div>
-          <div class="stat-box">
-            <small data-i18n="admin_total_pending">إجمالي الأرصدة المعلقة</small>
-            <h3 id="admin-total-pending" style="color: var(--warning);">$0.00</h3>
-          </div>
+          <div class="stat-box"><small data-i18n="admin_total_users">إجمالي المستخدمين</small><h3 id="admin-total-users">0</h3></div>
+          <div class="stat-box"><small data-i18n="admin_total_pending">إجمالي الأرصدة المعلقة</small><h3 id="admin-total-pending" style="color: var(--warning);">$0.00</h3></div>
         </div>
 
         <div class="card">
@@ -305,21 +301,22 @@
         </div>
         
         <div class="card">
-          <h4 style="margin-top:0;" data-i18n="admin_manage_users">إدارة مستخدمي النظام</h4>
+          <h4 style="margin-top:0;" data-i18n="admin_users_mgmt">إدارة مستخدمي النظام</h4>
           <div id="admin-users-list" style="font-size: 12px;" data-i18n="loading">جاري التحميل...</div>
         </div>
 
         <div class="card">
-          <h4 style="margin-top:0;" data-i18n="admin_manage_links">إدارة روابط المنصة</h4>
+          <h4 style="margin-top:0;" data-i18n="admin_links_mgmt">إدارة روابط المنصة</h4>
           <div id="admin-links-list" style="font-size: 12px;" data-i18n="loading">جاري التحميل...</div>
         </div>
 
         <div class="card">
-          <h4 style="margin-top:0;" data-i18n="admin_manage_ads">إدارة إعلانات المنصة</h4>
+          <h4 style="margin-top:0;" data-i18n="admin_ads_mgmt">إدارة إعلانات المنصة</h4>
           <div id="admin-ads-list" style="font-size: 12px;" data-i18n="loading">جاري التحميل...</div>
         </div>
       </div>
 
+      <!-- Navigation Dock Footer -->
       <nav class="tg-nav-dock">
         <button onclick="switchTab('dashboard')" class="nav-btn active" id="tab-btn-dashboard">
           <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
