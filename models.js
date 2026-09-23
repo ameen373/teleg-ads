@@ -108,7 +108,7 @@ const userSchema = new mongoose.Schema({
   },
   role: { 
     type: String, 
-    enum: ['user', 'admin', 'advertiser', 'publisher'], 
+    enum: ['user', 'admin'], 
     default: 'user',
     index: true 
   },
@@ -128,11 +128,6 @@ const userSchema = new mongoose.Schema({
     type: Boolean, 
     default: false, 
     index: true 
-  },
-  banReason: {
-    type: String,
-    default: '',
-    trim: true
   },
   referredBy: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -175,9 +170,7 @@ const userSchema = new mongoose.Schema({
     totalViewsReceived: { type: Number, default: 0, min: [0, 'Stats cannot be negative'] },
     totalValidViews: { type: Number, default: 0, min: [0, 'Stats cannot be negative'] },
     totalLifetimeEarned: { type: Number, default: 0, min: [0, 'Stats cannot be negative'], set: formatCurrency },
-    totalSpent: { type: Number, default: 0, min: [0, 'Stats cannot be negative'], set: formatCurrency },
-    totalAdsCreated: { type: Number, default: 0, min: [0, 'Stats cannot be negative'] },
-    totalChannelsAdded: { type: Number, default: 0, min: [0, 'Stats cannot be negative'] }
+    totalSpent: { type: Number, default: 0, min: [0, 'Stats cannot be negative'], set: formatCurrency }
   }
 }, globalSchemaOptions);
 
@@ -194,22 +187,6 @@ userSchema.virtual('referrals', {
   ref: 'Referral',
   localField: 'telegramId',
   foreignField: 'referrerTelegramId',
-  justOne: false
-});
-
-// Virtual populate for user channels
-userSchema.virtual('channels', {
-  ref: 'Channel',
-  localField: 'telegramId',
-  foreignField: 'ownerTelegramId',
-  justOne: false
-});
-
-// Virtual populate for user ads
-userSchema.virtual('ads', {
-  ref: 'Ad',
-  localField: 'telegramId',
-  foreignField: 'advertiserTelegramId',
   justOne: false
 });
 
@@ -308,13 +285,12 @@ walletSchema.statics.getWalletIsolated = async function(identifier) {
   
   let wallet = await this.findOne(query);
   if (!wallet && tgStr) {
-    const UserModel = mongoose.models.User || mongoose.model('User');
-    let user = await UserModel.findOne({ telegramId: tgStr });
+    let user = await mongoose.models.User.findOne({ telegramId: tgStr });
     if (!user) {
       try {
-        user = await UserModel.create({ telegramId: tgStr });
+        user = await mongoose.models.User.create({ telegramId: tgStr });
       } catch (err) {
-        user = await UserModel.findOne({ telegramId: tgStr });
+        user = await mongoose.models.User.findOne({ telegramId: tgStr });
       }
     }
     try {
@@ -350,7 +326,7 @@ const transactionSchema = new mongoose.Schema({
   },
   type: { 
     type: String, 
-    enum: ['deposit', 'withdrawal', 'campaign_spend', 'publisher_earning', 'channel_payout', 'referral_bonus', 'refund', 'hold_release'], 
+    enum: ['deposit', 'withdrawal', 'campaign_spend', 'publisher_earning', 'referral_bonus', 'refund', 'hold_release'], 
     required: [true, 'Transaction type is required'],
     index: true 
   },
@@ -468,123 +444,7 @@ referralSchema.statics.getReferralsIsolated = function(identifier) {
 };
 
 // ==================================================
-// 5. Telegram Channel Model (Publisher Channels)
-// ==================================================
-const channelSchema = new mongoose.Schema({
-  channelId: {
-    type: String,
-    required: [true, 'Telegram Channel ID or Username is required'],
-    unique: true,
-    sparse: true,
-    index: true,
-    trim: true
-  },
-  ownerUserId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    default: null,
-    index: true
-  },
-  ownerTelegramId: {
-    type: String,
-    required: [true, 'Owner Telegram ID is required'],
-    index: true,
-    trim: true,
-    set: sanitizeTelegramId
-  },
-  title: {
-    type: String,
-    required: [true, 'Channel title is required'],
-    trim: true,
-    maxlength: [150, 'Channel title must not exceed 150 characters']
-  },
-  username: {
-    type: String,
-    default: '',
-    trim: true,
-    lowercase: true,
-    index: true
-  },
-  inviteLink: {
-    type: String,
-    default: '',
-    trim: true
-  },
-  category: {
-    type: String,
-    enum: ['general', 'crypto', 'technology', 'business', 'entertainment', 'news', 'education', 'lifestyle', 'gaming', 'other'],
-    default: 'general',
-    index: true
-  },
-  memberCount: {
-    type: Number,
-    default: 0,
-    min: [0, 'Member count cannot be negative']
-  },
-  cpmRate: {
-    type: Number,
-    default: 1.50,
-    min: [0, 'CPM rate cannot be negative'],
-    set: formatCurrency
-  },
-  status: {
-    type: String,
-    enum: ['pending', 'approved', 'rejected', 'suspended'],
-    default: 'pending',
-    index: true
-  },
-  isVerified: {
-    type: Boolean,
-    default: false,
-    index: true
-  },
-  verificationCode: {
-    type: String,
-    default: '',
-    trim: true
-  },
-  totalEarnings: {
-    type: Number,
-    default: 0,
-    min: [0, 'Total earnings cannot be negative'],
-    set: formatCurrency
-  },
-  totalImpressions: {
-    type: Number,
-    default: 0,
-    min: [0, 'Total impressions cannot be negative']
-  },
-  rejectReason: {
-    type: String,
-    default: '',
-    trim: true
-  }
-}, globalSchemaOptions);
-
-channelSchema.index({ ownerUserId: 1, createdAt: -1 });
-channelSchema.index({ ownerTelegramId: 1, createdAt: -1 });
-channelSchema.index({ ownerTelegramId: 1, status: 1, createdAt: -1 });
-channelSchema.index({ status: 1, category: 1, createdAt: -1 });
-
-channelSchema.statics.getOwnerChannelsIsolated = function(identifier, filter = {}) {
-  if (!identifier) return this.find({ _id: { $exists: false } });
-  
-  const conditions = [];
-  if (isObjectId(identifier)) {
-    conditions.push({ ownerUserId: identifier });
-  }
-  const tgStr = sanitizeTelegramId(identifier);
-  if (tgStr) {
-    conditions.push({ ownerTelegramId: tgStr });
-  }
-
-  if (conditions.length === 0) return this.find({ _id: { $exists: false } });
-
-  return this.find({ ...filter, $or: conditions }).sort({ createdAt: -1 });
-};
-
-// ==================================================
-// 6. Ad Campaign Model (Ad / Campaign)
+// 5. Ad Campaign Model (Ad / Campaign)
 // ==================================================
 const adSchema = new mongoose.Schema({
   userId: { 
@@ -619,23 +479,6 @@ const adSchema = new mongoose.Schema({
     trim: true, 
     maxlength: [100, 'Ad title must not exceed 100 characters'] 
   },
-  description: {
-    type: String,
-    default: '',
-    trim: true,
-    maxlength: [1000, 'Ad description must not exceed 1000 characters']
-  },
-  mediaUrl: {
-    type: String,
-    default: '',
-    trim: true
-  },
-  buttonText: {
-    type: String,
-    default: 'Open Link',
-    trim: true,
-    maxlength: [50, 'Button text must not exceed 50 characters']
-  },
   targetUrl: { 
     type: String, 
     required: [true, 'Target URL is required'], 
@@ -648,16 +491,6 @@ const adSchema = new mongoose.Schema({
       message: 'Please enter a valid target URL'
     }
   },
-  category: {
-    type: String,
-    enum: ['all', 'general', 'crypto', 'technology', 'business', 'entertainment', 'news', 'education', 'lifestyle', 'gaming', 'other'],
-    default: 'all',
-    index: true
-  },
-  targetChannelIds: [{
-    type: String,
-    trim: true
-  }],
   totalBudget: { 
     type: Number, 
     required: [true, 'Total budget is required'], 
@@ -699,21 +532,11 @@ const adSchema = new mongoose.Schema({
     default: 0, 
     min: [0, 'Impressions count cannot be negative'] 
   },
-  clicksCount: {
-    type: Number,
-    default: 0,
-    min: [0, 'Clicks count cannot be negative']
-  },
   status: { 
     type: String, 
-    enum: ['pending', 'active', 'paused', 'completed', 'cancelled', 'rejected'], 
-    default: 'pending', 
+    enum: ['active', 'paused', 'completed', 'cancelled', 'pending'], 
+    default: 'active', 
     index: true 
-  },
-  rejectReason: {
-    type: String,
-    default: '',
-    trim: true
   }
 }, globalSchemaOptions);
 
@@ -730,7 +553,6 @@ adSchema.index({ userId: 1, status: 1, createdAt: -1 });
 adSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
 adSchema.index({ advertiserTelegramId: 1, status: 1, createdAt: -1 });
 adSchema.index({ status: 1, remainingBudget: 1, createdAt: -1 });
-adSchema.index({ status: 1, category: 1, createdAt: -1 });
 
 adSchema.statics.findAdvertiserAdsIsolated = function(identifier, filter = {}) {
   if (!identifier) return this.find({ _id: { $exists: false } });
@@ -750,7 +572,7 @@ adSchema.statics.findAdvertiserAdsIsolated = function(identifier, filter = {}) {
 };
 
 // ==================================================
-// 7. Shortened Link Model (Link / ShortLink)
+// 6. Shortened Link Model (Link / ShortLink)
 // ==================================================
 const linkSchema = new mongoose.Schema({
   shortCode: { 
@@ -900,20 +722,14 @@ linkSchema.statics.findByShortCode = function(shortCode) {
 };
 
 // ==================================================
-// 8. Traffic & Impressions Model (Impression)
+// 7. Traffic & Impressions Model (Impression)
 // ==================================================
 const impressionSchema = new mongoose.Schema({
   linkId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'Link', 
-    default: null, 
+    required: [true, 'Link ID is required'], 
     index: true 
-  },
-  channelId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Channel',
-    default: null,
-    index: true
   },
   userId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -999,7 +815,6 @@ impressionSchema.index({ userId: 1, createdAt: -1 });
 impressionSchema.index({ telegramId: 1, createdAt: -1 });
 impressionSchema.index({ publisherTelegramId: 1, createdAt: -1 });
 impressionSchema.index({ linkId: 1, telegramId: 1, createdAt: -1 });
-impressionSchema.index({ channelId: 1, createdAt: -1 });
 impressionSchema.index({ ip: 1, linkId: 1, createdAt: -1 });
 
 impressionSchema.statics.getPublisherImpressionsIsolated = function(identifier, extraFilter = {}) {
@@ -1020,7 +835,7 @@ impressionSchema.statics.getPublisherImpressionsIsolated = function(identifier, 
 };
 
 // ==================================================
-// 9. Anti-Bypass Click Session Model (ClickSession)
+// 8. Anti-Bypass Click Session Model (ClickSession)
 // ==================================================
 const clickSessionSchema = new mongoose.Schema({
   linkId: { 
@@ -1094,7 +909,7 @@ clickSessionSchema.index({ telegramId: 1, createdAt: -1 });
 clickSessionSchema.index({ bridgeToken: 1 }, { unique: true, sparse: true });
 
 // ==================================================
-// 10. Withdrawal Model (Withdraw / Withdrawal)
+// 9. Withdrawal Model (Withdraw / Withdrawal)
 // ==================================================
 const withdrawSchema = new mongoose.Schema({
   userId: { 
@@ -1196,7 +1011,7 @@ withdrawSchema.statics.getUserWithdrawalsIsolated = function(identifier, status 
 };
 
 // ==================================================
-// 11. Earnings Hold Model (EarningsHold)
+// 10. Earnings Hold Model (EarningsHold)
 // ==================================================
 const earningsHoldSchema = new mongoose.Schema({
   userId: { 
@@ -1252,7 +1067,7 @@ earningsHoldSchema.statics.getUserHoldsIsolated = function(identifier) {
 };
 
 // ==================================================
-// 12. Advertiser Deposit Model (Deposit)
+// 11. Advertiser Deposit Model (Deposit)
 // ==================================================
 const depositSchema = new mongoose.Schema({
   userId: {
@@ -1375,7 +1190,7 @@ depositSchema.statics.getAdvertiserDepositsIsolated = function(identifier) {
 };
 
 // ==================================================
-// 13. Announcement Model (Announcement)
+// 12. Announcement Model (Announcement)
 // ==================================================
 const announcementSchema = new mongoose.Schema({
   title: { 
@@ -1438,20 +1253,17 @@ const Transaction = mongoose.models.Transaction || mongoose.model('Transaction',
 
 const Referral = mongoose.models.Referral || mongoose.model('Referral', referralSchema);
 
-const Channel = mongoose.models.Channel || mongoose.model('Channel', channelSchema, 'channels');
-const TelegramChannel = mongoose.models.TelegramChannel || mongoose.models.Channel || mongoose.model('TelegramChannel', channelSchema, 'channels');
-
 const Ad = mongoose.models.Ad || mongoose.model('Ad', adSchema, 'ads');
-const Campaign = mongoose.models.Campaign || mongoose.models.Ad || mongoose.model('Campaign', adSchema, 'ads');
+const Campaign = mongoose.models.Campaign || mongoose.model('Campaign', adSchema, 'ads');
 
 const Link = mongoose.models.Link || mongoose.model('Link', linkSchema, 'links');
-const ShortLink = mongoose.models.ShortLink || mongoose.models.Link || mongoose.model('ShortLink', linkSchema, 'links');
+const ShortLink = mongoose.models.ShortLink || mongoose.model('ShortLink', linkSchema, 'links');
 
 const Impression = mongoose.models.Impression || mongoose.model('Impression', impressionSchema);
 const ClickSession = mongoose.models.ClickSession || mongoose.model('ClickSession', clickSessionSchema);
 
 const Withdraw = mongoose.models.Withdraw || mongoose.model('Withdraw', withdrawSchema, 'withdraws');
-const Withdrawal = mongoose.models.Withdrawal || mongoose.models.Withdraw || mongoose.model('Withdrawal', withdrawSchema, 'withdraws');
+const Withdrawal = mongoose.models.Withdrawal || mongoose.model('Withdrawal', withdrawSchema, 'withdraws');
 
 const EarningsHold = mongoose.models.EarningsHold || mongoose.model('EarningsHold', earningsHoldSchema);
 const Deposit = mongoose.models.Deposit || mongoose.model('Deposit', depositSchema);
@@ -1465,8 +1277,6 @@ module.exports = {
   Wallet,
   Transaction,
   Referral,
-  Channel,
-  TelegramChannel,
   Ad,
   Campaign,
   Link,
