@@ -90,7 +90,17 @@ const userSchema = new mongoose.Schema({
     lowercase: true,
     index: true
   },
+  first_name: {
+    type: String,
+    default: '',
+    trim: true
+  },
   firstName: {
+    type: String,
+    default: '',
+    trim: true
+  },
+  last_name: {
     type: String,
     default: '',
     trim: true
@@ -99,6 +109,24 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: '',
     trim: true
+  },
+  balance: {
+    type: Number,
+    default: 0,
+    min: [0, 'Balance cannot be negative'],
+    set: formatCurrency
+  },
+  availableBalance: { 
+    type: Number, 
+    default: 0, 
+    min: [0, 'Available balance cannot be negative'],
+    set: formatCurrency 
+  },
+  pendingBalance: { 
+    type: Number, 
+    default: 0, 
+    min: [0, 'Pending balance cannot be negative'],
+    set: formatCurrency 
   },
   language: {
     type: String,
@@ -111,18 +139,6 @@ const userSchema = new mongoose.Schema({
     enum: ['user', 'admin'], 
     default: 'user',
     index: true 
-  },
-  pendingBalance: { 
-    type: Number, 
-    default: 0, 
-    min: [0, 'Pending balance cannot be negative'],
-    set: formatCurrency 
-  },
-  availableBalance: { 
-    type: Number, 
-    default: 0, 
-    min: [0, 'Available balance cannot be negative'],
-    set: formatCurrency 
   },
   isBanned: { 
     type: Boolean, 
@@ -174,6 +190,23 @@ const userSchema = new mongoose.Schema({
   }
 }, globalSchemaOptions);
 
+// Auto-synchronize first_name/firstName, last_name/lastName, and balance/availableBalance
+userSchema.pre('validate', function(next) {
+  if (this.first_name && !this.firstName) this.firstName = this.first_name;
+  if (this.firstName && !this.first_name) this.first_name = this.firstName;
+  
+  if (this.last_name && !this.lastName) this.lastName = this.last_name;
+  if (this.lastName && !this.last_name) this.last_name = this.lastName;
+  
+  if (this.balance !== undefined && (this.availableBalance === undefined || this.availableBalance === 0)) {
+    this.availableBalance = this.balance;
+  }
+  if (this.availableBalance !== undefined && (this.balance === undefined || this.balance === 0)) {
+    this.balance = this.availableBalance;
+  }
+  next();
+});
+
 // Virtual populate for user links
 userSchema.virtual('links', {
   ref: 'Link',
@@ -200,12 +233,21 @@ userSchema.statics.findByTelegramIdIsolated = async function(telegramId, userDat
   let user = await this.findOne({ telegramId: tgStr });
   if (!user) {
     try {
+      const fn = userData.first_name || userData.firstName || '';
+      const ln = userData.last_name || userData.lastName || '';
+      const bal = userData.balance !== undefined ? userData.balance : (userData.availableBalance || 0);
+
       user = await this.create({
         telegramId: tgStr,
         username: userData.username || '',
-        firstName: userData.firstName || '',
-        lastName: userData.lastName || '',
+        first_name: fn,
+        firstName: fn,
+        last_name: ln,
+        lastName: ln,
+        balance: bal,
+        availableBalance: bal,
         language: userData.language || 'ar',
+        role: userData.role || 'user',
         referredBy: isObjectId(userData.referredBy) ? userData.referredBy : null,
         referredByTelegramId: sanitizeTelegramId(userData.referredByTelegramId),
         ...userData
@@ -297,7 +339,7 @@ walletSchema.statics.getWalletIsolated = async function(identifier) {
       wallet = await this.create({
         telegramId: tgStr,
         userId: user ? user._id : null,
-        availableBalance: 0,
+        availableBalance: user ? user.availableBalance || 0 : 0,
         pendingBalance: 0
       });
     } catch (err) {
@@ -1254,16 +1296,16 @@ const Transaction = mongoose.models.Transaction || mongoose.model('Transaction',
 const Referral = mongoose.models.Referral || mongoose.model('Referral', referralSchema);
 
 const Ad = mongoose.models.Ad || mongoose.model('Ad', adSchema, 'ads');
-const Campaign = mongoose.models.Campaign || mongoose.model('Campaign', adSchema, 'ads');
+const Campaign = mongoose.models.Campaign || mongoose.models.Ad || mongoose.model('Campaign', adSchema, 'ads');
 
 const Link = mongoose.models.Link || mongoose.model('Link', linkSchema, 'links');
-const ShortLink = mongoose.models.ShortLink || mongoose.model('ShortLink', linkSchema, 'links');
+const ShortLink = mongoose.models.ShortLink || mongoose.models.Link || mongoose.model('ShortLink', linkSchema, 'links');
 
 const Impression = mongoose.models.Impression || mongoose.model('Impression', impressionSchema);
 const ClickSession = mongoose.models.ClickSession || mongoose.model('ClickSession', clickSessionSchema);
 
 const Withdraw = mongoose.models.Withdraw || mongoose.model('Withdraw', withdrawSchema, 'withdraws');
-const Withdrawal = mongoose.models.Withdrawal || mongoose.model('Withdrawal', withdrawSchema, 'withdraws');
+const Withdrawal = mongoose.models.Withdrawal || mongoose.models.Withdraw || mongoose.model('Withdrawal', withdrawSchema, 'withdraws');
 
 const EarningsHold = mongoose.models.EarningsHold || mongoose.model('EarningsHold', earningsHoldSchema);
 const Deposit = mongoose.models.Deposit || mongoose.model('Deposit', depositSchema);
