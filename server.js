@@ -58,7 +58,7 @@ app.use((req, res, next) => {
 app.use(mongoSanitize());
 
 // --- Static Files Serving (Public & Root Support) ---
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(process.cwd(), 'public')));
 app.use(express.static(__dirname));
 
 // --- Force UTF-8 JSON Response Headers & No-Cache Privacy Guard ---
@@ -1687,3 +1687,24 @@ app.post('/api/user/settings', resolveUserId, async (req, res, next) => {
 // =========================================================================
 // --- Admin Panel Routes ---
 // =========================================================================
+
+app.get('/api/admin/dashboard-data', adminMiddleware, async (req, res, next) => {
+  try {
+    await connectDB();
+    const [withdraws, deposits, users, stats, totalAds] = await Promise.all([
+      Withdraw.find().populate('userId').sort({ createdAt: -1 }).lean(),
+      Deposit.find().populate('advertiserId').sort({ createdAt: -1 }).lean(),
+      User.find().sort({ createdAt: -1 }).limit(100).lean(),
+      User.aggregate([
+        { $group: { _id: null, totalPending: {$sum: "$pendingBalance" }, totalAvailable: { $sum: "$availableBalance" }, totalUsers: { $sum: 1 } } }
+      ]),
+      Ad.countDocuments()
+    ]);
+
+    res.json({ success: true, withdraws, deposits, users, stats: { ...(stats[0] || {}), totalAds } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+module.exports = app;
