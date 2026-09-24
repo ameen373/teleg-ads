@@ -1,15 +1,20 @@
 const express = require('express');
 const router = express.Router();
+
 const { resolveUserId } = require('../middleware/auth');
-const { handleUserData, getUserReferrals, updateUserSettings } = require('../controllers/userController');
+const { 
+  handleUserData, 
+  getUserReferrals, 
+  updateUserSettings 
+} = require('../controllers/userController');
 
-router.get('/user/data', resolveUserId, handleUserData);
-router.get('/api/user/data', resolveUserId, handleUserData);
+// مسارات بيانات المستخدم (يدعم المسار المباشر ومسار API)
+router.get(['/user/data', '/api/user/data'], resolveUserId, handleUserData);
 
-router.get('/user/referrals', resolveUserId, getUserReferrals);
-router.get('/api/user/referrals', resolveUserId, getUserReferrals);
+// مسارات الإحالات
+router.get(['/user/referrals', '/api/user/referrals'], resolveUserId, getUserReferrals);
 
-router.post('/user/settings', resolveUserId, updateUserSettings);
-router.post('/api/user/settings', resolveUserId, updateUserSettings);
+// مسارات إعدادات المستخدم
+router.post(['/user/settings', '/api/user/settings'], resolveUserId, updateUserSettings);
 
 module.exports = router;
