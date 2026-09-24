@@ -1,11 +1,14 @@
 const mongoose = require('mongoose');
 const crypto = require('crypto');
-const { CONFIG } = require('../config/config');
+const config = require('../config/env');
 const connectDB = require('../config/db');
 const { safeRedisDel } = require('../config/redis');
 const logger = require('../utils/logger');
 const { normalizeAndValidateUrl, isPhishingOrMalicious, buildShortUrl } = require('../utils/helpers');
 const { User, Link, Impression } = require('../models');
+
+// جلب نطاق التطبيق من الملف المخصص للإعدادات
+const APP_DOMAIN = config.APP_DOMAIN || config.CONFIG?.APP_DOMAIN || process.env.APP_DOMAIN;
 
 const handleShortenLink = async (req, res) => {
   try {
@@ -24,15 +27,15 @@ const handleShortenLink = async (req, res) => {
 
     try {
       const domainCheck = new URL(cleanUrl).hostname;
-      if (domainCheck.includes(CONFIG.APP_DOMAIN)) {
+      if (APP_DOMAIN && domainCheck.includes(APP_DOMAIN)) {
         return res.status(400).json({ success: false, error: 'لا يمكن اختصار روابط منصة الاختصار نفسها' });
       }
     } catch (e) {}
 
     const shortCode = crypto.randomBytes(3).toString('hex');
     const shortUrl = buildShortUrl(shortCode);
-    const publisherTelegramId = req.user ? String(req.user.telegramId) : null;
-    const targetUserId = req.userId;
+    const publisherTelegramId = req.user?.telegramId ? String(req.user.telegramId) : null;
+    const targetUserId = req.userId || req.user?._id;
     
     const newLink = new Link({
       userId: targetUserId,
@@ -73,18 +76,23 @@ const handleShortenLink = async (req, res) => {
   }
 };
 
-const getUserLinksHelper = async (user) => {
-  if (!user) return [];
+const getUserLinksHelper = async (userOrId) => {
+  if (!userOrId) return [];
   await connectDB();
 
-  const userId = user._id || user;
-  const userTelegramId = user.telegramId ? String(user.telegramId) : null;
+  const userId = typeof userOrId === 'object' ? userOrId._id : userOrId;
+  const userTelegramId = typeof userOrId === 'object' && userOrId.telegramId ? String(userOrId.telegramId) : null;
 
   const queryConditions = [];
-  if (userId) queryConditions.push({ userId: userId });
-  if (userTelegramId) queryConditions.push({ publisherTelegramId: userTelegramId }, { telegramId: userTelegramId });
+  if (userId) queryConditions.push({ userId });
+  if (userTelegramId) {
+    queryConditions.push({ publisherTelegramId: userTelegramId });
+    queryConditions.push({ telegramId: userTelegramId });
+  }
 
-  const rawLinks = await Link.find(queryConditions.length > 0 ? { $or: queryConditions } : { userId: userId }).sort({ createdAt: -1 }).lean();
+  if (queryConditions.length === 0) return [];
+
+  const rawLinks = await Link.find({ $or: queryConditions }).sort({ createdAt: -1 }).lean();
 
   return rawLinks.map(link => {
     const totalViews = link.views || 0;
@@ -101,25 +109,57 @@ const getUserLinksHelper = async (user) => {
 
 const getUserLinks = async (req, res, next) => {
   try {
-    const links = await getUserLinksHelper(req.user || req.userId);
+    const userOrId = req.user || req.userId;
+    const links = await getUserLinksHelper(userOrId);
     res.json({ success: true, links });
   } catch (err) {
     next(err);
   }
 };
 
+// بناء استعلام الآمان للتحقق من هوية صاحب الرابط
+const buildUserLinkQuery = (linkId, req) => {
+  const userId = req.userId || req.user?._id;
+  const telegramId = req.user?.telegramId ? String(req.user.telegramId) : null;
+
+  const userConditions = [];
+  if (userId) userConditions.push({ userId });
+  if (telegramId) userConditions.push({ publisherTelegramId: telegramId });
+
+  if (userConditions.length === 0) {
+    return null;
+  }
+
+  return {
+    _id: linkId,
+    $or: userConditions
+  };
+};
+
 const toggleLink = async (req, res, next) => {
   try {
     await connectDB();
     const linkId = req.body?.linkId || req.body?.id;
-    if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
+    if (!mongoose.Types.ObjectId.isValid(linkId)) {
+      return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
+    }
 
-    const link = await Link.findOne({ _id: linkId, $or: [{ userId: req.userId }, { publisherTelegramId: req.user.telegramId }] });
-    if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات التعديل عليه' });
+    const query = buildUserLinkQuery(linkId, req);
+    if (!query) {
+      return res.status(401).json({ success: false, error: 'غير مصرح للوصول لهذا الرابط' });
+    }
+
+    const link = await Link.findOne(query);
+    if (!link) {
+      return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات التعديل عليه' });
+    }
 
     link.isActive = !link.isActive;
     await link.save();
-    await safeRedisDel(`link:data:${link.shortCode}`);
+
+    if (typeof safeRedisDel === 'function') {
+      await safeRedisDel(`link:data:${link.shortCode}`).catch(() => {});
+    }
 
     res.json({ success: true, isActive: link.isActive });
   } catch (err) {
@@ -135,12 +175,20 @@ const deleteLink = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
     }
 
-    const link = await Link.findOneAndDelete({ _id: linkId, $or: [{ userId: req.userId }, { publisherTelegramId: req.user.telegramId }] });
+    const query = buildUserLinkQuery(linkId, req);
+    if (!query) {
+      return res.status(401).json({ success: false, error: 'غير مصرح للوصول لهذا الرابط' });
+    }
+
+    const link = await Link.findOneAndDelete(query);
     if (!link) {
       return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات حذفه' });
     }
 
-    await safeRedisDel(`link:data:${link.shortCode}`);
+    if (typeof safeRedisDel === 'function') {
+      await safeRedisDel(`link:data:${link.shortCode}`).catch(() => {});
+    }
+
     res.json({ success: true, message: 'تم حذف الرابط بنجاح' });
   } catch (err) {
     next(err);
@@ -155,7 +203,12 @@ const getLinkStats = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
     }
 
-    const link = await Link.findOne({ _id: linkId, $or: [{ userId: req.userId }, { publisherTelegramId: req.user.telegramId }] }).lean();
+    const query = buildUserLinkQuery(linkId, req);
+    if (!query) {
+      return res.status(401).json({ success: false, error: 'غير مصرح للوصول لهذا الرابط' });
+    }
+
+    const link = await Link.findOne(query).lean();
     if (!link) {
       return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحية الوصول إليه' });
     }
