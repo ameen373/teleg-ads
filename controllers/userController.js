@@ -1,4 +1,5 @@
-const { CONFIG } = require('../config/config');
+const envConfig = require('../config/env');
+const CONFIG = envConfig.CONFIG || envConfig;
 const connectDB = require('../config/db');
 const { User, Ad, Link, Withdraw, Deposit, Announcement } = require('../models');
 const { buildShortUrl } = require('../utils/helpers');
@@ -7,7 +8,8 @@ const handleUserData = async (req, res, next) => {
   try {
     await connectDB();
     const targetUserId = req.userId;
-    const targetTgId = req.user ? req.user.telegramId : null;
+    const userObj = req.user || {};
+    const targetTgId = userObj.telegramId || null;
 
     const queryConditions = [];
     if (targetUserId) queryConditions.push({ userId: targetUserId });
@@ -37,15 +39,20 @@ const handleUserData = async (req, res, next) => {
       };
     });
 
-    const isAdmin = Boolean(CONFIG.ADMIN_ID && String(req.user.telegramId).trim() === CONFIG.ADMIN_ID);
+    const userTelegramId = userObj.telegramId ? String(userObj.telegramId).trim() : '';
+    const adminId = CONFIG.ADMIN_ID ? String(CONFIG.ADMIN_ID).trim() : '';
+    const isAdmin = Boolean(adminId && userTelegramId === adminId);
+
+    const userPayload = typeof userObj.toObject === 'function' ? userObj.toObject() : userObj;
+
     res.json({ 
       success: true,
       userId: targetUserId,
       user: {
-        ...req.user.toObject(),
+        ...userPayload,
         referralsCount
       }, 
-      language: req.user.language || CONFIG.DEFAULT_LANGUAGE,
+      language: userObj.language || CONFIG.DEFAULT_LANGUAGE || 'ar',
       links, 
       withdraws, 
       announcements, 
@@ -53,14 +60,14 @@ const handleUserData = async (req, res, next) => {
       deposits, 
       referralsCount,
       isAdmin,
-      botUsername: CONFIG.BOT_USERNAME,
-      supportUsername: CONFIG.SUPPORT_USERNAME,
-      botUrl: CONFIG.OFFICIAL_BOT_URL,
-      officialChannelUrl: CONFIG.OFFICIAL_CHANNEL_URL,
-      supportUrl: CONFIG.TELEGRAM_SUPPORT_URL,
+      botUsername: CONFIG.BOT_USERNAME || '',
+      supportUsername: CONFIG.SUPPORT_USERNAME || '',
+      botUrl: CONFIG.OFFICIAL_BOT_URL || '',
+      officialChannelUrl: CONFIG.OFFICIAL_CHANNEL_URL || '',
+      supportUrl: CONFIG.TELEGRAM_SUPPORT_URL || '',
       depositWallets: {
-        bep20: CONFIG.DEPOSIT_USDT_BEP20,
-        trc20: CONFIG.DEPOSIT_USDT_TRC20
+        bep20: CONFIG.DEPOSIT_USDT_BEP20 || '',
+        trc20: CONFIG.DEPOSIT_USDT_TRC20 || ''
       }
     });
   } catch (err) {
@@ -72,17 +79,21 @@ const getUserReferrals = async (req, res, next) => {
   try {
     await connectDB();
     const targetUserId = req.userId;
+    const userObj = req.user || {};
+
     const referrals = await User.find({ referredBy: targetUserId })
       .select('username telegramId referralEarnings createdAt')
       .sort({ createdAt: -1 })
       .lean();
 
-    const referralLink = `${CONFIG.OFFICIAL_BOT_URL}?start=${req.user.telegramId}`;
+    const botUrl = CONFIG.OFFICIAL_BOT_URL || '';
+    const telegramId = userObj.telegramId || '';
+    const referralLink = botUrl ? `${botUrl}?start=${telegramId}` : '';
 
     res.json({
       success: true,
       referralsCount: referrals.length,
-      referralEarnings: req.user.referralEarnings || 0,
+      referralEarnings: userObj.referralEarnings || 0,
       referralLink,
       referrals
     });
