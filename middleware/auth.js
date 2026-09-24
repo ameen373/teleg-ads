@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
-const { CONFIG } = require('../config/config');
+const { CONFIG } = require('../config/env');
 const connectDB = require('../config/db');
 const logger = require('../utils/logger');
 const { verifyTelegramData, findOrCreateUser } = require('../utils/helpers');
@@ -46,7 +46,9 @@ const resolveUserId = async (req, res, next) => {
             user = await User.findOne({ telegramId: String(jwtUserId).trim() });
           }
         }
-      } catch (err) {}
+      } catch (err) {
+        logger.debug('فشلت التوثيق عبر رمز JWT:', err.message);
+      }
     }
 
     if (!user && initData) {
@@ -151,6 +153,7 @@ const resolveUserId = async (req, res, next) => {
       req.userId = fallbackUser._id;
       return next();
     } catch (fallbackErr) {
+      logger.error('Error creating/finding fallback user:', fallbackErr);
       return res.status(500).json({ success: false, error: 'خطأ في المصادقة الداخلية للخادم' });
     }
   }
@@ -159,7 +162,10 @@ const resolveUserId = async (req, res, next) => {
 const adminMiddleware = async (req, res, next) => {
   try {
     await connectDB();
-    const initData = req.headers['x-telegram-init-data'] || req.headers['telegram-init-data'] || req.query?.initData || req.body?.initData;
+    const initData = req.headers['x-telegram-init-data'] || 
+                     req.headers['telegram-init-data'] || 
+                     req.query?.initData || 
+                     req.body?.initData;
     let telegramId = null;
 
     if (initData) {
@@ -173,13 +179,29 @@ const adminMiddleware = async (req, res, next) => {
       telegramId = String(req.user.telegramId).trim();
     }
 
-    if (!CONFIG.ADMIN_ID || !telegramId || telegramId !== CONFIG.ADMIN_ID) {
+    if (!telegramId) {
+      const rawUserId = req.headers['x-user-id'] || req.headers['user-id'] || 
+                        req.headers['x-telegram-id'] || req.headers['telegram-id'] ||
+                        req.headers['telegramid'] || req.headers['telegram_id'] ||
+                        req.query?.telegram_id || req.query?.telegramId || 
+                        req.query?.userId || req.query?.user_id || 
+                        req.body?.telegram_id || req.body?.telegramId || 
+                        req.body?.userId || req.body?.user_id;
+      if (rawUserId) {
+        telegramId = String(rawUserId).trim();
+      }
+    }
+
+    const adminIdStr = String(CONFIG.ADMIN_ID || '').trim();
+
+    if (!adminIdStr || !telegramId || String(telegramId).trim() !== adminIdStr) {
       return res.status(403).json({ success: false, error: '403 Forbidden - صلاحيات الأدمن مطلوبة' });
     }
 
     req.adminTelegramId = telegramId;
     next();
   } catch (err) {
+    logger.error('Error in adminMiddleware:', err);
     return res.status(403).json({ success: false, error: '403 Forbidden' });
   }
 };
