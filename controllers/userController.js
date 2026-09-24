@@ -11,6 +11,13 @@ const handleUserData = async (req, res, next) => {
     const userObj = req.user || {};
     const targetTgId = userObj.telegramId || null;
 
+    if (!targetUserId) {
+      return res.status(401).json({
+        success: false,
+        error: 'غير مصرح: لم يتم العثور على معرف المستخدم'
+      });
+    }
+
     const queryConditions = [];
     if (targetUserId) queryConditions.push({ userId: targetUserId });
     if (targetTgId) queryConditions.push({ publisherTelegramId: String(targetTgId) }, { telegramId: String(targetTgId) });
@@ -24,7 +31,7 @@ const handleUserData = async (req, res, next) => {
       User.countDocuments({ referredBy: targetUserId })
     ]);
 
-    const links = rawLinks.map(link => {
+    const links = (rawLinks || []).map(link => {
       const totalViews = link.views || 0;
       const validImp = link.validImpressions || 0;
       const invalidImp = link.invalidImpressions || 0;
@@ -45,7 +52,7 @@ const handleUserData = async (req, res, next) => {
 
     const userPayload = typeof userObj.toObject === 'function' ? userObj.toObject() : userObj;
 
-    res.json({ 
+    return res.json({ 
       success: true,
       userId: targetUserId,
       user: {
@@ -53,12 +60,12 @@ const handleUserData = async (req, res, next) => {
         referralsCount
       }, 
       language: userObj.language || CONFIG.DEFAULT_LANGUAGE || 'ar',
-      links, 
-      withdraws, 
-      announcements, 
-      ads, 
-      deposits, 
-      referralsCount,
+      links: links || [], 
+      withdraws: withdraws || [], 
+      announcements: announcements || [], 
+      ads: ads || [], 
+      deposits: deposits || [], 
+      referralsCount: referralsCount || 0,
       isAdmin,
       botUsername: CONFIG.BOT_USERNAME || '',
       supportUsername: CONFIG.SUPPORT_USERNAME || '',
@@ -71,7 +78,12 @@ const handleUserData = async (req, res, next) => {
       }
     });
   } catch (err) {
-    next(err);
+    console.error('❌ [User Controller Error] Exception in handleUserData:', err);
+    return res.status(500).json({
+      success: false,
+      error: 'حدث خطأ أثناء تحميل بيانات المستخدم',
+      details: err.message || 'Unknown Server Exception'
+    });
   }
 };
 
@@ -80,6 +92,13 @@ const getUserReferrals = async (req, res, next) => {
     await connectDB();
     const targetUserId = req.userId;
     const userObj = req.user || {};
+
+    if (!targetUserId) {
+      return res.status(401).json({
+        success: false,
+        error: 'غير مصرح: لم يتم تزويد المعرف المطلوب'
+      });
+    }
 
     const referrals = await User.find({ referredBy: targetUserId })
       .select('username telegramId referralEarnings createdAt')
@@ -90,31 +109,41 @@ const getUserReferrals = async (req, res, next) => {
     const telegramId = userObj.telegramId || '';
     const referralLink = botUrl ? `${botUrl}?start=${telegramId}` : '';
 
-    res.json({
+    return res.json({
       success: true,
-      referralsCount: referrals.length,
+      referralsCount: (referrals || []).length,
       referralEarnings: userObj.referralEarnings || 0,
       referralLink,
-      referrals
+      referrals: referrals || []
     });
   } catch (err) {
-    next(err);
+    console.error('❌ [User Controller Error] Exception in getUserReferrals:', err);
+    return res.status(500).json({
+      success: false,
+      error: 'حدث خطأ أثناء جلب سجل الإحالات',
+      details: err.message || 'Unknown Server Exception'
+    });
   }
 };
 
 const updateUserSettings = async (req, res, next) => {
   try {
     await connectDB();
-    const { defaultWallet, language } = req.body;
+    const { defaultWallet, language } = req.body || {};
     const updateData = {};
     
     if (defaultWallet !== undefined) updateData.defaultWallet = String(defaultWallet).trim();
     if (language !== undefined) updateData.language = String(language).trim().toLowerCase() || CONFIG.DEFAULT_LANGUAGE;
 
     await User.findByIdAndUpdate(req.userId, updateData);
-    res.json({ success: true, message: 'تم تحديث الإعدادات بنجاح' });
+    return res.json({ success: true, message: 'تم تحديث الإعدادات بنجاح' });
   } catch (err) {
-    next(err);
+    console.error('❌ [User Controller Error] Exception in updateUserSettings:', err);
+    return res.status(500).json({
+      success: false,
+      error: 'حدث خطأ أثناء تحديث إعدادات الحساب',
+      details: err.message || 'Unknown Server Exception'
+    });
   }
 };
 
