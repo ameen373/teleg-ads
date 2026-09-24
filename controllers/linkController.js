@@ -8,35 +8,52 @@ const { normalizeAndValidateUrl, isPhishingOrMalicious, buildShortUrl } = requir
 const { User, Link, Impression } = require('../models');
 
 // جلب نطاق التطبيق من الملف المخصص للإعدادات
-const APP_DOMAIN = config.APP_DOMAIN || config.CONFIG?.APP_DOMAIN || process.env.APP_DOMAIN;
+const APP_DOMAIN = config?.APP_DOMAIN || config?.CONFIG?.APP_DOMAIN || process.env.APP_DOMAIN;
 
 const handleShortenLink = async (req, res) => {
   try {
     await connectDB();
-    const { title, targetUrl, url, originalUrl } = req.body;
+    const { title, targetUrl, url, originalUrl } = req.body || {};
     const rawUrl = targetUrl || url || originalUrl;
+
+    if (!rawUrl) {
+      return res.status(400).json({ success: false, error: 'يرجى تقديم رابط صالح لاختصاره' });
+    }
+
     const cleanUrl = normalizeAndValidateUrl(rawUrl);
 
     if (!cleanUrl) {
       return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح، يرجى التأكد من كتابة رابط صحيح' });
     }
 
-    if (isPhishingOrMalicious(cleanUrl)) {
+    if (typeof isPhishingOrMalicious === 'function' && isPhishingOrMalicious(cleanUrl)) {
       return res.status(400).json({ success: false, error: 'الرابط ينتهك معايير الأمان والسياسات' });
     }
 
     try {
-      const domainCheck = new URL(cleanUrl).hostname;
-      if (APP_DOMAIN && domainCheck.includes(APP_DOMAIN)) {
-        return res.status(400).json({ success: false, error: 'لا يمكن اختصار روابط منصة الاختصار نفسها' });
+      if (APP_DOMAIN) {
+        const domainCheck = new URL(cleanUrl).hostname.toLowerCase();
+        const appDomainClean = String(APP_DOMAIN)
+          .replace(/^https?:\/\//i, '')
+          .split('/')[0]
+          .split(':')[0]
+          .toLowerCase();
+
+        if (domainCheck === appDomainClean || domainCheck.endsWith('.' + appDomainClean)) {
+          return res.status(400).json({ success: false, error: 'لا يمكن اختصار روابط منصة الاختصار نفسها' });
+        }
       }
-    } catch (e) {}
+    } catch (e) {
+      // التجاهل الآمن في حال فشل تحليل URL
+    }
 
     const shortCode = crypto.randomBytes(3).toString('hex');
-    const shortUrl = buildShortUrl(shortCode);
+    const shortUrl = typeof buildShortUrl === 'function' ? buildShortUrl(shortCode) : `${APP_DOMAIN || ''}/${shortCode}`;
     const publisherTelegramId = req.user?.telegramId ? String(req.user.telegramId) : null;
-    const targetUserId = req.userId || req.user?._id;
     
+    const rawUserId = req.userId || req.user?._id;
+    const targetUserId = (rawUserId && mongoose.Types.ObjectId.isValid(rawUserId)) ? rawUserId : null;
+
     const newLink = new Link({
       userId: targetUserId,
       publisherTelegramId: publisherTelegramId,
@@ -68,7 +85,11 @@ const handleShortenLink = async (req, res) => {
       shortUrl
     });
   } catch (err) {
-    logger.error('Error in handleShortenLink:', err);
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleShortenLink:', err);
+    } else {
+      console.error('Error in handleShortenLink:', err);
+    }
     return res.status(500).json({ 
       success: false, 
       error: 'حدث خطأ أثناء اختصار الرابط، يرجى المحاولة لاحقاً' 
@@ -80,8 +101,23 @@ const getUserLinksHelper = async (userOrId) => {
   if (!userOrId) return [];
   await connectDB();
 
-  const userId = typeof userOrId === 'object' ? userOrId._id : userOrId;
-  const userTelegramId = typeof userOrId === 'object' && userOrId.telegramId ? String(userOrId.telegramId) : null;
+  let userId = null;
+  let userTelegramId = null;
+
+  if (typeof userOrId === 'object' && userOrId !== null) {
+    if (userOrId._id && mongoose.Types.ObjectId.isValid(userOrId._id)) {
+      userId = userOrId._id;
+    }
+    if (userOrId.telegramId) {
+      userTelegramId = String(userOrId.telegramId);
+    }
+  } else if (typeof userOrId === 'string' || typeof userOrId === 'number') {
+    if (mongoose.Types.ObjectId.isValid(userOrId)) {
+      userId = userOrId;
+    } else {
+      userTelegramId = String(userOrId);
+    }
+  }
 
   const queryConditions = [];
   if (userId) queryConditions.push({ userId });
@@ -102,7 +138,7 @@ const getUserLinksHelper = async (userOrId) => {
       ...link, 
       id: link._id,
       ctr,
-      shortUrl: link.shortUrl || buildShortUrl(link.shortCode)
+      shortUrl: link.shortUrl || (typeof buildShortUrl === 'function' ? buildShortUrl(link.shortCode) : link.shortCode)
     };
   });
 };
@@ -117,14 +153,22 @@ const getUserLinks = async (req, res, next) => {
   }
 };
 
-// بناء استعلام الآمان للتحقق من هوية صاحب الرابط
+// بناء استعلام الأمان للتحقق من هوية صاحب الرابط
 const buildUserLinkQuery = (linkId, req) => {
-  const userId = req.userId || req.user?._id;
+  if (!mongoose.Types.ObjectId.isValid(linkId)) {
+    return null;
+  }
+
+  const rawUserId = req.userId || req.user?._id;
+  const userId = (rawUserId && mongoose.Types.ObjectId.isValid(rawUserId)) ? rawUserId : null;
   const telegramId = req.user?.telegramId ? String(req.user.telegramId) : null;
 
   const userConditions = [];
   if (userId) userConditions.push({ userId });
-  if (telegramId) userConditions.push({ publisherTelegramId: telegramId });
+  if (telegramId) {
+    userConditions.push({ publisherTelegramId: telegramId });
+    userConditions.push({ telegramId: telegramId });
+  }
 
   if (userConditions.length === 0) {
     return null;
@@ -140,7 +184,7 @@ const toggleLink = async (req, res, next) => {
   try {
     await connectDB();
     const linkId = req.body?.linkId || req.body?.id;
-    if (!mongoose.Types.ObjectId.isValid(linkId)) {
+    if (!linkId || !mongoose.Types.ObjectId.isValid(linkId)) {
       return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
     }
 
@@ -170,8 +214,8 @@ const toggleLink = async (req, res, next) => {
 const deleteLink = async (req, res, next) => {
   try {
     await connectDB();
-    const linkId = req.params.id || req.body?.linkId || req.body?.id;
-    if (!mongoose.Types.ObjectId.isValid(linkId)) {
+    const linkId = req.params?.id || req.body?.linkId || req.body?.id;
+    if (!linkId || !mongoose.Types.ObjectId.isValid(linkId)) {
       return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
     }
 
@@ -198,8 +242,8 @@ const deleteLink = async (req, res, next) => {
 const getLinkStats = async (req, res, next) => {
   try {
     await connectDB();
-    const linkId = req.params.id;
-    if (!mongoose.Types.ObjectId.isValid(linkId)) {
+    const linkId = req.params?.id;
+    if (!linkId || !mongoose.Types.ObjectId.isValid(linkId)) {
       return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
     }
 
@@ -225,7 +269,7 @@ const getLinkStats = async (req, res, next) => {
       stats: {
         linkId: link._id,
         shortCode: link.shortCode,
-        shortUrl: link.shortUrl || buildShortUrl(link.shortCode),
+        shortUrl: link.shortUrl || (typeof buildShortUrl === 'function' ? buildShortUrl(link.shortCode) : link.shortCode),
         title: link.title,
         targetUrl: link.targetUrl,
         totalViews,
