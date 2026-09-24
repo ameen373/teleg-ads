@@ -1,8 +1,21 @@
 const mongoose = require('mongoose');
 const crypto = require('crypto');
+
+// استدعاء ملفات الإعدادات والخدمات بمسارات مباشرة ومحددة
 const config = require('../config/env');
 const connectDB = require('../config/db');
-const { safeRedisDel } = require('../config/redis');
+
+// استدعاء آمن لـ Redis لضمان عدم توقف السيرفر في حال وجود مشكلة في إعدادات الكاش
+let safeRedisDel = async () => {};
+try {
+  const redisModule = require('../config/redis');
+  if (redisModule && typeof redisModule.safeRedisDel === 'function') {
+    safeRedisDel = redisModule.safeRedisDel;
+  }
+} catch (e) {
+  console.warn('تنبيه: لم يتم تحميل وحدة Redis في linkController:', e.message);
+}
+
 const logger = require('../utils/logger');
 const { normalizeAndValidateUrl, isPhishingOrMalicious, buildShortUrl } = require('../utils/helpers');
 const { User, Link, Impression } = require('../models');
@@ -12,7 +25,8 @@ const APP_DOMAIN = config?.APP_DOMAIN || config?.CONFIG?.APP_DOMAIN || process.e
 
 const handleShortenLink = async (req, res) => {
   try {
-    await connectDB();
+    if (typeof connectDB === 'function') await connectDB();
+
     const { title, targetUrl, url, originalUrl } = req.body || {};
     const rawUrl = targetUrl || url || originalUrl;
 
@@ -20,7 +34,9 @@ const handleShortenLink = async (req, res) => {
       return res.status(400).json({ success: false, error: 'يرجى تقديم رابط صالح لاختصاره' });
     }
 
-    const cleanUrl = normalizeAndValidateUrl(rawUrl);
+    const cleanUrl = typeof normalizeAndValidateUrl === 'function' 
+      ? normalizeAndValidateUrl(rawUrl) 
+      : rawUrl;
 
     if (!cleanUrl) {
       return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح، يرجى التأكد من كتابة رابط صحيح' });
@@ -68,7 +84,7 @@ const handleShortenLink = async (req, res) => {
 
     await newLink.save();
 
-    if (targetUserId) {
+    if (targetUserId && User && typeof User.findByIdAndUpdate === 'function') {
       await User.findByIdAndUpdate(targetUserId, { $inc: { 'statsSummary.totalLinksCreated': 1 } }).catch(() => {});
     }
 
@@ -99,7 +115,7 @@ const handleShortenLink = async (req, res) => {
 
 const getUserLinksHelper = async (userOrId) => {
   if (!userOrId) return [];
-  await connectDB();
+  if (typeof connectDB === 'function') await connectDB();
 
   let userId = null;
   let userTelegramId = null;
@@ -182,7 +198,7 @@ const buildUserLinkQuery = (linkId, req) => {
 
 const toggleLink = async (req, res, next) => {
   try {
-    await connectDB();
+    if (typeof connectDB === 'function') await connectDB();
     const linkId = req.body?.linkId || req.body?.id;
     if (!linkId || !mongoose.Types.ObjectId.isValid(linkId)) {
       return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
@@ -213,7 +229,7 @@ const toggleLink = async (req, res, next) => {
 
 const deleteLink = async (req, res, next) => {
   try {
-    await connectDB();
+    if (typeof connectDB === 'function') await connectDB();
     const linkId = req.params?.id || req.body?.linkId || req.body?.id;
     if (!linkId || !mongoose.Types.ObjectId.isValid(linkId)) {
       return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
@@ -241,7 +257,7 @@ const deleteLink = async (req, res, next) => {
 
 const getLinkStats = async (req, res, next) => {
   try {
-    await connectDB();
+    if (typeof connectDB === 'function') await connectDB();
     const linkId = req.params?.id;
     if (!linkId || !mongoose.Types.ObjectId.isValid(linkId)) {
       return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
@@ -257,7 +273,9 @@ const getLinkStats = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحية الوصول إليه' });
     }
 
-    const impressions = await Impression.find({ linkId: link._id }).sort({ createdAt: -1 }).limit(100).lean();
+    const impressions = (Impression && typeof Impression.find === 'function')
+      ? await Impression.find({ linkId: link._id }).sort({ createdAt: -1 }).limit(100).lean()
+      : [];
     
     const totalViews = link.views || 0;
     const validImp = link.validImpressions || 0;
