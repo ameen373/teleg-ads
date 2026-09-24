@@ -1,9 +1,19 @@
 const mongoose = require('mongoose');
 const crypto = require('crypto');
-const { CONFIG } = require('../config/config');
+// تصحيح مسار استدعاء الإعدادات ليشير إلى env.js بدلاً من config.js
+const envConfig = require('../config/env');
+const CONFIG = envConfig.CONFIG || envConfig;
+
 const connectDB = require('../config/db');
 const { redis, redisIsConnected, safeRedisGet, safeRedisSet, safeRedisDel } = require('../config/redis');
 const { Link, Ad, ClickSession, Impression, User, EarningsHold } = require('../models');
+
+// دالة مساعدة لإلغاء المعاملة بأمان دون التسبب في أخطاء إضافية
+const safeAbortTransaction = async (session) => {
+  if (session && session.inTransaction()) {
+    await session.abortTransaction();
+  }
+};
 
 const handleInitClick = async (req, res, next) => {
   try {
@@ -67,14 +77,14 @@ const handleInitClick = async (req, res, next) => {
       success: true,
       sessionId: session._id, 
       bridgeToken, 
-      blockId: CONFIG.ADSGRAM_BLOCK_ID,
+      blockId: CONFIG.ADSGRAM_BLOCK_ID || '',
       adSource,
-      language: CONFIG.DEFAULT_LANGUAGE,
-      officialBotUrl: CONFIG.OFFICIAL_BOT_URL,
-      officialChannelUrl: CONFIG.OFFICIAL_CHANNEL_URL,
-      telegramSupportUrl: CONFIG.TELEGRAM_SUPPORT_URL,
-      botUsername: CONFIG.BOT_USERNAME,
-      supportUsername: CONFIG.SUPPORT_USERNAME,
+      language: CONFIG.DEFAULT_LANGUAGE || 'ar',
+      officialBotUrl: CONFIG.OFFICIAL_BOT_URL || '',
+      officialChannelUrl: CONFIG.OFFICIAL_CHANNEL_URL || '',
+      telegramSupportUrl: CONFIG.TELEGRAM_SUPPORT_URL || '',
+      botUsername: CONFIG.BOT_USERNAME || '',
+      supportUsername: CONFIG.SUPPORT_USERNAME || '',
       adData: selectedAd ? {
         id: selectedAd._id,
         title: selectedAd.title,
@@ -93,25 +103,25 @@ const handleImpression = async (req, res, next) => {
     sessionDb.startTransaction();
     const { sessionId, bridgeToken, duration } = req.body;
     if (!sessionId || !bridgeToken) {
-      await sessionDb.abortTransaction();
+      await safeAbortTransaction(sessionDb);
       return res.status(400).json({ success: false, error: 'رمز حماية الجلسة مفقود' });
     }
 
     const cachedToken = await safeRedisGet(`bridge:token:${sessionId}`);
     if (cachedToken && cachedToken !== bridgeToken) {
-      await sessionDb.abortTransaction();
+      await safeAbortTransaction(sessionDb);
       return res.status(403).json({ success: false, error: 'تم اكتشاف محاولة تخطي غير مشروعة' });
     }
 
     const clickSession = await ClickSession.findById(sessionId).session(sessionDb);
     if (!clickSession || clickSession.ip !== req.ip) {
-      await sessionDb.abortTransaction();
+      await safeAbortTransaction(sessionDb);
       return res.status(403).json({ success: false, error: 'الجلسة غير صالحة' });
     }
 
     const dwellTime = Date.now() - new Date(clickSession.createdAt).getTime();
     if (dwellTime < 4800 && (Number(duration) || 0) < 5) {
-      await sessionDb.abortTransaction();
+      await safeAbortTransaction(sessionDb);
       return res.status(400).json({ success: false, error: 'لم يتم استيفاء وقت المكوث المطلوب (5 ثوانٍ)' });
     }
 
@@ -136,7 +146,7 @@ const handleImpression = async (req, res, next) => {
     await safeRedisDel(`bridge:token:${sessionId}`);
 
     if (!link) {
-      await sessionDb.abortTransaction();
+      await safeAbortTransaction(sessionDb);
       return res.status(404).json({ success: false, error: 'الرابط غير موجود' });
     }
 
@@ -210,7 +220,7 @@ const handleImpression = async (req, res, next) => {
     await sessionDb.commitTransaction();
     res.json({ success: true, targetUrl: link.targetUrl, counted: true });
   } catch (err) {
-    await sessionDb.abortTransaction();
+    await safeAbortTransaction(sessionDb);
     next(err);
   } finally {
     sessionDb.endSession();
