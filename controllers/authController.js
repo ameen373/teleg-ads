@@ -36,7 +36,7 @@ const handleLogin = async (req, res, next) => {
     const { referrerId } = req.body || {};
 
     const currentUsername = telegramUser?.username || `User_${tgId.slice(-4)}`;
-    const userLanguage = telegramUser?.language_code || CONFIG.DEFAULT_LANGUAGE;
+    const userLanguage = telegramUser?.language_code || CONFIG.DEFAULT_LANGUAGE || 'ar';
 
     const user = await findOrCreateUser(
       tgId,
@@ -62,35 +62,41 @@ const handleLogin = async (req, res, next) => {
     if (user.isBanned) {
       return res.status(403).json({ 
         success: false, 
-        error: `حسابك معطل بسبب مخالفة الشروط. للتواصل مع الدعم: ${CONFIG.SUPPORT_USERNAME}` 
+        error: `حسابك معطل بسبب مخالفة الشروط. للتواصل مع الدعم: ${CONFIG.SUPPORT_USERNAME || ''}` 
       });
     }
 
+    const jwtSecret = CONFIG.JWT_SECRET || 'fallback_secret_key';
     const token = jwt.sign(
       { userId: user._id, telegramId: user.telegramId, role: user.role },
-      CONFIG.JWT_SECRET,
+      jwtSecret,
       { expiresIn: '7d', algorithm: 'HS256' }
     );
 
-    res.json({ 
+    return res.json({ 
       success: true, 
       token, 
       userId: user._id,
       user, 
-      language: user.language || CONFIG.DEFAULT_LANGUAGE,
+      language: user.language || CONFIG.DEFAULT_LANGUAGE || 'ar',
       isAdmin: Boolean(CONFIG.ADMIN_ID && String(user.telegramId).trim() === String(CONFIG.ADMIN_ID).trim()),
-      botUsername: CONFIG.BOT_USERNAME,
-      supportUsername: CONFIG.SUPPORT_USERNAME,
-      botUrl: CONFIG.OFFICIAL_BOT_URL,
-      officialChannelUrl: CONFIG.OFFICIAL_CHANNEL_URL,
-      supportUrl: CONFIG.TELEGRAM_SUPPORT_URL,
+      botUsername: CONFIG.BOT_USERNAME || '',
+      supportUsername: CONFIG.SUPPORT_USERNAME || '',
+      botUrl: CONFIG.OFFICIAL_BOT_URL || '',
+      officialChannelUrl: CONFIG.OFFICIAL_CHANNEL_URL || '',
+      supportUrl: CONFIG.TELEGRAM_SUPPORT_URL || '',
       depositWallets: {
-        bep20: CONFIG.DEPOSIT_USDT_BEP20,
-        trc20: CONFIG.DEPOSIT_USDT_TRC20
+        bep20: CONFIG.DEPOSIT_USDT_BEP20 || '',
+        trc20: CONFIG.DEPOSIT_USDT_TRC20 || ''
       }
     });
   } catch (err) {
-    next(err);
+    console.error('❌ [Auth Controller Error] Exception in handleLogin:', err);
+    return res.status(500).json({
+      success: false,
+      error: 'حدث خطأ أثناء عملية تسجيل الدخول',
+      details: err.message || 'Unknown Server Exception'
+    });
   }
 };
 
@@ -104,7 +110,13 @@ const handleCheckAdmin = async (req, res) => {
     const isAdmin = Boolean(CONFIG.ADMIN_ID && telegramIdToCheck && telegramIdToCheck === String(CONFIG.ADMIN_ID).trim());
     return res.json({ success: true, isAdmin });
   } catch (err) {
-    return res.json({ success: true, isAdmin: false });
+    console.error('❌ [Auth Controller Error] Exception in handleCheckAdmin:', err);
+    return res.status(500).json({
+      success: false,
+      isAdmin: false,
+      error: 'حدث خطأ أثناء التحقق من صلاحيات الآدمن',
+      details: err.message
+    });
   }
 };
 
