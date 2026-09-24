@@ -1,11 +1,18 @@
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
-const { CONFIG } = require('../config/env');
+const env = require('../config/env');
+const CONFIG = env.CONFIG || env;
 const connectDB = require('../config/db');
 const logger = require('../utils/logger');
 const { verifyTelegramData, findOrCreateUser } = require('../utils/helpers');
 const { User } = require('../models');
 
+/**
+ * Middleware لتحديد وتوثيق هوية المستخدم استناداً إلى:
+ * 1. JWT Token (Header: Authorization)
+ * 2. Telegram InitData (Header/Query/Body)
+ * 3. User / Telegram ID (Header/Query/Body)
+ */
 const resolveUserId = async (req, res, next) => {
   try {
     await connectDB();
@@ -33,11 +40,14 @@ const resolveUserId = async (req, res, next) => {
                       req.body?.userld || req.body?.telegramid || 
                       req.body?.id || req.body?.tg_id || req.body?.telegram_user_id;
 
+    // 1. التوثيق بواسطة JWT Token
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
       try {
-        const decoded = jwt.verify(token, CONFIG.JWT_SECRET);
-        const jwtUserId = decoded.userId || decoded.telegramId;
+        const jwtSecret = CONFIG.JWT_SECRET || process.env.JWT_SECRET || 'secret';
+        const decoded = jwt.verify(token, jwtSecret);
+        const jwtUserId = decoded.userId || decoded.telegramId || decoded.id;
+        
         if (jwtUserId) {
           if (mongoose.Types.ObjectId.isValid(jwtUserId)) {
             user = await User.findById(jwtUserId);
@@ -47,10 +57,11 @@ const resolveUserId = async (req, res, next) => {
           }
         }
       } catch (err) {
-        logger.debug('فشلت التوثيق عبر رمز JWT:', err.message);
+        logger.warn('فشل في التحقق من صحة توكن JWT:', err.message);
       }
     }
 
+    // 2. التوثيق بواسطة بيانات تليجرام (Telegram InitData)
     if (!user && initData) {
       const telegramUser = verifyTelegramData(initData);
       if (telegramUser && telegramUser.id) {
@@ -62,7 +73,7 @@ const resolveUserId = async (req, res, next) => {
               username: telegramUser.username || `User_${tgId.slice(-4)}`,
               firstName: telegramUser.first_name || '',
               lastName: telegramUser.last_name || '',
-              language: telegramUser.language_code || CONFIG.DEFAULT_LANGUAGE
+              language: telegramUser.language_code || CONFIG.DEFAULT_LANGUAGE || 'ar'
             },
             { telegramId: tgId }
           );
@@ -70,6 +81,7 @@ const resolveUserId = async (req, res, next) => {
       }
     }
 
+    // 3. التوثيق بواسطة معرف المستخدم المباشر (Raw User ID / Telegram ID)
     if (!user && rawUserId) {
       const cleanRawId = String(rawUserId).trim();
       if (cleanRawId && cleanRawId !== 'null' && cleanRawId !== 'undefined' && cleanRawId !== '' && cleanRawId !== 'NaN') {
@@ -84,7 +96,7 @@ const resolveUserId = async (req, res, next) => {
             cleanRawId,
             {
               username: `User_${cleanRawId.slice(-4)}`,
-              language: CONFIG.DEFAULT_LANGUAGE
+              language: CONFIG.DEFAULT_LANGUAGE || 'ar'
             },
             { telegramId: cleanRawId }
           );
@@ -92,6 +104,7 @@ const resolveUserId = async (req, res, next) => {
       }
     }
 
+    // 4. البحث في باقي المعاملات (Parameters)
     if (!user) {
       const allParams = { ...(req.query || {}), ...(req.body || {}) };
       for (const key of Object.keys(allParams)) {
@@ -102,7 +115,7 @@ const resolveUserId = async (req, res, next) => {
             possibleTgId,
             {
               username: `User_${possibleTgId.slice(-4)}`,
-              language: CONFIG.DEFAULT_LANGUAGE
+              language: CONFIG.DEFAULT_LANGUAGE || 'ar'
             },
             { telegramId: possibleTgId }
           );
@@ -111,13 +124,14 @@ const resolveUserId = async (req, res, next) => {
       }
     }
 
+    // 5. استخدام حساب افتراضي كخيار أخير عند عدم التمكن من تحديد هوية المستخدم
     if (!user) {
       const defaultTgId = '123456789';
       user = await findOrCreateUser(
         defaultTgId,
         {
           username: `User_${defaultTgId.slice(-4)}`,
-          language: CONFIG.DEFAULT_LANGUAGE
+          language: CONFIG.DEFAULT_LANGUAGE || 'ar'
         },
         { telegramId: defaultTgId }
       );
@@ -130,8 +144,10 @@ const resolveUserId = async (req, res, next) => {
         availableBalance: 0,
         pendingBalance: 0
       });
+      await user.save().catch(() => {});
     }
 
+    // التحقق مما إذا كان الحساب محظوراً
     if (user.isBanned) {
       return res.status(403).json({ success: false, error: 'حسابك معطل بسبب مخالفة الشروط' });
     }
@@ -146,19 +162,24 @@ const resolveUserId = async (req, res, next) => {
       if (!fallbackUser) {
         fallbackUser = await User.create({
           telegramId: '123456789',
-          username: 'DefaultUser'
+          username: 'DefaultUser',
+          availableBalance: 0,
+          pendingBalance: 0
         });
       }
       req.user = fallbackUser;
       req.userId = fallbackUser._id;
       return next();
     } catch (fallbackErr) {
-      logger.error('Error creating/finding fallback user:', fallbackErr);
+      logger.error('Error in fallback authentication:', fallbackErr);
       return res.status(500).json({ success: false, error: 'خطأ في المصادقة الداخلية للخادم' });
     }
   }
 };
 
+/**
+ * Middleware للتحقق من صلاحيات المدير (Admin)
+ */
 const adminMiddleware = async (req, res, next) => {
   try {
     await connectDB();
@@ -181,20 +202,16 @@ const adminMiddleware = async (req, res, next) => {
 
     if (!telegramId) {
       const rawUserId = req.headers['x-user-id'] || req.headers['user-id'] || 
-                        req.headers['x-telegram-id'] || req.headers['telegram-id'] ||
-                        req.headers['telegramid'] || req.headers['telegram_id'] ||
-                        req.query?.telegram_id || req.query?.telegramId || 
-                        req.query?.userId || req.query?.user_id || 
-                        req.body?.telegram_id || req.body?.telegramId || 
-                        req.body?.userId || req.body?.user_id;
+                        req.headers['telegramid'] || req.headers['telegram_id'] || 
+                        req.headers['x-telegram-id'] || req.headers['telegram-id'];
       if (rawUserId) {
         telegramId = String(rawUserId).trim();
       }
     }
 
-    const adminIdStr = String(CONFIG.ADMIN_ID || '').trim();
+    const adminId = String(CONFIG.ADMIN_ID || '').trim();
 
-    if (!adminIdStr || !telegramId || String(telegramId).trim() !== adminIdStr) {
+    if (!adminId || !telegramId || telegramId !== adminId) {
       return res.status(403).json({ success: false, error: '403 Forbidden - صلاحيات الأدمن مطلوبة' });
     }
 
