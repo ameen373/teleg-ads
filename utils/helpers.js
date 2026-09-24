@@ -1,7 +1,7 @@
 const validUrl = require('valid-url');
 const axios = require('axios');
 const crypto = require('crypto');
-const { CONFIG } = require('../config/config');
+const { CONFIG } = require('../config/env');
 const logger = require('./logger');
 const { User } = require('../models');
 
