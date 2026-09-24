@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { CONFIG } = require('./config.js');
+const { CONFIG } = require('./env.js');
 
 let logger;
 try {
