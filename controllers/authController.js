@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
-const { CONFIG } = require('../config/config');
+const envConfig = require('../config/env');
+const CONFIG = envConfig.CONFIG || envConfig;
 const connectDB = require('../config/db');
 const { verifyTelegramData, findOrCreateUser } = require('../utils/helpers');
 const { User } = require('../models');
@@ -26,7 +27,10 @@ const handleLogin = async (req, res, next) => {
     let tgId = rawId ? String(rawId).trim() : null;
 
     if (!tgId || tgId === 'null' || tgId === 'undefined' || tgId === '' || tgId === 'NaN') {
-      tgId = '123456789';
+      return res.status(400).json({ 
+        success: false, 
+        error: 'لم يتم العثور على معرف التليجرام (Telegram ID) الخاص بك' 
+      });
     }
 
     const { referrerId } = req.body || {};
@@ -58,7 +62,7 @@ const handleLogin = async (req, res, next) => {
     if (user.isBanned) {
       return res.status(403).json({ 
         success: false, 
-        error: `حسابك معطل بسبب مخالفة الشروط. التواصل مع الدعم: ${CONFIG.SUPPORT_USERNAME}` 
+        error: `حسابك معطل بسبب مخالفة الشروط. للتواصل مع الدعم: ${CONFIG.SUPPORT_USERNAME}` 
       });
     }
 
@@ -74,7 +78,7 @@ const handleLogin = async (req, res, next) => {
       userId: user._id,
       user, 
       language: user.language || CONFIG.DEFAULT_LANGUAGE,
-      isAdmin: Boolean(CONFIG.ADMIN_ID && String(user.telegramId).trim() === CONFIG.ADMIN_ID),
+      isAdmin: Boolean(CONFIG.ADMIN_ID && String(user.telegramId).trim() === String(CONFIG.ADMIN_ID).trim()),
       botUsername: CONFIG.BOT_USERNAME,
       supportUsername: CONFIG.SUPPORT_USERNAME,
       botUrl: CONFIG.OFFICIAL_BOT_URL,
@@ -97,7 +101,7 @@ const handleCheckAdmin = async (req, res) => {
     const telegramUser = verifyTelegramData(initData);
     const telegramIdToCheck = telegramUser ? String(telegramUser.id).trim() : null;
 
-    const isAdmin = Boolean(CONFIG.ADMIN_ID && telegramIdToCheck && telegramIdToCheck === CONFIG.ADMIN_ID);
+    const isAdmin = Boolean(CONFIG.ADMIN_ID && telegramIdToCheck && telegramIdToCheck === String(CONFIG.ADMIN_ID).trim());
     return res.json({ success: true, isAdmin });
   } catch (err) {
     return res.json({ success: true, isAdmin: false });
