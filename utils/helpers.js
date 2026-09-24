@@ -1,25 +1,31 @@
 const validUrl = require('valid-url');
 const axios = require('axios');
 const crypto = require('crypto');
-const { CONFIG } = require('../config/env');
+const env = require('../config/env');
+const CONFIG = env.CONFIG || env;
 const logger = require('./logger');
 const { User } = require('../models');
 
+/**
+ * تنظيف والتحقق من صحة الرابط (URL)
+ */
 function normalizeAndValidateUrl(inputUrl) {
   if (!inputUrl) return null;
   let urlStr = String(inputUrl).trim();
   
+  // إزالة التكرار في بروتوكول http/https
   while (/^(https?:\/\/){2,}/i.test(urlStr)) {
     urlStr = urlStr.replace(/^(https?:\/\/)+/i, 'https://');
   }
 
+  // إضافة https:// إذا لم يكن البروتوكول موجوداً
   if (!/^https?:\/\//i.test(urlStr)) {
     urlStr = 'https://' + urlStr;
   }
 
   try {
     const parsed = new URL(urlStr);
-    if (parsed.protocol && parsed.hostname) {
+    if (parsed.protocol && (parsed.protocol === 'http:' || parsed.protocol === 'https:') && parsed.hostname) {
       return parsed.href;
     }
   } catch (e) {}
@@ -27,10 +33,19 @@ function normalizeAndValidateUrl(inputUrl) {
   return validUrl.isWebUri(urlStr) ? urlStr : null;
 }
 
+/**
+ * بناء الرابط المختصر باستغلال الإعدادات
+ */
 function buildShortUrl(shortCode) {
-  return `https://${CONFIG.APP_DOMAIN}/r/${shortCode}`;
+  if (!shortCode) return '';
+  const domain = (CONFIG && CONFIG.APP_DOMAIN) ? CONFIG.APP_DOMAIN : 'localhost:3000';
+  const cleanDomain = domain.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+  return `https://${cleanDomain}/r/${shortCode}`;
 }
 
+/**
+ * البحث عن المستخدم أو إنشائه في قاعدة البيانات
+ */
 async function findOrCreateUser(tgId, updateData = {}, setOnInsertData = {}) {
   if (!tgId) return null;
   const cleanId = String(tgId).trim();
@@ -41,8 +56,7 @@ async function findOrCreateUser(tgId, updateData = {}, setOnInsertData = {}) {
     return await User.findOneAndUpdate(
       { telegramId: cleanId },
       {
-        $setOnInsert: { telegramId: cleanId, ...setOnInsertData },
-        $set: updateData
+        $setOnInsert: { telegramId: cleanId, ...setOnInsertData },$set: updateData
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
@@ -50,43 +64,64 @@ async function findOrCreateUser(tgId, updateData = {}, setOnInsertData = {}) {
     if (err.code === 11000) {
       return await User.findOne({ telegramId: cleanId });
     }
+    if (logger && logger.error) {
+      logger.error(`⚠️ Error in findOrCreateUser [ID: ${cleanId}]: ${err.message}`);
+    }
     throw err;
   }
 }
 
+/**
+ * إرسال إشعارات عبر بوت التليجرام
+ */
 async function sendTelegramNotification(telegramId, message) {
-  if (!CONFIG.BOT_TOKEN || !telegramId) return;
+  const botToken = CONFIG && CONFIG.BOT_TOKEN;
+  if (!botToken || !telegramId || !message) return false;
   try {
-    await axios.post(`https://api.telegram.org/bot${CONFIG.BOT_TOKEN}/sendMessage`, {
+    await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       chat_id: telegramId,
       text: message,
       parse_mode: 'HTML',
       disable_web_page_preview: true
     }, { timeout: 4000 });
+    return true;
   } catch (err) {
-    logger.error(`⚠️ Telegram Dispatch Failed [ID: ${telegramId}]: ${err.message}`);
+    if (logger && logger.error) {
+      logger.error(`⚠️ Telegram Dispatch Failed [ID: ${telegramId}]: ${err.message}`);
+    }
+    return false;
   }
 }
 
+/**
+ * التحقق من بيانات التليجرام واستخراج معلومات المستخدم
+ */
 function verifyTelegramData(initData) {
   if (!initData) return null;
 
+  const defaultLang = (CONFIG && CONFIG.DEFAULT_LANGUAGE) || 'en';
+
+  // 1. التعامل مع الكائنات المباشرة (Objects)
   if (typeof initData === 'object' && initData !== null) {
-    const idVal = Number(initData.id || initData.telegramId || initData.userId || initData.user_id || initData.telegram_id);
+    const rawUser = initData.user || initData;
+    const idVal = Number(rawUser.id || rawUser.telegramId || rawUser.userId || rawUser.user_id || rawUser.telegram_id);
     if (idVal && !isNaN(idVal)) {
       return {
         id: idVal,
-        username: initData.username || `User_${String(idVal).slice(-4)}`,
-        first_name: initData.first_name || initData.firstName || '',
-        last_name: initData.last_name || initData.lastName || '',
-        language_code: initData.language_code || initData.language || CONFIG.DEFAULT_LANGUAGE
+        username: rawUser.username || `User_${String(idVal).slice(-4)}`,
+        first_name: rawUser.first_name || rawUser.firstName || '',
+        last_name: rawUser.last_name || rawUser.lastName || '',
+        language_code: rawUser.language_code || rawUser.language || defaultLang
       };
     }
   }
 
-  if (typeof initData === 'number' || /^\d+$/.test(String(initData).trim())) {
+  // 2. التعامل مع الأرقام المباشرة أو النصوص الرقمية
+  if (typeof initData === 'number' || (typeof initData === 'string' && /^\d+$/.test(initData.trim()))) {
     const idVal = Number(String(initData).trim());
-    return { id: idVal, username: `User_${String(idVal).slice(-4)}`, language_code: CONFIG.DEFAULT_LANGUAGE };
+    if (idVal && !isNaN(idVal)) {
+      return { id: idVal, username: `User_${String(idVal).slice(-4)}`, language_code: defaultLang };
+    }
   }
 
   if (typeof initData !== 'string') return null;
@@ -102,28 +137,36 @@ function verifyTelegramData(initData) {
       }
     } catch (e) {}
 
-    for (const str of [cleanInitData, decodedInitData]) {
+    const candidates = [cleanInitData, decodedInitData];
+
+    for (const str of candidates) {
+      // التعامل مع نصوص JSON
       if (str.startsWith('{') && str.endsWith('}')) {
         try {
           const parsed = JSON.parse(str);
-          const parsedId = Number(parsed.id || parsed.telegramId || parsed.userId || parsed.user_id || parsed.telegram_id);
+          const rawUser = parsed.user || parsed;
+          const parsedId = Number(rawUser.id || rawUser.telegramId || rawUser.userId || rawUser.user_id || rawUser.telegram_id);
           if (parsedId && !isNaN(parsedId)) {
             return {
               id: parsedId,
-              username: parsed.username || `User_${String(parsedId).slice(-4)}`,
-              first_name: parsed.first_name || parsed.firstName || '',
-              last_name: parsed.last_name || parsed.lastName || '',
-              language_code: parsed.language_code || parsed.language || CONFIG.DEFAULT_LANGUAGE
+              username: rawUser.username || `User_${String(parsedId).slice(-4)}`,
+              first_name: rawUser.first_name || rawUser.firstName || '',
+              last_name: rawUser.last_name || rawUser.lastName || '',
+              language_code: rawUser.language_code || rawUser.language || defaultLang
             };
           }
         } catch (e) {}
       }
 
+      // الرقم المستقل
       if (/^\d+$/.test(str)) {
         const idVal = Number(str);
-        return { id: idVal, username: `User_${String(idVal).slice(-4)}`, language_code: CONFIG.DEFAULT_LANGUAGE };
+        if (idVal && !isNaN(idVal)) {
+          return { id: idVal, username: `User_${String(idVal).slice(-4)}`, language_code: defaultLang };
+        }
       }
 
+      // تحليل معاملات الـ URL (Query Params)
       let urlParams = null;
       try {
         urlParams = new URLSearchParams(str);
@@ -133,7 +176,7 @@ function verifyTelegramData(initData) {
         } catch (err) {}
       }
 
-      if (urlParams) {
+      if (urlParams && urlParams.toString()) {
         const hash = urlParams.get('hash');
         const userParam = urlParams.get('user');
 
@@ -148,7 +191,8 @@ function verifyTelegramData(initData) {
           }
         }
 
-        if (CONFIG.BOT_TOKEN && hash) {
+        const botToken = CONFIG && CONFIG.BOT_TOKEN;
+        if (botToken && hash) {
           try {
             const dataCheckArr = [];
             for (const [key, val] of urlParams.entries()) {
@@ -159,7 +203,7 @@ function verifyTelegramData(initData) {
             dataCheckArr.sort();
             const dataCheckString = dataCheckArr.join('\n');
 
-            const secretKey = crypto.createHmac('sha256', 'WebAppData').update(CONFIG.BOT_TOKEN).digest();
+            const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
             const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
 
             if (calculatedHash === hash && userData && (userData.id || userData.telegram_id)) {
@@ -169,7 +213,7 @@ function verifyTelegramData(initData) {
                 username: userData.username || `User_${String(idVal).slice(-4)}`,
                 first_name: userData.first_name || userData.firstName || '',
                 last_name: userData.last_name || userData.lastName || '',
-                language_code: userData.language_code || userData.language || CONFIG.DEFAULT_LANGUAGE
+                language_code: userData.language_code || userData.language || defaultLang
               };
             }
           } catch (hErr) {}
@@ -183,7 +227,7 @@ function verifyTelegramData(initData) {
               username: userData.username || `User_${String(idVal).slice(-4)}`,
               first_name: userData.first_name || userData.firstName || '',
               last_name: userData.last_name || userData.lastName || '',
-              language_code: userData.language_code || userData.language || CONFIG.DEFAULT_LANGUAGE
+              language_code: userData.language_code || userData.language || defaultLang
             };
           }
         }
@@ -196,11 +240,12 @@ function verifyTelegramData(initData) {
             username: urlParams.get('username') || `User_${String(idVal).slice(-4)}`,
             first_name: urlParams.get('first_name') || urlParams.get('firstName') || '',
             last_name: urlParams.get('last_name') || urlParams.get('lastName') || '',
-            language_code: urlParams.get('language_code') || urlParams.get('language') || CONFIG.DEFAULT_LANGUAGE
+            language_code: urlParams.get('language_code') || urlParams.get('language') || defaultLang
           };
         }
       }
 
+      // البحث عن الأرقام بنمط Regex الاحتياطي
       const matchRegex = str.match(/%22id%22%3A(\d+)/) || 
                          str.match(/"id"\s*:\s*(\d+)/) || 
                          str.match(/id\s*[=:]\s*(\d+)/i) || 
@@ -213,7 +258,7 @@ function verifyTelegramData(initData) {
           return {
             id: idVal,
             username: `User_${String(idVal).slice(-4)}`,
-            language_code: CONFIG.DEFAULT_LANGUAGE
+            language_code: defaultLang
           };
         }
       }
@@ -225,7 +270,11 @@ function verifyTelegramData(initData) {
   }
 }
 
+/**
+ * فحص الرابط والتأكد من عدم وجود كلمات مشبوهة أو خبيثة
+ */
 const isPhishingOrMalicious = (url) => {
+  if (!url || typeof url !== 'string') return false;
   const blacklistedKeywords = ['phish', 'login-verify', 'free-telegram-premium', 'grabber', 'stealer', 'iplogger'];
   const lowerUrl = url.toLowerCase();
   return blacklistedKeywords.some(keyword => lowerUrl.includes(keyword));
