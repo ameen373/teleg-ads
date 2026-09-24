@@ -1,6 +1,12 @@
 const mongoose = require('mongoose');
-const logger = require('../utils/logger');
-const { CONFIG } = require('./config');
+const { CONFIG } = require('./config.js');
+
+let logger;
+try {
+  logger = require('../utils/logger');
+} catch (err) {
+  logger = console;
+}
 
 let cached = global.mongoose;
 
@@ -13,15 +19,21 @@ async function connectDB() {
     return cached.conn;
   }
 
+  const mongoUri = CONFIG.MONGO_URI || process.env.MONGODB_URI || process.env.MONGO_URI;
+
+  if (!mongoUri) {
+    throw new Error('MongoDB URI is not defined in environment variables or configuration.');
+  }
+
   if (!cached.promise) {
     const opts = {
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
-      bufferCommands: true
+      bufferCommands: false
     };
 
-    cached.promise = mongoose.connect(CONFIG.MONGO_URI, opts).then((m) => {
+    cached.promise = mongoose.connect(mongoUri, opts).then((m) => {
       logger.info('✅ Enterprise MongoDB Pipeline Connected');
       return m;
     }).catch((err) => {
