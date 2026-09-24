@@ -27,6 +27,9 @@ const app = express();
 // --- Setup Server Trust Proxy ---
 app.set('trust proxy', 1);
 
+// --- Handle Favicon Early (Prevents 404 errors & Log Pollution) ---
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
 // --- CORS Configuration (Telegram Mini App Ready) ---
 app.use(cors({
   origin: '*',
@@ -106,5 +109,35 @@ app.use('/', adRoutes);
 app.use('/', financeRoutes);
 app.use('/', trafficRoutes);
 app.use('/', adminRoutes);
+
+// --- 404 Fallback Handler for Unmatched Routes ---
+app.use((req, res, next) => {
+  res.status(404).json({
+    success: false,
+    error: `المسار المطلوب غير موجود: ${req.method} ${req.originalUrl}`
+  });
+});
+
+// --- Centralized Global Error Handler Middleware ---
+app.use((err, req, res, next) => {
+  // طباعة التفاصيل الكاملة للخطأ في الـ Logs لتسهيل التتبع والـ Debugging
+  logger.error(`[UNCAUGHT ERROR] ${req.method} ${req.originalUrl} - ${err.message}`, {
+    error: err.message,
+    stack: err.stack,
+    body: req.body,
+    query: req.query,
+    params: req.params,
+    headers: req.headers
+  });
+
+  // تحديث حالة الاستجابة وتنسيق الرد
+  const statusCode = err.statusCode || err.status || 500;
+  
+  res.status(statusCode).json({
+    success: false,
+    error: err.message || 'حدث خطأ داخلي في السيرفر (500 Internal Server Error)',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+  });
+});
 
 module.exports = app;
