@@ -19,12 +19,12 @@ const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
 
 // Import Modularized Express Routers
-const authRouter = require('./routes/auth');
-const userRouter = require('./routes/user');
-const shortenerRouter = require('./routes/shortener');
-const adsRouter = require('./routes/ads');
-const trafficRouter = require('./routes/traffic');
-const adminRouter = require('./routes/admin');
+const authRouter = require('./routes/authroutes');
+const userRouter = require('./routes/userroutes');
+const shortenerRouter = require('./routes/shortenerroutes');
+const adsRouter = require('./routes/adsroutes');
+const trafficRouter = require('./routes/trafficroutes');
+const adminRouter = require('./routes/adminroutes');
 
 const app = express();
 
