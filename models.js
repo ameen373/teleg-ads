@@ -65,12 +65,6 @@ const globalSchemaOptions = {
   }
 };
 
-// Safe tenant key normalizer (prevents unhandled exceptions on new or unauthenticated users)
-const enforceTenantKey = (tenantKey, keyName = 'userId') => {
-  const cleaned = sanitizeTelegramId(tenantKey);
-  return cleaned;
-};
-
 // ==================================================
 // 1. User Model (Isolated Profiles, Balances & Stats)
 // ==================================================
@@ -356,8 +350,6 @@ const transactionSchema = new mongoose.Schema({
 
 transactionSchema.index({ userId: 1, createdAt: -1 });
 transactionSchema.index({ telegramId: 1, createdAt: -1 });
-transactionSchema.index({ userId: 1, type: 1, createdAt: -1 });
-transactionSchema.index({ telegramId: 1, type: 1, createdAt: -1 });
 
 transactionSchema.statics.getUserTransactionsIsolated = function(identifier, filter = {}) {
   if (!identifier) return this.find({ _id: { $exists: false } });
@@ -424,7 +416,6 @@ const referralSchema = new mongoose.Schema({
 
 referralSchema.index({ referrerTelegramId: 1, createdAt: -1 });
 referralSchema.index({ referrerId: 1, createdAt: -1 });
-referralSchema.index({ referrerTelegramId: 1, status: 1 });
 
 referralSchema.statics.getReferralsIsolated = function(identifier) {
   if (!identifier) return this.find({ _id: { $exists: false } });
@@ -482,14 +473,7 @@ const adSchema = new mongoose.Schema({
   targetUrl: { 
     type: String, 
     required: [true, 'Target URL is required'], 
-    trim: true,
-    validate: {
-      validator: function(v) {
-        if (!v) return false;
-        return /^(https?:\/\/)?([\w.-]+)+[\w\-_~:/?#[\]@!$&'()*+,;=.]+$/i.test(v);
-      },
-      message: 'Please enter a valid target URL'
-    }
+    trim: true
   },
   totalBudget: { 
     type: Number, 
@@ -549,10 +533,7 @@ adSchema.pre('validate', function(next) {
 });
 
 adSchema.index({ userId: 1, createdAt: -1 });
-adSchema.index({ userId: 1, status: 1, createdAt: -1 });
-adSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
 adSchema.index({ advertiserTelegramId: 1, status: 1, createdAt: -1 });
-adSchema.index({ status: 1, remainingBudget: 1, createdAt: -1 });
 
 adSchema.statics.findAdvertiserAdsIsolated = function(identifier, filter = {}) {
   if (!identifier) return this.find({ _id: { $exists: false } });
@@ -671,8 +652,6 @@ linkSchema.pre('validate', function(next) {
 
 linkSchema.index({ userId: 1, createdAt: -1 });
 linkSchema.index({ telegramId: 1, createdAt: -1 });
-linkSchema.index({ publisherTelegramId: 1, createdAt: -1 });
-linkSchema.index({ telegramId: 1, isActive: 1, createdAt: -1 });
 linkSchema.index({ shortCode: 1, isActive: 1 });
 
 linkSchema.statics.getUserIsolatedLinks = function(identifier, query = {}, options = {}) {
@@ -813,9 +792,6 @@ impressionSchema.pre('validate', function(next) {
 
 impressionSchema.index({ userId: 1, createdAt: -1 });
 impressionSchema.index({ telegramId: 1, createdAt: -1 });
-impressionSchema.index({ publisherTelegramId: 1, createdAt: -1 });
-impressionSchema.index({ linkId: 1, telegramId: 1, createdAt: -1 });
-impressionSchema.index({ ip: 1, linkId: 1, createdAt: -1 });
 
 impressionSchema.statics.getPublisherImpressionsIsolated = function(identifier, extraFilter = {}) {
   if (!identifier) return this.find({ _id: { $exists: false } });
@@ -905,7 +881,6 @@ clickSessionSchema.pre('validate', function(next) {
 
 clickSessionSchema.index({ linkId: 1, ip: 1 });
 clickSessionSchema.index({ userId: 1, createdAt: -1 });
-clickSessionSchema.index({ telegramId: 1, createdAt: -1 });
 clickSessionSchema.index({ bridgeToken: 1 }, { unique: true, sparse: true });
 
 // ==================================================
@@ -985,7 +960,6 @@ withdrawSchema.index({ userId: 1, createdAt: -1 });
 withdrawSchema.index({ telegramId: 1, createdAt: -1 });
 withdrawSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
 
-// Fixed compound partial index specification for status 'pending'
 withdrawSchema.index(
   { telegramId: 1, status: 1 }, 
   { unique: true, sparse: true, partialFilterExpression: { status: 'pending' } }
@@ -1170,7 +1144,6 @@ depositSchema.pre('validate', function(next) {
 
 depositSchema.index({ userId: 1, createdAt: -1 });
 depositSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
-depositSchema.index({ advertiserTelegramId: 1, status: 1, createdAt: -1 });
 
 depositSchema.statics.getAdvertiserDepositsIsolated = function(identifier) {
   if (!identifier) return this.find({ _id: { $exists: false } });
