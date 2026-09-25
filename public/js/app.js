@@ -966,43 +966,71 @@ async function loadAdminData() {
 function renderAdminDeposits(list) {
   const c = document.getElementById('admin-deposits-list');
   if (!c) return;
-  if (!list.length) { c.innerHTML = '<p style="color:var(--text-muted);">لا توجد طلبات إيداع معلقة</p>'; return; }
-  c.innerHTML = list.map(d => `
-    <div style="background:#070a12; padding:10px; border-radius:10px; margin-bottom:8px; border:1px solid var(--card-border);">
-      <div><b>مستخدم:</b> ${d.userId} | <b>المبلغ:</b> $${d.amount}</div>
-      <div style="font-size:10px; color:var(--text-muted); word-break:break-all;"><b>TxID:</b> ${d.txid || d.txHash}</div>
-      <div style="margin-top:6px;">
-        <button class="btn-small btn-success" onclick="processAdminAction('deposit', '${d._id}', 'approve')">قبول</button>
-        <button class="btn-small btn-danger" onclick="processAdminAction('deposit', '${d._id}', 'reject')">رفض</button>
+  if (!list || !list.length) { c.innerHTML = '<p style="color:var(--text-muted);">لا توجد طلبات إيداع معلقة</p>'; return; }
+  c.innerHTML = list.map(d => {
+    const u = d.user || d;
+    const fullName = escapeHTML(`${u.firstName || ''} ${u.lastName || ''}`.trim() || u.fullName || u.name || 'غير محدد');
+    const username = u.username ? `@${escapeHTML(u.username.replace(/^@/, ''))}` : '@no_username';
+    const tgId = escapeHTML(String(d.telegramId || d.userId || u.telegramId || '—'));
+
+    return `
+      <div style="background:#070a12; padding:10px; border-radius:10px; margin-bottom:8px; border:1px solid var(--card-border);">
+        <div style="font-size:12px; margin-bottom:4px; color:var(--text);">
+          <b>الاسم:</b> ${fullName} | <b>المعرف:</b> ${username} | <b>الآيدي:</b> ${tgId}
+        </div>
+        <div style="font-size:11px; margin-bottom:4px;"><b>المبلغ:</b> $${(d.amount || 0).toFixed(2)}</div>
+        <div style="font-size:10px; color:var(--text-muted); word-break:break-all;"><b>TxID:</b> ${escapeHTML(d.txid || d.txHash || '')}</div>
+        <div style="margin-top:6px;">
+          <button class="btn-small btn-success" onclick="processAdminAction('deposit', '${d._id}', 'approve')">قبول</button>
+          <button class="btn-small btn-danger" onclick="processAdminAction('deposit', '${d._id}', 'reject')">رفض</button>
+        </div>
       </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 function renderAdminWithdraws(list) {
   const c = document.getElementById('admin-withdraws-list');
   if (!c) return;
-  if (!list.length) { c.innerHTML = '<p style="color:var(--text-muted);">لا توجد طلبات سحب معلقة</p>'; return; }
-  c.innerHTML = list.map(w => `
-    <div style="background:#070a12; padding:10px; border-radius:10px; margin-bottom:8px; border:1px solid var(--card-border);">
-      <div><b>مستخدم:</b> ${w.userId} | <b>المبلغ:</b> $${w.amount}</div>
-      <div style="font-size:10px; color:var(--text-muted); word-break:break-all;"><b>المحفظة:</b> ${w.wallet}</div>
-      <div style="margin-top:6px;">
-        <button class="btn-small btn-success" onclick="processAdminAction('withdraw', '${w._id}', 'approve')">تأكيد الدفع</button>
-        <button class="btn-small btn-danger" onclick="processAdminAction('withdraw', '${w._id}', 'reject')">إلغاء الطلب</button>
+  if (!list || !list.length) { c.innerHTML = '<p style="color:var(--text-muted);">لا توجد طلبات سحب معلقة</p>'; return; }
+  c.innerHTML = list.map(w => {
+    const u = w.user || w;
+    const fullName = escapeHTML(`${u.firstName || ''} ${u.lastName || ''}`.trim() || u.fullName || u.name || 'غير محدد');
+    const username = u.username ? `@${escapeHTML(u.username.replace(/^@/, ''))}` : '@no_username';
+    const tgId = escapeHTML(String(w.telegramId || w.userId || u.telegramId || '—'));
+
+    return `
+      <div style="background:#070a12; padding:10px; border-radius:10px; margin-bottom:8px; border:1px solid var(--card-border);">
+        <div style="font-size:12px; margin-bottom:4px; color:var(--text);">
+          <b>الاسم:</b> ${fullName} | <b>المعرف:</b> ${username} | <b>الآيدي:</b> ${tgId}
+        </div>
+        <div style="font-size:11px; margin-bottom:4px;"><b>المبلغ:</b> $${(w.amount || 0).toFixed(2)}</div>
+        <div style="font-size:10px; color:var(--text-muted); word-break:break-all;"><b>المحفظة:</b> ${escapeHTML(w.wallet || '')}</div>
+        <div style="margin-top:6px;">
+          <button class="btn-small btn-success" onclick="processAdminAction('withdraw', '${w._id}', 'approve')">تأكيد الدفع</button>
+          <button class="btn-small btn-danger" onclick="processAdminAction('withdraw', '${w._id}', 'reject')">إلغاء الطلب</button>
+        </div>
       </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 function renderAdminUsers(list) {
   const c = document.getElementById('admin-users-list');
   if (!c) return;
-  c.innerHTML = list.map(u => `
-    <div style="background:#070a12; padding:8px; border-radius:8px; margin-bottom:6px; font-size:11px;">
-      <b>ID:</b> ${u.telegramId} | <b>المتاح:</b> $${(u.availableBalance||0).toFixed(2)} | <b>المعلق:</b> $${(u.pendingBalance||0).toFixed(2)}
-    </div>
-  `).join('');
+  if (!list || !list.length) { c.innerHTML = '<p style="color:var(--text-muted);">لا يوجد مستخدمون</p>'; return; }
+  c.innerHTML = list.map(u => {
+    const fullName = escapeHTML(`${u.firstName || ''} ${u.lastName || ''}`.trim() || u.fullName || u.name || 'غير محدد');
+    const username = u.username ? `@${escapeHTML(u.username.replace(/^@/, ''))}` : '@no_username';
+    const tgId = escapeHTML(String(u.telegramId || u.userId || u._id || '—'));
+
+    return `
+      <div style="background:#070a12; padding:10px; border-radius:8px; margin-bottom:6px; font-size:11px; border:1px solid var(--card-border);">
+        <div style="margin-bottom:4px;"><b>الاسم:</b> ${fullName} | <b>المعرف:</b> ${username} | <b>الآيدي:</b> ${tgId}</div>
+        <div style="color:var(--text-muted);"><b>المتاح:</b> $${(u.availableBalance||0).toFixed(2)} | <b>المعلق:</b> $${(u.pendingBalance||0).toFixed(2)}</div>
+      </div>
+    `;
+  }).join('');
 }
 
 function renderAdminLinks(list) {
