@@ -1,7 +1,7 @@
 /**
  * Ultra-Enterprise Server Architecture (V6.6 - Absolute Multi-Tenant Security & High-Performance Core)
  * Telegram Link Shortener & Mini App Engine (Telega.ads)
- * Modularized Architecture - Step 2 Completed
+ * Full MVC Architecture - Step 3 Production Ready
  */
 
 require('dotenv').config();
@@ -14,6 +14,9 @@ const mongoSanitize = require('express-mongo-sanitize');
 // Configurations & Database Core
 const logger = require('./config/logger');
 const connectDB = require('./config/db');
+
+// Import Centralized Error Handler Middleware
+const errorHandler = require('./middleware/errorHandler');
 
 // Import Modularized Express Routers
 const authRouter = require('./routes/auth');
@@ -77,7 +80,7 @@ app.use((req, res, next) => {
 
 app.use(morgan('combined', { stream: { write: (message) => logger.info(message.trim()) } }));
 
-// Middleware لضمان اكتمال الاتصال بقاعدة البيانات لكل طلب
+// Middleware to ensure Database Connection per Request
 app.use(async (req, res, next) => {
   try {
     await connectDB();
@@ -113,14 +116,10 @@ app.use('/', adsRouter);
 app.use('/', trafficRouter);
 app.use('/', adminRouter);
 
-// Global Error Handler Middleware
-app.use((err, req, res, next) => {
-  logger.error('Unhandled Application Error:', err);
-  return res.status(500).json({
-    success: false,
-    error: 'حدث خطأ غير متوقع في الخادم، يرجى المحاولة لاحقاً'
-  });
-});
+// =========================================================================
+// --- Centralized Error Logger & Exception Handler Middleware ---
+// =========================================================================
+app.use(errorHandler);
 
 // Compatible Export for Vercel Serverless Function Engine
 module.exports = app;
