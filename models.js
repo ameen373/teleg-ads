@@ -1,5 +1,5 @@
 /**
- * Enterprise Models Architecture (Optimized for High Scale & Concurrency)
+ * Enterprise Models Architecture (Optimized for High Scale, Concurrency & Admin Dashboard)
  * Platform: Telega.ads Advertising & Shortener Network
  * Security: Zero-Data-Leakage Enforcement, Dynamic Context Scoping, Dual-ID Ownership Bindings
  */
@@ -66,7 +66,7 @@ const globalSchemaOptions = {
 };
 
 // ==================================================
-// 1. User Model (Isolated Profiles, Balances & Stats)
+// 1. User Model (Isolated Profiles, Balances, Admin Roles & Ban Control)
 // ==================================================
 const userSchema = new mongoose.Schema({
   telegramId: { 
@@ -102,7 +102,7 @@ const userSchema = new mongoose.Schema({
   },
   role: { 
     type: String, 
-    enum: ['user', 'admin'], 
+    enum: ['user', 'admin', 'superadmin'], 
     default: 'user',
     index: true 
   },
@@ -122,6 +122,16 @@ const userSchema = new mongoose.Schema({
     type: Boolean, 
     default: false, 
     index: true 
+  },
+  banReason: {
+    type: String,
+    default: '',
+    trim: true
+  },
+  adminNotes: {
+    type: String,
+    default: '',
+    trim: true
   },
   referredBy: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -167,6 +177,16 @@ const userSchema = new mongoose.Schema({
     totalSpent: { type: Number, default: 0, min: [0, 'Stats cannot be negative'], set: formatCurrency }
   }
 }, globalSchemaOptions);
+
+// Virtual for backward compatibility with 'banned' property
+userSchema.virtual('banned')
+  .get(function() { return this.isBanned; })
+  .set(function(v) { this.isBanned = Boolean(v); });
+
+// Virtual to easily check admin privileges
+userSchema.virtual('isAdmin').get(function() {
+  return this.role === 'admin' || this.role === 'superadmin';
+});
 
 // Virtual populate for user links
 userSchema.virtual('links', {
@@ -302,7 +322,7 @@ walletSchema.statics.getWalletIsolated = async function(identifier) {
 };
 
 // ==================================================
-// 3. Transaction History Model (Deposits, Withdrawals, Earnings)
+// 3. Transaction History Model (Deposits, Withdrawals, Earnings & Admin Adjustments)
 // ==================================================
 const transactionSchema = new mongoose.Schema({
   userId: { 
@@ -320,14 +340,13 @@ const transactionSchema = new mongoose.Schema({
   },
   type: { 
     type: String, 
-    enum: ['deposit', 'withdrawal', 'campaign_spend', 'publisher_earning', 'referral_bonus', 'refund', 'hold_release'], 
+    enum: ['deposit', 'withdrawal', 'campaign_spend', 'publisher_earning', 'referral_bonus', 'refund', 'hold_release', 'admin_adjustment'], 
     required: [true, 'Transaction type is required'],
     index: true 
   },
   amount: { 
     type: Number, 
     required: [true, 'Transaction amount is required'],
-    min: [0, 'Transaction amount cannot be negative'], 
     set: formatCurrency 
   },
   balanceAfter: { 
@@ -470,6 +489,11 @@ const adSchema = new mongoose.Schema({
     trim: true, 
     maxlength: [100, 'Ad title must not exceed 100 characters'] 
   },
+  description: {
+    type: String,
+    default: '',
+    trim: true
+  },
   targetUrl: { 
     type: String, 
     required: [true, 'Target URL is required'], 
@@ -518,9 +542,14 @@ const adSchema = new mongoose.Schema({
   },
   status: { 
     type: String, 
-    enum: ['active', 'paused', 'completed', 'cancelled', 'pending'], 
-    default: 'active', 
+    enum: ['pending', 'active', 'paused', 'completed', 'cancelled', 'rejected'], 
+    default: 'pending', 
     index: true 
+  },
+  rejectReason: {
+    type: String,
+    default: '',
+    trim: true
   }
 }, globalSchemaOptions);
 
@@ -608,6 +637,11 @@ const linkSchema = new mongoose.Schema({
     type: Boolean, 
     default: true, 
     index: true 
+  },
+  banReason: {
+    type: String,
+    default: '',
+    trim: true
   },
   views: { 
     type: Number, 
@@ -903,7 +937,7 @@ const withdrawSchema = new mongoose.Schema({
   amount: { 
     type: Number, 
     required: [true, 'Total withdrawal amount is required'], 
-    min: [30, 'Minimum withdrawal limit is $30'],
+    min: [1, 'Minimum withdrawal limit is $1'],
     set: formatCurrency 
   },
   fee: {
@@ -932,7 +966,7 @@ const withdrawSchema = new mongoose.Schema({
   },
   status: { 
     type: String, 
-    enum: ['pending', 'completed', 'approved', 'rejected'], 
+    enum: ['pending', 'approved', 'completed', 'rejected', 'cancelled'], 
     default: 'pending', 
     lowercase: true,
     index: true 
@@ -946,12 +980,21 @@ const withdrawSchema = new mongoose.Schema({
     type: String, 
     default: '', 
     trim: true 
+  },
+  processedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+  processedAt: {
+    type: Date,
+    default: null
   }
 }, globalSchemaOptions);
 
 withdrawSchema.pre('validate', function(next) {
   const amount = typeof this.amount === 'number' ? this.amount : parseFloat(this.amount) || 0;
-  const fee = typeof this.fee === 'number' ? this.fee : parseFloat(this.fee) || 3;
+  const fee = typeof this.fee === 'number' ? this.fee : parseFloat(this.fee) || 0;
   this.netAmount = formatCurrency(Math.max(0, amount - fee));
   next();
 });
@@ -959,11 +1002,6 @@ withdrawSchema.pre('validate', function(next) {
 withdrawSchema.index({ userId: 1, createdAt: -1 });
 withdrawSchema.index({ telegramId: 1, createdAt: -1 });
 withdrawSchema.index({ telegramId: 1, status: 1, createdAt: -1 });
-
-withdrawSchema.index(
-  { telegramId: 1, status: 1 }, 
-  { unique: true, sparse: true, partialFilterExpression: { status: 'pending' } }
-);
 
 withdrawSchema.statics.getUserWithdrawalsIsolated = function(identifier, status = null) {
   if (!identifier) return this.find({ _id: { $exists: false } });
@@ -1109,7 +1147,7 @@ const depositSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'completed', 'approved', 'rejected'],
+    enum: ['pending', 'approved', 'completed', 'rejected'],
     default: 'pending',
     lowercase: true,
     index: true
@@ -1118,6 +1156,15 @@ const depositSchema = new mongoose.Schema({
     type: String,
     default: '',
     trim: true
+  },
+  processedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+  processedAt: {
+    type: Date,
+    default: null
   }
 }, globalSchemaOptions);
 
@@ -1218,6 +1265,87 @@ announcementSchema.statics.getForUserIsolated = function(userId, telegramId) {
 };
 
 // ==================================================
+// 13. System Global Settings Model (Settings Dashboard)
+// ==================================================
+const settingsSchema = new mongoose.Schema({
+  key: { 
+    type: String, 
+    default: 'global', 
+    unique: true, 
+    trim: true 
+  },
+  minWithdrawal: { 
+    type: Number, 
+    default: 30, 
+    min: [1, 'Minimum withdrawal cannot be less than 1'],
+    set: formatCurrency 
+  },
+  minDeposit: { 
+    type: Number, 
+    default: 1, 
+    min: [1, 'Minimum deposit cannot be less than 1'],
+    set: formatCurrency 
+  },
+  withdrawalFee: { 
+    type: Number, 
+    default: 3, 
+    min: [0, 'Fee cannot be negative'],
+    set: formatCurrency 
+  },
+  defaultCpmRate: { 
+    type: Number, 
+    default: 1.50, 
+    min: [0.1, 'CPM rate must be at least 0.1'],
+    set: formatCurrency 
+  },
+  publisherSharePercentage: { 
+    type: Number, 
+    default: 90, 
+    min: [1, 'Share percentage must be positive'], 
+    max: [100, 'Share percentage cannot exceed 100'] 
+  },
+  referralCommissionRate: { 
+    type: Number, 
+    default: 5, 
+    min: [0, 'Commission rate cannot be negative'] 
+  },
+  maintenanceMode: { 
+    type: Boolean, 
+    default: false 
+  },
+  allowedNetworks: { 
+    type: [String], 
+    default: ['BEP20', 'TRC20', 'TON'] 
+  },
+  adsgramEnabled: { 
+    type: Boolean, 
+    default: true 
+  },
+  noticeMessage: { 
+    type: String, 
+    default: '', 
+    trim: true 
+  },
+  updatedBy: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'User', 
+    default: null 
+  }
+}, globalSchemaOptions);
+
+settingsSchema.statics.getSettings = async function() {
+  let settings = await this.findOne({ key: 'global' });
+  if (!settings) {
+    try {
+      settings = await this.create({ key: 'global' });
+    } catch (err) {
+      settings = await this.findOne({ key: 'global' });
+    }
+  }
+  return settings;
+};
+
+// ==================================================
 // Model Instantiation & Aliases (Serverless & Overwrite Safe)
 // ==================================================
 const User = mongoose.models.User || mongoose.model('User', userSchema);
@@ -1242,6 +1370,9 @@ const EarningsHold = mongoose.models.EarningsHold || mongoose.model('EarningsHol
 const Deposit = mongoose.models.Deposit || mongoose.model('Deposit', depositSchema);
 const Announcement = mongoose.models.Announcement || mongoose.model('Announcement', announcementSchema);
 
+const Settings = mongoose.models.Settings || mongoose.model('Settings', settingsSchema, 'settings');
+const SystemSettings = mongoose.models.SystemSettings || mongoose.model('SystemSettings', settingsSchema, 'settings');
+
 // ==================================================
 // Module Exports
 // ==================================================
@@ -1260,5 +1391,7 @@ module.exports = {
   Withdrawal,
   EarningsHold,
   Deposit,
-  Announcement
+  Announcement,
+  Settings,
+  SystemSettings
 };
