@@ -14,8 +14,14 @@ const handleGetDashboardData = async (req, res, next) => {
     const [totalUsers, totalAds, pendingWithdraws, pendingDeposits] = await Promise.all([
       User.countDocuments(),
       Ad.countDocuments({ status: 'active' }),
-      Withdraw.find({ status: 'pending' }).sort({ createdAt: -1 }).lean(),
-      Deposit.find({ status: 'pending' }).sort({ createdAt: -1 }).lean()
+      Withdraw.find({ status: 'pending' })
+        .populate('userId', 'telegramId username firstName')
+        .sort({ createdAt: -1 })
+        .lean(),
+      Deposit.find({ status: 'pending' })
+        .populate('userId', 'telegramId username firstName')
+        .sort({ createdAt: -1 })
+        .lean()
     ]);
 
     return res.json({
