@@ -114,9 +114,7 @@ app.use('/', userRouter);
 app.use('/', shortenerRouter);
 app.use('/', adsRouter);
 app.use('/', trafficRouter);
-
-// ربط مسارات الإدارة المخصصة ببادئة /api/admin
-app.use('/api/admin', adminRouter);
+app.use('/', adminRouter);
 
 // =========================================================================
 // --- Centralized Error Logger & Exception Handler Middleware ---
