@@ -1,212 +1,106 @@
+// js/modules/admin.js
 import { state } from '../state.js';
-import { apiCall } from '../api.js';
-import { tg, showAlert, showConfirm, hapticFeedback } from '../telegram.js';
-import { showToast, showLoading, hideLoading, formatCurrency, formatDate, escapeHtml } from '../ui.js';
+import { safeFetch } from './api.js';
+import { showToast, escapeHTML } from './ui.js';
 
-/**
- * تحميل كافة بيانات لوحة التحكم الخاصة بالمسؤول
- */
 export async function loadAdminData() {
-    try {
-        showLoading(true);
-        const response = await apiCall('/api/admin/dashboard');
-        
-        if (response && response.success) {
-            state.adminData = response.data || {};
-            
-            renderAdminDeposits(state.adminData.deposits || []);
-            renderAdminWithdraws(state.adminData.withdrawals || []);
-            renderAdminUsers(state.adminData.users || []);
-            renderAdminLinks(state.adminData.links || []);
-            renderAdminAds(state.adminData.ads || []);
-        } else {
-            showToast(response?.message || 'فشل تحميل بيانات لوحة التحكم', 'error');
-        }
-    } catch (error) {
-        console.error('Error loading admin data:', error);
-        showToast('حدث خطأ أثناء تحميل لوحة أدمن', 'error');
-    } finally {
-        hideLoading();
+  if (!state.isUserAdmin) return;
+
+  try {
+    const res = await safeFetch('/api/admin/dashboard');
+    if (res && res.ok) {
+      const data = await res.json().catch(() => ({}));
+      
+      const totalUsers = document.getElementById('admin-total-users');
+      const totalPending = document.getElementById('admin-total-pending');
+
+      if (totalUsers) totalUsers.innerText = data.totalUsers || 0;
+      if (totalPending) totalPending.innerText = `$${(data.totalPendingBalance || 0).toFixed(2)}`;
+
+      if (data.pendingDeposits) renderAdminDeposits(data.pendingDeposits);
+      if (data.pendingWithdraws) renderAdminWithdraws(data.pendingWithdraws);
+      if (data.users) renderAdminUsers(data.users);
+      if (data.links) renderAdminLinks(data.links);
+      if (data.ads) renderAdminAds(data.ads);
     }
+  } catch (err) {
+    console.error("Admin data error:", err);
+  }
 }
 
-/**
- * عرض عمليات الإيداع في لوحة الإدارة
- * @param {Array} deposits - قائمة الإيداعات
- */
-export function renderAdminDeposits(deposits = []) {
-    const container = document.getElementById('admin-deposits-container');
-    if (!container) return;
-
-    if (!deposits || deposits.length === 0) {
-        container.innerHTML = '<tr><td colspan="5" class="text-center">لا توجد طلبات إيداع</td></tr>';
-        return;
-    }
-
-    container.innerHTML = deposits.map(dep => `
-        <tr>
-            <td>${escapeHtml(dep.userName || dep.userId)}</td>
-            <td>${formatCurrency(dep.amount)}</td>
-            <td>${escapeHtml(dep.method || 'يدوي')}</td>
-            <td>${formatDate(dep.createdAt)}</td>
-            <td>
-                ${dep.status === 'pending' ? `
-                    <button class="btn btn-xs btn-success" onclick="window.processAdminAction('deposit', '${dep._id}', 'approve')">قبول</button>
-                    <button class="btn btn-xs btn-danger" onclick="window.processAdminAction('deposit', '${dep._id}', 'reject')">رفض</button>
-                ` : `<span class="badge ${dep.status === 'approved' ? 'badge-success' : 'badge-danger'}">${dep.status}</span>`}
-            </td>
-        </tr>
-    `).join('');
+export function renderAdminDeposits(list) {
+  const c = document.getElementById('admin-deposits-list');
+  if (!c) return;
+  if (!list.length) { c.innerHTML = '<p style="color:var(--text-muted);">لا توجد طلبات إيداع معلقة</p>'; return; }
+  c.innerHTML = list.map(d => `
+    <div style="background:#070a12; padding:10px; border-radius:10px; margin-bottom:8px; border:1px solid var(--card-border);">
+      <div><b>مستخدم:</b> ${d.userId} | <b>المبلغ:</b> $${d.amount}</div>
+      <div style="font-size:10px; color:var(--text-muted); word-break:break-all;"><b>TxID:</b> ${d.txid || d.txHash}</div>
+      <div style="margin-top:6px;">
+        <button class="btn-small btn-success" onclick="processAdminAction('deposit', '${d._id}', 'approve')">قبول</button>
+        <button class="btn-small btn-danger" onclick="processAdminAction('deposit', '${d._id}', 'reject')">رفض</button>
+      </div>
+    </div>
+  `).join('');
 }
 
-/**
- * عرض عمليات السحب في لوحة الإدارة
- * @param {Array} withdraws - قائمة السحوبات
- */
-export function renderAdminWithdraws(withdraws = []) {
-    const container = document.getElementById('admin-withdraws-container');
-    if (!container) return;
-
-    if (!withdraws || withdraws.length === 0) {
-        container.innerHTML = '<tr><td colspan="5" class="text-center">لا توجد طلبات سحب قيد الانتظار</td></tr>';
-        return;
-    }
-
-    container.innerHTML = withdraws.map(w => `
-        <tr>
-            <td>${escapeHtml(w.userName || w.userId)}</td>
-            <td>${formatCurrency(w.amount)}</td>
-            <td>${escapeHtml(w.paymentAddress || 'غير محدد')}</td>
-            <td>${formatDate(w.createdAt)}</td>
-            <td>
-                ${w.status === 'pending' ? `
-                    <button class="btn btn-xs btn-success" onclick="window.processAdminAction('withdraw', '${w._id}', 'approve')">موافقة</button>
-                    <button class="btn btn-xs btn-danger" onclick="window.processAdminAction('withdraw', '${w._id}', 'reject')">رفض</button>
-                ` : `<span class="badge ${w.status === 'approved' ? 'badge-success' : 'badge-danger'}">${w.status}</span>`}
-            </td>
-        </tr>
-    `).join('');
+export function renderAdminWithdraws(list) {
+  const c = document.getElementById('admin-withdraws-list');
+  if (!c) return;
+  if (!list.length) { c.innerHTML = '<p style="color:var(--text-muted);">لا توجد طلبات سحب معلقة</p>'; return; }
+  c.innerHTML = list.map(w => `
+    <div style="background:#070a12; padding:10px; border-radius:10px; margin-bottom:8px; border:1px solid var(--card-border);">
+      <div><b>مستخدم:</b> ${w.userId} | <b>المبلغ:</b> $${w.amount}</div>
+      <div style="font-size:10px; color:var(--text-muted); word-break:break-all;"><b>المحفظة:</b> ${w.wallet}</div>
+      <div style="margin-top:6px;">
+        <button class="btn-small btn-success" onclick="processAdminAction('withdraw', '${w._id}', 'approve')">تأكيد الدفع</button>
+        <button class="btn-small btn-danger" onclick="processAdminAction('withdraw', '${w._id}', 'reject')">إلغاء الطلب</button>
+      </div>
+    </div>
+  `).join('');
 }
 
-/**
- * عرض قائمة المستخدمين للآدمن
- * @param {Array} users - قائمة المستخدمين
- */
-export function renderAdminUsers(users = []) {
-    const container = document.getElementById('admin-users-container');
-    if (!container) return;
-
-    if (!users || users.length === 0) {
-        container.innerHTML = '<tr><td colspan="5" class="text-center">لا يوجد مستخدمين</td></tr>';
-        return;
-    }
-
-    container.innerHTML = users.map(u => `
-        <tr>
-            <td>${escapeHtml(u.name || 'مستخدم')}</td>
-            <td>${u.telegramId}</td>
-            <td>${formatCurrency(u.balance || 0)}</td>
-            <td>${u.isBanned ? '<span class="badge badge-danger">محظور</span>' : '<span class="badge badge-success">نشط</span>'}</td>
-            <td>
-                <button class="btn btn-xs ${u.isBanned ? 'btn-success' : 'btn-warning'}" onclick="window.processAdminAction('user', '${u._id}', '${u.isBanned ? 'unban' : 'ban'}')">
-                    ${u.isBanned ? 'إلغاء الحظر' : 'حظر'}
-                </button>
-            </td>
-        </tr>
-    `).join('');
+export function renderAdminUsers(list) {
+  const c = document.getElementById('admin-users-list');
+  if (!c) return;
+  c.innerHTML = list.map(u => `
+    <div style="background:#070a12; padding:8px; border-radius:8px; margin-bottom:6px; font-size:11px;">
+      <b>ID:</b> ${u.telegramId} | <b>المتاح:</b> $${(u.availableBalance||0).toFixed(2)} | <b>المعلق:</b> $${(u.pendingBalance||0).toFixed(2)}
+    </div>
+  `).join('');
 }
 
-/**
- * عرض جميع الروابط للآدمن
- * @param {Array} links - قائمة الروابط
- */
-export function renderAdminLinks(links = []) {
-    const container = document.getElementById('admin-links-container');
-    if (!container) return;
-
-    if (!links || links.length === 0) {
-        container.innerHTML = '<tr><td colspan="4" class="text-center">لا توجد روابط</td></tr>';
-        return;
-    }
-
-    container.innerHTML = links.map(l => `
-        <tr>
-            <td>${escapeHtml(l.title || l.code)}</td>
-            <td>${l.views || 0}</td>
-            <td>${formatDate(l.createdAt)}</td>
-            <td>
-                <button class="btn btn-xs btn-danger" onclick="window.processAdminAction('link', '${l._id}', 'delete')">حذف</button>
-            </td>
-        </tr>
-    `).join('');
+export function renderAdminLinks(list) {
+  const c = document.getElementById('admin-links-list');
+  if (!c) return;
+  c.innerHTML = list.map(l => `
+    <div style="background:#070a12; padding:8px; border-radius:8px; margin-bottom:6px; font-size:11px;">
+      <b>كود:</b> ${l.shortCode} | <b>الزيارات:</b> ${l.views||0}
+    </div>
+  `).join('');
 }
 
-/**
- * عرض جميع الإعلانات للآدمن
- * @param {Array} ads - قائمة الحملات
- */
-export function renderAdminAds(ads = []) {
-    const container = document.getElementById('admin-ads-container');
-    if (!container) return;
-
-    if (!ads || ads.length === 0) {
-        container.innerHTML = '<tr><td colspan="5" class="text-center">لا توجد حملات إعلانية</td></tr>';
-        return;
-    }
-
-    container.innerHTML = ads.map(a => `
-        <tr>
-            <td>${escapeHtml(a.title)}</td>
-            <td>${formatCurrency(a.budget)}</td>
-            <td><span class="badge badge-info">${a.status}</span></td>
-            <td>${formatDate(a.createdAt)}</td>
-            <td>
-                ${a.status === 'pending' ? `
-                    <button class="btn btn-xs btn-success" onclick="window.processAdminAction('ad', '${a._id}', 'approve')">موافقة</button>
-                    <button class="btn btn-xs btn-danger" onclick="window.processAdminAction('ad', '${a._id}', 'reject')">رفض</button>
-                ` : `
-                    <button class="btn btn-xs btn-warning" onclick="window.processAdminAction('ad', '${a._id}', 'toggle')">تغيير الحالة</button>
-                `}
-            </td>
-        </tr>
-    `).join('');
+export function renderAdminAds(list) {
+  const c = document.getElementById('admin-ads-list');
+  if (!c) return;
+  c.innerHTML = list.map(a => `
+    <div style="background:#070a12; padding:8px; border-radius:8px; margin-bottom:6px; font-size:11px;">
+      <b>عنوان:</b> ${escapeHTML(a.title)} | <b>الميزانية:</b> $${a.budget}
+    </div>
+  `).join('');
 }
 
-/**
- * تنفيذ إجراءات التحكم والإدارة الكلية
- * @param {string} type - نوع الإجراء (deposit, withdraw, user, link, ad)
- * @param {string} id - المعرف الخاص بالعنصر
- * @param {string} action - نوع العمل (approve, reject, ban, unban, delete)
- * @param {Object} extraData - بيانات إضافية
- */
-export async function processAdminAction(type, id, action, extraData = {}) {
-    const confirmMessage = `هل أنت أكتأكد من تنفيذ الإجراء (${action}) على هذا العنصر؟`;
-    const confirmed = await showConfirm(confirmMessage);
-    if (!confirmed) return;
-
-    try {
-        showLoading(true);
-        const response = await apiCall('/api/admin/action', 'POST', {
-            type,
-            id,
-            action,
-            ...extraData
-        });
-
-        if (response && response.success) {
-            hapticFeedback('notification', 'success');
-            showToast('تم تنفيذ الإجراء بنجاح', 'success');
-            await loadAdminData();
-        } else {
-            showAlert(response?.message || 'تعذر تنفيذ الإجراء');
-        }
-    } catch (error) {
-        console.error('Error executing admin action:', error);
-        showToast('حدث خطأ أثناء معالجة الأمر', 'error');
-    } finally {
-        hideLoading();
+export async function processAdminAction(type, itemId, action) {
+  try {
+    const res = await safeFetch(`/api/admin/${type}/${action}`, {
+      method: 'POST',
+      body: { id: itemId }
+    });
+    if (res && res.ok) {
+      showToast("تم تنفيذ الإجراء بنجاح");
+      loadAdminData();
     }
+  } catch (e) {
+    showToast("خطأ أثناء تنفيذ الإجراء");
+  }
 }
-
-// تصدير وتأكيد إسناد دالة processAdminAction إلى النافذة العامة window
-window.processAdminAction = processAdminAction;
