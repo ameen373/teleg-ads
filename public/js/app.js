@@ -1,28 +1,163 @@
+/**
+ * Telegram Mini App & URL Shortener Platform
+ * File: public/js/app.js
+ * Fixed & Optimized Implementation (Auth, i18n, Telegram WebApp API, Wallet, Ads & Admin)
+ */
+
 const API_BASE = window.location.protocol.startsWith('file') 
   ? 'http://localhost:3000' 
   : window.location.origin;
 
+let currentLang = 'ar';
 let authToken = localStorage.getItem('authToken');
 let currentSessionId = null;
 let bridgeToken = null;
 let bridgeStartTime = Date.now();
 let isUserAdmin = false;
-
-const tg = window.Telegram?.WebApp;
-
-let currentUserTelegramId = null;
-let storedTelegramId = localStorage.getItem('telegramId');
-
-if (tg?.initDataUnsafe?.user?.id) {
-  currentUserTelegramId = String(tg.initDataUnsafe.user.id);
-  localStorage.setItem('telegramId', currentUserTelegramId);
-} else {
-  currentUserTelegramId = storedTelegramId || null;
-}
-
+let currentUserTelegramId = localStorage.getItem('telegramId') || null;
 let rawUserLinksCache = [];
 let bridgeDestinationUrl = null;
 let currentShortCode = null;
+
+// Helper to reliably retrieve Telegram WebApp object dynamically
+function getTg() {
+  return window.Telegram?.WebApp || null;
+}
+
+function getTelegramUser() {
+  const webApp = getTg();
+  return webApp?.initDataUnsafe?.user || null;
+}
+
+function updateUserId() {
+  const u = getTelegramUser();
+  if (u && u.id) {
+    currentUserTelegramId = String(u.id);
+    localStorage.setItem('telegramId', currentUserTelegramId);
+  } else if (!currentUserTelegramId) {
+    currentUserTelegramId = localStorage.getItem('telegramId') || null;
+  }
+  return currentUserTelegramId;
+}
+
+// Dictionary for Internationalization (i18n)
+const i18n = {
+  ar: {
+    copied: "تم النسخ بنجاح!",
+    copy_failed: "فشل النسخ تلقائياً",
+    network_error: "خطأ في الاتصال بالشبكة",
+    access_denied: "غير مصرح لك بالوصول للوحة التحكم",
+    cancel: "إلغاء",
+    btn_edit: "تعديل",
+    btn_copy: "نسخ",
+    link_success_msg: "تم اختصار الرابط بنجاح!",
+    enter_orig_url: "يرجى إدخال الرابط الأصلي",
+    create_link_fail: "فشل إنشاء الرابط المختصر",
+    shorten_error: "حدث خطأ أثناء اختصار الرابط",
+    no_links: "لا توجد روابط مختصرة بعد.",
+    confirm_delete: "هل أنت تأكد من حذف هذا الرابط؟",
+    link_deleted: "تم حذف الرابط بنجاح",
+    delete_failed: "فشل حذف الرابط",
+    select_network: "يرجى اختيار شبكة الدفع",
+    min_deposit: "الحد الأدنى للإيداع هو $1",
+    enter_txid: "يرجى إدخال رمز المعاملة (TxID)",
+    deposit_success: "تم تقديم طلب الشحن بنجاح! سيتم مراجعته قريباً.",
+    deposit_fail: "فشل تقديم طلب الشحن",
+    enter_wallet: "يرجى إدخال عنوان المحفظة",
+    wallet_saved: "تم حفظ العنوان بنجاح",
+    wallet_save_fail: "فشل حفظ العنوان",
+    min_withdraw: "الحد الأدنى للسحب هو 30$",
+    withdraw_success: "تم تقديم طلب السحب بنجاح",
+    withdraw_fail: "فشل تقديم طلب السحب",
+    enter_ad_title: "يرجى إدخال عنوان الإعلان",
+    enter_ad_url: "يرجى إدخال رابط التوجيه",
+    min_ad_budget: "الحد الأدنى لميزانية الحملة هو $5",
+    ad_success: "تم إطلاق الحملة الإعلانية بنجاح!",
+    ad_fail: "فشل إنشاء الحملة الإعلانية",
+    no_ads: "لا توجد حملات إعلانية نشطة.",
+    no_referrals: "لم تنضم أي إحالات عبر رابطك بعد.",
+    no_withdraws: "لا توجد طلبات سحب سابقة.",
+    action_success: "تم تنفيذ الإجراء بنجاح",
+    action_fail: "خطأ أثناء تنفيذ الإجراء",
+    clicks: "زيارة",
+    valid: "مؤكدة",
+    delete: "حذف",
+    approved: "مكتمل",
+    rejected: "مرفوض",
+    pending: "قيد المراجعة",
+    share_ref_ar: "انضم إليّ في أفضل منصة لاختصار الروابط واكسب الأرباح بسهولة! 🚀",
+    share_ref_en: "Join me on the best url shortener platform & earn money! 🚀"
+  },
+  en: {
+    copied: "Copied successfully!",
+    copy_failed: "Failed to copy",
+    network_error: "Network connection error",
+    access_denied: "Access denied to admin panel",
+    cancel: "Cancel",
+    btn_edit: "Edit",
+    btn_copy: "Copy",
+    link_success_msg: "Link shortened successfully!",
+    enter_orig_url: "Please enter original URL",
+    create_link_fail: "Failed to create short link",
+    shorten_error: "An error occurred while shortening link",
+    no_links: "No shortened links found.",
+    confirm_delete: "Are you sure you want to delete this link?",
+    link_deleted: "Link deleted successfully",
+    delete_failed: "Failed to delete link",
+    select_network: "Please select payment network",
+    min_deposit: "Minimum deposit amount is $1",
+    enter_txid: "Please enter transaction TxID / Hash",
+    deposit_success: "Deposit request submitted successfully!",
+    deposit_fail: "Failed to submit deposit request",
+    enter_wallet: "Please enter wallet address",
+    wallet_saved: "Wallet address saved",
+    wallet_save_fail: "Failed to save address",
+    min_withdraw: "Minimum withdrawal is $30",
+    withdraw_success: "Withdrawal requested successfully",
+    withdraw_fail: "Failed to request withdrawal",
+    enter_ad_title: "Please enter ad title",
+    enter_ad_url: "Please enter target URL",
+    min_ad_budget: "Minimum campaign budget is $5",
+    ad_success: "Ad campaign launched successfully!",
+    ad_fail: "Failed to create ad campaign",
+    no_ads: "No active ad campaigns.",
+    no_referrals: "No referrals registered yet.",
+    no_withdraws: "No withdrawal history found.",
+    action_success: "Action performed successfully",
+    action_fail: "Error performing action",
+    clicks: "clicks",
+    valid: "valid",
+    delete: "Delete",
+    approved: "Approved",
+    rejected: "Rejected",
+    pending: "Pending",
+    share_ref_ar: "Join me on the best url shortener platform & earn money! 🚀",
+    share_ref_en: "Join me on the best url shortener platform & earn money! 🚀"
+  }
+};
+
+function applyLanguage(lang) {
+  if (!i18n[lang]) lang = 'ar';
+  currentLang = lang;
+  localStorage.setItem('appLang', currentLang);
+
+  document.querySelectorAll('[data-i18n]').forEach(elem => {
+    const key = elem.getAttribute('data-i18n');
+    if (i18n[currentLang] && i18n[currentLang][key]) {
+      elem.innerText = i18n[currentLang][key];
+    }
+  });
+
+  const dir = currentLang === 'ar' ? 'rtl' : 'ltr';
+  document.documentElement.setAttribute('dir', dir);
+  document.documentElement.setAttribute('lang', currentLang);
+}
+
+function toggleLanguage() {
+  const newLang = currentLang === 'ar' ? 'en' : 'ar';
+  applyLanguage(newLang);
+  showToast(newLang === 'ar' ? 'تم تغيير اللغة إلى العربية' : 'Language changed to English');
+}
 
 function escapeHTML(str) {
   if (!str) return '';
@@ -36,8 +171,9 @@ function escapeHTML(str) {
 
 function triggerHaptic(style = 'light') {
   try {
-    if (tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.1') && tg.HapticFeedback) {
-      tg.HapticFeedback.impactOccurred(style);
+    const webApp = getTg();
+    if (webApp && webApp.isVersionAtLeast && webApp.isVersionAtLeast('6.1') && webApp.HapticFeedback) {
+      webApp.HapticFeedback.impactOccurred(style);
     }
   } catch (e) {}
 }
@@ -53,11 +189,36 @@ function showToast(msg) {
 
 function copyToClipboard(text) {
   if (!text) return;
-  navigator.clipboard.writeText(text).then(() => {
-    showToast(i18n[currentLang]?.copied || "تم النسخ بنجاح!");
-  }).catch(() => {
-    showToast(currentLang === 'ar' ? "فشل النسخ تلقائياً" : "Failed to copy");
-  });
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(() => {
+      showToast(i18n[currentLang]?.copied || "تم النسخ بنجاح!");
+    }).catch(() => {
+      fallbackCopyText(text);
+    });
+  } else {
+    fallbackCopyText(text);
+  }
+}
+
+function fallbackCopyText(text) {
+  try {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-9999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    const successful = document.execCommand('copy');
+    document.body.removeChild(textArea);
+    if (successful) {
+      showToast(i18n[currentLang]?.copied || "تم النسخ بنجاح!");
+    } else {
+      showToast(i18n[currentLang]?.copy_failed || "فشل النسخ تلقائياً");
+    }
+  } catch (err) {
+    showToast(i18n[currentLang]?.copy_failed || "فشل النسخ تلقائياً");
+  }
 }
 
 function setButtonLoading(btnId, isLoading, originalText) {
@@ -76,19 +237,21 @@ function setButtonLoading(btnId, isLoading, originalText) {
 async function safeFetch(endpoint, options = {}) {
   options.headers = options.headers || {};
   
-  if (!currentUserTelegramId && tg?.initDataUnsafe?.user?.id) {
-    currentUserTelegramId = String(tg.initDataUnsafe.user.id);
-    localStorage.setItem('telegramId', currentUserTelegramId);
+  updateUserId();
+
+  const webApp = getTg();
+  const initDataStr = webApp?.initData || window.Telegram?.WebApp?.initData || '';
+  
+  // Prefer authToken (JWT) if present, fallback to initData
+  if (authToken) {
+    options.headers['Authorization'] = `Bearer ${authToken}`;
+  } else if (initDataStr) {
+    options.headers['Authorization'] = `Bearer ${initDataStr}`;
   }
 
-  const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || '';
-  
   if (initDataStr) {
-    options.headers['Authorization'] = `Bearer ${initDataStr}`;
     options.headers['x-telegram-init-data'] = initDataStr;
     options.headers['telegram-init-data'] = initDataStr;
-  } else if (authToken) {
-    options.headers['Authorization'] = `Bearer ${authToken}`;
   }
 
   if (currentUserTelegramId) {
@@ -99,9 +262,9 @@ async function safeFetch(endpoint, options = {}) {
   }
 
   if (options.body && typeof options.body === 'object') {
-    if (currentUserTelegramId && !options.body.userId && !options.body.telegramId) {
-      options.body.userId = currentUserTelegramId;
-      options.body.telegramId = currentUserTelegramId;
+    if (currentUserTelegramId) {
+      if (!options.body.userId) options.body.userId = currentUserTelegramId;
+      if (!options.body.telegramId) options.body.telegramId = currentUserTelegramId;
     }
     if (initDataStr && !options.body.initData) {
       options.body.initData = initDataStr;
@@ -133,17 +296,28 @@ async function safeFetch(endpoint, options = {}) {
 
 function switchTab(tabName) {
   if (tabName === 'admin' && !isUserAdmin) {
-    showToast(currentLang === 'ar' ? "غير مصرح لك بالوصول للوحة التحكم" : "Access denied");
+    showToast(i18n[currentLang]?.access_denied || "غير مصرح لك بالوصول للوحة التحكم");
     return;
   }
   triggerHaptic('light');
-  const tabs = ['dashboard', 'wallet', 'ads', 'referral', 'settings', 'admin'];
-  tabs.forEach(t => {
-    const content = document.getElementById(`tab-content-${t}`);
-    const btn = document.getElementById(`tab-btn-${t}`);
-    if (content) content.classList.toggle('hidden', t !== tabName);
-    if (btn) btn.classList.toggle('active', t === tabName);
-  });
+
+  // Toggle Tab Contents
+  const allContents = document.querySelectorAll('[id^="tab-content-"]');
+  allContents.forEach(el => el.classList.add('hidden'));
+
+  const targetContent = document.getElementById(`tab-content-${tabName}`);
+  if (targetContent) {
+    targetContent.classList.remove('hidden');
+  }
+
+  // Toggle Tab Buttons Active Class
+  const allBtns = document.querySelectorAll('[id^="tab-btn-"]');
+  allBtns.forEach(btn => btn.classList.remove('active'));
+
+  const targetBtn = document.getElementById(`tab-btn-${tabName}`);
+  if (targetBtn) {
+    targetBtn.classList.add('active');
+  }
 
   if (tabName === 'admin' && isUserAdmin) {
     loadAdminData();
@@ -151,6 +325,9 @@ function switchTab(tabName) {
     fetchUserAds();
   } else if (tabName === 'referral') {
     fetchUserReferrals();
+  } else if (tabName === 'dashboard') {
+    fetchUserLinks();
+    loadUserData();
   }
 }
 
@@ -171,21 +348,29 @@ function handleNetworkChange(networkVal) {
 
 function switchWalletView(view) {
   triggerHaptic('light');
-  document.getElementById('wallet-nav-deposit').classList.toggle('active', view === 'deposit');
-  document.getElementById('wallet-nav-withdraw').classList.toggle('active', view === 'withdraw');
+  const navDep = document.getElementById('wallet-nav-deposit');
+  const navWit = document.getElementById('wallet-nav-withdraw');
+  const viewDep = document.getElementById('wallet-view-deposit');
+  const viewWit = document.getElementById('wallet-view-withdraw');
 
-  document.getElementById('wallet-view-deposit').classList.toggle('hidden', view !== 'deposit');
-  document.getElementById('wallet-view-withdraw').classList.toggle('hidden', view !== 'withdraw');
+  if (navDep) navDep.classList.toggle('active', view === 'deposit');
+  if (navWit) navWit.classList.toggle('active', view === 'withdraw');
+
+  if (viewDep) viewDep.classList.toggle('hidden', view !== 'deposit');
+  if (viewWit) viewWit.classList.toggle('hidden', view !== 'withdraw');
 }
 
 function toggleInstructionsModal(show) {
   triggerHaptic('medium');
-  document.getElementById('instructions-modal').classList.toggle('hidden', !show);
+  const modal = document.getElementById('instructions-modal');
+  if (modal) modal.classList.toggle('hidden', !show);
 }
 
 function updateWithdrawCalculations() {
   const amtInput = document.getElementById('withdraw-amount');
   const feeBox = document.getElementById('withdraw-fee-box');
+  if (!amtInput || !feeBox) return;
+
   const val = parseFloat(amtInput.value) || 0;
 
   if (val > 0) {
@@ -193,16 +378,20 @@ function updateWithdrawCalculations() {
     const fee = 3;
     const net = Math.max(0, val - fee);
 
-    document.getElementById('calc-req').innerText = `$${val.toFixed(2)}`;
-    document.getElementById('calc-fee').innerText = `$${fee.toFixed(2)}`;
-    document.getElementById('calc-net').innerText = `$${net.toFixed(2)}`;
+    const calcReq = document.getElementById('calc-req');
+    const calcFee = document.getElementById('calc-fee');
+    const calcNet = document.getElementById('calc-net');
+
+    if (calcReq) calcReq.innerText = `$${val.toFixed(2)}`;
+    if (calcFee) calcFee.innerText = `$${fee.toFixed(2)}`;
+    if (calcNet) calcNet.innerText = `$${net.toFixed(2)}`;
   } else {
     feeBox.classList.add('hidden');
   }
 }
 
 function renderTelegramUser() {
-  const u = tg?.initDataUnsafe?.user;
+  const u = getTelegramUser();
   const avatarContainer = document.getElementById('user-avatar-container');
   const nameElem = document.getElementById('user-display-name');
   const handleElem = document.getElementById('user-display-handle');
@@ -213,19 +402,25 @@ function renderTelegramUser() {
     currentUserTelegramId = String(u.id);
     localStorage.setItem('telegramId', currentUserTelegramId);
     const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || 'Telegram User';
-    nameElem.innerText = fullName;
-    handleElem.innerText = u.username ? `@${u.username}` : '@no_username';
-    idElem.innerText = `ID: ${u.id}`;
+    if (nameElem) nameElem.innerText = fullName;
+    if (handleElem) handleElem.innerText = u.username ? `@${u.username}` : '@no_username';
+    if (idElem) idElem.innerText = `ID: ${u.id}`;
 
-    if (u.is_premium) {
-      premiumBadge.classList.remove('hidden');
+    if (premiumBadge) {
+      if (u.is_premium) {
+        premiumBadge.classList.remove('hidden');
+      } else {
+        premiumBadge.classList.add('hidden');
+      }
     }
 
-    if (u.photo_url) {
-      avatarContainer.innerHTML = `<img src="${escapeHTML(u.photo_url)}" class="user-avatar-img" alt="Avatar">`;
-    } else {
-      const letter = (u.first_name || 'U').charAt(0).toUpperCase();
-      avatarContainer.innerHTML = `<div class="user-avatar-placeholder">${escapeHTML(letter)}</div>`;
+    if (avatarContainer) {
+      if (u.photo_url) {
+        avatarContainer.innerHTML = `<img src="${escapeHTML(u.photo_url)}" class="user-avatar-img" alt="Avatar">`;
+      } else {
+        const letter = (u.first_name || u.username || 'U').charAt(0).toUpperCase();
+        avatarContainer.innerHTML = `<div class="user-avatar-placeholder">${escapeHTML(letter)}</div>`;
+      }
     }
 
     const savedLang = localStorage.getItem('appLang');
@@ -237,14 +432,16 @@ function renderTelegramUser() {
       currentLang = 'ar';
     }
   } else {
-    if (!currentUserTelegramId) {
-      currentUserTelegramId = localStorage.getItem('telegramId') || '123456789';
-    }
-    nameElem.innerText = 'Telegram User';
-    handleElem.innerText = '@user';
-    idElem.innerText = `ID: ${currentUserTelegramId}`;
-    avatarContainer.innerHTML = `<div class="user-avatar-placeholder">U</div>`;
-    if (!localStorage.getItem('appLang')) {
+    updateUserId();
+    if (nameElem) nameElem.innerText = 'Telegram User';
+    if (handleElem) handleElem.innerText = '@user';
+    if (idElem) idElem.innerText = currentUserTelegramId ? `ID: ${currentUserTelegramId}` : 'ID: ---';
+    if (avatarContainer) avatarContainer.innerHTML = `<div class="user-avatar-placeholder">U</div>`;
+    
+    const savedLang = localStorage.getItem('appLang');
+    if (savedLang && i18n[savedLang]) {
+      currentLang = savedLang;
+    } else {
       currentLang = 'ar';
     }
   }
@@ -253,14 +450,17 @@ function renderTelegramUser() {
 }
 
 function shareReferralLink() {
-  const refUrl = document.getElementById('ref-link').value;
-  if (!refUrl) return;
+  const refInput = document.getElementById('ref-link');
+  if (!refInput || !refInput.value) return;
   triggerHaptic('medium');
-  const shareText = encodeURIComponent(currentLang === 'ar' ? "انضم إليّ في أفضل منصة لاختصار الروابط واكسب الأرباح بسهولة! 🚀" : "Join me on the best url shortener platform & earn money! 🚀");
+  const refUrl = refInput.value;
+  const shareMsg = currentLang === 'ar' ? i18n.ar.share_ref_ar : i18n.en.share_ref_en;
+  const shareText = encodeURIComponent(shareMsg);
   const url = `https://t.me/share/url?url=${encodeURIComponent(refUrl)}&text=${shareText}`;
   
-  if (tg && tg.openTelegramLink) {
-    tg.openTelegramLink(url);
+  const webApp = getTg();
+  if (webApp && webApp.openTelegramLink) {
+    webApp.openTelegramLink(url);
   } else {
     window.open(url, '_blank');
   }
@@ -272,24 +472,33 @@ function toggleWalletEdit() {
   const editBtn = document.getElementById('edit-wallet-btn');
   const saveBtn = document.getElementById('save-wallet-btn');
 
+  if (!walletInput) return;
+
   if (walletInput.hasAttribute('readonly')) {
     walletInput.removeAttribute('readonly');
     walletInput.focus();
-    editBtn.innerText = i18n[currentLang].cancel;
-    editBtn.className = "btn-small btn-danger";
-    saveBtn.classList.remove('hidden');
+    if (editBtn) {
+      editBtn.innerText = i18n[currentLang].cancel;
+      editBtn.className = "btn-small btn-danger";
+    }
+    if (saveBtn) saveBtn.classList.remove('hidden');
   } else {
     walletInput.setAttribute('readonly', 'readonly');
-    editBtn.innerText = i18n[currentLang].btn_edit;
-    editBtn.className = "btn-small btn-warning";
-    saveBtn.classList.add('hidden');
+    if (editBtn) {
+      editBtn.innerText = i18n[currentLang].btn_edit;
+      editBtn.className = "btn-small btn-warning";
+    }
+    if (saveBtn) saveBtn.classList.add('hidden');
   }
 }
 
 async function authLogin() {
-  const startParam = tg?.initDataUnsafe?.start_param || null;
-  const u = tg?.initDataUnsafe?.user || {};
-  const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || '';
+  const webApp = getTg();
+  const startParam = webApp?.initDataUnsafe?.start_param || null;
+  const u = webApp?.initDataUnsafe?.user || {};
+  const initDataStr = webApp?.initData || window.Telegram?.WebApp?.initData || '';
+
+  updateUserId();
 
   try {
     const res = await safeFetch('/api/auth/login', {
@@ -308,18 +517,18 @@ async function authLogin() {
     });
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-    if (data && (data.success || data.token)) {
+    if (data && (data.success || data.token || data.user)) {
       if (data.token) {
         authToken = data.token;
         localStorage.setItem('authToken', authToken);
       }
 
-      if (data.user && data.user.telegramId) {
-        currentUserTelegramId = String(data.user.telegramId);
+      if (data.user && (data.user.telegramId || data.user.id || data.user._id)) {
+        currentUserTelegramId = String(data.user.telegramId || data.user.id || data.user._id);
         localStorage.setItem('telegramId', currentUserTelegramId);
       }
 
-      if (data.isAdmin === true) {
+      if (data.isAdmin === true || data.user?.isAdmin === true) {
         isUserAdmin = true;
         const adminBtn = document.getElementById('tab-btn-admin');
         if (adminBtn) adminBtn.style.display = 'flex';
@@ -408,9 +617,13 @@ async function loadUserData() {
       const data = await res.json().catch(() => ({}));
       const u = data.user || {};
 
-      document.getElementById('pending-bal').innerText = `$${(u.pendingBalance || 0).toFixed(2)}`;
-      document.getElementById('avail-bal').innerText = `$${(u.availableBalance || 0).toFixed(2)}`;
-      document.getElementById('ref-earnings').innerText = `$${(u.referralEarnings || 0).toFixed(2)}`;
+      const pendElem = document.getElementById('pending-bal');
+      const availElem = document.getElementById('avail-bal');
+      const refEarnElem = document.getElementById('ref-earnings');
+
+      if (pendElem) pendElem.innerText = `$${(u.pendingBalance || 0).toFixed(2)}`;
+      if (availElem) availElem.innerText = `$${(u.availableBalance || 0).toFixed(2)}`;
+      if (refEarnElem) refEarnElem.innerText = `$${(u.referralEarnings || 0).toFixed(2)}`;
       
       const refCountElem = document.getElementById('ref-count');
       if (refCountElem) {
@@ -445,13 +658,15 @@ async function loadUserData() {
         const anc = data.announcements[0];
         const ancBox = document.getElementById('announcement-box');
         if (ancBox && anc.title) {
-          document.getElementById('anc-title').innerText = anc.title;
-          document.getElementById('anc-content').innerText = anc.content || anc.message || '';
+          const titleElem = document.getElementById('anc-title');
+          const contentElem = document.getElementById('anc-content');
+          if (titleElem) titleElem.innerText = anc.title;
+          if (contentElem) contentElem.innerText = anc.content || anc.message || '';
           ancBox.classList.remove('hidden');
         }
       }
 
-      if (data.isAdmin === true) {
+      if (data.isAdmin === true || u.isAdmin === true) {
         isUserAdmin = true;
         const adminBtn = document.getElementById('tab-btn-admin');
         if (adminBtn) adminBtn.style.display = 'flex';
@@ -463,15 +678,17 @@ async function loadUserData() {
 }
 
 async function handleShortenClick(e) {
-  if (e) e.preventDefault();
+  if (e && e.preventDefault) e.preventDefault();
   const titleInput = document.getElementById('link-title');
   const urlInput = document.getElementById('link-url');
 
-  const title = titleInput.value.trim();
+  if (!urlInput) return;
+
+  const title = titleInput ? titleInput.value.trim() : '';
   let url = urlInput.value.trim();
 
   if (!url) {
-    showToast(currentLang === 'ar' ? 'يرجى إدخال الرابط الأصلي' : 'Please enter original URL');
+    showToast(i18n[currentLang]?.enter_orig_url || 'يرجى إدخال الرابط الأصلي');
     return;
   }
 
@@ -505,8 +722,8 @@ async function handleShortenClick(e) {
 
     if (res.ok && (data.success || data.link || data.shortCode)) {
       showToast(i18n[currentLang]?.link_success_msg || 'تم اختصار الرابط بنجاح!');
-      titleInput.value = '';
-      urlInput.value = '';
+      if (titleInput) titleInput.value = '';
+      if (urlInput) urlInput.value = '';
       
       const newLink = data.link || {
         _id: data._id || data.id || ('link_' + Date.now()),
@@ -537,12 +754,12 @@ async function handleShortenClick(e) {
       await loadUserData();
       await fetchUserLinks();
     } else {
-      const errorMsg = data.error || data.message || (currentLang === 'ar' ? 'فشل إنشاء الرابط المختصر' : 'Failed to create short link');
+      const errorMsg = data.error || data.message || i18n[currentLang]?.create_link_fail || 'فشل إنشاء الرابط المختصر';
       showToast(errorMsg);
     }
   } catch (err) {
     console.error("Shorten Link Error:", err);
-    showToast(err.message || (currentLang === 'ar' ? 'حدث خطأ أثناء اختصار الرابط' : 'An error occurred while shortening link'));
+    showToast(err.message || i18n[currentLang]?.shorten_error || 'حدث خطأ أثناء اختصار الرابط');
   } finally {
     setButtonLoading('btn-create-link', false);
   }
@@ -553,7 +770,7 @@ function renderUserLinks(links) {
   if (!container) return;
 
   if (!links || links.length === 0) {
-    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${currentLang === 'ar' ? 'لا توجد روابط مختصرة بعد.' : 'No shortened links found.'}</p>`;
+    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${i18n[currentLang]?.no_links || 'لا توجد روابط مختصرة بعد.'}</p>`;
     return;
   }
 
@@ -565,6 +782,11 @@ function renderUserLinks(links) {
     const validImp = link.validImpressions || 0;
     const earnings = (link.totalEarnings || 0).toFixed(4);
     const linkId = link._id || link.id || link.shortCode;
+
+    const clicksLabel = i18n[currentLang]?.clicks || 'زيارة';
+    const validLabel = i18n[currentLang]?.valid || 'مؤكدة';
+    const copyLabel = i18n[currentLang]?.btn_copy || 'نسخ';
+    const deleteLabel = i18n[currentLang]?.delete || 'حذف';
 
     return `
       <div class="link-item">
@@ -579,10 +801,10 @@ function renderUserLinks(links) {
           ↪ ${originalUrl}
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--card-border); padding-top: 8px; margin-top: 8px;">
-          <span style="font-size: 11px; color: var(--text-muted);">👁️ ${clicks} ${currentLang === 'ar' ? 'زيارة' : 'clicks'} (${validImp} ${currentLang === 'ar' ? 'مؤكدة' : 'valid'})</span>
+          <span style="font-size: 11px; color: var(--text-muted);">👁️ ${clicks} ${clicksLabel} (${validImp} ${validLabel})</span>
           <div class="link-actions">
-            <button class="btn-small" onclick="copyToClipboard('${formattedUrl}')">${i18n[currentLang]?.btn_copy || 'نسخ'}</button>
-            <button class="btn-small btn-danger" onclick="deleteLink('${linkId}')">${currentLang === 'ar' ? 'حذف' : 'Delete'}</button>
+            <button class="btn-small" onclick="copyToClipboard('${formattedUrl}')">${copyLabel}</button>
+            <button class="btn-small btn-danger" onclick="deleteLink('${linkId}')">${deleteLabel}</button>
           </div>
         </div>
       </div>
@@ -592,7 +814,7 @@ function renderUserLinks(links) {
 
 function filterUserLinks(term) {
   if (!rawUserLinksCache) return;
-  const lower = term.toLowerCase().trim();
+  const lower = String(term || '').toLowerCase().trim();
   if (!lower) {
     renderUserLinks(rawUserLinksCache);
     return;
@@ -607,41 +829,48 @@ function filterUserLinks(term) {
 }
 
 async function deleteLink(linkId) {
-  if (!confirm(currentLang === 'ar' ? 'هل أنت تأكد من حذف هذا الرابط؟' : 'Are you sure you want to delete this link?')) return;
+  const confirmMsg = i18n[currentLang]?.confirm_delete || 'هل أنت تأكد من حذف هذا الرابط؟';
+  if (!confirm(confirmMsg)) return;
   
   try {
     const res = await safeFetch(`/api/links/${linkId}`, { method: 'DELETE' });
     if (res) {
       const data = await res.json().catch(() => ({}));
       if (res.ok && (data.success || data.message)) {
-        showToast(currentLang === 'ar' ? 'تم حذف الرابط بنجاح' : 'Link deleted successfully');
+        showToast(i18n[currentLang]?.link_deleted || 'تم حذف الرابط بنجاح');
+        rawUserLinksCache = rawUserLinksCache.filter(l => String(l._id || l.id || l.shortCode) !== String(linkId));
+        renderUserLinks(rawUserLinksCache);
         await loadUserData();
-        await fetchUserLinks();
       } else {
-        showToast(data.error || data.message || (currentLang === 'ar' ? 'فشل حذف الرابط' : 'Failed to delete link'));
+        showToast(data.error || data.message || i18n[currentLang]?.delete_failed || 'فشل حذف الرابط');
       }
     }
   } catch (err) {
-    showToast(err.message || (currentLang === 'ar' ? 'خطأ في الشبكة' : 'Network error'));
+    showToast(err.message || i18n[currentLang]?.network_error || 'خطأ في الشبكة');
   }
 }
 
-async function requestDeposit() {
-  const network = document.getElementById('deposit-network').value;
-  const amountVal = document.getElementById('deposit-amount').value;
-  const txHashVal = document.getElementById('deposit-txhash').value.trim();
+async function requestDeposit(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  const netInput = document.getElementById('deposit-network');
+  const amtInput = document.getElementById('deposit-amount');
+  const txInput = document.getElementById('deposit-txhash');
+
+  const network = netInput ? netInput.value : '';
+  const amountVal = amtInput ? amtInput.value : '';
+  const txHashVal = txInput ? txInput.value.trim() : '';
 
   if (!network) {
-    showToast(currentLang === 'ar' ? 'يرجى اختيار شبكة الدفع' : 'Please select payment network');
+    showToast(i18n[currentLang]?.select_network || 'يرجى اختيار شبكة الدفع');
     return;
   }
   const amount = parseFloat(amountVal);
   if (!amount || amount < 1) {
-    showToast(currentLang === 'ar' ? 'الحد الأدنى للإيداع هو $1' : 'Minimum deposit amount is $1');
+    showToast(i18n[currentLang]?.min_deposit || 'الحد الأدنى للإيداع هو $1');
     return;
   }
   if (!txHashVal || txHashVal.length < 5) {
-    showToast(currentLang === 'ar' ? 'يرجى إدخال رمز المعاملة (TxID)' : 'Please enter transaction TxID / Hash');
+    showToast(i18n[currentLang]?.enter_txid || 'يرجى إدخال رمز المعاملة (TxID)');
     return;
   }
 
@@ -663,26 +892,29 @@ async function requestDeposit() {
     if (res) {
       const data = await res.json().catch(() => ({}));
       if (res.ok && (data.success || data.deposit)) {
-        showToast(currentLang === 'ar' ? 'تم تقديم طلب الشحن بنجاح! سيتم مراجعته قريباً.' : 'Deposit request submitted successfully!');
-        document.getElementById('deposit-amount').value = '';
-        document.getElementById('deposit-txhash').value = '';
+        showToast(i18n[currentLang]?.deposit_success || 'تم تقديم طلب الشحن بنجاح! سيتم مراجعته قريباً.');
+        if (amtInput) amtInput.value = '';
+        if (txInput) txInput.value = '';
         await loadUserData();
       } else {
-        showToast(data.error || data.message || (currentLang === 'ar' ? 'فشل تقديم طلب الشحن' : 'Failed to submit deposit request'));
+        showToast(data.error || data.message || i18n[currentLang]?.deposit_fail || 'فشل تقديم طلب الشحن');
       }
     }
   } catch (err) {
     console.error("Deposit request error:", err);
-    showToast(err.message || (currentLang === 'ar' ? 'خطأ أثناء تقديم الطلب' : 'Error submitting request'));
+    showToast(err.message || i18n[currentLang]?.deposit_fail || 'خطأ أثناء تقديم الطلب');
   } finally {
     setButtonLoading('btn-request-deposit', false);
   }
 }
 
-async function saveSettings() {
-  const walletAddr = document.getElementById('default-wallet').value.trim();
+async function saveSettings(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  const walletInput = document.getElementById('default-wallet');
+  const walletAddr = walletInput ? walletInput.value.trim() : '';
+
   if (!walletAddr) {
-    showToast(currentLang === 'ar' ? 'يرجى إدخال عنوان المحفظة' : 'Please enter wallet address');
+    showToast(i18n[currentLang]?.enter_wallet || 'يرجى إدخال عنوان المحفظة');
     return;
   }
 
@@ -699,29 +931,33 @@ async function saveSettings() {
     if (res) {
       const data = await res.json().catch(() => ({}));
       if (res.ok && (data.success || data.user)) {
-        showToast(currentLang === 'ar' ? 'تم حفظ العنوان بنجاح' : 'Wallet address saved');
+        showToast(i18n[currentLang]?.wallet_saved || 'تم حفظ العنوان بنجاح');
         toggleWalletEdit();
         await loadUserData();
       } else {
-        showToast(data.error || (currentLang === 'ar' ? 'فشل حفظ العنوان' : 'Failed to save address'));
+        showToast(data.error || i18n[currentLang]?.wallet_save_fail || 'فشل حفظ العنوان');
       }
     }
   } catch (err) {
-    showToast(err.message || (currentLang === 'ar' ? 'خطأ أثناء الحفظ' : 'Error saving settings'));
+    showToast(err.message || i18n[currentLang]?.wallet_save_fail || 'خطأ أثناء الحفظ');
   }
 }
 
-async function requestWithdrawal() {
-  const walletAddr = document.getElementById('default-wallet').value.trim();
-  const amountVal = parseFloat(document.getElementById('withdraw-amount').value) || 0;
+async function requestWithdrawal(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  const walletInput = document.getElementById('default-wallet');
+  const amtInput = document.getElementById('withdraw-amount');
+
+  const walletAddr = walletInput ? walletInput.value.trim() : '';
+  const amountVal = parseFloat(amtInput ? amtInput.value : 0) || 0;
 
   if (!walletAddr) {
-    showToast(currentLang === 'ar' ? 'يرجى إدخال وتحديد عنوان محفظة السحب أولاً' : 'Please define withdrawal wallet address first');
+    showToast(i18n[currentLang]?.enter_wallet || 'يرجى إدخال وتحديد عنوان محفظة السحب أولاً');
     return;
   }
 
   if (amountVal < 30) {
-    showToast(currentLang === 'ar' ? 'الحد الأدنى للسحب هو 30$' : 'Minimum withdrawal is $30');
+    showToast(i18n[currentLang]?.min_withdraw || 'الحد الأدنى للسحب هو 30$');
     return;
   }
 
@@ -741,16 +977,16 @@ async function requestWithdrawal() {
     if (res) {
       const data = await res.json().catch(() => ({}));
       if (res.ok && (data.success || data.withdraw)) {
-        showToast(currentLang === 'ar' ? 'تم تقديم طلب السحب بنجاح' : 'Withdrawal requested successfully');
-        document.getElementById('withdraw-amount').value = '';
+        showToast(i18n[currentLang]?.withdraw_success || 'تم تقديم طلب السحب بنجاح');
+        if (amtInput) amtInput.value = '';
         updateWithdrawCalculations();
         await loadUserData();
       } else {
-        showToast(data.error || data.message || (currentLang === 'ar' ? 'فشل تقديم طلب السحب' : 'Failed to request withdrawal'));
+        showToast(data.error || data.message || i18n[currentLang]?.withdraw_fail || 'فشل تقديم طلب السحب');
       }
     }
   } catch (err) {
-    showToast(err.message || (currentLang === 'ar' ? 'خطأ في عملية السحب' : 'Error processing withdrawal'));
+    showToast(err.message || i18n[currentLang]?.withdraw_fail || 'خطأ في عملية السحب');
   } finally {
     setButtonLoading('btn-request-withdraw', false);
   }
@@ -761,13 +997,16 @@ function renderWithdrawalsHistory(withdraws) {
   if (!container) return;
 
   if (!withdraws || withdraws.length === 0) {
-    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 10px 0;">${currentLang === 'ar' ? 'لا توجد طلبات سحب سابقة.' : 'No withdrawal history found.'}</p>`;
+    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 10px 0;">${i18n[currentLang]?.no_withdraws || 'لا توجد طلبات سحب سابقة.'}</p>`;
     return;
   }
 
   container.innerHTML = withdraws.map(w => {
-    const statusClass = w.status === 'completed' || w.status === 'approved' ? 'color: var(--success);' : w.status === 'rejected' ? 'color: var(--danger);' : 'color: var(--warning);';
-    const statusText = w.status === 'completed' || w.status === 'approved' ? (currentLang === 'ar' ? 'مكتمل' : 'Approved') : w.status === 'rejected' ? (currentLang === 'ar' ? 'مرفوض' : 'Rejected') : (currentLang === 'ar' ? 'قيد المراجعة' : 'Pending');
+    const isApproved = w.status === 'completed' || w.status === 'approved';
+    const isRejected = w.status === 'rejected';
+    
+    const statusClass = isApproved ? 'color: var(--success);' : isRejected ? 'color: var(--danger);' : 'color: var(--warning);';
+    const statusText = isApproved ? (i18n[currentLang]?.approved || 'مكتمل') : isRejected ? (i18n[currentLang]?.rejected || 'مرفوض') : (i18n[currentLang]?.pending || 'قيد المراجعة');
     const dateStr = new Date(w.createdAt || Date.now()).toLocaleDateString();
 
     return `
@@ -782,18 +1021,23 @@ function renderWithdrawalsHistory(withdraws) {
   }).join('');
 }
 
-async function createAdCampaign() {
-  const title = document.getElementById('ad-title').value.trim();
-  let targetUrl = document.getElementById('ad-target-url').value.trim();
-  const budget = parseFloat(document.getElementById('ad-budget').value) || 0;
+async function createAdCampaign(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  const titleInput = document.getElementById('ad-title');
+  const targetInput = document.getElementById('ad-target-url');
+  const budgetInput = document.getElementById('ad-budget');
+
+  const title = titleInput ? titleInput.value.trim() : '';
+  let targetUrl = targetInput ? targetInput.value.trim() : '';
+  const budget = parseFloat(budgetInput ? budgetInput.value : 0) || 0;
 
   if (!title) {
-    showToast(currentLang === 'ar' ? 'يرجى إدخال عنوان الإعلان' : 'Please enter ad title');
+    showToast(i18n[currentLang]?.enter_ad_title || 'يرجى إدخال عنوان الإعلان');
     return;
   }
 
   if (!targetUrl) {
-    showToast(currentLang === 'ar' ? 'يرجى إدخال رابط التوجيه' : 'Please enter target URL');
+    showToast(i18n[currentLang]?.enter_ad_url || 'يرجى إدخال رابط التوجيه');
     return;
   }
 
@@ -802,7 +1046,7 @@ async function createAdCampaign() {
   }
 
   if (budget < 5) {
-    showToast(currentLang === 'ar' ? 'الحد الأدنى لميزانية الحملة هو $5' : 'Minimum campaign budget is $5');
+    showToast(i18n[currentLang]?.min_ad_budget || 'الحد الأدنى لميزانية الحملة هو $5');
     return;
   }
 
@@ -823,18 +1067,18 @@ async function createAdCampaign() {
     if (res) {
       const data = await res.json().catch(() => ({}));
       if (res.ok && (data.success || data.ad)) {
-        showToast(currentLang === 'ar' ? 'تم إطلاق الحملة الإعلانية بنجاح!' : 'Ad campaign launched successfully!');
-        document.getElementById('ad-title').value = '';
-        document.getElementById('ad-target-url').value = '';
-        document.getElementById('ad-budget').value = '';
+        showToast(i18n[currentLang]?.ad_success || 'تم إطلاق الحملة الإعلانية بنجاح!');
+        if (titleInput) titleInput.value = '';
+        if (targetInput) targetInput.value = '';
+        if (budgetInput) budgetInput.value = '';
         await fetchUserAds();
         await loadUserData();
       } else {
-        showToast(data.error || (currentLang === 'ar' ? 'فشل إنشاء الحملة الإعلانية' : 'Failed to create ad campaign'));
+        showToast(data.error || i18n[currentLang]?.ad_fail || 'فشل إنشاء الحملة الإعلانية');
       }
     }
   } catch (err) {
-    showToast(err.message || (currentLang === 'ar' ? 'خطأ أثناء إنشاء الحملة' : 'Error creating campaign'));
+    showToast(err.message || i18n[currentLang]?.ad_fail || 'خطأ أثناء إنشاء الحملة');
   } finally {
     setButtonLoading('btn-create-ad', false);
   }
@@ -867,7 +1111,7 @@ function renderUserAds(ads) {
   if (!container) return;
 
   if (!ads || ads.length === 0) {
-    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${currentLang === 'ar' ? 'لا توجد حملات إعلانية نشطة.' : 'No active ad campaigns.'}</p>`;
+    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${i18n[currentLang]?.no_ads || 'لا توجد حملات إعلانية نشطة.'}</p>`;
     return;
   }
 
@@ -920,7 +1164,7 @@ function renderUserReferrals(referrals) {
   if (!container) return;
 
   if (!referrals || referrals.length === 0) {
-    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${currentLang === 'ar' ? 'لم تنضم أي إحالات عبر رابطك بعد.' : 'No referrals registered yet.'}</p>`;
+    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${i18n[currentLang]?.no_referrals || 'لم تنضم أي إحالات عبر رابطك بعد.'}</p>`;
     return;
   }
 
@@ -949,8 +1193,11 @@ async function loadAdminData() {
     if (res && res.ok) {
       const data = await res.json().catch(() => ({}));
       
-      document.getElementById('admin-total-users').innerText = data.totalUsers || 0;
-      document.getElementById('admin-total-pending').innerText = `$${(data.totalPendingBalance || 0).toFixed(2)}`;
+      const totalUsersEl = document.getElementById('admin-total-users');
+      const totalPendingEl = document.getElementById('admin-total-pending');
+
+      if (totalUsersEl) totalUsersEl.innerText = data.totalUsers || 0;
+      if (totalPendingEl) totalPendingEl.innerText = `$${(data.totalPendingBalance || 0).toFixed(2)}`;
 
       if (data.pendingDeposits) renderAdminDeposits(data.pendingDeposits);
       if (data.pendingWithdraws) renderAdminWithdraws(data.pendingWithdraws);
@@ -1038,7 +1285,7 @@ function renderAdminLinks(list) {
   if (!c) return;
   c.innerHTML = list.map(l => `
     <div style="background:#070a12; padding:8px; border-radius:8px; margin-bottom:6px; font-size:11px;">
-      <b>كود:</b> ${l.shortCode} | <b>الزيارات:</b> ${l.views||0}
+      <b>كود:</b> ${escapeHTML(l.shortCode)} | <b>الزيارات:</b> ${l.views||0}
     </div>
   `).join('');
 }
@@ -1060,18 +1307,23 @@ async function processAdminAction(type, itemId, action) {
       body: { id: itemId }
     });
     if (res && res.ok) {
-      showToast("تم تنفيذ الإجراء بنجاح");
+      showToast(i18n[currentLang]?.action_success || "تم تنفيذ الإجراء بنجاح");
       loadAdminData();
+    } else {
+      showToast(i18n[currentLang]?.action_fail || "خطأ أثناء تنفيذ الإجراء");
     }
   } catch (e) {
-    showToast("خطأ أثناء تنفيذ الإجراء");
+    showToast(i18n[currentLang]?.action_fail || "خطأ أثناء تنفيذ الإجراء");
   }
 }
 
 async function initBridgeView(code) {
   currentShortCode = code;
-  document.getElementById('app-view').classList.add('hidden');
-  document.getElementById('bridge-view').classList.remove('hidden');
+  const appView = document.getElementById('app-view');
+  const bridgeView = document.getElementById('bridge-view');
+
+  if (appView) appView.classList.add('hidden');
+  if (bridgeView) bridgeView.classList.remove('hidden');
 
   try {
     const res = await safeFetch(`/api/bridge/${code}`);
@@ -1079,7 +1331,8 @@ async function initBridgeView(code) {
       const data = await res.json().catch(() => ({}));
       bridgeDestinationUrl = data.targetUrl || data.originalUrl || '/';
       bridgeToken = data.token || null;
-      startBridgeTimer(5);
+      bridgeStartTime = Date.now();
+      startBridgeTimer(data.timerDuration || 5);
     } else {
       showToast("تعذر تحميل الرابط المطلوب");
     }
@@ -1092,6 +1345,9 @@ function startBridgeTimer(seconds) {
   let timeLeft = seconds;
   const timerElem = document.getElementById('timer');
   const btn = document.getElementById('go-btn');
+
+  if (timerElem) timerElem.innerText = timeLeft;
+  if (btn) btn.disabled = true;
 
   const interval = setInterval(() => {
     timeLeft--;
@@ -1124,19 +1380,75 @@ async function completeImpression() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-  renderTelegramUser();
-  await authLogin();
-  
-  const pathParts = window.location.pathname.split('/');
-  if (pathParts.length >= 3 && pathParts[1] === 'r') {
-    const code = pathParts[2];
-    if (code) {
-      initBridgeView(code);
-      return;
-    }
-  }
+// Global Exports
+function exportGlobals() {
+  window.copyToClipboard = copyToClipboard;
+  window.deleteLink = deleteLink;
+  window.processAdminAction = processAdminAction;
+  window.switchTab = switchTab;
+  window.switchWalletView = switchWalletView;
+  window.handleNetworkChange = handleNetworkChange;
+  window.toggleInstructionsModal = toggleInstructionsModal;
+  window.toggleWalletEdit = toggleWalletEdit;
+  window.saveSettings = saveSettings;
+  window.shareReferralLink = shareReferralLink;
+  window.createAdCampaign = createAdCampaign;
+  window.handleShortenClick = handleShortenClick;
+  window.requestDeposit = requestDeposit;
+  window.requestWithdrawal = requestWithdrawal;
+  window.filterUserLinks = filterUserLinks;
+  window.completeImpression = completeImpression;
+  window.toggleLanguage = toggleLanguage;
+  window.updateWithdrawCalculations = updateWithdrawCalculations;
+  window.loadUserData = loadUserData;
+  window.fetchUserLinks = fetchUserLinks;
+  window.fetchUserAds = fetchUserAds;
+  window.fetchUserReferrals = fetchUserReferrals;
+  window.loadAdminData = loadAdminData;
+}
 
-  await loadUserData();
-  await fetchUserLinks();
+// Export immediately to window so inline HTML onclick handlers never encounter undefined functions
+exportGlobals();
+
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const webApp = getTg();
+    if (webApp) {
+      webApp.ready();
+      webApp.expand();
+    }
+
+    renderTelegramUser();
+    await authLogin();
+    
+    // Auto-attach input listeners
+    const withdrawInput = document.getElementById('withdraw-amount');
+    if (withdrawInput) {
+      withdrawInput.addEventListener('input', updateWithdrawCalculations);
+    }
+
+    const depositNetSelect = document.getElementById('deposit-network');
+    if (depositNetSelect) {
+      depositNetSelect.addEventListener('change', (e) => handleNetworkChange(e.target.value));
+    }
+
+    const searchInput = document.getElementById('search-links');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => filterUserLinks(e.target.value));
+    }
+
+    const pathParts = window.location.pathname.split('/');
+    if (pathParts.length >= 3 && pathParts[1] === 'r') {
+      const code = pathParts[2];
+      if (code) {
+        initBridgeView(code);
+        return;
+      }
+    }
+
+    await loadUserData();
+    await fetchUserLinks();
+  } catch (err) {
+    console.error("Initialization error:", err);
+  }
 });
