@@ -1,17 +1,17 @@
 import { state } from './state.js';
 import { safeFetch } from './api.js';
-import { showToast, setButtonLoading, escapeHTML } from './ui.js';
+import { escapeHTML, showToast, setButtonLoading } from './ui.js';
 import { loadUserData } from './user.js';
 
 export async function createAdCampaign() {
   const titleInput = document.getElementById('ad-title');
-  const targetUrlInput = document.getElementById('ad-target-url');
+  const urlInput = document.getElementById('ad-target-url');
   const budgetInput = document.getElementById('ad-budget');
 
-  if (!titleInput || !targetUrlInput || !budgetInput) return;
+  if (!titleInput || !urlInput || !budgetInput) return;
 
   const title = titleInput.value.trim();
-  let targetUrl = targetUrlInput.value.trim();
+  let targetUrl = urlInput.value.trim();
   const budget = parseFloat(budgetInput.value) || 0;
 
   if (!title) {
@@ -52,7 +52,7 @@ export async function createAdCampaign() {
       if (res.ok && (data.success || data.ad)) {
         showToast(state.currentLang === 'ar' ? 'تم إطلاق الحملة الإعلانية بنجاح!' : 'Ad campaign launched successfully!');
         titleInput.value = '';
-        targetUrlInput.value = '';
+        urlInput.value = '';
         budgetInput.value = '';
         await fetchUserAds();
         await loadUserData();
