@@ -29,6 +29,16 @@ const sanitizeTelegramId = (v) => {
   return str;
 };
 
+// Robust Username normalizer (removes leading @, trims, keeps clean string)
+const sanitizeUsername = (v) => {
+  if (v === null || v === undefined) return '';
+  if (typeof v !== 'string') v = String(v);
+  let str = v.trim();
+  if (str.startsWith('@')) str = str.slice(1);
+  if (str === 'undefined' || str === 'null' || str === '[object Object]') return '';
+  return str;
+};
+
 // Robust general string normalizer for unique fields (like txHash, txId, txid, tokens)
 const sanitizeString = (v) => {
   if (v === null || v === undefined) return undefined;
@@ -81,7 +91,7 @@ const userSchema = new mongoose.Schema({
     type: String, 
     default: '', 
     trim: true,
-    lowercase: true,
+    set: sanitizeUsername,
     index: true
   },
   firstName: {
@@ -168,20 +178,21 @@ const userSchema = new mongoose.Schema({
   }
 }, globalSchemaOptions);
 
-// Virtual Helper for Full Name
+// Virtuals for full display properties
 userSchema.virtual('fullName').get(function() {
-  const fn = this.firstName || '';
-  const ln = this.lastName || '';
-  const full = `${fn} ${ln}`.trim();
-  return full || 'غير محدد';
+  const first = this.firstName || '';
+  const last = this.lastName || '';
+  const full = `${first} ${last}`.trim();
+  return full || this.username || this.telegramId || 'N/A';
 });
 
-// Virtual Helper for Display Identifier
 userSchema.virtual('displayName').get(function() {
   if (this.username) return `@${this.username}`;
-  if (this.firstName) return `${this.firstName}${this.lastName ? ' ' + this.lastName : ''}`;
-  if (this.telegramId) return `ID: ${this.telegramId}`;
-  return 'مستخدم مجهول';
+  const first = this.firstName || '';
+  const last = this.lastName || '';
+  const full = `${first} ${last}`.trim();
+  if (full) return full;
+  return this.telegramId ? `ID: ${this.telegramId}` : 'N/A';
 });
 
 // Virtual populate for user links
@@ -200,81 +211,77 @@ userSchema.virtual('referrals', {
   justOne: false
 });
 
-// Virtual populate for user withdrawals
-userSchema.virtual('withdrawals', {
-  ref: 'Withdraw',
+// Virtual populate for user wallet
+userSchema.virtual('wallet', {
+  ref: 'Wallet',
   localField: 'telegramId',
   foreignField: 'telegramId',
-  justOne: false
-});
-
-// Virtual populate for user deposits
-userSchema.virtual('deposits', {
-  ref: 'Deposit',
-  localField: 'telegramId',
-  foreignField: 'telegramId',
-  justOne: false
-});
-
-// Virtual populate for user transactions
-userSchema.virtual('transactions', {
-  ref: 'Transaction',
-  localField: 'telegramId',
-  foreignField: 'telegramId',
-  justOne: false
-});
-
-// Virtual populate for user ads
-userSchema.virtual('ads', {
-  ref: 'Ad',
-  localField: 'telegramId',
-  foreignField: 'telegramId',
-  justOne: false
+  justOne: true
 });
 
 userSchema.index({ telegramId: 1, isBanned: 1 }, { sparse: true });
 userSchema.index({ createdAt: -1 });
 
-// Automatically provision/create new users if they don't exist in DB (Robust & Concurrency-Safe)
+// Automatically provision/create/update users (Robust, Concurrency-Safe & Auto-Profile Sync)
 userSchema.statics.findByTelegramIdIsolated = async function(telegramId, userData = {}) {
   const tgStr = sanitizeTelegramId(telegramId);
   if (!tgStr) return null;
+
+  const cleanUsername = sanitizeUsername(userData.username || '');
+  const cleanFirstName = (userData.firstName || '').trim();
+  const cleanLastName = (userData.lastName || '').trim();
+  const cleanLanguage = (userData.language || 'ar').trim().toLowerCase();
+
   let user = await this.findOne({ telegramId: tgStr });
+  
   if (!user) {
     try {
       user = await this.create({
         telegramId: tgStr,
-        username: userData.username || '',
-        firstName: userData.firstName || '',
-        lastName: userData.lastName || '',
-        language: userData.language || 'ar',
+        username: cleanUsername,
+        firstName: cleanFirstName,
+        lastName: cleanLastName,
+        language: cleanLanguage,
         referredBy: isObjectId(userData.referredBy) ? userData.referredBy : null,
         referredByTelegramId: sanitizeTelegramId(userData.referredByTelegramId),
+        role: userData.role || 'user',
         ...userData
       });
     } catch (err) {
       user = await this.findOne({ telegramId: tgStr });
     }
   } else {
-    // Update existing user info if new data is provided
-    let isUpdated = false;
-    if (userData.username !== undefined && user.username !== userData.username) {
-      user.username = userData.username;
-      isUpdated = true;
+    // Synchronize latest profile info from Telegram if provided and missing/changed
+    let updated = false;
+    if (cleanUsername && user.username !== cleanUsername) {
+      user.username = cleanUsername;
+      updated = true;
     }
-    if (userData.firstName !== undefined && user.firstName !== userData.firstName) {
-      user.firstName = userData.firstName;
-      isUpdated = true;
+    if (cleanFirstName && user.firstName !== cleanFirstName) {
+      user.firstName = cleanFirstName;
+      updated = true;
     }
-    if (userData.lastName !== undefined && user.lastName !== userData.lastName) {
-      user.lastName = userData.lastName;
-      isUpdated = true;
+    if (cleanLastName && user.lastName !== cleanLastName) {
+      user.lastName = cleanLastName;
+      updated = true;
     }
-    if (isUpdated) {
-      await user.save();
+    if (cleanLanguage && user.language !== cleanLanguage) {
+      user.language = cleanLanguage;
+      updated = true;
+    }
+    if (updated) {
+      try {
+        await user.save();
+      } catch (e) {
+        // Handle rare save conflicts safely
+      }
     }
   }
   return user;
+};
+
+userSchema.statics.upsertTelegramUser = function(telegramId, userData) {
+  return this.findByTelegramIdIsolated(telegramId, userData);
 };
 
 // ==================================================
@@ -329,20 +336,33 @@ const walletSchema = new mongoose.Schema({
 
 walletSchema.virtual('user', {
   ref: 'User',
-  localField: 'userId',
-  foreignField: '_id',
-  justOne: true
-});
-
-walletSchema.virtual('userByTelegram', {
-  ref: 'User',
   localField: 'telegramId',
   foreignField: 'telegramId',
   justOne: true
 });
 
+walletSchema.virtual('userByObjId', {
+  ref: 'User',
+  localField: 'userId',
+  foreignField: '_id',
+  justOne: true
+});
+
 walletSchema.index({ userId: 1, createdAt: -1 });
 walletSchema.index({ userId: 1, telegramId: 1 });
+
+walletSchema.pre('save', async function(next) {
+  try {
+    if (!this.userId && this.telegramId) {
+      const u = await mongoose.models.User.findOne({ telegramId: this.telegramId }).select('_id telegramId');
+      if (u) this.userId = u._id;
+    } else if (this.userId && !this.telegramId) {
+      const u = await mongoose.models.User.findById(this.userId).select('telegramId');
+      if (u && u.telegramId) this.telegramId = u.telegramId;
+    }
+  } catch (e) {}
+  next();
+});
 
 walletSchema.statics.getWalletIsolated = async function(identifier) {
   if (!identifier) return null;
@@ -430,20 +450,33 @@ const transactionSchema = new mongoose.Schema({
 
 transactionSchema.virtual('user', {
   ref: 'User',
-  localField: 'userId',
-  foreignField: '_id',
-  justOne: true
-});
-
-transactionSchema.virtual('userByTelegram', {
-  ref: 'User',
   localField: 'telegramId',
   foreignField: 'telegramId',
   justOne: true
 });
 
+transactionSchema.virtual('userByObjId', {
+  ref: 'User',
+  localField: 'userId',
+  foreignField: '_id',
+  justOne: true
+});
+
 transactionSchema.index({ userId: 1, createdAt: -1 });
 transactionSchema.index({ telegramId: 1, createdAt: -1 });
+
+transactionSchema.pre('save', async function(next) {
+  try {
+    if (!this.userId && this.telegramId) {
+      const u = await mongoose.models.User.findOne({ telegramId: this.telegramId }).select('_id telegramId');
+      if (u) this.userId = u._id;
+    } else if (this.userId && !this.telegramId) {
+      const u = await mongoose.models.User.findById(this.userId).select('telegramId');
+      if (u && u.telegramId) this.telegramId = u.telegramId;
+    }
+  } catch (e) {}
+  next();
+});
 
 transactionSchema.statics.getUserTransactionsIsolated = function(identifier, filter = {}) {
   if (!identifier) return this.find({ _id: { $exists: false } });
@@ -524,6 +557,20 @@ referralSchema.virtual('referred', {
 
 referralSchema.index({ referrerTelegramId: 1, createdAt: -1 });
 referralSchema.index({ referrerId: 1, createdAt: -1 });
+
+referralSchema.pre('save', async function(next) {
+  try {
+    if (!this.referrerId && this.referrerTelegramId) {
+      const u = await mongoose.models.User.findOne({ telegramId: this.referrerTelegramId }).select('_id');
+      if (u) this.referrerId = u._id;
+    }
+    if (!this.referredId && this.referredTelegramId) {
+      const u = await mongoose.models.User.findOne({ telegramId: this.referredTelegramId }).select('_id');
+      if (u) this.referredId = u._id;
+    }
+  } catch (e) {}
+  next();
+});
 
 referralSchema.statics.getReferralsIsolated = function(identifier) {
   if (!identifier) return this.find({ _id: { $exists: false } });
@@ -634,13 +681,6 @@ const adSchema = new mongoose.Schema({
 
 adSchema.virtual('user', {
   ref: 'User',
-  localField: 'userId',
-  foreignField: '_id',
-  justOne: true
-});
-
-adSchema.virtual('userByTelegram', {
-  ref: 'User',
   localField: 'telegramId',
   foreignField: 'telegramId',
   justOne: true
@@ -658,6 +698,20 @@ adSchema.pre('validate', function(next) {
   if (this.advertiserId && !this.userId) this.userId = this.advertiserId;
   if (this.telegramId && !this.advertiserTelegramId) this.advertiserTelegramId = this.telegramId;
   if (this.advertiserTelegramId && !this.telegramId) this.telegramId = this.advertiserTelegramId;
+  next();
+});
+
+adSchema.pre('save', async function(next) {
+  try {
+    const tgId = this.telegramId || this.advertiserTelegramId;
+    if (!this.userId && tgId) {
+      const u = await mongoose.models.User.findOne({ telegramId: tgId }).select('_id');
+      if (u) {
+        this.userId = u._id;
+        this.advertiserId = u._id;
+      }
+    }
+  } catch (e) {}
   next();
 });
 
@@ -768,13 +822,6 @@ const linkSchema = new mongoose.Schema({
 
 linkSchema.virtual('user', {
   ref: 'User',
-  localField: 'userId',
-  foreignField: '_id',
-  justOne: true
-});
-
-linkSchema.virtual('userByTelegram', {
-  ref: 'User',
   localField: 'telegramId',
   foreignField: 'telegramId',
   justOne: true
@@ -797,6 +844,17 @@ linkSchema.pre('validate', function(next) {
   if (this.clicks > 0 && this.views === 0) this.views = this.clicks;
   if (this.views > 0 && this.clicks === 0) this.clicks = this.views;
 
+  next();
+});
+
+linkSchema.pre('save', async function(next) {
+  try {
+    const tgId = this.telegramId || this.publisherTelegramId;
+    if (!this.userId && tgId) {
+      const u = await mongoose.models.User.findOne({ telegramId: tgId }).select('_id');
+      if (u) this.userId = u._id;
+    }
+  } catch (e) {}
   next();
 });
 
@@ -934,13 +992,6 @@ const impressionSchema = new mongoose.Schema({
 
 impressionSchema.virtual('user', {
   ref: 'User',
-  localField: 'userId',
-  foreignField: '_id',
-  justOne: true
-});
-
-impressionSchema.virtual('userByTelegram', {
-  ref: 'User',
   localField: 'telegramId',
   foreignField: 'telegramId',
   justOne: true
@@ -958,6 +1009,20 @@ impressionSchema.pre('validate', function(next) {
   if (this.userId && !this.publisherId) this.publisherId = this.userId;
   if (this.telegramId && !this.publisherTelegramId) this.publisherTelegramId = this.telegramId;
   if (this.publisherTelegramId && !this.telegramId) this.telegramId = this.publisherTelegramId;
+  next();
+});
+
+impressionSchema.pre('save', async function(next) {
+  try {
+    const tgId = this.telegramId || this.publisherTelegramId;
+    if (!this.userId && tgId) {
+      const u = await mongoose.models.User.findOne({ telegramId: tgId }).select('_id');
+      if (u) {
+        this.userId = u._id;
+        this.publisherId = u._id;
+      }
+    }
+  } catch (e) {}
   next();
 });
 
@@ -1046,13 +1111,6 @@ const clickSessionSchema = new mongoose.Schema({
 
 clickSessionSchema.virtual('user', {
   ref: 'User',
-  localField: 'userId',
-  foreignField: '_id',
-  justOne: true
-});
-
-clickSessionSchema.virtual('userByTelegram', {
-  ref: 'User',
   localField: 'telegramId',
   foreignField: 'telegramId',
   justOne: true
@@ -1061,6 +1119,19 @@ clickSessionSchema.virtual('userByTelegram', {
 clickSessionSchema.pre('validate', function(next) {
   if (this.publisherId && !this.userId) this.userId = this.publisherId;
   if (this.userId && !this.publisherId) this.publisherId = this.userId;
+  next();
+});
+
+clickSessionSchema.pre('save', async function(next) {
+  try {
+    if (!this.userId && this.telegramId) {
+      const u = await mongoose.models.User.findOne({ telegramId: this.telegramId }).select('_id');
+      if (u) {
+        this.userId = u._id;
+        this.publisherId = u._id;
+      }
+    }
+  } catch (e) {}
   next();
 });
 
@@ -1134,19 +1205,17 @@ const withdrawSchema = new mongoose.Schema({
   }
 }, globalSchemaOptions);
 
-// Virtual connection to User model via userId
 withdrawSchema.virtual('user', {
-  ref: 'User',
-  localField: 'userId',
-  foreignField: '_id',
-  justOne: true
-});
-
-// Virtual connection to User model via telegramId
-withdrawSchema.virtual('userByTelegram', {
   ref: 'User',
   localField: 'telegramId',
   foreignField: 'telegramId',
+  justOne: true
+});
+
+withdrawSchema.virtual('userByObjId', {
+  ref: 'User',
+  localField: 'userId',
+  foreignField: '_id',
   justOne: true
 });
 
@@ -1154,6 +1223,19 @@ withdrawSchema.pre('validate', function(next) {
   const amount = typeof this.amount === 'number' ? this.amount : parseFloat(this.amount) || 0;
   const fee = typeof this.fee === 'number' ? this.fee : parseFloat(this.fee) || 3;
   this.netAmount = formatCurrency(Math.max(0, amount - fee));
+  next();
+});
+
+withdrawSchema.pre('save', async function(next) {
+  try {
+    if (!this.userId && this.telegramId) {
+      const u = await mongoose.models.User.findOne({ telegramId: this.telegramId }).select('_id telegramId');
+      if (u) this.userId = u._id;
+    } else if (this.userId && !this.telegramId) {
+      const u = await mongoose.models.User.findById(this.userId).select('telegramId');
+      if (u && u.telegramId) this.telegramId = u.telegramId;
+    }
+  } catch (e) {}
   next();
 });
 
@@ -1223,16 +1305,22 @@ const earningsHoldSchema = new mongoose.Schema({
 
 earningsHoldSchema.virtual('user', {
   ref: 'User',
-  localField: 'userId',
-  foreignField: '_id',
-  justOne: true
-});
-
-earningsHoldSchema.virtual('userByTelegram', {
-  ref: 'User',
   localField: 'telegramId',
   foreignField: 'telegramId',
   justOne: true
+});
+
+earningsHoldSchema.pre('save', async function(next) {
+  try {
+    if (!this.userId && this.telegramId) {
+      const u = await mongoose.models.User.findOne({ telegramId: this.telegramId }).select('_id');
+      if (u) this.userId = u._id;
+    } else if (this.userId && !this.telegramId) {
+      const u = await mongoose.models.User.findById(this.userId).select('telegramId');
+      if (u && u.telegramId) this.telegramId = u.telegramId;
+    }
+  } catch (e) {}
+  next();
 });
 
 earningsHoldSchema.index({ userId: 1, createdAt: -1 });
@@ -1338,13 +1426,6 @@ const depositSchema = new mongoose.Schema({
 
 depositSchema.virtual('user', {
   ref: 'User',
-  localField: 'userId',
-  foreignField: '_id',
-  justOne: true
-});
-
-depositSchema.virtual('userByTelegram', {
-  ref: 'User',
   localField: 'telegramId',
   foreignField: 'telegramId',
   justOne: true
@@ -1375,6 +1456,26 @@ depositSchema.pre('validate', function(next) {
     this.txid = undefined;
   }
 
+  next();
+});
+
+depositSchema.pre('save', async function(next) {
+  try {
+    const tgId = this.telegramId || this.advertiserTelegramId;
+    if (!this.userId && tgId) {
+      const u = await mongoose.models.User.findOne({ telegramId: tgId }).select('_id');
+      if (u) {
+        this.userId = u._id;
+        this.advertiserId = u._id;
+      }
+    } else if (this.userId && !this.telegramId) {
+      const u = await mongoose.models.User.findById(this.userId).select('telegramId');
+      if (u && u.telegramId) {
+        this.telegramId = u.telegramId;
+        this.advertiserTelegramId = u.telegramId;
+      }
+    }
+  } catch (e) {}
   next();
 });
 
@@ -1433,13 +1534,6 @@ const announcementSchema = new mongoose.Schema({
 }, globalSchemaOptions);
 
 announcementSchema.virtual('user', {
-  ref: 'User',
-  localField: 'targetUser',
-  foreignField: '_id',
-  justOne: true
-});
-
-announcementSchema.virtual('userByTelegram', {
   ref: 'User',
   localField: 'targetTelegramId',
   foreignField: 'telegramId',
