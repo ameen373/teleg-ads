@@ -1,15 +1,14 @@
-import { state } from './state.js';
+import { API_BASE, state, tg, setCurrentUserTelegramId } from './state.js';
 import { showToast } from './ui.js';
 
 export async function safeFetch(endpoint, options = {}) {
   options.headers = options.headers || {};
   
-  if (!state.currentUserTelegramId && state.tg?.initDataUnsafe?.user?.id) {
-    state.currentUserTelegramId = String(state.tg.initDataUnsafe.user.id);
-    localStorage.setItem('telegramId', state.currentUserTelegramId);
+  if (!state.currentUserTelegramId && tg?.initDataUnsafe?.user?.id) {
+    setCurrentUserTelegramId(tg.initDataUnsafe.user.id);
   }
 
-  const initDataStr = window.Telegram?.WebApp?.initData || state.tg?.initData || '';
+  const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || '';
   
   if (initDataStr) {
     options.headers['Authorization'] = `Bearer ${initDataStr}`;
@@ -42,7 +41,7 @@ export async function safeFetch(endpoint, options = {}) {
   }
   
   let cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  let targetUrl = endpoint.startsWith('http') ? endpoint : `${state.API_BASE}${cleanEndpoint}`;
+  let targetUrl = endpoint.startsWith('http') ? endpoint : `${API_BASE}${cleanEndpoint}`;
 
   if (state.currentUserTelegramId && !targetUrl.includes('telegramId=') && !targetUrl.includes('userId=')) {
     const separator = targetUrl.includes('?') ? '&' : '?';
@@ -54,7 +53,9 @@ export async function safeFetch(endpoint, options = {}) {
     return response;
   } catch (err) {
     console.error("Fetch Network Error:", err);
-    showToast(state.i18n[state.currentLang]?.network_error || "خطأ في الاتصال بالشبكة");
+    const i18n = window.i18n;
+    const currentLang = state.currentLang;
+    showToast(i18n?.[currentLang]?.network_error || (currentLang === 'ar' ? "خطأ في الاتصال بالشبكة" : "Network connection error"));
     return null;
   }
 }
