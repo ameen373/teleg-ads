@@ -1,58 +1,69 @@
+import { state, tg, setAuthToken, setCurrentUserTelegramId, setIsUserAdmin, setCurrentLang } from './modules/state.js';
+import { safeFetch } from './modules/api.js';
 import { 
-  renderTelegramUser, 
-  switchTab, 
-  handleNetworkChange, 
-  switchWalletView, 
-  toggleInstructionsModal, 
-  updateWithdrawCalculations, 
-  toggleWalletEdit, 
-  copyToClipboard, 
+  escapeHTML, triggerHaptic, showToast, copyToClipboard, setButtonLoading, 
+  switchTab, handleNetworkChange, switchWalletView, toggleInstructionsModal, 
+  updateWithdrawCalculations, renderTelegramUser, toggleWalletEdit, changeAppLanguage 
+} from './modules/ui.js';
+import { createAdCampaign, fetchUserAds, renderUserAds } from './modules/ads.js';
+import { 
+  formatShortUrl, fetchUserLinks, handleShortenClick, renderUserLinks, 
+  filterUserLinks, deleteLink, initBridgeView, startBridgeTimer, completeImpression 
+} from './modules/shortener.js';
+import { 
+  authLogin, loadUserData, shareReferralLink, requestDeposit, 
+  saveSettings, requestWithdrawal, renderWithdrawalsHistory, 
+  fetchUserReferrals, renderUserReferrals 
+} from './modules/user.js';
+import { 
+  loadAdminData, renderAdminDeposits, renderAdminWithdraws, 
+  renderAdminUsers, renderAdminLinks, renderAdminAds, processAdminAction 
+} from './modules/admin.js';
+
+// Global binding for inline HTML event attributes (onclick, oninput, onchange)
+Object.assign(window, {
+  escapeHTML,
+  triggerHaptic,
   showToast,
-  changeAppLanguage 
-} from './ui.js';
-import { 
-  authLogin, 
-  loadUserData, 
-  requestDeposit, 
-  saveSettings, 
-  requestWithdrawal, 
-  shareReferralLink, 
-  fetchUserReferrals 
-} from './user.js';
-import { 
-  fetchUserLinks, 
-  handleShortenClick, 
-  filterUserLinks, 
-  deleteLink, 
-  initBridgeView, 
-  completeImpression 
-} from './shortener.js';
-import { createAdCampaign, fetchUserAds } from './ads.js';
-import { loadAdminData, processAdminAction } from './admin.js';
-
-// Global Event Handlers for Inline HTML Bindings
-window.switchTab = (tabName) => switchTab(tabName, { loadAdminData, fetchUserAds, fetchUserReferrals });
-window.handleNetworkChange = handleNetworkChange;
-window.switchWalletView = switchWalletView;
-window.toggleInstructionsModal = toggleInstructionsModal;
-window.updateWithdrawCalculations = updateWithdrawCalculations;
-window.toggleWalletEdit = toggleWalletEdit;
-window.copyToClipboard = copyToClipboard;
-window.showToast = showToast;
-window.changeAppLanguage = changeAppLanguage;
-
-window.handleShortenClick = handleShortenClick;
-window.filterUserLinks = filterUserLinks;
-window.deleteLink = deleteLink;
-window.completeImpression = completeImpression;
-
-window.requestDeposit = requestDeposit;
-window.saveSettings = saveSettings;
-window.requestWithdrawal = requestWithdrawal;
-window.shareReferralLink = shareReferralLink;
-
-window.createAdCampaign = createAdCampaign;
-window.processAdminAction = processAdminAction;
+  copyToClipboard,
+  setButtonLoading,
+  switchTab,
+  handleNetworkChange,
+  switchWalletView,
+  toggleInstructionsModal,
+  updateWithdrawCalculations,
+  renderTelegramUser,
+  toggleWalletEdit,
+  changeAppLanguage,
+  createAdCampaign,
+  fetchUserAds,
+  renderUserAds,
+  formatShortUrl,
+  fetchUserLinks,
+  handleShortenClick,
+  renderUserLinks,
+  filterUserLinks,
+  deleteLink,
+  initBridgeView,
+  startBridgeTimer,
+  completeImpression,
+  authLogin,
+  loadUserData,
+  shareReferralLink,
+  requestDeposit,
+  saveSettings,
+  requestWithdrawal,
+  renderWithdrawalsHistory,
+  fetchUserReferrals,
+  renderUserReferrals,
+  loadAdminData,
+  renderAdminDeposits,
+  renderAdminWithdraws,
+  renderAdminUsers,
+  renderAdminLinks,
+  renderAdminAds,
+  processAdminAction
+});
 
 document.addEventListener('DOMContentLoaded', async () => {
   renderTelegramUser();
