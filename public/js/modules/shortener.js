@@ -1,271 +1,258 @@
-import { API_BASE, state, setRawUserLinksCache, setBridgeDetails } from './state.js';
-import { safeFetch } from './api.js';
-import { escapeHTML, showToast, setButtonLoading } from './ui.js';
-import { loadUserData } from './user.js';
+import { state } from '../state.js';
+import { apiCall } from '../api.js';
+import { tg, showAlert, showConfirm, hapticFeedback } from '../telegram.js';
+import { showToast, showLoading, hideLoading, formatDate, escapeHtml } from '../ui.js';
 
-export function formatShortUrl(link) {
-  if (!link) return '';
-  let rawUrl = link.shortUrl || link.shortLink || link.url;
-  if (!rawUrl && link.shortCode) {
-    rawUrl = `${API_BASE}/r/${link.shortCode}`;
-  }
-  if (!rawUrl) return '';
-
-  rawUrl = rawUrl.replace(/^(https?:\/\/)+/i, 'https://');
-
-  if (/^https?:\/\//i.test(rawUrl)) {
-    return rawUrl;
-  }
-  rawUrl = rawUrl.replace(/^\/+/, '');
-  return `https://${rawUrl}`;
+/**
+ * تنسيق رابط الاختصار النهائي للعرض
+ * @param {string} code - كود الرابط المختصر
+ * @returns {string} - الرابط المختصر الكامل
+ */
+export function formatShortUrl(code) {
+    if (!code) return '';
+    const origin = window.location.origin;
+    return `${origin}/s/${code}`;
 }
 
+/**
+ * جلب جميع روابط المستخدم الحالي من الخادم
+ */
 export async function fetchUserLinks() {
-  const linksContainer = document.getElementById('links-list');
-  if (linksContainer && (!state.rawUserLinksCache || state.rawUserLinksCache.length === 0)) {
-    linksContainer.innerHTML = `<div style="text-align:center; padding: 10px;"><div class="spinner"></div></div>`;
-  }
-  
-  try {
-    const res = await safeFetch('/api/links');
-    if (res) {
-      const data = await res.json().catch(() => null);
-      if (data) {
-        const links = Array.isArray(data) ? data : (data.links || data.data || []);
-        setRawUserLinksCache(links);
-        renderUserLinks(state.rawUserLinksCache);
-        return state.rawUserLinksCache;
-      }
+    try {
+        showLoading(true);
+        const response = await apiCall('/api/links');
+        if (response && response.success) {
+            state.userLinks = response.links || [];
+            renderUserLinks(state.userLinks);
+        } else {
+            showToast(response?.message || 'فشل جلب الروابط', 'error');
+        }
+    } catch (error) {
+        console.error('Error fetching links:', error);
+        showToast('حدث خطأ أثناء تحميل الروابط', 'error');
+    } finally {
+        showLoading(false);
     }
-  } catch (err) {
-    console.error("Error fetching user links:", err);
-  }
-  return [];
 }
 
-export async function handleShortenClick(e) {
-  if (e) e.preventDefault();
-  const titleInput = document.getElementById('link-title');
-  const urlInput = document.getElementById('link-url');
+/**
+ * معالجة الضغط على زر اختصار رابط جديد
+ */
+export async function handleShortenClick() {
+    const inputEl = document.getElementById('original-url-input');
+    const titleEl = document.getElementById('link-title-input');
+    
+    if (!inputEl) return;
+    
+    const originalUrl = inputEl.value.trim();
+    const title = titleEl ? titleEl.value.trim() : '';
 
-  if (!titleInput || !urlInput) return;
+    if (!originalUrl) {
+        showToast('يرجى إدخال رابط صالحة لقصها', 'warning');
+        return;
+    }
 
-  const title = titleInput.value.trim();
-  let url = urlInput.value.trim();
+    try {
+        hapticFeedback('impact', 'medium');
+        showLoading(true);
+        
+        const response = await apiCall('/api/links/shorten', 'POST', {
+            originalUrl,
+            title
+        });
 
-  if (!url) {
-    showToast(state.currentLang === 'ar' ? 'يرجى إدخال الرابط الأصلي' : 'Please enter original URL');
-    return;
-  }
+        if (response && response.success) {
+            showToast('تم اختصار الرابط بنجاح!', 'success');
+            inputEl.value = '';
+            if (titleEl) titleEl.value = '';
+            
+            if (response.link) {
+                state.userLinks.unshift(response.link);
+                renderUserLinks(state.userLinks);
+            } else {
+                await fetchUserLinks();
+            }
+        } else {
+            showAlert(response?.message || 'تعذر اختصار الرابط، يرجى المحاولة لاحقاً');
+        }
+    } catch (error) {
+        console.error('Error shortening link:', error);
+        showToast('حدث خطأ أثناء إنشاء الرابط', 'error');
+    } finally {
+        hideLoading();
+    }
+}
 
-  if (!/^https?:\/\//i.test(url)) {
-    url = 'https://' + url;
-  }
+/**
+ * عرض قائمة الروابط في الواجهة
+ * @param {Array} linksToRender - مصفوفة الروابط المراد عرضها
+ */
+export function renderUserLinks(linksToRender = state.userLinks) {
+    const container = document.getElementById('user-links-container');
+    const emptyState = document.getElementById('links-empty-state');
+    
+    if (!container) return;
 
-  setButtonLoading('btn-create-link', true);
+    if (!linksToRender || linksToRender.length === 0) {
+        container.innerHTML = '';
+        if (emptyState) emptyState.classList.remove('hidden');
+        return;
+    }
 
-  try {
-    const payload = {
-      userId: state.currentUserTelegramId,
-      telegramId: state.currentUserTelegramId,
-      title: title || 'Untitled Link',
-      targetUrl: url,
-      url: url,
-      originalUrl: url
-    };
+    if (emptyState) emptyState.classList.add('hidden');
 
-    const res = await safeFetch('/api/shorten', {
-      method: 'POST',
-      body: payload
+    container.innerHTML = linksToRender.map(link => {
+        const fullShortUrl = formatShortUrl(link.code);
+        return `
+            <div class="card link-card" id="link-item-${link._id}">
+                <div class="link-card-header">
+                    <h4 class="link-title">${escapeHtml(link.title || 'رابط بدون عنوان')}</h4>
+                    <span class="badge ${link.active !== false ? 'badge-success' : 'badge-danger'}">
+                        ${link.active !== false ? 'نشط' : 'معطل'}
+                    </span>
+                </div>
+                <div class="link-details">
+                    <p class="original-link" title="${escapeHtml(link.originalUrl)}">
+                        <i class="icon-link"></i> ${escapeHtml(link.originalUrl)}
+                    </p>
+                    <div class="short-link-box">
+                        <input type="text" readonly value="${fullShortUrl}" id="input-short-${link._id}">
+                        <button class="btn btn-sm btn-primary" onclick="navigator.clipboard.writeText('${fullShortUrl}'); showToast('تم نسخ الرابط!', 'info');">
+                            نسخ
+                        </button>
+                    </div>
+                </div>
+                <div class="link-stats">
+                    <span><i class="icon-eye"></i> الزيارات: <strong>${link.views || 0}</strong></span>
+                    <span><i class="icon-cash"></i> الأرباح: <strong>$${(link.earnings || 0).toFixed(4)}</strong></span>
+                    <span><i class="icon-calendar"></i> ${formatDate(link.createdAt)}</span>
+                </div>
+                <div class="link-actions">
+                    <button class="btn btn-sm btn-danger-outline" onclick="window.deleteLink('${link._id}')">
+                        حذف الرابط
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+/**
+ * تصفية الروابط حسب كلمة البحث
+ * @param {string} searchTerm - نص البحث
+ */
+export function filterUserLinks(searchTerm) {
+    if (!searchTerm) {
+        renderUserLinks(state.userLinks);
+        return;
+    }
+    const term = searchTerm.toLowerCase().trim();
+    const filtered = state.userLinks.filter(link => {
+        const titleMatches = (link.title || '').toLowerCase().includes(term);
+        const urlMatches = (link.originalUrl || '').toLowerCase().includes(term);
+        const codeMatches = (link.code || '').toLowerCase().includes(term);
+        return titleMatches || urlMatches || codeMatches;
     });
-
-    if (!res) {
-      setButtonLoading('btn-create-link', false);
-      return;
-    }
-
-    const data = await res.json().catch(() => ({}));
-
-    if (res.ok && (data.success || data.link || data.shortCode)) {
-      const i18n = window.i18n;
-      showToast(i18n?.[state.currentLang]?.link_success_msg || 'تم اختصار الرابط بنجاح!');
-      titleInput.value = '';
-      urlInput.value = '';
-      
-      const newLink = data.link || {
-        _id: data._id || data.id || ('link_' + Date.now()),
-        title: title || data.title || 'Untitled Link',
-        originalUrl: url,
-        targetUrl: url,
-        shortCode: data.shortCode || data.code || '',
-        shortUrl: data.shortUrl || data.shortLink || (data.shortCode ? `${API_BASE}/r/${data.shortCode}` : ''),
-        views: 0,
-        validImpressions: 0,
-        totalEarnings: 0
-      };
-
-      if (!state.rawUserLinksCache) setRawUserLinksCache([]);
-      
-      const existingIndex = state.rawUserLinksCache.findIndex(l => 
-        (l._id && newLink._id && String(l._id) === String(newLink._id)) ||
-        (l.shortCode && newLink.shortCode && l.shortCode === newLink.shortCode)
-      );
-
-      if (existingIndex !== -1) {
-        state.rawUserLinksCache[existingIndex] = { ...state.rawUserLinksCache[existingIndex], ...newLink };
-      } else {
-        state.rawUserLinksCache.unshift(newLink);
-      }
-
-      renderUserLinks(state.rawUserLinksCache);
-      await loadUserData();
-      await fetchUserLinks();
-    } else {
-      const errorMsg = data.error || data.message || (state.currentLang === 'ar' ? 'فشل إنشاء الرابط المختصر' : 'Failed to create short link');
-      showToast(errorMsg);
-    }
-  } catch (err) {
-    console.error("Shorten Link Error:", err);
-    showToast(err.message || (state.currentLang === 'ar' ? 'حدث خطأ أثناء اختصار الرابط' : 'An error occurred while shortening link'));
-  } finally {
-    setButtonLoading('btn-create-link', false);
-  }
+    renderUserLinks(filtered);
 }
 
-export function renderUserLinks(links) {
-  const container = document.getElementById('links-list');
-  if (!container) return;
-
-  if (!links || links.length === 0) {
-    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${state.currentLang === 'ar' ? 'لا توجد روابط مختصرة بعد.' : 'No shortened links found.'}</p>`;
-    return;
-  }
-
-  const i18n = window.i18n;
-
-  container.innerHTML = links.map(link => {
-    const formattedUrl = formatShortUrl(link);
-    const title = escapeHTML(link.title || link.shortCode || 'Untitled Link');
-    const originalUrl = escapeHTML(link.originalUrl || link.targetUrl || link.url || '');
-    const clicks = link.views || link.clicks || 0;
-    const validImp = link.validImpressions || 0;
-    const earnings = (link.totalEarnings || 0).toFixed(4);
-    const linkId = link._id || link.id || link.shortCode;
-
-    return `
-      <div class="link-item">
-        <div class="link-header">
-          <strong style="font-size: 14px; color: var(--text);">${title}</strong>
-          <span style="font-size: 11px; color: var(--success); font-weight: 700;">$${earnings}</span>
-        </div>
-        <div style="margin: 6px 0; font-size: 12px;">
-          <a href="${formattedUrl}" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: none; word-break: break-all; font-weight: 600;">${formattedUrl}</a>
-        </div>
-        <div style="font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 8px;">
-          ↪ ${originalUrl}
-        </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--card-border); padding-top: 8px; margin-top: 8px;">
-          <span style="font-size: 11px; color: var(--text-muted);">👁️ ${clicks} ${state.currentLang === 'ar' ? 'زيارة' : 'clicks'} (${validImp} ${state.currentLang === 'ar' ? 'مؤكدة' : 'valid'})</span>
-          <div class="link-actions">
-            <button class="btn-small" onclick="copyToClipboard('${formattedUrl}')">${i18n?.[state.currentLang]?.btn_copy || 'نسخ'}</button>
-            <button class="btn-small btn-danger" onclick="deleteLink('${linkId}')">${state.currentLang === 'ar' ? 'حذف' : 'Delete'}</button>
-          </div>
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-
-export function filterUserLinks(term) {
-  if (!state.rawUserLinksCache) return;
-  const lower = term.toLowerCase().trim();
-  if (!lower) {
-    renderUserLinks(state.rawUserLinksCache);
-    return;
-  }
-  const filtered = state.rawUserLinksCache.filter(l => 
-    (l.title && l.title.toLowerCase().includes(lower)) ||
-    (l.originalUrl && l.originalUrl.toLowerCase().includes(lower)) ||
-    (l.targetUrl && l.targetUrl.toLowerCase().includes(lower)) ||
-    (l.shortCode && l.shortCode.toLowerCase().includes(lower))
-  );
-  renderUserLinks(filtered);
-}
-
+/**
+ * حذف رابط محدد
+ * @param {string} linkId - معرف الرابط
+ */
 export async function deleteLink(linkId) {
-  if (!confirm(state.currentLang === 'ar' ? 'هل أنت تأكد من حذف هذا الرابط؟' : 'Are you sure you want to delete this link?')) return;
-  
-  try {
-    const res = await safeFetch(`/api/links/${linkId}`, { method: 'DELETE' });
-    if (res) {
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && (data.success || data.message)) {
-        showToast(state.currentLang === 'ar' ? 'تم حذف الرابط بنجاح' : 'Link deleted successfully');
-        await loadUserData();
-        await fetchUserLinks();
-      } else {
-        showToast(data.error || data.message || (state.currentLang === 'ar' ? 'فشل حذف الرابط' : 'Failed to delete link'));
-      }
+    if (!linkId) return;
+
+    const confirmed = await showConfirm('هل أنت أكتأكد من رغبتك في حذف هذا الرابط؟ لا يمكن التراجع عن هذه الخطوة.');
+    if (!confirmed) return;
+
+    try {
+        showLoading(true);
+        const response = await apiCall(`/api/links/${linkId}`, 'DELETE');
+        if (response && response.success) {
+            showToast('تم حذف الرابط بنجاح', 'success');
+            state.userLinks = state.userLinks.filter(l => l._id !== linkId);
+            renderUserLinks(state.userLinks);
+        } else {
+            showAlert(response?.message || 'فشل حذف الرابط');
+        }
+    } catch (error) {
+        console.error('Error deleting link:', error);
+        showToast('حدث خطأ أثناء تنفيذ عملية الحذف', 'error');
+    } finally {
+        hideLoading();
     }
-  } catch (err) {
-    showToast(err.message || (state.currentLang === 'ar' ? 'خطأ في الشبكة' : 'Network error'));
-  }
 }
 
-export async function initBridgeView(code) {
-  const appView = document.getElementById('app-view');
-  const bridgeView = document.getElementById('bridge-view');
-  if (appView) appView.classList.add('hidden');
-  if (bridgeView) bridgeView.classList.remove('hidden');
+// تصدير وتأكيد إسناد دالة deleteLink إلى النافذة العامة window
+window.deleteLink = deleteLink;
 
-  try {
-    const res = await safeFetch(`/api/bridge/${code}`);
-    if (res && res.ok) {
-      const data = await res.json().catch(() => ({}));
-      const destination = data.targetUrl || data.originalUrl || '/';
-      const token = data.token || null;
-      setBridgeDetails(token, destination, code);
-      startBridgeTimer(5);
-    } else {
-      showToast("تعذر تحميل الرابط المطلوب");
+/**
+ * تهيئة صفحة الجسر (صفحة العداد والمشاهدة)
+ * @param {string} linkCode - كود الرابط المختصر
+ */
+export function initBridgeView(linkCode) {
+    const bridgeContainer = document.getElementById('bridge-view-container');
+    if (!bridgeContainer) return;
+
+    state.currentBridgeCode = linkCode;
+    const timerDisplay = document.getElementById('bridge-timer-display');
+    const actionBtn = document.getElementById('bridge-action-btn');
+
+    if (actionBtn) {
+        actionBtn.disabled = true;
+        actionBtn.innerText = 'يرجى الانتظار...';
     }
-  } catch (err) {
-    console.error("Bridge init error:", err);
-  }
-}
 
-export function startBridgeTimer(seconds) {
-  let timeLeft = seconds;
-  const timerElem = document.getElementById('timer');
-  const btn = document.getElementById('go-btn');
-
-  const interval = setInterval(() => {
-    timeLeft--;
-    if (timerElem) timerElem.innerText = timeLeft;
-    if (timeLeft <= 0) {
-      clearInterval(interval);
-      if (btn) btn.disabled = false;
-    }
-  }, 1000);
-}
-
-export async function completeImpression() {
-  if (!state.bridgeDestinationUrl) return;
-
-  setButtonLoading('go-btn', true);
-
-  try {
-    await safeFetch('/api/bridge/complete', {
-      method: 'POST',
-      body: {
-        shortCode: state.currentShortCode,
-        token: state.bridgeToken,
-        duration: Math.round((Date.now() - state.bridgeStartTime) / 1000)
-      }
+    startBridgeTimer(10, async () => {
+        if (timerDisplay) timerDisplay.innerText = 'جاهز الآن!';
+        if (actionBtn) {
+            actionBtn.disabled = false;
+            actionBtn.innerText = 'متابعة إلى الرابط الأصلي';
+            actionBtn.onclick = () => completeImpression(linkCode);
+        }
     });
-  } catch (e) {
-    console.error("Complete impression error:", e);
-  } finally {
-    window.location.href = state.bridgeDestinationUrl;
-  }
+}
+
+/**
+ * بدء التنازلي للعداد
+ * @param {number} duration - مدة الانتظار بالثواني
+ * @param {Function} callback - دالة تنفذ عند انتهاء العداد
+ */
+export function startBridgeTimer(duration, callback) {
+    let timer = duration;
+    const display = document.getElementById('bridge-timer-display');
+    
+    if (display) display.innerText = `${timer} ثانية`;
+
+    const interval = setInterval(() => {
+        timer--;
+        if (display) display.innerText = `${timer} ثانية`;
+
+        if (timer <= 0) {
+            clearInterval(interval);
+            if (typeof callback === 'function') callback();
+        }
+    }, 1000);
+}
+
+/**
+ * تسجيل مشاهدة الرابط واحتساب المكافأة ثم التوجيه
+ * @param {string} linkCode - كود الرابط
+ */
+export async function completeImpression(linkCode) {
+    try {
+        showLoading(true);
+        const response = await apiCall('/api/links/impression', 'POST', { code: linkCode });
+        if (response && response.success && response.targetUrl) {
+            window.location.href = response.targetUrl;
+        } else {
+            showAlert(response?.message || 'حدث خطأ أثناء معالجة الرابط، حاول مرة أخرى');
+        }
+    } catch (error) {
+        console.error('Error completing impression:', error);
+        showToast('تعذر التوجيه للرابط الأصلي', 'error');
+    } finally {
+        hideLoading();
+    }
 }
