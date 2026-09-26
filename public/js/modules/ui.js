@@ -1,7 +1,10 @@
-import { state, tg, setCurrentUserTelegramId, setCurrentLang } from './state.js';
-import { loadAdminData } from './admin.js';
-import { fetchUserAds } from './ads.js';
-import { fetchUserReferrals } from './user.js';
+// ==========================================
+// Module: ui.js
+// Description: DOM interactions, modals, toasts, language rendering, and UI view switching
+// ==========================================
+
+import { currentLang, i18n, isUserAdmin, setCurrentLang } from './state.js';
+import { triggerHaptic } from './telegram.js';
 
 export function escapeHTML(str) {
   if (!str) return '';
@@ -11,15 +14,6 @@ export function escapeHTML(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
-}
-
-export function triggerHaptic(style = 'light') {
-  try {
-    const webApp = window.Telegram?.WebApp || tg;
-    if (webApp && webApp.isVersionAtLeast && webApp.isVersionAtLeast('6.1') && webApp.HapticFeedback) {
-      webApp.HapticFeedback.impactOccurred(style);
-    }
-  } catch (e) {}
 }
 
 export function showToast(msg) {
@@ -33,13 +27,15 @@ export function showToast(msg) {
 
 export function copyToClipboard(text) {
   if (!text) return;
-  const i18n = window.i18n;
   navigator.clipboard.writeText(text).then(() => {
-    showToast(i18n?.[state.currentLang]?.copied || (state.currentLang === 'ar' ? "تم النسخ بنجاح!" : "Copied successfully!"));
+    showToast(i18n[currentLang]?.copied || "تم النسخ بنجاح!");
   }).catch(() => {
-    showToast(state.currentLang === 'ar' ? "فشل النسخ تلقائياً" : "Failed to copy");
+    showToast(i18n[currentLang]?.copy_failed || "فشل النسخ تلقائياً");
   });
 }
+
+// Explicitly bind copyToClipboard to window object for inline HTML triggers
+window.copyToClipboard = copyToClipboard;
 
 export function setButtonLoading(btnId, isLoading, originalText) {
   const btn = document.getElementById(btnId);
@@ -55,8 +51,8 @@ export function setButtonLoading(btnId, isLoading, originalText) {
 }
 
 export function switchTab(tabName) {
-  if (tabName === 'admin' && !state.isUserAdmin) {
-    showToast(state.currentLang === 'ar' ? "غير مصرح لك بالوصول للوحة التحكم" : "Access denied");
+  if (tabName === 'admin' && !isUserAdmin) {
+    showToast(i18n[currentLang]?.access_denied || "غير مصرح لك بالوصول للوحة التحكم");
     return;
   }
   triggerHaptic('light');
@@ -68,12 +64,12 @@ export function switchTab(tabName) {
     if (btn) btn.classList.toggle('active', t === tabName);
   });
 
-  if (tabName === 'admin' && state.isUserAdmin) {
-    loadAdminData();
-  } else if (tabName === 'ads') {
-    fetchUserAds();
-  } else if (tabName === 'referral') {
-    fetchUserReferrals();
+  if (tabName === 'admin' && isUserAdmin && typeof window.loadAdminData === 'function') {
+    window.loadAdminData();
+  } else if (tabName === 'ads' && typeof window.fetchUserAds === 'function') {
+    window.fetchUserAds();
+  } else if (tabName === 'referral' && typeof window.fetchUserReferrals === 'function') {
+    window.fetchUserReferrals();
   }
 }
 
@@ -94,144 +90,40 @@ export function handleNetworkChange(networkVal) {
 
 export function switchWalletView(view) {
   triggerHaptic('light');
-  const depositNav = document.getElementById('wallet-nav-deposit');
-  const withdrawNav = document.getElementById('wallet-nav-withdraw');
-  const depositView = document.getElementById('wallet-view-deposit');
-  const withdrawView = document.getElementById('wallet-view-withdraw');
+  const depBtn = document.getElementById('wallet-nav-deposit');
+  const withBtn = document.getElementById('wallet-nav-withdraw');
+  const depView = document.getElementById('wallet-view-deposit');
+  const withView = document.getElementById('wallet-view-withdraw');
 
-  if (depositNav) depositNav.classList.toggle('active', view === 'deposit');
-  if (withdrawNav) withdrawNav.classList.toggle('active', view === 'withdraw');
+  if (depBtn) depBtn.classList.toggle('active', view === 'deposit');
+  if (withBtn) withBtn.classList.toggle('active', view === 'withdraw');
 
-  if (depositView) depositView.classList.toggle('hidden', view !== 'deposit');
-  if (withdrawView) withdrawView.classList.toggle('hidden', view !== 'withdraw');
+  if (depView) depView.classList.toggle('hidden', view !== 'deposit');
+  if (withView) withView.classList.toggle('hidden', view !== 'withdraw');
 }
 
 export function toggleInstructionsModal(show) {
   triggerHaptic('medium');
   const modal = document.getElementById('instructions-modal');
-  if (modal) {
-    modal.classList.toggle('hidden', !show);
-  }
+  if (modal) modal.classList.toggle('hidden', !show);
 }
 
-export function updateWithdrawCalculations() {
-  const amtInput = document.getElementById('withdraw-amount');
-  const feeBox = document.getElementById('withdraw-fee-box');
-  if (!amtInput || !feeBox) return;
-
-  const val = parseFloat(amtInput.value) || 0;
-
-  if (val > 0) {
-    feeBox.classList.remove('hidden');
-    const fee = 3;
-    const net = Math.max(0, val - fee);
-
-    const calcReq = document.getElementById('calc-req');
-    const calcFee = document.getElementById('calc-fee');
-    const calcNet = document.getElementById('calc-net');
-
-    if (calcReq) calcReq.innerText = `$${val.toFixed(2)}`;
-    if (calcFee) calcFee.innerText = `$${fee.toFixed(2)}`;
-    if (calcNet) calcNet.innerText = `$${net.toFixed(2)}`;
-  } else {
-    feeBox.classList.add('hidden');
-  }
-}
-
-export function renderTelegramUser() {
-  const webApp = window.Telegram?.WebApp;
-  if (webApp) {
-    try {
-      webApp.ready();
-      webApp.expand();
-    } catch (e) {}
-  }
+export function applyLanguage(lang) {
+  if (!i18n[lang]) return;
+  setCurrentLang(lang);
   
-  const u = webApp?.initDataUnsafe?.user || tg?.initDataUnsafe?.user;
-  const avatarContainer = document.getElementById('user-avatar-container');
-  const nameElem = document.getElementById('user-display-name');
-  const handleElem = document.getElementById('user-display-handle');
-  const idElem = document.getElementById('user-tg-id');
-  const premiumBadge = document.getElementById('user-premium-badge');
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
 
-  if (u && u.id) {
-    setCurrentUserTelegramId(u.id);
-    localStorage.setItem('telegramId', String(u.id));
-    const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || 'Telegram User';
-    if (nameElem) nameElem.innerText = fullName;
-    if (handleElem) handleElem.innerText = u.username ? `@${u.username}` : '@no_username';
-    if (idElem) idElem.innerText = `ID: ${u.id}`;
-
-    if (u.is_premium && premiumBadge) {
-      premiumBadge.classList.remove('hidden');
-    }
-
-    if (avatarContainer) {
-      if (u.photo_url) {
-        avatarContainer.innerHTML = `<img src="${escapeHTML(u.photo_url)}" class="user-avatar-img" alt="Avatar">`;
+  const elements = document.querySelectorAll('[data-i18n]');
+  elements.forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (i18n[lang] && i18n[lang][key]) {
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+        el.placeholder = i18n[lang][key];
       } else {
-        const letter = (u.first_name || 'U').charAt(0).toUpperCase();
-        avatarContainer.innerHTML = `<div class="user-avatar-placeholder">${escapeHTML(letter)}</div>`;
+        el.innerText = i18n[lang][key];
       }
     }
-
-    const savedLang = localStorage.getItem('appLang');
-    const i18n = window.i18n;
-    if (savedLang && i18n && i18n[savedLang]) {
-      setCurrentLang(savedLang);
-    } else if (u.language_code && i18n && i18n[u.language_code]) {
-      setCurrentLang(u.language_code === 'ar' ? 'ar' : 'en');
-    } else {
-      setCurrentLang('ar');
-    }
-  } else {
-    const savedId = state.currentUserTelegramId || localStorage.getItem('telegramId') || '123456789';
-    setCurrentUserTelegramId(savedId);
-    if (nameElem) nameElem.innerText = 'Telegram User';
-    if (handleElem) handleElem.innerText = '@user';
-    if (idElem) idElem.innerText = `ID: ${savedId}`;
-    if (avatarContainer) {
-      avatarContainer.innerHTML = `<div class="user-avatar-placeholder">U</div>`;
-    }
-    if (!localStorage.getItem('appLang')) {
-      setCurrentLang('ar');
-    }
-  }
-
-  if (typeof window.applyLanguage === 'function') {
-    window.applyLanguage(state.currentLang);
-  }
-}
-
-export function toggleWalletEdit() {
-  triggerHaptic('light');
-  const walletInput = document.getElementById('default-wallet');
-  const editBtn = document.getElementById('edit-wallet-btn');
-  const saveBtn = document.getElementById('save-wallet-btn');
-
-  if (!walletInput || !editBtn || !saveBtn) return;
-
-  const i18n = window.i18n;
-
-  if (walletInput.hasAttribute('readonly')) {
-    walletInput.removeAttribute('readonly');
-    walletInput.focus();
-    editBtn.innerText = i18n?.[state.currentLang]?.cancel || (state.currentLang === 'ar' ? "إلغاء" : "Cancel");
-    editBtn.className = "btn-small btn-danger";
-    saveBtn.classList.remove('hidden');
-  } else {
-    walletInput.setAttribute('readonly', 'readonly');
-    editBtn.innerText = i18n?.[state.currentLang]?.btn_edit || (state.currentLang === 'ar' ? "تعديل" : "Edit");
-    editBtn.className = "btn-small btn-warning";
-    saveBtn.classList.add('hidden');
-  }
-}
-
-export function changeAppLanguage(langVal) {
-  if (langVal && ['ar', 'en'].includes(langVal)) {
-    setCurrentLang(langVal);
-    if (typeof window.applyLanguage === 'function') {
-      window.applyLanguage(langVal);
-    }
-  }
+  });
 }
