@@ -45,10 +45,10 @@ app.use(cors({
 }));
 app.options('*', cors());
 
-// --- Robust Body Parsing & Vercel Payload Normalization ---
-app.use(express.json({ limit: '10kb' }));
-app.use(express.urlencoded({ extended: true, limit: '10kb' }));
-app.use(express.text({ type: ['text/*', 'application/json'], limit: '10kb' }));
+// --- Robust Body Parsing & Vercel Payload Normalization (10MB Limit) ---
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.text({ type: ['text/*', 'application/json'], limit: '10mb' }));
 
 app.use((req, res, next) => {
   if (typeof req.body === 'string' && req.body.trim().length > 0) {
