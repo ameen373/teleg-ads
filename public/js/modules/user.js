@@ -5,16 +5,19 @@ import { renderUserLinks } from './shortener.js';
 import { renderUserAds } from './ads.js';
 
 export async function authLogin() {
-  const startParam = tg?.initDataUnsafe?.start_param || null;
-  const u = tg?.initDataUnsafe?.user || {};
-  const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || '';
+  const webApp = window.Telegram?.WebApp;
+  const startParam = webApp?.initDataUnsafe?.start_param || tg?.initDataUnsafe?.start_param || null;
+  const u = webApp?.initDataUnsafe?.user || tg?.initDataUnsafe?.user || {};
+  const initDataStr = webApp?.initData || tg?.initData || '';
+
+  const activeUserId = u.id || state.currentUserTelegramId;
 
   try {
     const res = await safeFetch('/api/auth/login', {
       method: 'POST',
       body: { 
-        userId: state.currentUserTelegramId,
-        telegramId: state.currentUserTelegramId,
+        userId: activeUserId,
+        telegramId: activeUserId,
         referrerId: startParam,
         firstName: u.first_name || '',
         lastName: u.last_name || '',
