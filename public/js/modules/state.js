@@ -1,42 +1,62 @@
+export const API_BASE = window.location.protocol.startsWith('file') 
+  ? 'http://localhost:3000' 
+  : window.location.origin;
+
+export const tg = window.Telegram?.WebApp;
+
+let storedTelegramId = localStorage.getItem('telegramId');
+let initialTgId = null;
+
+if (tg?.initDataUnsafe?.user?.id) {
+  initialTgId = String(tg.initDataUnsafe.user.id);
+  localStorage.setItem('telegramId', initialTgId);
+} else {
+  initialTgId = storedTelegramId || null;
+}
+
 export const state = {
-  API_BASE: window.location.protocol.startsWith('file') 
-    ? 'http://localhost:3000' 
-    : window.location.origin,
   authToken: localStorage.getItem('authToken'),
   currentSessionId: null,
   bridgeToken: null,
   bridgeStartTime: Date.now(),
   isUserAdmin: false,
-  tg: window.Telegram?.WebApp || null,
-  currentUserTelegramId: null,
-  storedTelegramId: localStorage.getItem('telegramId'),
+  currentUserTelegramId: initialTgId,
   rawUserLinksCache: [],
   bridgeDestinationUrl: null,
   currentShortCode: null,
-  currentLang: localStorage.getItem('appLang') || 'ar',
-  i18n: {
-    ar: {
-      copied: "تم النسخ بنجاح!",
-      network_error: "خطأ في الاتصال بالشبكة",
-      cancel: "إلغاء",
-      btn_edit: "تعديل",
-      link_success_msg: "تم اختصار الرابط بنجاح!",
-      btn_copy: "نسخ"
-    },
-    en: {
-      copied: "Copied successfully!",
-      network_error: "Network connection error",
-      cancel: "Cancel",
-      btn_edit: "Edit",
-      link_success_msg: "Link shortened successfully!",
-      btn_copy: "Copy"
-    }
-  }
+  currentLang: localStorage.getItem('appLang') || 'ar'
 };
 
-if (state.tg?.initDataUnsafe?.user?.id) {
-  state.currentUserTelegramId = String(state.tg.initDataUnsafe.user.id);
+export function setAuthToken(token) {
+  state.authToken = token;
+  if (token) {
+    localStorage.setItem('authToken', token);
+  } else {
+    localStorage.removeItem('authToken');
+  }
+}
+
+export function setCurrentUserTelegramId(id) {
+  state.currentUserTelegramId = String(id);
   localStorage.setItem('telegramId', state.currentUserTelegramId);
-} else {
-  state.currentUserTelegramId = state.storedTelegramId || null;
+}
+
+export function setIsUserAdmin(val) {
+  state.isUserAdmin = Boolean(val);
+}
+
+export function setRawUserLinksCache(links) {
+  state.rawUserLinksCache = Array.isArray(links) ? links : [];
+}
+
+export function setBridgeDetails(token, destinationUrl, code) {
+  state.bridgeToken = token;
+  state.bridgeDestinationUrl = destinationUrl;
+  state.currentShortCode = code;
+  state.bridgeStartTime = Date.now();
+}
+
+export function setCurrentLang(lang) {
+  state.currentLang = lang;
+  localStorage.setItem('appLang', lang);
 }
