@@ -283,114 +283,37 @@
         </div>
       </div>
 
-      <!-- Tab 6: Admin Dashboard Panel (Structured & Stylized) -->
+      <!-- Tab 6: Admin Dashboard Panel -->
       <div id="tab-content-admin" class="tab-pane hidden">
-        
-        <!-- Admin Dashboard Header Banner -->
-        <div class="card" style="border-color: var(--warning); background: rgba(30, 25, 15, 0.7); margin-bottom: 16px;">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h3 style="margin: 0; color: var(--warning); font-size: 16px; display: flex; align-items: center; gap: 8px;">
-              🛡️ <span data-i18n="admin_panel_title">لوحة الإدارة والتحكم</span>
-            </h3>
-            <span class="user-badge" style="background: rgba(245, 158, 11, 0.2); color: var(--warning); border: 1px solid var(--warning);">Administrator</span>
-          </div>
-        </div>
-
-        <!-- 1. Stats Cards Section -->
         <div class="stats-grid" style="margin-bottom: 16px;">
-          <div class="stat-box">
-            <small data-i18n="admin_total_users">إجمالي المستخدمين</small>
-            <h3 id="admin-total-users">0</h3>
-          </div>
-          <div class="stat-box">
-            <small data-i18n="admin_total_pending">الأرصدة المعلقة</small>
-            <h3 id="admin-total-pending" style="color: var(--warning);">$0.00</h3>
-          </div>
-          <div class="stat-box">
-            <small data-i18n="admin_total_withdraws">إجمالي المسحوبات</small>
-            <h3 id="admin-total-withdraws" style="color: var(--success);">$0.00</h3>
-          </div>
-          <div class="stat-box">
-            <small data-i18n="admin_active_ads">الإعلانات النشطة</small>
-            <h3 id="admin-active-ads" style="color: var(--accent);">0</h3>
-          </div>
-        </div>
-
-        <!-- 2. User Management Section with Search Bar -->
-        <div class="card">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
-            <h4 style="margin: 0; font-size: 15px;" data-i18n="admin_users_mgmt">👥 إدارة مستخدمي النظام</h4>
-            <input type="text" id="admin-search-users" data-i18n-ph="ph_admin_search_users" placeholder="🔍 بحث عن مستخدم..." oninput="filterAdminUsers(this.value)" style="width: 150px; padding: 6px 10px; margin: 0; font-size: 11px;">
-          </div>
-          <div id="admin-users-list" style="font-size: 12px;" data-i18n="loading">جاري التحميل...</div>
-        </div>
-
-        <!-- 3. Ad Review & Management Section -->
-        <div class="card">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <h4 style="margin: 0; font-size: 15px;" data-i18n="admin_ads_mgmt">📢 مراجعة وإدارة الإعلانات</h4>
-            <input type="text" id="admin-search-ads" data-i18n-ph="ph_admin_search_ads" placeholder="🔍 بحث..." oninput="filterAdminAds(this.value)" style="width: 110px; padding: 6px 10px; margin: 0; font-size: 11px;">
-          </div>
-          <div id="admin-ads-list" style="font-size: 12px;" data-i18n="loading">جاري التحميل...</div>
-        </div>
-
-        <!-- 4. Transactions Management (Withdrawals & Deposits with Actions) -->
-        <div class="card">
-          <h4 style="margin-top: 0; margin-bottom: 12px; font-size: 15px;" data-i18n="admin_pending_withdraws">📤 إدارة طلبات السحب (قبول / رفض)</h4>
-          <div id="admin-withdraws-list" style="font-size: 12px;" data-i18n="loading">جاري التحميل...</div>
+          <div class="stat-box"><small data-i18n="admin_total_users">إجمالي المستخدمين</small><h3 id="admin-total-users">0</h3></div>
+          <div class="stat-box"><small data-i18n="admin_total_pending">إجمالي الأرصدة المعلقة</small><h3 id="admin-total-pending" style="color: var(--warning);">$0.00</h3></div>
         </div>
 
         <div class="card">
-          <h4 style="margin-top: 0; margin-bottom: 12px; font-size: 15px;" data-i18n="admin_pending_deposits">📥 إدارة طلبات الإيداع الشحن</h4>
+          <h4 style="margin-top:0;" data-i18n="admin_pending_deposits">طلبات الإيداع المعلقة</h4>
           <div id="admin-deposits-list" style="font-size: 12px;" data-i18n="loading">جاري التحميل...</div>
         </div>
 
         <div class="card">
-          <h4 style="margin-top: 0; margin-bottom: 12px; font-size: 15px;" data-i18n="admin_links_mgmt">🔗 إدارة روابط المنصة المختصرة</h4>
+          <h4 style="margin-top:0;" data-i18n="admin_pending_withdraws">طلبات السحب المعلقة</h4>
+          <div id="admin-withdraws-list" style="font-size: 12px;" data-i18n="loading">جاري التحميل...</div>
+        </div>
+        
+        <div class="card">
+          <h4 style="margin-top:0;" data-i18n="admin_users_mgmt">إدارة مستخدمي النظام</h4>
+          <div id="admin-users-list" style="font-size: 12px;" data-i18n="loading">جاري التحميل...</div>
+        </div>
+
+        <div class="card">
+          <h4 style="margin-top:0;" data-i18n="admin_links_mgmt">إدارة روابط المنصة</h4>
           <div id="admin-links-list" style="font-size: 12px;" data-i18n="loading">جاري التحميل...</div>
         </div>
 
-        <!-- 5. System Settings & Rates Form Section -->
         <div class="card">
-          <h4 style="margin-top: 0; margin-bottom: 12px; font-size: 15px; color: var(--accent);" data-i18n="admin_sys_settings_title">⚙️ إعدادات النظام (الأسعار والحدود)</h4>
-          
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
-            <div>
-              <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;" data-i18n="lbl_cpm_rate">تكلفة 1000 مشاهدة CPM ($)</label>
-              <input type="number" id="sys-cpm-rate" placeholder="1.50" step="0.01" style="margin-top:0;">
-            </div>
-            <div>
-              <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;" data-i18n="lbl_min_withdraw">الحد الأدنى للسحب ($)</label>
-              <input type="number" id="sys-min-withdraw" placeholder="30" step="1" style="margin-top:0;">
-            </div>
-          </div>
-
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
-            <div>
-              <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;" data-i18n="lbl_withdraw_fee">رسوم السحب الثابتة ($)</label>
-              <input type="number" id="sys-withdraw-fee" placeholder="3.00" step="0.1" style="margin-top:0;">
-            </div>
-            <div>
-              <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;" data-i18n="lbl_ref_percent">نسبة الإحالة (%)</label>
-              <input type="number" id="sys-ref-percent" placeholder="10" step="1" style="margin-top:0;">
-            </div>
-          </div>
-
-          <div style="margin-bottom: 10px;">
-            <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;" data-i18n="lbl_admin_trc20">عنوان USDT TRC20 الخاص بالمنصة</label>
-            <input type="text" id="sys-trc20-addr" placeholder="عنوان TRC20" style="margin-top:0;">
-          </div>
-
-          <div style="margin-bottom: 10px;">
-            <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;" data-i18n="lbl_admin_bep20">عنوان USDT BEP20 الخاص بالمنصة</label>
-            <input type="text" id="sys-bep20-addr" placeholder="عنوان BEP20" style="margin-top:0;">
-          </div>
-
-          <button id="btn-save-sys-settings" class="btn-success" style="margin-top: 6px;" onclick="saveSystemSettings()">
-            <span data-i18n="btn_save_settings">💾 حفظ إعدادات النظام</span>
-          </button>
+          <h4 style="margin-top:0;" data-i18n="admin_ads_mgmt">إدارة إعلانات المنصة</h4>
+          <div id="admin-ads-list" style="font-size: 12px;" data-i18n="loading">جاري التحميل...</div>
         </div>
-
       </div>
 
       <!-- Navigation Dock Footer -->
@@ -420,7 +343,7 @@
           <span data-i18n="nav_settings">الإعدادات</span>
         </button>
 
-        <button onclick="switchTab('admin')" class="nav-btn hidden" id="tab-btn-admin" style="color: var(--warning);">
+        <button onclick="switchTab('admin')" class="nav-btn" id="tab-btn-admin" style="color: var(--warning);">
           <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-5.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
           <span data-i18n="nav_admin">الإدارة</span>
         </button>
