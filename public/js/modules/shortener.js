@@ -1,13 +1,13 @@
-import { state } from './state.js';
+import { API_BASE, state, setRawUserLinksCache, setBridgeDetails } from './state.js';
 import { safeFetch } from './api.js';
-import { showToast, setButtonLoading, escapeHTML } from './ui.js';
+import { escapeHTML, showToast, setButtonLoading } from './ui.js';
 import { loadUserData } from './user.js';
 
 export function formatShortUrl(link) {
   if (!link) return '';
   let rawUrl = link.shortUrl || link.shortLink || link.url;
   if (!rawUrl && link.shortCode) {
-    rawUrl = `${state.API_BASE}/r/${link.shortCode}`;
+    rawUrl = `${API_BASE}/r/${link.shortCode}`;
   }
   if (!rawUrl) return '';
 
@@ -32,7 +32,7 @@ export async function fetchUserLinks() {
       const data = await res.json().catch(() => null);
       if (data) {
         const links = Array.isArray(data) ? data : (data.links || data.data || []);
-        state.rawUserLinksCache = links;
+        setRawUserLinksCache(links);
         renderUserLinks(state.rawUserLinksCache);
         return state.rawUserLinksCache;
       }
@@ -87,7 +87,8 @@ export async function handleShortenClick(e) {
     const data = await res.json().catch(() => ({}));
 
     if (res.ok && (data.success || data.link || data.shortCode)) {
-      showToast(state.i18n[state.currentLang]?.link_success_msg || 'تم اختصار الرابط بنجاح!');
+      const i18n = window.i18n;
+      showToast(i18n?.[state.currentLang]?.link_success_msg || 'تم اختصار الرابط بنجاح!');
       titleInput.value = '';
       urlInput.value = '';
       
@@ -97,13 +98,13 @@ export async function handleShortenClick(e) {
         originalUrl: url,
         targetUrl: url,
         shortCode: data.shortCode || data.code || '',
-        shortUrl: data.shortUrl || data.shortLink || (data.shortCode ? `${state.API_BASE}/r/${data.shortCode}` : ''),
+        shortUrl: data.shortUrl || data.shortLink || (data.shortCode ? `${API_BASE}/r/${data.shortCode}` : ''),
         views: 0,
         validImpressions: 0,
         totalEarnings: 0
       };
 
-      if (!state.rawUserLinksCache) state.rawUserLinksCache = [];
+      if (!state.rawUserLinksCache) setRawUserLinksCache([]);
       
       const existingIndex = state.rawUserLinksCache.findIndex(l => 
         (l._id && newLink._id && String(l._id) === String(newLink._id)) ||
@@ -140,6 +141,8 @@ export function renderUserLinks(links) {
     return;
   }
 
+  const i18n = window.i18n;
+
   container.innerHTML = links.map(link => {
     const formattedUrl = formatShortUrl(link);
     const title = escapeHTML(link.title || link.shortCode || 'Untitled Link');
@@ -164,7 +167,7 @@ export function renderUserLinks(links) {
         <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--card-border); padding-top: 8px; margin-top: 8px;">
           <span style="font-size: 11px; color: var(--text-muted);">👁️ ${clicks} ${state.currentLang === 'ar' ? 'زيارة' : 'clicks'} (${validImp} ${state.currentLang === 'ar' ? 'مؤكدة' : 'valid'})</span>
           <div class="link-actions">
-            <button class="btn-small" onclick="copyToClipboard('${formattedUrl}')">${state.i18n[state.currentLang]?.btn_copy || 'نسخ'}</button>
+            <button class="btn-small" onclick="copyToClipboard('${formattedUrl}')">${i18n?.[state.currentLang]?.btn_copy || 'نسخ'}</button>
             <button class="btn-small btn-danger" onclick="deleteLink('${linkId}')">${state.currentLang === 'ar' ? 'حذف' : 'Delete'}</button>
           </div>
         </div>
@@ -210,10 +213,8 @@ export async function deleteLink(linkId) {
 }
 
 export async function initBridgeView(code) {
-  state.currentShortCode = code;
   const appView = document.getElementById('app-view');
   const bridgeView = document.getElementById('bridge-view');
-
   if (appView) appView.classList.add('hidden');
   if (bridgeView) bridgeView.classList.remove('hidden');
 
@@ -221,8 +222,9 @@ export async function initBridgeView(code) {
     const res = await safeFetch(`/api/bridge/${code}`);
     if (res && res.ok) {
       const data = await res.json().catch(() => ({}));
-      state.bridgeDestinationUrl = data.targetUrl || data.originalUrl || '/';
-      state.bridgeToken = data.token || null;
+      const destination = data.targetUrl || data.originalUrl || '/';
+      const token = data.token || null;
+      setBridgeDetails(token, destination, code);
       startBridgeTimer(5);
     } else {
       showToast("تعذر تحميل الرابط المطلوب");
