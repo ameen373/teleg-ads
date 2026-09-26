@@ -1,10 +1,9 @@
-// ==========================================
-// Module: ui.js
-// Description: DOM interactions, modals, toasts, language rendering, and UI view switching
-// ==========================================
-
-import { currentLang, i18n, isUserAdmin, setCurrentLang } from './state.js';
-import { triggerHaptic } from './telegram.js';
+// js/modules/ui.js
+import { state } from '../state.js';
+import { loadAdminData } from './admin.js';
+import { fetchUserAds } from './ads.js';
+import { fetchUserReferrals } from './user.js';
+import { renderUserLinks } from './shortener.js';
 
 export function escapeHTML(str) {
   if (!str) return '';
@@ -14,6 +13,14 @@ export function escapeHTML(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+export function triggerHaptic(style = 'light') {
+  try {
+    if (state.tg && state.tg.isVersionAtLeast && state.tg.isVersionAtLeast('6.1') && state.tg.HapticFeedback) {
+      state.tg.HapticFeedback.impactOccurred(style);
+    }
+  } catch (e) {}
 }
 
 export function showToast(msg) {
@@ -28,14 +35,11 @@ export function showToast(msg) {
 export function copyToClipboard(text) {
   if (!text) return;
   navigator.clipboard.writeText(text).then(() => {
-    showToast(i18n[currentLang]?.copied || "تم النسخ بنجاح!");
+    showToast(window.i18n[state.currentLang]?.copied || "تم النسخ بنجاح!");
   }).catch(() => {
-    showToast(i18n[currentLang]?.copy_failed || "فشل النسخ تلقائياً");
+    showToast(state.currentLang === 'ar' ? "فشل النسخ تلقائياً" : "Failed to copy");
   });
 }
-
-// Explicitly bind copyToClipboard to window object for inline HTML triggers
-window.copyToClipboard = copyToClipboard;
 
 export function setButtonLoading(btnId, isLoading, originalText) {
   const btn = document.getElementById(btnId);
@@ -51,8 +55,8 @@ export function setButtonLoading(btnId, isLoading, originalText) {
 }
 
 export function switchTab(tabName) {
-  if (tabName === 'admin' && !isUserAdmin) {
-    showToast(i18n[currentLang]?.access_denied || "غير مصرح لك بالوصول للوحة التحكم");
+  if (tabName === 'admin' && !state.isUserAdmin) {
+    showToast(state.currentLang === 'ar' ? "غير مصرح لك بالوصول للوحة التحكم" : "Access denied");
     return;
   }
   triggerHaptic('light');
@@ -64,12 +68,12 @@ export function switchTab(tabName) {
     if (btn) btn.classList.toggle('active', t === tabName);
   });
 
-  if (tabName === 'admin' && isUserAdmin && typeof window.loadAdminData === 'function') {
-    window.loadAdminData();
-  } else if (tabName === 'ads' && typeof window.fetchUserAds === 'function') {
-    window.fetchUserAds();
-  } else if (tabName === 'referral' && typeof window.fetchUserReferrals === 'function') {
-    window.fetchUserReferrals();
+  if (tabName === 'admin' && state.isUserAdmin) {
+    loadAdminData();
+  } else if (tabName === 'ads') {
+    fetchUserAds();
+  } else if (tabName === 'referral') {
+    fetchUserReferrals();
   }
 }
 
@@ -90,40 +94,75 @@ export function handleNetworkChange(networkVal) {
 
 export function switchWalletView(view) {
   triggerHaptic('light');
-  const depBtn = document.getElementById('wallet-nav-deposit');
-  const withBtn = document.getElementById('wallet-nav-withdraw');
-  const depView = document.getElementById('wallet-view-deposit');
-  const withView = document.getElementById('wallet-view-withdraw');
+  document.getElementById('wallet-nav-deposit')?.classList.toggle('active', view === 'deposit');
+  document.getElementById('wallet-nav-withdraw')?.classList.toggle('active', view === 'withdraw');
 
-  if (depBtn) depBtn.classList.toggle('active', view === 'deposit');
-  if (withBtn) withBtn.classList.toggle('active', view === 'withdraw');
-
-  if (depView) depView.classList.toggle('hidden', view !== 'deposit');
-  if (withView) withView.classList.toggle('hidden', view !== 'withdraw');
+  document.getElementById('wallet-view-deposit')?.classList.toggle('hidden', view !== 'deposit');
+  document.getElementById('wallet-view-withdraw')?.classList.toggle('hidden', view !== 'withdraw');
 }
 
 export function toggleInstructionsModal(show) {
   triggerHaptic('medium');
-  const modal = document.getElementById('instructions-modal');
-  if (modal) modal.classList.toggle('hidden', !show);
+  document.getElementById('instructions-modal')?.classList.toggle('hidden', !show);
 }
 
-export function applyLanguage(lang) {
-  if (!i18n[lang]) return;
-  setCurrentLang(lang);
-  
-  document.documentElement.lang = lang;
-  document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+export function updateWithdrawCalculations() {
+  const amtInput = document.getElementById('withdraw-amount');
+  const feeBox = document.getElementById('withdraw-fee-box');
+  if (!amtInput || !feeBox) return;
 
-  const elements = document.querySelectorAll('[data-i18n]');
-  elements.forEach(el => {
-    const key = el.getAttribute('data-i18n');
-    if (i18n[lang] && i18n[lang][key]) {
-      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-        el.placeholder = i18n[lang][key];
-      } else {
-        el.innerText = i18n[lang][key];
-      }
-    }
-  });
+  const val = parseFloat(amtInput.value) || 0;
+
+  if (val > 0) {
+    feeBox.classList.remove('hidden');
+    const fee = 3;
+    const net = Math.max(0, val - fee);
+
+    const calcReq = document.getElementById('calc-req');
+    const calcFee = document.getElementById('calc-fee');
+    const calcNet = document.getElementById('calc-net');
+
+    if (calcReq) calcReq.innerText = `$${val.toFixed(2)}`;
+    if (calcFee) calcFee.innerText = `$${fee.toFixed(2)}`;
+    if (calcNet) calcNet.innerText = `$${net.toFixed(2)}`;
+  } else {
+    feeBox.classList.add('hidden');
+  }
+}
+
+export function toggleWalletEdit() {
+  triggerHaptic('light');
+  const walletInput = document.getElementById('default-wallet');
+  const editBtn = document.getElementById('edit-wallet-btn');
+  const saveBtn = document.getElementById('save-wallet-btn');
+  if (!walletInput || !editBtn || !saveBtn) return;
+
+  if (walletInput.hasAttribute('readonly')) {
+    walletInput.removeAttribute('readonly');
+    walletInput.focus();
+    editBtn.innerText = window.i18n[state.currentLang]?.cancel || 'إلغاء';
+    editBtn.className = "btn-small btn-danger";
+    saveBtn.classList.remove('hidden');
+  } else {
+    walletInput.setAttribute('readonly', 'readonly');
+    editBtn.innerText = window.i18n[state.currentLang]?.btn_edit || 'تعديل';
+    editBtn.className = "btn-small btn-warning";
+    saveBtn.classList.add('hidden');
+  }
+}
+
+export function filterUserLinks(term) {
+  if (!state.rawUserLinksCache) return;
+  const lower = term.toLowerCase().trim();
+  if (!lower) {
+    renderUserLinks(state.rawUserLinksCache);
+    return;
+  }
+  const filtered = state.rawUserLinksCache.filter(l => 
+    (l.title && l.title.toLowerCase().includes(lower)) ||
+    (l.originalUrl && l.originalUrl.toLowerCase().includes(lower)) ||
+    (l.targetUrl && l.targetUrl.toLowerCase().includes(lower)) ||
+    (l.shortCode && l.shortCode.toLowerCase().includes(lower))
+  );
+  renderUserLinks(filtered);
 }
