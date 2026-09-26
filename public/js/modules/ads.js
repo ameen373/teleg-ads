@@ -1,188 +1,124 @@
+// js/modules/ads.js
 import { state } from '../state.js';
-import { apiCall } from '../api.js';
-import { tg, showAlert, hapticFeedback } from '../telegram.js';
-import { showToast, showLoading, hideLoading, formatCurrency, formatDate, escapeHtml } from '../ui.js';
+import { safeFetch } from './api.js';
+import { showToast, setButtonLoading, escapeHTML } from './ui.js';
+import { loadUserData } from './user.js';
 
-/**
- * إنشاء حملة إعلانية جديدة
- * @param {Object} campaignData - بيانات الحملة
- */
-export async function createAdCampaign(campaignData) {
-    const titleEl = document.getElementById('ad-title-input');
-    const urlEl = document.getElementById('ad-url-input');
-    const budgetEl = document.getElementById('ad-budget-input');
-    const cpmEl = document.getElementById('ad-cpm-input');
+export async function createAdCampaign() {
+  const titleInput = document.getElementById('ad-title');
+  const targetUrlInput = document.getElementById('ad-target-url');
+  const budgetInput = document.getElementById('ad-budget');
 
-    const title = campaignData?.title || (titleEl ? titleEl.value.trim() : '');
-    const targetUrl = campaignData?.targetUrl || (urlEl ? urlEl.value.trim() : '');
-    const budget = campaignData?.budget || (budgetEl ? parseFloat(budgetEl.value) : 0);
-    const cpm = campaignData?.cpm || (cpmEl ? parseFloat(cpmEl.value) : 0);
+  if (!titleInput || !targetUrlInput || !budgetInput) return;
 
-    if (!title || !targetUrl || !budget || budget <= 0) {
-        showToast('يرجى ملء جميع الحقول المطلوبة بشكل صحيح', 'warning');
-        return;
-    }
+  const title = titleInput.value.trim();
+  let targetUrl = targetUrlInput.value.trim();
+  const budget = parseFloat(budgetInput.value) || 0;
 
-    try {
-        showLoading(true);
-        const response = await apiCall('/api/ads/create', 'POST', {
-            title,
-            targetUrl,
-            budget,
-            cpm
-        });
+  if (!title) {
+    showToast(state.currentLang === 'ar' ? 'يرجى إدخال عنوان الإعلان' : 'Please enter ad title');
+    return;
+  }
 
-        if (response && response.success) {
-            hapticFeedback('notification', 'success');
-            showToast('تم إنشاء الحملة الإعلانية بنجاح وهي قيد المراجعة', 'success');
-            
-            if (titleEl) titleEl.value = '';
-            if (urlEl) urlEl.value = '';
-            if (budgetEl) budgetEl.value = '';
-            
-            await fetchUserAds();
-        } else {
-            showAlert(response?.message || 'فشل إنشاء الحملة الإعلانية');
-        }
-    } catch (error) {
-        console.error('Error creating ad campaign:', error);
-        showToast('حدث خطأ أثناء حفظ الحملة الإعلانية', 'error');
-    } finally {
-        hideLoading();
-    }
-}
+  if (!targetUrl) {
+    showToast(state.currentLang === 'ar' ? 'يرجى إدخال رابط التوجيه' : 'Please enter target URL');
+    return;
+  }
 
-/**
- * جلب جميع حملات المستخدم الإعلانية
- */
-export async function fetchUserAds() {
-    try {
-        showLoading(true);
-        const response = await apiCall('/api/ads/my-ads');
-        if (response && response.success) {
-            state.userAds = response.ads || [];
-            renderUserAds(state.userAds);
-        } else {
-            showToast('تعذر جلب الحملات الإعلانية', 'error');
-        }
-    } catch (error) {
-        console.error('Error fetching user ads:', error);
-        showToast('حدث خطأ أثناء جلب الحملات الإعلانية', 'error');
-    } finally {
-        hideLoading();
-    }
-}
+  if (!/^https?:\/\//i.test(targetUrl)) {
+    targetUrl = 'https://' + targetUrl;
+  }
 
-/**
- * عرض قائمة حملات المستخدم الإعلانية
- * @param {Array} ads - قائمة الإعلانات
- */
-export function renderUserAds(ads = state.userAds) {
-    const container = document.getElementById('user-ads-container');
-    const emptyState = document.getElementById('ads-empty-state');
+  if (budget < 5) {
+    showToast(state.currentLang === 'ar' ? 'الحد الأدنى لميزانية الحملة هو $5' : 'Minimum campaign budget is $5');
+    return;
+  }
 
-    if (!container) return;
+  setButtonLoading('btn-create-ad', true);
 
-    if (!ads || ads.length === 0) {
-        container.innerHTML = '';
-        if (emptyState) emptyState.classList.remove('hidden');
-        return;
-    }
-
-    if (emptyState) emptyState.classList.add('hidden');
-
-    container.innerHTML = ads.map(ad => {
-        let statusClass = 'badge-warning';
-        let statusText = 'قيد المراجعة';
-
-        if (ad.status === 'active') {
-            statusClass = 'badge-success';
-            statusText = 'نشط';
-        } else if (ad.status === 'paused') {
-            statusClass = 'badge-info';
-            statusText = 'متوقف مؤقتاً';
-        } else if (ad.status === 'completed') {
-            statusClass = 'badge-secondary';
-            statusText = 'مكتمل';
-        } else if (ad.status === 'rejected') {
-            statusClass = 'badge-danger';
-            statusText = 'مرفوض';
-        }
-
-        return `
-            <div class="card ad-card">
-                <div class="ad-card-header">
-                    <h4>${escapeHtml(ad.title)}</h4>
-                    <span class="badge ${statusClass}">${statusText}</span>
-                </div>
-                <p class="text-sm text-muted">${escapeHtml(ad.targetUrl)}</p>
-                <div class="ad-stats grid-2">
-                    <div>الميزانية: <strong>${formatCurrency(ad.budget)}</strong></div>
-                    <div>المصروف: <strong>${formatCurrency(ad.spent || 0)}</strong></div>
-                    <div>المشاهدات: <strong>${ad.impressions || 0}</strong></div>
-                    <div>CPM: <strong>${formatCurrency(ad.cpm || 0)}</strong></div>
-                </div>
-                <div class="ad-date text-xs text-muted">
-                    تاريخ الإنشاء: ${formatDate(ad.createdAt)}
-                </div>
-            </div>
-        `;
-    }).join('');
-}
-
-/**
- * تهيئة وتكامل إعلانات المكافآت من AdsGram بالكامل
- */
-export function initAdsGramReward() {
-    const rewardBtn = document.getElementById('adsgram-reward-btn');
-    if (!rewardBtn) return;
-
-    const blockId = state.systemSettings?.adsgramBlockId || 'YOUR_BLOCK_ID';
-
-    rewardBtn.addEventListener('click', async () => {
-        if (!window.Adsgram) {
-            showToast('شبكة الإعلانات غير متاحة حالياً، يرجى المحاولة لاحقاً', 'warning');
-            return;
-        }
-
-        try {
-            hapticFeedback('impact', 'light');
-            showLoading(true);
-
-            const AdController = window.Adsgram.init({ blockId: blockId });
-
-            AdController.show().then(async (result) => {
-                // تمت مشاهدة الإعلان بنجاح
-                try {
-                    const response = await apiCall('/api/adsgram/reward', 'POST', {
-                        event: 'completed',
-                        rewardAmount: state.systemSettings?.adsgramRewardAmount || 0.01
-                    });
-
-                    if (response && response.success) {
-                        hapticFeedback('notification', 'success');
-                        showAlert(`تهانينا! حصلت على مكافأة مشاهدة الإعلان قدرها ${formatCurrency(response.reward || 0.01)}`);
-                        if (state.user && response.newBalance !== undefined) {
-                            state.user.balance = response.newBalance;
-                        }
-                    } else {
-                        showToast(response?.message || 'تعذر إضافة المكافأة', 'error');
-                    }
-                } catch (err) {
-                    console.error('Error crediting reward:', err);
-                }
-            }).catch((error) => {
-                // تم إغلاق الإعلان قبل انتهاء الوقت أو خطأ في العرض
-                console.warn('AdGram execution result/error:', error);
-                showToast('لم تتم مشاهدة الإعلان بالكامل للحصول على المكافأة', 'info');
-            }).finally(() => {
-                hideLoading();
-            });
-
-        } catch (error) {
-            console.error('AdsGram Initialization Error:', error);
-            hideLoading();
-            showToast('حدث خطأ أثناء تشغيل الإعلان', 'error');
-        }
+  try {
+    const res = await safeFetch('/api/ads/create', {
+      method: 'POST',
+      body: {
+        userId: state.currentUserTelegramId,
+        telegramId: state.currentUserTelegramId,
+        title: title,
+        targetUrl: targetUrl,
+        budget: budget
+      }
     });
+
+    if (res) {
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && (data.success || data.ad)) {
+        showToast(state.currentLang === 'ar' ? 'تم إطلاق الحملة الإعلانية بنجاح!' : 'Ad campaign launched successfully!');
+        titleInput.value = '';
+        targetUrlInput.value = '';
+        budgetInput.value = '';
+        await fetchUserAds();
+        await loadUserData();
+      } else {
+        showToast(data.error || (state.currentLang === 'ar' ? 'فشل إنشاء الحملة الإعلانية' : 'Failed to create ad campaign'));
+      }
+    }
+  } catch (err) {
+    showToast(err.message || (state.currentLang === 'ar' ? 'خطأ أثناء إنشاء الحملة' : 'Error creating campaign'));
+  } finally {
+    setButtonLoading('btn-create-ad', false);
+  }
+}
+
+export async function fetchUserAds() {
+  const container = document.getElementById('ads-list');
+  if (container) {
+    container.innerHTML = `<div style="text-align:center; padding: 10px;"><div class="spinner"></div></div>`;
+  }
+
+  try {
+    const res = await safeFetch('/api/ads');
+    if (res) {
+      const data = await res.json().catch(() => null);
+      if (data) {
+        const ads = Array.isArray(data) ? data : (data.ads || data.data || []);
+        renderUserAds(ads);
+        return ads;
+      }
+    }
+  } catch (err) {
+    console.error("Error fetching user ads:", err);
+  }
+  return [];
+}
+
+export function renderUserAds(ads) {
+  const container = document.getElementById('ads-list');
+  if (!container) return;
+
+  if (!ads || ads.length === 0) {
+    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${state.currentLang === 'ar' ? 'لا توجد حملات إعلانية نشطة.' : 'No active ad campaigns.'}</p>`;
+    return;
+  }
+
+  container.innerHTML = ads.map(ad => {
+    const title = escapeHTML(ad.title || 'Untitled Ad');
+    const targetUrl = escapeHTML(ad.targetUrl || ad.url || '');
+    const budget = (ad.budget || 0).toFixed(2);
+    const spent = (ad.spent || ad.totalSpent || 0).toFixed(2);
+    const impressions = ad.impressions || ad.views || 0;
+
+    return `
+      <div class="ad-item">
+        <div class="ad-header">
+          <strong style="font-size: 14px; color: var(--text);">${title}</strong>
+          <span style="font-size: 11px; color: var(--accent); font-weight: 700;">$${spent} / $${budget}</span>
+        </div>
+        <div style="margin: 6px 0; font-size: 11px; color: var(--text-muted); word-break: break-all;">
+          🔗 ${targetUrl}
+        </div>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 8px; border-top: 1px solid var(--card-border); padding-top: 8px;">
+          👁️ ${impressions} ${state.currentLang === 'ar' ? 'مشاهدة حقيقية' : 'impressions'}
+        </div>
+      </div>
+    `;
+  }).join('');
 }
