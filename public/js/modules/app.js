@@ -1,24 +1,24 @@
-import { state, tg, setAuthToken, setCurrentUserTelegramId, setIsUserAdmin, setCurrentLang } from './modules/state.js';
-import { safeFetch } from './modules/api.js';
+import { state, tg, setAuthToken, setCurrentUserTelegramId, setIsUserAdmin, setCurrentLang } from './state.js';
+import { safeFetch } from './api.js';
 import { 
   escapeHTML, triggerHaptic, showToast, copyToClipboard, setButtonLoading, 
   switchTab, handleNetworkChange, switchWalletView, toggleInstructionsModal, 
   updateWithdrawCalculations, renderTelegramUser, toggleWalletEdit, changeAppLanguage 
-} from './modules/ui.js';
-import { createAdCampaign, fetchUserAds, renderUserAds } from './modules/ads.js';
+} from './ui.js';
+import { createAdCampaign, fetchUserAds, renderUserAds } from './ads.js';
 import { 
   formatShortUrl, fetchUserLinks, handleShortenClick, renderUserLinks, 
   filterUserLinks, deleteLink, initBridgeView, startBridgeTimer, completeImpression 
-} from './modules/shortener.js';
+} from './shortener.js';
 import { 
   authLogin, loadUserData, shareReferralLink, requestDeposit, 
   saveSettings, requestWithdrawal, renderWithdrawalsHistory, 
   fetchUserReferrals, renderUserReferrals 
-} from './modules/user.js';
+} from './user.js';
 import { 
   loadAdminData, renderAdminDeposits, renderAdminWithdraws, 
   renderAdminUsers, renderAdminLinks, renderAdminAds, processAdminAction 
-} from './modules/admin.js';
+} from './admin.js';
 
 // Global binding for inline HTML event attributes (onclick, oninput, onchange)
 Object.assign(window, {
