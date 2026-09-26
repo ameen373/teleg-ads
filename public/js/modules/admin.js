@@ -1,6 +1,6 @@
 import { state } from './state.js';
 import { safeFetch } from './api.js';
-import { showToast, escapeHTML } from './ui.js';
+import { escapeHTML, showToast } from './ui.js';
 
 export async function loadAdminData() {
   if (!state.isUserAdmin) return;
@@ -10,11 +10,11 @@ export async function loadAdminData() {
     if (res && res.ok) {
       const data = await res.json().catch(() => ({}));
       
-      const totalUsersElem = document.getElementById('admin-total-users');
-      const totalPendingElem = document.getElementById('admin-total-pending');
+      const totalUsers = document.getElementById('admin-total-users');
+      const totalPending = document.getElementById('admin-total-pending');
 
-      if (totalUsersElem) totalUsersElem.innerText = data.totalUsers || 0;
-      if (totalPendingElem) totalPendingElem.innerText = `$${(data.totalPendingBalance || 0).toFixed(2)}`;
+      if (totalUsers) totalUsers.innerText = data.totalUsers || 0;
+      if (totalPending) totalPending.innerText = `$${(data.totalPendingBalance || 0).toFixed(2)}`;
 
       if (data.pendingDeposits) renderAdminDeposits(data.pendingDeposits);
       if (data.pendingWithdraws) renderAdminWithdraws(data.pendingWithdraws);
