@@ -4,11 +4,14 @@ import { showToast } from './ui.js';
 export async function safeFetch(endpoint, options = {}) {
   options.headers = options.headers || {};
   
-  if (!state.currentUserTelegramId && tg?.initDataUnsafe?.user?.id) {
-    setCurrentUserTelegramId(tg.initDataUnsafe.user.id);
+  const webApp = window.Telegram?.WebApp;
+  const currentTgId = webApp?.initDataUnsafe?.user?.id || tg?.initDataUnsafe?.user?.id || state.currentUserTelegramId;
+  
+  if (currentTgId) {
+    setCurrentUserTelegramId(currentTgId);
   }
 
-  const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || '';
+  const initDataStr = webApp?.initData || tg?.initData || '';
   
   if (initDataStr) {
     options.headers['Authorization'] = `Bearer ${initDataStr}`;
@@ -19,10 +22,10 @@ export async function safeFetch(endpoint, options = {}) {
   }
 
   if (state.currentUserTelegramId) {
-    options.headers['x-telegram-id'] = state.currentUserTelegramId;
-    options.headers['telegram-id'] = state.currentUserTelegramId;
-    options.headers['x-user-id'] = state.currentUserTelegramId;
-    options.headers['user-id'] = state.currentUserTelegramId;
+    options.headers['x-telegram-id'] = String(state.currentUserTelegramId);
+    options.headers['telegram-id'] = String(state.currentUserTelegramId);
+    options.headers['x-user-id'] = String(state.currentUserTelegramId);
+    options.headers['user-id'] = String(state.currentUserTelegramId);
   }
 
   if (options.body && typeof options.body === 'object') {
