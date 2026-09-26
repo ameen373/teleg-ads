@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="theme-color" content="#0b0f19">
   <title>Telega.ads | Enterprise Shortener & Ad Network</title>
   
   <!-- External CSS Integration -->
@@ -16,7 +18,7 @@
 
   <div class="container">
     <!-- Global Toast Notification Container -->
-    <div id="toast"></div>
+    <div id="toast" class="toast hidden"></div>
 
     <!-- Deposit Guide Modal -->
     <div id="instructions-modal" class="modal-overlay hidden">
@@ -34,7 +36,7 @@
           </li>
           <li><b data-i18n="guide_step4_b">إرسال الطلب:</b> <span data-i18n="guide_step4_t">عد هنا وأدخل قيمة المبلغ المودع ورمز المعاملة ثم انقر تقديم الطلب.</span></li>
         </ol>
-        <button class="btn-danger" style="margin-top: 16px;" onclick="toggleInstructionsModal(false)" data-i18n="close">إغلاق</button>
+        <button class="btn-danger" style="margin-top: 16px; width: 100%;" onclick="toggleInstructionsModal(false)" data-i18n="close">إغلاق</button>
       </div>
     </div>
 
@@ -67,16 +69,28 @@
     <!-- Main Telegram App View -->
     <div id="app-view">
       
-      <!-- User Profile Header -->
-      <div class="user-profile-header">
-        <div id="user-avatar-container"></div>
+      <!-- Enhanced User Profile Header (Fixes User Data Display Issues) -->
+      <div class="user-profile-header" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: rgba(17, 24, 39, 0.8); border: 1px solid var(--card-border); border-radius: 16px; margin-bottom: 16px; backdrop-filter: blur(10px);">
+        <div id="user-avatar-container" style="position: relative; width: 46px; height: 46px; flex-shrink: 0;">
+          <div id="user-avatar-placeholder" style="width: 100%; height: 100%; border-radius: 50%; background: linear-gradient(135deg, var(--accent), #1d4ed8); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: bold; font-size: 18px;">👤</div>
+          <img id="user-avatar" class="hidden" src="" alt="Avatar" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;" onerror="this.classList.add('hidden'); document.getElementById('user-avatar-placeholder').classList.remove('hidden');">
+        </div>
+        
         <div style="flex: 1; overflow: hidden;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span id="user-display-name" style="font-weight: 800; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">...</span>
-            <span id="user-premium-badge" class="user-badge hidden">★ Premium</span>
+          <div style="display: flex; align-items: center; gap: 6px; flex-wrap: nowrap;">
+            <span id="user-display-name" style="font-weight: 800; font-size: 15px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">مستخدم تليجرام</span>
+            <span id="user-premium-badge" class="user-badge hidden" style="background: linear-gradient(90deg, #ffaa00, #ff5500); color: #fff; font-size: 9px; padding: 2px 6px; border-radius: 8px; font-weight: bold;">★ Premium</span>
+            <span id="user-role-badge" class="user-badge hidden" style="background: var(--danger); color: #fff; font-size: 9px; padding: 2px 6px; border-radius: 8px; font-weight: bold;">Admin</span>
           </div>
-          <div id="user-display-handle" style="font-size: 12px; color: var(--text-muted);">@user</div>
-          <div id="user-tg-id" style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">ID: -</div>
+          <div style="display: flex; align-items: center; gap: 8px; margin-top: 2px; flex-wrap: wrap;">
+            <span id="user-display-handle" style="font-size: 12px; color: var(--accent); font-weight: 500;">@user</span>
+            <span id="user-tg-id" style="font-size: 11px; color: var(--text-muted); font-family: monospace;">ID: -</span>
+          </div>
+        </div>
+
+        <div style="text-align: left; padding-left: 4px; border-right: 1px solid var(--card-border); padding-right: 8px;">
+          <div style="font-size: 10px; color: var(--text-muted);" data-i18n="lbl_avail_bal">المتاح</div>
+          <div id="header-avail-bal" style="font-weight: 800; font-size: 14px; color: var(--success);">$0.00</div>
         </div>
       </div>
 
@@ -257,12 +271,12 @@
 
         <div class="card">
           <h3 style="margin-top:0; font-size: 16px;" data-i18n="faq_title">الأسئلة الشائعة والدعم</h3>
-          <details>
-            <summary data-i18n="faq_q1">كيف يتم احتساب الأرباح؟</summary>
+          <details style="cursor: pointer; margin-bottom: 8px;">
+            <summary style="font-weight: bold; color: var(--text);" data-i18n="faq_q1">كيف يتم احتساب الأرباح؟</summary>
             <p style="color: var(--text-muted); font-size: 12px; margin-top: 8px;" data-i18n="faq_a1">تعتمد الأرباح على إيرادات الإعلانات وتوزع نسبياً حسب الزيارات الحقيقية المعتمدة.</p>
           </details>
-          <details>
-            <summary data-i18n="faq_q2">ما هي فترة الرصيد المعلق (يوم واحد)؟</summary>
+          <details style="cursor: pointer;">
+            <summary style="font-weight: bold; color: var(--text);" data-i18n="faq_q2">ما هي فترة الرصيد المعلق (يوم واحد)؟</summary>
             <p style="color: var(--text-muted); font-size: 12px; margin-top: 8px;" data-i18n="faq_a2">هي فترة أمان لمراجعة مصادر الحركة والتأكد من عدم وجود نقرات وهمية قبل تحويل الأرباح للرصيد المتاح خلال 24 ساعة.</p>
           </details>
           
@@ -283,7 +297,7 @@
         </div>
       </div>
 
-      <!-- Tab 6: Admin Dashboard Panel -->
+      <!-- Tab 6: Admin Dashboard Panel (Protected View) -->
       <div id="tab-content-admin" class="tab-pane hidden">
         <div class="stats-grid" style="margin-bottom: 16px;">
           <div class="stat-box"><small data-i18n="admin_total_users">إجمالي المستخدمين</small><h3 id="admin-total-users">0</h3></div>
@@ -343,7 +357,7 @@
           <span data-i18n="nav_settings">الإعدادات</span>
         </button>
 
-        <button onclick="switchTab('admin')" class="nav-btn" id="tab-btn-admin" style="color: var(--warning);">
+        <button onclick="switchTab('admin')" class="nav-btn hidden" id="tab-btn-admin" style="color: var(--warning);">
           <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-5.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
           <span data-i18n="nav_admin">الإدارة</span>
         </button>
