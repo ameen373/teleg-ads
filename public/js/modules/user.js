@@ -1,13 +1,13 @@
-import { state } from './state.js';
+import { state, tg, setAuthToken, setCurrentUserTelegramId, setIsUserAdmin, setRawUserLinksCache } from './state.js';
 import { safeFetch } from './api.js';
-import { showToast, setButtonLoading, triggerHaptic, toggleWalletEdit, updateWithdrawCalculations, escapeHTML } from './ui.js';
+import { escapeHTML, showToast, setButtonLoading, toggleWalletEdit, updateWithdrawCalculations, triggerHaptic } from './ui.js';
 import { renderUserLinks } from './shortener.js';
 import { renderUserAds } from './ads.js';
 
 export async function authLogin() {
-  const startParam = state.tg?.initDataUnsafe?.start_param || null;
-  const u = state.tg?.initDataUnsafe?.user || {};
-  const initDataStr = window.Telegram?.WebApp?.initData || state.tg?.initData || '';
+  const startParam = tg?.initDataUnsafe?.start_param || null;
+  const u = tg?.initDataUnsafe?.user || {};
+  const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || '';
 
   try {
     const res = await safeFetch('/api/auth/login', {
@@ -28,17 +28,15 @@ export async function authLogin() {
     const data = await res.json().catch(() => ({}));
     if (data && (data.success || data.token)) {
       if (data.token) {
-        state.authToken = data.token;
-        localStorage.setItem('authToken', state.authToken);
+        setAuthToken(data.token);
       }
 
       if (data.user && data.user.telegramId) {
-        state.currentUserTelegramId = String(data.user.telegramId);
-        localStorage.setItem('telegramId', state.currentUserTelegramId);
+        setCurrentUserTelegramId(data.user.telegramId);
       }
 
       if (data.isAdmin === true) {
-        state.isUserAdmin = true;
+        setIsUserAdmin(true);
         const adminBtn = document.getElementById('tab-btn-admin');
         if (adminBtn) adminBtn.style.display = 'flex';
       }
@@ -111,7 +109,7 @@ export async function loadUserData() {
       }
 
       if (data.links && Array.isArray(data.links)) {
-        state.rawUserLinksCache = data.links;
+        setRawUserLinksCache(data.links);
         renderUserLinks(state.rawUserLinksCache);
       }
 
@@ -136,7 +134,7 @@ export async function loadUserData() {
       }
 
       if (data.isAdmin === true) {
-        state.isUserAdmin = true;
+        setIsUserAdmin(true);
         const adminBtn = document.getElementById('tab-btn-admin');
         if (adminBtn) adminBtn.style.display = 'flex';
       }
@@ -146,16 +144,32 @@ export async function loadUserData() {
   }
 }
 
+export function shareReferralLink() {
+  const refInput = document.getElementById('ref-link');
+  if (!refInput) return;
+  const refUrl = refInput.value;
+  if (!refUrl) return;
+  triggerHaptic('medium');
+  const shareText = encodeURIComponent(state.currentLang === 'ar' ? "انضم إليّ في أفضل منصة لاختصار الروابط واكسب الأرباح بسهولة! 🚀" : "Join me on the best url shortener platform & earn money! 🚀");
+  const url = `https://t.me/share/url?url=${encodeURIComponent(refUrl)}&text=${shareText}`;
+  
+  if (tg && tg.openTelegramLink) {
+    tg.openTelegramLink(url);
+  } else {
+    window.open(url, '_blank');
+  }
+}
+
 export async function requestDeposit() {
-  const networkInput = document.getElementById('deposit-network');
-  const amountInput = document.getElementById('deposit-amount');
-  const txHashInput = document.getElementById('deposit-txhash');
+  const networkElem = document.getElementById('deposit-network');
+  const amountElem = document.getElementById('deposit-amount');
+  const txHashElem = document.getElementById('deposit-txhash');
 
-  if (!networkInput || !amountInput || !txHashInput) return;
+  if (!networkElem || !amountElem || !txHashElem) return;
 
-  const network = networkInput.value;
-  const amountVal = amountInput.value;
-  const txHashVal = txHashInput.value.trim();
+  const network = networkElem.value;
+  const amountVal = amountElem.value;
+  const txHashVal = txHashElem.value.trim();
 
   if (!network) {
     showToast(state.currentLang === 'ar' ? 'يرجى اختيار شبكة الدفع' : 'Please select payment network');
@@ -190,8 +204,8 @@ export async function requestDeposit() {
       const data = await res.json().catch(() => ({}));
       if (res.ok && (data.success || data.deposit)) {
         showToast(state.currentLang === 'ar' ? 'تم تقديم طلب الشحن بنجاح! سيتم مراجعته قريباً.' : 'Deposit request submitted successfully!');
-        amountInput.value = '';
-        txHashInput.value = '';
+        amountElem.value = '';
+        txHashElem.value = '';
         await loadUserData();
       } else {
         showToast(data.error || data.message || (state.currentLang === 'ar' ? 'فشل تقديم طلب الشحن' : 'Failed to submit deposit request'));
@@ -208,8 +222,8 @@ export async function requestDeposit() {
 export async function saveSettings() {
   const walletInput = document.getElementById('default-wallet');
   if (!walletInput) return;
-
   const walletAddr = walletInput.value.trim();
+
   if (!walletAddr) {
     showToast(state.currentLang === 'ar' ? 'يرجى إدخال عنوان المحفظة' : 'Please enter wallet address');
     return;
@@ -314,22 +328,6 @@ export function renderWithdrawalsHistory(withdraws) {
       </div>
     `;
   }).join('');
-}
-
-export function shareReferralLink() {
-  const refInput = document.getElementById('ref-link');
-  if (!refInput) return;
-  const refUrl = refInput.value;
-  if (!refUrl) return;
-  triggerHaptic('medium');
-  const shareText = encodeURIComponent(state.currentLang === 'ar' ? "انضم إليّ في أفضل منصة لاختصار الروابط واكسب الأرباح بسهولة! 🚀" : "Join me on the best url shortener platform & earn money! 🚀");
-  const url = `https://t.me/share/url?url=${encodeURIComponent(refUrl)}&text=${shareText}`;
-  
-  if (state.tg && state.tg.openTelegramLink) {
-    state.tg.openTelegramLink(url);
-  } else {
-    window.open(url, '_blank');
-  }
 }
 
 export async function fetchUserReferrals() {
