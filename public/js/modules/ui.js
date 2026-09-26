@@ -15,8 +15,9 @@ export function escapeHTML(str) {
 
 export function triggerHaptic(style = 'light') {
   try {
-    if (tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.1') && tg.HapticFeedback) {
-      tg.HapticFeedback.impactOccurred(style);
+    const webApp = window.Telegram?.WebApp || tg;
+    if (webApp && webApp.isVersionAtLeast && webApp.isVersionAtLeast('6.1') && webApp.HapticFeedback) {
+      webApp.HapticFeedback.impactOccurred(style);
     }
   } catch (e) {}
 }
@@ -138,7 +139,15 @@ export function updateWithdrawCalculations() {
 }
 
 export function renderTelegramUser() {
-  const u = tg?.initDataUnsafe?.user;
+  const webApp = window.Telegram?.WebApp;
+  if (webApp) {
+    try {
+      webApp.ready();
+      webApp.expand();
+    } catch (e) {}
+  }
+  
+  const u = webApp?.initDataUnsafe?.user || tg?.initDataUnsafe?.user;
   const avatarContainer = document.getElementById('user-avatar-container');
   const nameElem = document.getElementById('user-display-name');
   const handleElem = document.getElementById('user-display-handle');
@@ -147,6 +156,7 @@ export function renderTelegramUser() {
 
   if (u && u.id) {
     setCurrentUserTelegramId(u.id);
+    localStorage.setItem('telegramId', String(u.id));
     const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || 'Telegram User';
     if (nameElem) nameElem.innerText = fullName;
     if (handleElem) handleElem.innerText = u.username ? `@${u.username}` : '@no_username';
@@ -175,12 +185,11 @@ export function renderTelegramUser() {
       setCurrentLang('ar');
     }
   } else {
-    if (!state.currentUserTelegramId) {
-      setCurrentUserTelegramId(localStorage.getItem('telegramId') || '123456789');
-    }
+    const savedId = state.currentUserTelegramId || localStorage.getItem('telegramId') || '123456789';
+    setCurrentUserTelegramId(savedId);
     if (nameElem) nameElem.innerText = 'Telegram User';
     if (handleElem) handleElem.innerText = '@user';
-    if (idElem) idElem.innerText = `ID: ${state.currentUserTelegramId}`;
+    if (idElem) idElem.innerText = `ID: ${savedId}`;
     if (avatarContainer) {
       avatarContainer.innerHTML = `<div class="user-avatar-placeholder">U</div>`;
     }
