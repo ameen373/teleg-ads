@@ -1,17 +1,26 @@
-// js/modules/api.js
+// public/js/modules/api.js
 import { state } from '../state.js';
 import { showToast } from './ui.js';
 
-export async function safeFetch(endpoint, options = {}) {
+/**
+ * دالة إرسال الطلبات للسيرفر وإرفاق بيانات توثيق تلجرام تلقائياً
+ */
+export async function apiRequest(endpoint, options = {}) {
   options.headers = options.headers || {};
   
-  if (!state.currentUserTelegramId && state.tg?.initDataUnsafe?.user?.id) {
-    state.currentUserTelegramId = String(state.tg.initDataUnsafe.user.id);
+  // التأكد من استخراج معرّف المستخدم من Telegram WebApp إن وجد
+  const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user || state.tg?.initDataUnsafe?.user;
+  if (tgUser?.id) {
+    state.currentUserTelegramId = String(tgUser.id);
     localStorage.setItem('telegramId', state.currentUserTelegramId);
+  } else if (!state.currentUserTelegramId) {
+    state.currentUserTelegramId = localStorage.getItem('telegramId') || '';
   }
 
+  // جلب initData المباشرة من نافذة WebApp أو من state
   const initDataStr = window.Telegram?.WebApp?.initData || state.tg?.initData || '';
   
+  // إرفاق بيانات التوثيق في الترويسات (Headers) أوتوماتيكياً
   if (initDataStr) {
     options.headers['Authorization'] = `Bearer ${initDataStr}`;
     options.headers['x-telegram-init-data'] = initDataStr;
@@ -27,6 +36,7 @@ export async function safeFetch(endpoint, options = {}) {
     options.headers['user-id'] = state.currentUserTelegramId;
   }
 
+  // تجهيز نص الطلب (Body) وإضافة المعاملات التلقائية
   if (options.body && typeof options.body === 'object') {
     if (state.currentUserTelegramId && !options.body.userId && !options.body.telegramId) {
       options.body.userId = state.currentUserTelegramId;
@@ -42,7 +52,8 @@ export async function safeFetch(endpoint, options = {}) {
     options.headers['Content-Type'] = 'application/json; charset=utf-8';
   }
   
-  let cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  // صياغة الرابط النهائي
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   let targetUrl = endpoint.startsWith('http') ? endpoint : `${state.API_BASE}${cleanEndpoint}`;
 
   if (state.currentUserTelegramId && !targetUrl.includes('telegramId=') && !targetUrl.includes('userId=')) {
@@ -51,11 +62,24 @@ export async function safeFetch(endpoint, options = {}) {
   }
 
   try {
-    let response = await fetch(targetUrl, options);
+    const response = await fetch(targetUrl, options);
     return response;
   } catch (err) {
     console.error("Fetch Network Error:", err);
-    showToast(window.i18n[state.currentLang]?.network_error || "خطأ في الاتصال بالشبكة");
+    const langMsg = (window.i18n && state.currentLang && window.i18n[state.currentLang]?.network_error)
+      ? window.i18n[state.currentLang].network_error
+      : "خطأ في الاتصال بالشبكة";
+    
+    if (typeof showToast === 'function') {
+      showToast(langMsg);
+    }
     return null;
   }
+}
+
+/**
+ * دالة safeFetch للعمل كدالة بديلة لـ apiRequest لضمان توافق باقي الموديولات
+ */
+export async function safeFetch(endpoint, options = {}) {
+  return await apiRequest(endpoint, options);
 }
