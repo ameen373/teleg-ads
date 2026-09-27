@@ -1,9 +1,7 @@
 import { state, i18n } from '../state.js';
 import { safeFetch } from './api.js';
-import { triggerHaptic, escapeHTML, updateDOMTranslations } from './ui.js';
-import { renderUserLinks } from './shortener.js';
-import { renderWithdrawalsHistory } from './wallet.js';
-import { renderUserAds } from './ads.js';
+import { triggerHaptic, escapeHTML, showToast } from './ui.js';
+import { fetchWithdrawalsHistory } from './wallet.js';
 
 export function renderTelegramUser() {
   const tg = state.tg || window.Telegram?.WebApp;
@@ -60,15 +58,29 @@ export function renderTelegramUser() {
 }
 
 export function applyLanguage(lang) {
-  state.currentLang = lang;
-  localStorage.setItem('appLang', lang);
-  document.documentElement.lang = lang;
-  document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+  state.currentLang = lang || 'ar';
+  localStorage.setItem('appLang', state.currentLang);
+  document.documentElement.lang = state.currentLang;
+  document.documentElement.dir = state.currentLang === 'ar' ? 'rtl' : 'ltr';
 
-  const selectElem = document.getElementById('language-select');
-  if (selectElem) selectElem.value = lang;
+  const select = document.getElementById('language-select');
+  if (select) select.value = state.currentLang;
 
-  updateDOMTranslations();
+  const dict = i18n[state.currentLang] || i18n['ar'] || {};
+
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (dict[key]) {
+      el.innerText = dict[key];
+    }
+  });
+
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+    const key = el.getAttribute('data-i18n-ph');
+    if (dict[key]) {
+      el.placeholder = dict[key];
+    }
+  });
 }
 
 export function changeAppLanguage(lang) {
@@ -80,128 +92,131 @@ export async function loadUserData() {
     const res = await safeFetch('/api/user/data');
     if (res && res.ok) {
       const data = await res.json().catch(() => ({}));
-      const u = data.user || {};
+      const u = data.user || data.data || {};
       state.user = u;
 
       const pendingElem = document.getElementById('pending-bal');
       const availElem = document.getElementById('avail-bal');
-      const refEarnElem = document.getElementById('ref-earnings');
-
-      if (pendingElem) pendingElem.innerText = `$${(u.pendingBalance || 0).toFixed(2)}`;
-      if (availElem) availElem.innerText = `$${(u.availableBalance || 0).toFixed(2)}`;
-      if (refEarnElem) refEarnElem.innerText = `$${(u.referralEarnings || 0).toFixed(2)}`;
-      
+      const dashTotalLinks = document.getElementById('dash-total-links');
+      const dashTotalClicks = document.getElementById('dash-total-clicks');
+      const dashTotalEarnings = document.getElementById('dash-total-earnings');
+      const refLinkInput = document.getElementById('ref-link');
       const refCountElem = document.getElementById('ref-count');
-      if (refCountElem) {
-        refCountElem.innerText = data.referralsCount || u.referralsCount || 0;
-      }
-
-      const refInput = document.getElementById('ref-link');
-      const botUsername = (data.botUsername || 'Ads_telegabot').replace(/^@/, '');
-      if (refInput) {
-        refInput.value = `https://t.me/${botUsername}?start=${state.currentUserTelegramId}`;
-      }
-
+      const refEarningsElem = document.getElementById('ref-earnings');
       const walletInput = document.getElementById('default-wallet');
-      if (walletInput && u.defaultWallet) {
-        walletInput.value = u.defaultWallet;
+
+      const pendingBal = u.pendingBalance !== undefined ? u.pendingBalance : (u.pendingEarnings || 0);
+      const availBal = u.availableBalance !== undefined ? u.availableBalance : (u.balance || 0);
+      const totalEarnings = u.totalEarnings !== undefined ? u.totalEarnings : (availBal + pendingBal);
+
+      if (pendingElem) pendingElem.innerText = `$${Number(pendingBal).toFixed(2)}`;
+      if (availElem) availElem.innerText = `$${Number(availBal).toFixed(2)}`;
+      if (dashTotalLinks) dashTotalLinks.innerText = u.totalLinks || (state.rawUserLinksCache ? state.rawUserLinksCache.length : 0);
+      if (dashTotalClicks) dashTotalClicks.innerText = u.totalClicks || u.views || 0;
+      if (dashTotalEarnings) dashTotalEarnings.innerText = `$${Number(totalEarnings).toFixed(2)}`;
+
+      const botUsername = 'Ads_telegabot';
+      if (refLinkInput) {
+        refLinkInput.value = `https://t.me/${botUsername}?start=ref_${state.currentUserTelegramId}`;
       }
 
-      if (data.links && Array.isArray(data.links)) {
-        state.rawUserLinksCache = data.links;
-        renderUserLinks(state.rawUserLinksCache);
+      if (refCountElem) refCountElem.innerText = u.referralCount || 0;
+      if (refEarningsElem) refEarningsElem.innerText = `$${Number(u.referralEarnings || 0).toFixed(2)}`;
+
+      if (walletInput && u.walletAddress) {
+        walletInput.value = u.walletAddress;
       }
 
-      if (data.withdraws && Array.isArray(data.withdraws)) {
-        renderWithdrawalsHistory(data.withdraws);
-      }
-
-      if (data.ads && Array.isArray(data.ads)) {
-        renderUserAds(data.ads);
-      }
-
-      if (data.announcements && Array.isArray(data.announcements) && data.announcements.length > 0) {
-        const anc = data.announcements[0];
+      if (data.announcement) {
         const ancBox = document.getElementById('announcement-box');
-        if (ancBox && anc.title) {
-          const ancTitle = document.getElementById('anc-title');
-          const ancContent = document.getElementById('anc-content');
-          if (ancTitle) ancTitle.innerText = anc.title;
-          if (ancContent) ancContent.innerText = anc.content || anc.message || '';
+        const ancTitle = document.getElementById('anc-title');
+        const ancContent = document.getElementById('anc-content');
+        if (ancBox && ancTitle && ancContent) {
+          ancTitle.innerText = data.announcement.title || '';
+          ancContent.innerText = data.announcement.content || '';
           ancBox.classList.remove('hidden');
         }
       }
 
-      if (data.isAdmin === true) {
-        state.isUserAdmin = true;
-        const adminBtn = document.getElementById('tab-btn-admin');
-        if (adminBtn) adminBtn.style.display = 'flex';
-      }
+      fetchWithdrawalsHistory();
     }
   } catch (err) {
     console.error("Error loading user data:", err);
   }
 }
 
-export function shareReferralLink() {
-  const refInput = document.getElementById('ref-link');
-  if (!refInput) return;
-  const refUrl = refInput.value;
-  if (!refUrl) return;
-  triggerHaptic('medium');
-  const shareText = encodeURIComponent(state.currentLang === 'ar' ? "انضم إليّ في أفضل منصة لاختصار الروابط واكسب الأرباح بسهولة! 🚀" : "Join me on the best url shortener platform & earn money! 🚀");
-  const url = `https://t.me/share/url?url=${encodeURIComponent(refUrl)}&text=${shareText}`;
-  
-  const tg = state.tg || window.Telegram?.WebApp;
-  if (tg && tg.openTelegramLink) {
-    tg.openTelegramLink(url);
-  } else {
-    window.open(url, '_blank');
-  }
-}
-
 export async function fetchUserReferrals() {
   const container = document.getElementById('ref-list');
-  if (container) {
-    container.innerHTML = `<div style="text-align:center; padding: 10px;"><div class="spinner"></div></div>`;
-  }
+  if (container) container.innerHTML = `<div style="text-align:center;"><div class="spinner"></div></div>`;
 
   try {
-    const res = await safeFetch('/api/referrals');
-    if (res) {
+    const res = await safeFetch('/api/user/referrals');
+    if (res && res.ok) {
       const data = await res.json().catch(() => null);
-      if (data) {
-        const referrals = Array.isArray(data) ? data : (data.referrals || data.data || []);
-        renderUserReferrals(referrals);
+      const refs = Array.isArray(data) ? data : (data?.referrals || []);
+      if (!container) return;
+
+      if (refs.length === 0) {
+        container.innerHTML = `<p style="text-align:center; color: var(--text-muted);">${i18n[state.currentLang]?.no_data || 'لا يوجد انضمام عبر رابطك بعد.'}</p>`;
+        return;
       }
+
+      container.innerHTML = refs.map(r => `
+        <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--card-border);">
+          <span>👤 ${escapeHTML(r.name || r.username || ('ID: ' + r.telegramId))}</span>
+          <span style="color:var(--success); font-weight:bold;">+$${Number(r.earned || 0).toFixed(2)}</span>
+        </div>
+      `).join('');
     }
   } catch (err) {
     console.error("Error fetching referrals:", err);
   }
 }
 
-export function renderUserReferrals(referrals) {
-  const container = document.getElementById('ref-list');
-  if (!container) return;
+export function shareReferralLink() {
+  triggerHaptic('medium');
+  const refInput = document.getElementById('ref-link');
+  const url = refInput ? refInput.value : `https://t.me/Ads_telegabot?start=ref_${state.currentUserTelegramId}`;
+  const text = state.currentLang === 'ar' 
+    ? 'انضم إلى منصة Telega.ads وابدأ في اختصار الروابط وتحقيق الأرباح اليوم!' 
+    : 'Join Telega.ads platform and start earning money today!';
+  
+  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
+  
+  const tg = state.tg || window.Telegram?.WebApp;
+  if (tg && typeof tg.openTelegramLink === 'function') {
+    tg.openTelegramLink(shareUrl);
+  } else {
+    window.open(shareUrl, '_blank');
+  }
+}
 
-  if (!referrals || referrals.length === 0) {
-    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${state.currentLang === 'ar' ? 'لم تنضم أي إحالات عبر رابطك بعد.' : 'No referrals registered yet.'}</p>`;
+export async function saveSettings() {
+  const walletInput = document.getElementById('default-wallet');
+  if (!walletInput) return;
+  const address = walletInput.value.trim();
+
+  if (!address) {
+    showToast(i18n[state.currentLang]?.fill_all_fields || "يرجى إدخال عنوان المحفظة");
     return;
   }
 
-  container.innerHTML = referrals.map(ref => {
-    const name = escapeHTML(ref.firstName || ref.username || 'User');
-    const earnings = (ref.earnedAmount || ref.contribution || 0).toFixed(2);
-    const dateStr = new Date(ref.createdAt || Date.now()).toLocaleDateString();
-
-    return `
-      <div style="background: #0f172a; padding: 12px; border-radius: 12px; border: 1px solid var(--card-border); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
-        <div>
-          <strong style="font-size: 13px; color: var(--text);">${name}</strong>
-          <small style="display: block; color: var(--text-muted); font-size: 10px;">${dateStr}</small>
-        </div>
-        <span style="font-size: 12px; color: var(--success); font-weight: bold;">+$${earnings}</span>
-      </div>
-    `;
-  }).join('');
+  try {
+    const res = await safeFetch('/api/user/wallet', {
+      method: 'POST',
+      body: { walletAddress: address }
+    });
+    if (res && res.ok) {
+      showToast(i18n[state.currentLang]?.saved_successfully || "تم حفظ العنوان بنجاح!");
+      walletInput.setAttribute('readonly', 'readonly');
+      const editBtn = document.getElementById('edit-wallet-btn');
+      const saveBtn = document.getElementById('save-wallet-btn');
+      if (editBtn) editBtn.className = "btn-small btn-warning";
+      if (saveBtn) saveBtn.classList.add('hidden');
+    } else {
+      showToast(state.currentLang === 'ar' ? "فشل حفظ المحفظة" : "Failed to save wallet address");
+    }
+  } catch (err) {
+    console.error("Save wallet error:", err);
+  }
 }
