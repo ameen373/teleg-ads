@@ -1,19 +1,18 @@
-// js/modules/wallet.js
 import { state } from '../state.js';
 import { safeFetch } from './api.js';
 import { showToast, setButtonLoading, toggleWalletEdit, updateWithdrawCalculations } from './ui.js';
 import { loadUserData } from './user.js';
 
 export async function requestDeposit() {
-  const networkInput = document.getElementById('deposit-network');
-  const amountInput = document.getElementById('deposit-amount');
-  const txHashInput = document.getElementById('deposit-txhash');
+  const netElem = document.getElementById('deposit-network');
+  const amtElem = document.getElementById('deposit-amount');
+  const txidElem = document.getElementById('deposit-txhash');
 
-  if (!networkInput || !amountInput || !txHashInput) return;
+  if (!netElem || !amtElem || !txidElem) return;
 
-  const network = networkInput.value;
-  const amountVal = amountInput.value;
-  const txHashVal = txHashInput.value.trim();
+  const network = netElem.value;
+  const amountVal = amtElem.value;
+  const txHashVal = txidElem.value.trim();
 
   if (!network) {
     showToast(state.currentLang === 'ar' ? 'يرجى اختيار شبكة الدفع' : 'Please select payment network');
@@ -48,8 +47,8 @@ export async function requestDeposit() {
       const data = await res.json().catch(() => ({}));
       if (res.ok && (data.success || data.deposit)) {
         showToast(state.currentLang === 'ar' ? 'تم تقديم طلب الشحن بنجاح! سيتم مراجعته قريباً.' : 'Deposit request submitted successfully!');
-        amountInput.value = '';
-        txHashInput.value = '';
+        amtElem.value = '';
+        txidElem.value = '';
         await loadUserData();
       } else {
         showToast(data.error || data.message || (state.currentLang === 'ar' ? 'فشل تقديم طلب الشحن' : 'Failed to submit deposit request'));
@@ -64,10 +63,10 @@ export async function requestDeposit() {
 }
 
 export async function saveSettings() {
-  const walletInput = document.getElementById('default-wallet');
-  if (!walletInput) return;
-  const walletAddr = walletInput.value.trim();
+  const walletElem = document.getElementById('default-wallet');
+  if (!walletElem) return;
 
+  const walletAddr = walletElem.value.trim();
   if (!walletAddr) {
     showToast(state.currentLang === 'ar' ? 'يرجى إدخال عنوان المحفظة' : 'Please enter wallet address');
     return;
@@ -99,12 +98,13 @@ export async function saveSettings() {
 }
 
 export async function requestWithdrawal() {
-  const walletInput = document.getElementById('default-wallet');
-  const amountInput = document.getElementById('withdraw-amount');
-  if (!walletInput || !amountInput) return;
+  const walletElem = document.getElementById('default-wallet');
+  const amtElem = document.getElementById('withdraw-amount');
 
-  const walletAddr = walletInput.value.trim();
-  const amountVal = parseFloat(amountInput.value) || 0;
+  if (!walletElem || !amtElem) return;
+
+  const walletAddr = walletElem.value.trim();
+  const amountVal = parseFloat(amtElem.value) || 0;
 
   if (!walletAddr) {
     showToast(state.currentLang === 'ar' ? 'يرجى إدخال وتحديد عنوان محفظة السحب أولاً' : 'Please define withdrawal wallet address first');
@@ -133,7 +133,7 @@ export async function requestWithdrawal() {
       const data = await res.json().catch(() => ({}));
       if (res.ok && (data.success || data.withdraw)) {
         showToast(state.currentLang === 'ar' ? 'تم تقديم طلب السحب بنجاح' : 'Withdrawal requested successfully');
-        amountInput.value = '';
+        amtElem.value = '';
         updateWithdrawCalculations();
         await loadUserData();
       } else {
