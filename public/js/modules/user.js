@@ -1,6 +1,6 @@
 import { state, i18n } from '../state.js';
 import { safeFetch } from './api.js';
-import { triggerHaptic, escapeHTML } from './ui.js';
+import { triggerHaptic, escapeHTML, updateDOMTranslations } from './ui.js';
 import { renderUserLinks } from './shortener.js';
 import { renderWithdrawalsHistory } from './wallet.js';
 import { renderUserAds } from './ads.js';
@@ -64,6 +64,15 @@ export function applyLanguage(lang) {
   localStorage.setItem('appLang', lang);
   document.documentElement.lang = lang;
   document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+
+  const selectElem = document.getElementById('language-select');
+  if (selectElem) selectElem.value = lang;
+
+  updateDOMTranslations();
+}
+
+export function changeAppLanguage(lang) {
+  applyLanguage(lang);
 }
 
 export async function loadUserData() {
@@ -140,7 +149,7 @@ export function shareReferralLink() {
   const refUrl = refInput.value;
   if (!refUrl) return;
   triggerHaptic('medium');
-  const shareText = encodeURIComponent(i18n[state.currentLang]?.share_text || "انضم إليّ في أفضل منصة لاختصار الروابط واكسب الأرباح بسهولة! 🚀");
+  const shareText = encodeURIComponent(state.currentLang === 'ar' ? "انضم إليّ في أفضل منصة لاختصار الروابط واكسب الأرباح بسهولة! 🚀" : "Join me on the best url shortener platform & earn money! 🚀");
   const url = `https://t.me/share/url?url=${encodeURIComponent(refUrl)}&text=${shareText}`;
   
   const tg = state.tg || window.Telegram?.WebApp;
@@ -176,7 +185,7 @@ export function renderUserReferrals(referrals) {
   if (!container) return;
 
   if (!referrals || referrals.length === 0) {
-    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${i18n[state.currentLang]?.no_referrals || 'لم تنضم أي إحالات عبر رابطك بعد.'}</p>`;
+    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${state.currentLang === 'ar' ? 'لم تنضم أي إحالات عبر رابطك بعد.' : 'No referrals registered yet.'}</p>`;
     return;
   }
 
