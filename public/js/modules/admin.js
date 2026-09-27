@@ -1,4 +1,3 @@
-// js/modules/admin.js
 import { state } from '../state.js';
 import { safeFetch } from './api.js';
 import { showToast, escapeHTML } from './ui.js';
@@ -11,11 +10,11 @@ export async function loadAdminData() {
     if (res && res.ok) {
       const data = await res.json().catch(() => ({}));
       
-      const totalUsers = document.getElementById('admin-total-users');
-      const totalPending = document.getElementById('admin-total-pending');
+      const usersElem = document.getElementById('admin-total-users');
+      const pendingElem = document.getElementById('admin-total-pending');
 
-      if (totalUsers) totalUsers.innerText = data.totalUsers || 0;
-      if (totalPending) totalPending.innerText = `$${(data.totalPendingBalance || 0).toFixed(2)}`;
+      if (usersElem) usersElem.innerText = data.totalUsers || 0;
+      if (pendingElem) pendingElem.innerText = `$${(data.totalPendingBalance || 0).toFixed(2)}`;
 
       if (data.pendingDeposits) renderAdminDeposits(data.pendingDeposits);
       if (data.pendingWithdraws) renderAdminWithdraws(data.pendingWithdraws);
@@ -31,7 +30,7 @@ export async function loadAdminData() {
 export function renderAdminDeposits(list) {
   const c = document.getElementById('admin-deposits-list');
   if (!c) return;
-  if (!list.length) { c.innerHTML = '<p style="color:var(--text-muted);">لا توجد طلبات إيداع معلقة</p>'; return; }
+  if (!list || !list.length) { c.innerHTML = '<p style="color:var(--text-muted);">لا توجد طلبات إيداع معلقة</p>'; return; }
   c.innerHTML = list.map(d => `
     <div style="background:#070a12; padding:10px; border-radius:10px; margin-bottom:8px; border:1px solid var(--card-border);">
       <div><b>مستخدم:</b> ${d.userId} | <b>المبلغ:</b> $${d.amount}</div>
@@ -47,7 +46,7 @@ export function renderAdminDeposits(list) {
 export function renderAdminWithdraws(list) {
   const c = document.getElementById('admin-withdraws-list');
   if (!c) return;
-  if (!list.length) { c.innerHTML = '<p style="color:var(--text-muted);">لا توجد طلبات سحب معلقة</p>'; return; }
+  if (!list || !list.length) { c.innerHTML = '<p style="color:var(--text-muted);">لا توجد طلبات سحب معلقة</p>'; return; }
   c.innerHTML = list.map(w => `
     <div style="background:#070a12; padding:10px; border-radius:10px; margin-bottom:8px; border:1px solid var(--card-border);">
       <div><b>مستخدم:</b> ${w.userId} | <b>المبلغ:</b> $${w.amount}</div>
