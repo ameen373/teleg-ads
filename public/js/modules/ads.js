@@ -1,19 +1,18 @@
-// js/modules/ads.js
 import { state } from '../state.js';
 import { safeFetch } from './api.js';
 import { showToast, setButtonLoading, escapeHTML } from './ui.js';
 import { loadUserData } from './user.js';
 
 export async function createAdCampaign() {
-  const titleInput = document.getElementById('ad-title');
-  const targetUrlInput = document.getElementById('ad-target-url');
-  const budgetInput = document.getElementById('ad-budget');
+  const titleElem = document.getElementById('ad-title');
+  const targetUrlElem = document.getElementById('ad-target-url');
+  const budgetElem = document.getElementById('ad-budget');
 
-  if (!titleInput || !targetUrlInput || !budgetInput) return;
+  if (!titleElem || !targetUrlElem || !budgetElem) return;
 
-  const title = titleInput.value.trim();
-  let targetUrl = targetUrlInput.value.trim();
-  const budget = parseFloat(budgetInput.value) || 0;
+  const title = titleElem.value.trim();
+  let targetUrl = targetUrlElem.value.trim();
+  const budget = parseFloat(budgetElem.value) || 0;
 
   if (!title) {
     showToast(state.currentLang === 'ar' ? 'يرجى إدخال عنوان الإعلان' : 'Please enter ad title');
@@ -52,9 +51,9 @@ export async function createAdCampaign() {
       const data = await res.json().catch(() => ({}));
       if (res.ok && (data.success || data.ad)) {
         showToast(state.currentLang === 'ar' ? 'تم إطلاق الحملة الإعلانية بنجاح!' : 'Ad campaign launched successfully!');
-        titleInput.value = '';
-        targetUrlInput.value = '';
-        budgetInput.value = '';
+        titleElem.value = '';
+        targetUrlElem.value = '';
+        budgetElem.value = '';
         await fetchUserAds();
         await loadUserData();
       } else {
@@ -80,6 +79,7 @@ export async function fetchUserAds() {
       const data = await res.json().catch(() => null);
       if (data) {
         const ads = Array.isArray(data) ? data : (data.ads || data.data || []);
+        state.ads = ads;
         renderUserAds(ads);
         return ads;
       }
