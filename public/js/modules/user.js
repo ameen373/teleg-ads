@@ -140,7 +140,7 @@ export function shareReferralLink() {
   const refUrl = refInput.value;
   if (!refUrl) return;
   triggerHaptic('medium');
-  const shareText = encodeURIComponent(state.currentLang === 'ar' ? "انضم إليّ في أفضل منصة لاختصار الروابط واكسب الأرباح بسهولة! 🚀" : "Join me on the best url shortener platform & earn money! 🚀");
+  const shareText = encodeURIComponent(i18n[state.currentLang]?.share_text || "انضم إليّ في أفضل منصة لاختصار الروابط واكسب الأرباح بسهولة! 🚀");
   const url = `https://t.me/share/url?url=${encodeURIComponent(refUrl)}&text=${shareText}`;
   
   const tg = state.tg || window.Telegram?.WebApp;
@@ -176,7 +176,7 @@ export function renderUserReferrals(referrals) {
   if (!container) return;
 
   if (!referrals || referrals.length === 0) {
-    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${state.currentLang === 'ar' ? 'لم تنضم أي إحالات عبر رابطك بعد.' : 'No referrals registered yet.'}</p>`;
+    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${i18n[state.currentLang]?.no_referrals || 'لم تنضم أي إحالات عبر رابطك بعد.'}</p>`;
     return;
   }
 
