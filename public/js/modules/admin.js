@@ -33,11 +33,11 @@ export function renderAdminDeposits(list) {
   if (!list || !list.length) { c.innerHTML = '<p style="color:var(--text-muted);">لا توجد طلبات إيداع معلقة</p>'; return; }
   c.innerHTML = list.map(d => `
     <div style="background:#070a12; padding:10px; border-radius:10px; margin-bottom:8px; border:1px solid var(--card-border);">
-      <div><b>مستخدم:</b> ${d.userId || d.telegramId} | <b>المبلغ:</b> $${d.amount}</div>
+      <div><b>مستخدم:</b> ${d.userId} | <b>المبلغ:</b> $${d.amount}</div>
       <div style="font-size:10px; color:var(--text-muted); word-break:break-all;"><b>TxID:</b> ${d.txid || d.txHash}</div>
       <div style="margin-top:6px;">
-        <button class="btn-small btn-success" onclick="processAdminAction('deposit', '${d._id || d.id}', 'approve')">قبول</button>
-        <button class="btn-small btn-danger" onclick="processAdminAction('deposit', '${d._id || d.id}', 'reject')">رفض</button>
+        <button class="btn-small btn-success" onclick="processAdminAction('deposit', '${d._id}', 'approve')">قبول</button>
+        <button class="btn-small btn-danger" onclick="processAdminAction('deposit', '${d._id}', 'reject')">رفض</button>
       </div>
     </div>
   `).join('');
@@ -49,11 +49,11 @@ export function renderAdminWithdraws(list) {
   if (!list || !list.length) { c.innerHTML = '<p style="color:var(--text-muted);">لا توجد طلبات سحب معلقة</p>'; return; }
   c.innerHTML = list.map(w => `
     <div style="background:#070a12; padding:10px; border-radius:10px; margin-bottom:8px; border:1px solid var(--card-border);">
-      <div><b>مستخدم:</b> ${w.userId || w.telegramId} | <b>المبلغ:</b> $${w.amount}</div>
+      <div><b>مستخدم:</b> ${w.userId} | <b>المبلغ:</b> $${w.amount}</div>
       <div style="font-size:10px; color:var(--text-muted); word-break:break-all;"><b>المحفظة:</b> ${w.wallet}</div>
       <div style="margin-top:6px;">
-        <button class="btn-small btn-success" onclick="processAdminAction('withdraw', '${w._id || w.id}', 'approve')">تأكيد الدفع</button>
-        <button class="btn-small btn-danger" onclick="processAdminAction('withdraw', '${w._id || w.id}', 'reject')">إلغاء الطلب</button>
+        <button class="btn-small btn-success" onclick="processAdminAction('withdraw', '${w._id}', 'approve')">تأكيد الدفع</button>
+        <button class="btn-small btn-danger" onclick="processAdminAction('withdraw', '${w._id}', 'reject')">إلغاء الطلب</button>
       </div>
     </div>
   `).join('');
@@ -64,7 +64,7 @@ export function renderAdminUsers(list) {
   if (!c) return;
   c.innerHTML = list.map(u => `
     <div style="background:#070a12; padding:8px; border-radius:8px; margin-bottom:6px; font-size:11px;">
-      <b>ID:</b> ${u.telegramId || u.userId} | <b>المتاح:</b> $${(u.availableBalance||0).toFixed(2)} | <b>المعلق:</b> $${(u.pendingBalance||0).toFixed(2)}
+      <b>ID:</b> ${u.telegramId} | <b>المتاح:</b> $${(u.availableBalance||0).toFixed(2)} | <b>المعلق:</b> $${(u.pendingBalance||0).toFixed(2)}
     </div>
   `).join('');
 }
@@ -93,13 +93,11 @@ export async function processAdminAction(type, itemId, action) {
   try {
     const res = await safeFetch(`/api/admin/${type}/${action}`, {
       method: 'POST',
-      body: { id: itemId, action: action }
+      body: { id: itemId }
     });
     if (res && res.ok) {
       showToast("تم تنفيذ الإجراء بنجاح");
       loadAdminData();
-    } else {
-      showToast("فشل تنفيذ الإجراء");
     }
   } catch (e) {
     showToast("خطأ أثناء تنفيذ الإجراء");
