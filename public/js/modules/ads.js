@@ -1,101 +1,66 @@
-import { state } from '../state.js';
+import { state, i18n } from '../state.js';
 import { safeFetch } from './api.js';
-import { showToast, setButtonLoading, escapeHTML, toggleModal } from './ui.js';
-import { loadUserData } from './user.js';
+import { showToast, closeModal, escapeHTML } from './ui.js';
 
 export async function createAdCampaign() {
-  let titleElem = document.getElementById('modal-ad-title');
-  let targetUrlElem = document.getElementById('modal-ad-target-url');
-  let budgetElem = document.getElementById('modal-ad-budget');
+  const mTitle = document.getElementById('modal-ad-title')?.value;
+  const mUrl = document.getElementById('modal-ad-target-url')?.value;
+  const mBudget = document.getElementById('modal-ad-budget')?.value;
 
-  if (!titleElem || !titleElem.value) {
-    titleElem = document.getElementById('ad-title');
-    targetUrlElem = document.getElementById('ad-target-url');
-    budgetElem = document.getElementById('ad-budget');
-  }
+  const tTitle = document.getElementById('ad-title')?.value;
+  const tUrl = document.getElementById('ad-target-url')?.value;
+  const tBudget = document.getElementById('ad-budget')?.value;
 
-  if (!titleElem || !targetUrlElem || !budgetElem) return;
+  const title = mTitle || tTitle;
+  const targetUrl = mUrl || tUrl;
+  const budget = parseFloat(mBudget || tBudget);
 
-  const title = titleElem.value.trim();
-  let targetUrl = targetUrlElem.value.trim();
-  const budget = parseFloat(budgetElem.value) || 0;
-
-  if (!title) {
-    showToast(state.currentLang === 'ar' ? 'يرجى إدخال عنوان الإعلان' : 'Please enter ad title');
+  if (!title || !targetUrl || !budget || budget < 5) {
+    showToast(i18n[state.currentLang]?.fill_all_fields || "يرجى ملء كل بيانات الحملة (الحد الأدنى للميزانية 5$)");
     return;
   }
-
-  if (!targetUrl) {
-    showToast(state.currentLang === 'ar' ? 'يرجى إدخال رابط التوجيه' : 'Please enter target URL');
-    return;
-  }
-
-  if (!/^https?:\/\//i.test(targetUrl)) {
-    targetUrl = 'https://' + targetUrl;
-  }
-
-  if (budget < 5) {
-    showToast(state.currentLang === 'ar' ? 'الحد الأدنى لميزانية الحملة هو $5' : 'Minimum campaign budget is $5');
-    return;
-  }
-
-  const activeBtnId = document.getElementById('modal-ad-title')?.value ? 'modal-ad-btn' : 'btn-create-ad';
-  setButtonLoading(activeBtnId, true);
 
   try {
     const res = await safeFetch('/api/ads/create', {
       method: 'POST',
-      body: {
-        userId: state.currentUserTelegramId,
-        telegramId: state.currentUserTelegramId,
-        title: title,
-        targetUrl: targetUrl,
-        budget: budget
-      }
+      body: { title, targetUrl, budget }
     });
 
-    if (res) {
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && (data.success || data.ad)) {
-        showToast(state.currentLang === 'ar' ? 'تم إطلاق الحملة الإعلانية بنجاح!' : 'Ad campaign launched successfully!');
-        titleElem.value = '';
-        targetUrlElem.value = '';
-        budgetElem.value = '';
-        toggleModal('create-ad-modal', false);
-        await fetchUserAds();
-        await loadUserData();
-      } else {
-        showToast(data.error || (state.currentLang === 'ar' ? 'فشل إنشاء الحملة الإعلانية' : 'Failed to create ad campaign'));
-      }
+    if (res && res.ok) {
+      showToast(i18n[state.currentLang]?.ad_success || "تم إطلاق الحملة الإعلانية بنجاح!");
+      closeModal('create-ad-modal');
+
+      if (document.getElementById('modal-ad-title')) document.getElementById('modal-ad-title').value = '';
+      if (document.getElementById('modal-ad-target-url')) document.getElementById('modal-ad-target-url').value = '';
+      if (document.getElementById('modal-ad-budget')) document.getElementById('modal-ad-budget').value = '';
+      if (document.getElementById('ad-title')) document.getElementById('ad-title').value = '';
+      if (document.getElementById('ad-target-url')) document.getElementById('ad-target-url').value = '';
+      if (document.getElementById('ad-budget')) document.getElementById('ad-budget').value = '';
+
+      fetchUserAds();
+    } else {
+      const data = await res?.json().catch(() => ({}));
+      showToast(data?.error || "فشل إنشاء الحملة الإعلانية");
     }
   } catch (err) {
-    showToast(err.message || (state.currentLang === 'ar' ? 'خطأ أثناء إنشاء الحملة' : 'Error creating campaign'));
-  } finally {
-    setButtonLoading(activeBtnId, false);
+    console.error("Create Ad error:", err);
   }
 }
 
 export async function fetchUserAds() {
   const container = document.getElementById('ads-list');
-  if (container) {
-    container.innerHTML = `<div style="text-align:center; padding: 10px;"><div class="spinner"></div></div>`;
-  }
+  if (container) container.innerHTML = `<div style="text-align:center;"><div class="spinner"></div></div>`;
 
   try {
-    const res = await safeFetch('/api/ads');
-    if (res) {
+    const res = await safeFetch('/api/ads/my-ads');
+    if (res && res.ok) {
       const data = await res.json().catch(() => null);
-      if (data) {
-        const ads = Array.isArray(data) ? data : (data.ads || data.data || []);
-        state.ads = ads;
-        renderUserAds(ads);
-        return ads;
-      }
+      const ads = Array.isArray(data) ? data : (data?.ads || []);
+      renderUserAds(ads);
     }
   } catch (err) {
-    console.error("Error fetching user ads:", err);
+    console.error("Fetch ads error:", err);
   }
-  return [];
 }
 
 export function renderUserAds(ads) {
@@ -103,30 +68,21 @@ export function renderUserAds(ads) {
   if (!container) return;
 
   if (!ads || ads.length === 0) {
-    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${state.currentLang === 'ar' ? 'لا توجد حملات إعلانية نشطة.' : 'No active ad campaigns.'}</p>`;
+    container.innerHTML = `<p style="text-align:center; color: var(--text-muted);">${i18n[state.currentLang]?.no_data || 'لا توجد حملات إعلانية متاحة.'}</p>`;
     return;
   }
 
-  container.innerHTML = ads.map(ad => {
-    const title = escapeHTML(ad.title || 'Untitled Ad');
-    const targetUrl = escapeHTML(ad.targetUrl || ad.url || '');
-    const budget = (ad.budget || 0).toFixed(2);
-    const spent = (ad.spent || ad.totalSpent || 0).toFixed(2);
-    const impressions = ad.impressions || ad.views || 0;
-
-    return `
-      <div class="ad-item">
-        <div class="ad-header">
-          <strong style="font-size: 14px; color: var(--text);">${title}</strong>
-          <span style="font-size: 11px; color: var(--accent); font-weight: 700;">$${spent} / $${budget}</span>
-        </div>
-        <div style="margin: 6px 0; font-size: 11px; color: var(--text-muted); word-break: break-all;">
-          🔗 ${targetUrl}
-        </div>
-        <div style="font-size: 11px; color: var(--text-muted); margin-top: 8px; border-top: 1px solid var(--card-border); padding-top: 8px;">
-          👁️ ${impressions} ${state.currentLang === 'ar' ? 'مشاهدة حقيقية' : 'impressions'}
-        </div>
+  container.innerHTML = ads.map(ad => `
+    <div class="link-item">
+      <div class="link-header">
+        <strong>${escapeHTML(ad.title)}</strong>
+        <span style="color:var(--accent);">$${Number(ad.budget || 0).toFixed(2)}</span>
       </div>
-    `;
-  }).join('');
+      <div style="font-size:11px; color:var(--text-muted); margin:4px 0;">🔗 ${escapeHTML(ad.targetUrl)}</div>
+      <div style="font-size:11px; display:flex; justify-content:space-between; margin-top:6px;">
+        <span>👁️ ${ad.views || 0} مشاهدة</span>
+        <span style="color:var(--success);">${ad.status || 'نشط'}</span>
+      </div>
+    </div>
+  `).join('');
 }
