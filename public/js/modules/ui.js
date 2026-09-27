@@ -44,10 +44,15 @@ export function closeModal(modalId) {
 }
 
 export function toggleModal(modalId, show) {
-  if (show) {
-    showModal(modalId);
+  triggerHaptic('medium');
+  const modal = document.getElementById(modalId);
+  if (!modal) return;
+  if (show === undefined) {
+    modal.classList.toggle('hidden');
+  } else if (show) {
+    modal.classList.remove('hidden');
   } else {
-    closeModal(modalId);
+    modal.classList.add('hidden');
   }
 }
 
@@ -80,15 +85,12 @@ export function switchTab(tabName) {
   }
   triggerHaptic('light');
   state.activeTab = tabName;
-  const tabs = ['dashboard', 'wallet', 'ads', 'referral', 'settings', 'admin'];
-  
+  const tabs = ['dashboard', 'home', 'wallet', 'ads', 'referral', 'settings', 'admin'];
   tabs.forEach(t => {
     const content = document.getElementById(`tab-content-${t}`);
     const btn = document.getElementById(`tab-btn-${t}`);
-    const isTarget = t === tabName || (t === 'dashboard' && tabName === 'home');
-    
-    if (content) content.classList.toggle('hidden', !isTarget);
-    if (btn) btn.classList.toggle('active', isTarget);
+    if (content) content.classList.toggle('hidden', t !== tabName && (t !== 'home' || tabName !== 'dashboard'));
+    if (btn) btn.classList.toggle('active', t === tabName || (t === 'home' && tabName === 'dashboard'));
   });
 
   if (tabName === 'admin' && state.isUserAdmin) {
@@ -134,7 +136,7 @@ export function toggleInstructionsModal(show) {
 }
 
 export function updateWithdrawCalculations() {
-  const amtInput = document.getElementById('withdraw-amount') || document.getElementById('modal-withdraw-amount');
+  const amtInput = document.getElementById('withdraw-amount');
   const feeBox = document.getElementById('withdraw-fee-box');
   if (!amtInput) return;
   const val = parseFloat(amtInput.value) || 0;
@@ -176,23 +178,4 @@ export function toggleWalletEdit() {
     editBtn.className = "btn-small btn-warning";
     if (saveBtn) saveBtn.classList.add('hidden');
   }
-}
-
-export function updateDOMTranslations() {
-  const lang = state.currentLang || 'ar';
-  const dict = i18n[lang] || i18n.ar;
-
-  document.querySelectorAll('[data-i18n]').forEach(elem => {
-    const key = elem.getAttribute('data-i18n');
-    if (dict[key]) {
-      elem.innerText = dict[key];
-    }
-  });
-
-  document.querySelectorAll('[data-i18n-ph]').forEach(elem => {
-    const key = elem.getAttribute('data-i18n-ph');
-    if (dict[key]) {
-      elem.setAttribute('placeholder', dict[key]);
-    }
-  });
 }
