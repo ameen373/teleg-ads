@@ -1,8 +1,3 @@
-/**
- * Telega.ads - Enterprise Shortener & Ad Network
- * Main Application Logic & API Manager
- */
-
 const API_BASE = window.location.protocol.startsWith('file') 
   ? 'http://localhost:3000' 
   : window.location.origin;
@@ -29,8 +24,6 @@ let rawUserLinksCache = [];
 let bridgeDestinationUrl = null;
 let currentShortCode = null;
 
-// --- Helper Utilities ---
-
 function escapeHTML(str) {
   if (!str) return '';
   return String(str)
@@ -46,9 +39,7 @@ function triggerHaptic(style = 'light') {
     if (tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.1') && tg.HapticFeedback) {
       tg.HapticFeedback.impactOccurred(style);
     }
-  } catch (e) {
-    // Ignore haptic feedback errors on unsupported platforms
-  }
+  } catch (e) {}
 }
 
 function showToast(msg) {
@@ -57,36 +48,16 @@ function showToast(msg) {
   if (!toast) return;
   toast.innerText = msg;
   toast.classList.add("show");
-  setTimeout(() => { 
-    toast.classList.remove("show"); 
-  }, 3200);
+  setTimeout(() => { toast.classList.remove("show"); }, 3200);
 }
 
 function copyToClipboard(text) {
   if (!text) return;
   navigator.clipboard.writeText(text).then(() => {
-    showToast(t('copied', 'تم النسخ بنجاح!'));
+    showToast(i18n[currentLang]?.copied || "تم النسخ بنجاح!");
   }).catch(() => {
     showToast(currentLang === 'ar' ? "فشل النسخ تلقائياً" : "Failed to copy");
   });
-}
-
-function shareReferralLink() {
-  const refUrl = document.getElementById('ref-link').value;
-  if (!refUrl) return;
-  triggerHaptic('medium');
-  const shareText = encodeURIComponent(
-    currentLang === 'ar' 
-      ? "انضم إليّ في أفضل منصة لاختصار الروابط واكسب الأرباح بسهولة! 🚀" 
-      : "Join me on the best url shortener platform & earn money! 🚀"
-  );
-  const url = `https://t.me/share/url?url=${encodeURIComponent(refUrl)}&text=${shareText}`;
-  
-  if (tg && tg.openTelegramLink) {
-    tg.openTelegramLink(url);
-  } else {
-    window.open(url, '_blank');
-  }
 }
 
 function setButtonLoading(btnId, isLoading, originalText) {
@@ -102,24 +73,63 @@ function setButtonLoading(btnId, isLoading, originalText) {
   }
 }
 
-function formatShortUrl(link) {
-  if (!link) return '';
-  let rawUrl = link.shortUrl || link.shortLink || link.url;
-  if (!rawUrl && link.shortCode) {
-    rawUrl = `${API_BASE}/r/${link.shortCode}`;
+async function safeFetch(endpoint, options = {}) {
+  options.headers = options.headers || {};
+  
+  if (!currentUserTelegramId && tg?.initDataUnsafe?.user?.id) {
+    currentUserTelegramId = String(tg.initDataUnsafe.user.id);
+    localStorage.setItem('telegramId', currentUserTelegramId);
   }
-  if (!rawUrl) return '';
 
-  rawUrl = rawUrl.replace(/^(https?:\/\/)+/i, 'https://');
-
-  if (/^https?:\/\//i.test(rawUrl)) {
-    return rawUrl;
+  const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || '';
+  
+  if (initDataStr) {
+    options.headers['Authorization'] = `Bearer ${initDataStr}`;
+    options.headers['x-telegram-init-data'] = initDataStr;
+    options.headers['telegram-init-data'] = initDataStr;
+  } else if (authToken) {
+    options.headers['Authorization'] = `Bearer ${authToken}`;
   }
-  rawUrl = rawUrl.replace(/^\/+/, '');
-  return `https://${rawUrl}`;
+
+  if (currentUserTelegramId) {
+    options.headers['x-telegram-id'] = currentUserTelegramId;
+    options.headers['telegram-id'] = currentUserTelegramId;
+    options.headers['x-user-id'] = currentUserTelegramId;
+    options.headers['user-id'] = currentUserTelegramId;
+  }
+
+  if (options.body && typeof options.body === 'object') {
+    if (currentUserTelegramId && !options.body.userId && !options.body.telegramId) {
+      options.body.userId = currentUserTelegramId;
+      options.body.telegramId = currentUserTelegramId;
+    }
+    if (initDataStr && !options.body.initData) {
+      options.body.initData = initDataStr;
+    }
+    options.body = JSON.stringify(options.body);
+  }
+
+  if (options.body && !options.headers['Content-Type']) {
+    options.headers['Content-Type'] = 'application/json; charset=utf-8';
+  }
+  
+  let cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  let targetUrl = endpoint.startsWith('http') ? endpoint : `${API_BASE}${cleanEndpoint}`;
+
+  if (currentUserTelegramId && !targetUrl.includes('telegramId=') && !targetUrl.includes('userId=')) {
+    const separator = targetUrl.includes('?') ? '&' : '?';
+    targetUrl = `${targetUrl}${separator}telegramId=${encodeURIComponent(currentUserTelegramId)}&userId=${encodeURIComponent(currentUserTelegramId)}`;
+  }
+
+  try {
+    let response = await fetch(targetUrl, options);
+    return response;
+  } catch (err) {
+    console.error("Fetch Network Error:", err);
+    showToast(i18n[currentLang]?.network_error || "خطأ في الاتصال بالشبكة");
+    return null;
+  }
 }
-
-// --- Navigation & UI View Switching ---
 
 function switchTab(tabName) {
   if (tabName === 'admin' && !isUserAdmin) {
@@ -191,90 +201,6 @@ function updateWithdrawCalculations() {
   }
 }
 
-function toggleWalletEdit() {
-  triggerHaptic('light');
-  const walletInput = document.getElementById('default-wallet');
-  const editBtn = document.getElementById('edit-wallet-btn');
-  const saveBtn = document.getElementById('save-wallet-btn');
-
-  if (walletInput.hasAttribute('readonly')) {
-    walletInput.removeAttribute('readonly');
-    walletInput.focus();
-    editBtn.innerText = t('cancel', 'إلغاء');
-    editBtn.className = "btn-small btn-danger";
-    saveBtn.classList.remove('hidden');
-  } else {
-    walletInput.setAttribute('readonly', 'readonly');
-    editBtn.innerText = t('btn_edit', 'تعديل');
-    editBtn.className = "btn-small btn-warning";
-    saveBtn.classList.add('hidden');
-  }
-}
-
-// --- Central Safe Fetch API Wrapper ---
-
-async function safeFetch(endpoint, options = {}) {
-  options.headers = options.headers || {};
-  
-  if (!currentUserTelegramId && tg?.initDataUnsafe?.user?.id) {
-    currentUserTelegramId = String(tg.initDataUnsafe.user.id);
-    localStorage.setItem('telegramId', currentUserTelegramId);
-  }
-
-  const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || '';
-  
-  if (initDataStr) {
-    options.headers['Authorization'] = `Bearer ${initDataStr}`;
-    options.headers['x-telegram-init-data'] = initDataStr;
-    options.headers['telegram-init-data'] = initDataStr;
-  } else if (authToken) {
-    options.headers['Authorization'] = `Bearer ${authToken}`;
-  }
-
-  if (currentUserTelegramId) {
-    options.headers['x-telegram-id'] = currentUserTelegramId;
-    options.headers['telegram-id'] = currentUserTelegramId;
-    options.headers['x-user-id'] = currentUserTelegramId;
-    options.headers['user-id'] = currentUserTelegramId;
-  }
-
-  const method = (options.method || 'GET').toUpperCase();
-
-  if (options.body && typeof options.body === 'object') {
-    if (currentUserTelegramId && !options.body.userId && !options.body.telegramId) {
-      options.body.userId = currentUserTelegramId;
-      options.body.telegramId = currentUserTelegramId;
-    }
-    if (initDataStr && !options.body.initData) {
-      options.body.initData = initDataStr;
-    }
-    options.body = JSON.stringify(options.body);
-  }
-
-  if (options.body && !options.headers['Content-Type']) {
-    options.headers['Content-Type'] = 'application/json; charset=utf-8';
-  }
-  
-  let cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  let targetUrl = endpoint.startsWith('http') ? endpoint : `${API_BASE}${cleanEndpoint}`;
-
-  if (currentUserTelegramId && !targetUrl.includes('telegramId=') && !targetUrl.includes('userId=')) {
-    const separator = targetUrl.includes('?') ? '&' : '?';
-    targetUrl = `${targetUrl}${separator}telegramId=${encodeURIComponent(currentUserTelegramId)}&userId=${encodeURIComponent(currentUserTelegramId)}`;
-  }
-
-  try {
-    let response = await fetch(targetUrl, options);
-    return response;
-  } catch (err) {
-    console.error("Fetch Network Error:", err);
-    showToast(t('network_error', 'تعذر الاتصال بالشبكة، يرجى التحقق من اتصال الإنترنت لديك.'));
-    return null;
-  }
-}
-
-// --- User Profile & Telegram Context ---
-
 function renderTelegramUser() {
   const u = tg?.initDataUnsafe?.user;
   const avatarContainer = document.getElementById('user-avatar-container');
@@ -287,27 +213,25 @@ function renderTelegramUser() {
     currentUserTelegramId = String(u.id);
     localStorage.setItem('telegramId', currentUserTelegramId);
     const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || 'Telegram User';
-    if (nameElem) nameElem.innerText = fullName;
-    if (handleElem) handleElem.innerText = u.username ? `@${u.username}` : '@no_username';
-    if (idElem) idElem.innerText = `ID: ${u.id}`;
+    nameElem.innerText = fullName;
+    handleElem.innerText = u.username ? `@${u.username}` : '@no_username';
+    idElem.innerText = `ID: ${u.id}`;
 
-    if (u.is_premium && premiumBadge) {
+    if (u.is_premium) {
       premiumBadge.classList.remove('hidden');
     }
 
-    if (avatarContainer) {
-      if (u.photo_url) {
-        avatarContainer.innerHTML = `<img src="${escapeHTML(u.photo_url)}" class="user-avatar-img" alt="Avatar">`;
-      } else {
-        const letter = (u.first_name || 'U').charAt(0).toUpperCase();
-        avatarContainer.innerHTML = `<div class="user-avatar-placeholder">${escapeHTML(letter)}</div>`;
-      }
+    if (u.photo_url) {
+      avatarContainer.innerHTML = `<img src="${escapeHTML(u.photo_url)}" class="user-avatar-img" alt="Avatar">`;
+    } else {
+      const letter = (u.first_name || 'U').charAt(0).toUpperCase();
+      avatarContainer.innerHTML = `<div class="user-avatar-placeholder">${escapeHTML(letter)}</div>`;
     }
 
     const savedLang = localStorage.getItem('appLang');
-    if (savedLang && window.i18nDict && window.i18nDict[savedLang]) {
+    if (savedLang && i18n[savedLang]) {
       currentLang = savedLang;
-    } else if (u.language_code && window.i18nDict && window.i18nDict[u.language_code]) {
+    } else if (u.language_code && i18n[u.language_code]) {
       currentLang = u.language_code === 'ar' ? 'ar' : 'en';
     } else {
       currentLang = 'ar';
@@ -316,12 +240,10 @@ function renderTelegramUser() {
     if (!currentUserTelegramId) {
       currentUserTelegramId = localStorage.getItem('telegramId') || '123456789';
     }
-    if (nameElem) nameElem.innerText = 'Telegram User';
-    if (handleElem) handleElem.innerText = '@user';
-    if (idElem) idElem.innerText = `ID: ${currentUserTelegramId}`;
-    if (avatarContainer) {
-      avatarContainer.innerHTML = `<div class="user-avatar-placeholder">U</div>`;
-    }
+    nameElem.innerText = 'Telegram User';
+    handleElem.innerText = '@user';
+    idElem.innerText = `ID: ${currentUserTelegramId}`;
+    avatarContainer.innerHTML = `<div class="user-avatar-placeholder">U</div>`;
     if (!localStorage.getItem('appLang')) {
       currentLang = 'ar';
     }
@@ -330,7 +252,39 @@ function renderTelegramUser() {
   applyLanguage(currentLang);
 }
 
-// --- Authentication & User Data ---
+function shareReferralLink() {
+  const refUrl = document.getElementById('ref-link').value;
+  if (!refUrl) return;
+  triggerHaptic('medium');
+  const shareText = encodeURIComponent(currentLang === 'ar' ? "انضم إليّ في أفضل منصة لاختصار الروابط واكسب الأرباح بسهولة! 🚀" : "Join me on the best url shortener platform & earn money! 🚀");
+  const url = `https://t.me/share/url?url=${encodeURIComponent(refUrl)}&text=${shareText}`;
+  
+  if (tg && tg.openTelegramLink) {
+    tg.openTelegramLink(url);
+  } else {
+    window.open(url, '_blank');
+  }
+}
+
+function toggleWalletEdit() {
+  triggerHaptic('light');
+  const walletInput = document.getElementById('default-wallet');
+  const editBtn = document.getElementById('edit-wallet-btn');
+  const saveBtn = document.getElementById('save-wallet-btn');
+
+  if (walletInput.hasAttribute('readonly')) {
+    walletInput.removeAttribute('readonly');
+    walletInput.focus();
+    editBtn.innerText = i18n[currentLang].cancel;
+    editBtn.className = "btn-small btn-danger";
+    saveBtn.classList.remove('hidden');
+  } else {
+    walletInput.setAttribute('readonly', 'readonly');
+    editBtn.innerText = i18n[currentLang].btn_edit;
+    editBtn.className = "btn-small btn-warning";
+    saveBtn.classList.add('hidden');
+  }
+}
 
 async function authLogin() {
   const startParam = tg?.initDataUnsafe?.start_param || null;
@@ -407,6 +361,46 @@ async function authLogin() {
   return false;
 }
 
+function formatShortUrl(link) {
+  if (!link) return '';
+  let rawUrl = link.shortUrl || link.shortLink || link.url;
+  if (!rawUrl && link.shortCode) {
+    rawUrl = `${API_BASE}/r/${link.shortCode}`;
+  }
+  if (!rawUrl) return '';
+
+  rawUrl = rawUrl.replace(/^(https?:\/\/)+/i, 'https://');
+
+  if (/^https?:\/\//i.test(rawUrl)) {
+    return rawUrl;
+  }
+  rawUrl = rawUrl.replace(/^\/+/, '');
+  return `https://${rawUrl}`;
+}
+
+async function fetchUserLinks() {
+  const linksContainer = document.getElementById('links-list');
+  if (linksContainer && (!rawUserLinksCache || rawUserLinksCache.length === 0)) {
+    linksContainer.innerHTML = `<div style="text-align:center; padding: 10px;"><div class="spinner"></div></div>`;
+  }
+  
+  try {
+    const res = await safeFetch('/api/links');
+    if (res) {
+      const data = await res.json().catch(() => null);
+      if (data) {
+        const links = Array.isArray(data) ? data : (data.links || data.data || []);
+        rawUserLinksCache = links;
+        renderUserLinks(rawUserLinksCache);
+        return rawUserLinksCache;
+      }
+    }
+  } catch (err) {
+    console.error("Error fetching user links:", err);
+  }
+  return [];
+}
+
 async function loadUserData() {
   try {
     const res = await safeFetch('/api/user/data');
@@ -414,14 +408,9 @@ async function loadUserData() {
       const data = await res.json().catch(() => ({}));
       const u = data.user || {};
 
-      const pendingElem = document.getElementById('pending-bal');
-      if (pendingElem) pendingElem.innerText = `$${(u.pendingBalance || 0).toFixed(2)}`;
-      
-      const availElem = document.getElementById('avail-bal');
-      if (availElem) availElem.innerText = `$${(u.availableBalance || 0).toFixed(2)}`;
-
-      const refEarningsElem = document.getElementById('ref-earnings');
-      if (refEarningsElem) refEarningsElem.innerText = `$${(u.referralEarnings || 0).toFixed(2)}`;
+      document.getElementById('pending-bal').innerText = `$${(u.pendingBalance || 0).toFixed(2)}`;
+      document.getElementById('avail-bal').innerText = `$${(u.availableBalance || 0).toFixed(2)}`;
+      document.getElementById('ref-earnings').innerText = `$${(u.referralEarnings || 0).toFixed(2)}`;
       
       const refCountElem = document.getElementById('ref-count');
       if (refCountElem) {
@@ -456,10 +445,8 @@ async function loadUserData() {
         const anc = data.announcements[0];
         const ancBox = document.getElementById('announcement-box');
         if (ancBox && anc.title) {
-          const ancTitle = document.getElementById('anc-title');
-          const ancContent = document.getElementById('anc-content');
-          if (ancTitle) ancTitle.innerText = anc.title;
-          if (ancContent) ancContent.innerText = anc.content || anc.message || '';
+          document.getElementById('anc-title').innerText = anc.title;
+          document.getElementById('anc-content').innerText = anc.content || anc.message || '';
           ancBox.classList.remove('hidden');
         }
       }
@@ -473,89 +460,6 @@ async function loadUserData() {
   } catch (err) {
     console.error("Error loading user data:", err);
   }
-}
-
-// --- Links Management ---
-
-async function fetchUserLinks() {
-  const linksContainer = document.getElementById('links-list');
-  if (linksContainer && (!rawUserLinksCache || rawUserLinksCache.length === 0)) {
-    linksContainer.innerHTML = `<div style="text-align:center; padding: 10px;"><div class="spinner"></div></div>`;
-  }
-  
-  try {
-    const res = await safeFetch('/api/links');
-    if (res) {
-      const data = await res.json().catch(() => null);
-      if (data) {
-        const links = Array.isArray(data) ? data : (data.links || data.data || []);
-        rawUserLinksCache = links;
-        renderUserLinks(rawUserLinksCache);
-        return rawUserLinksCache;
-      }
-    }
-  } catch (err) {
-    console.error("Error fetching user links:", err);
-  }
-  return [];
-}
-
-function renderUserLinks(links) {
-  const container = document.getElementById('links-list');
-  if (!container) return;
-
-  if (!links || links.length === 0) {
-    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${currentLang === 'ar' ? 'لا توجد روابط مختصرة بعد.' : 'No shortened links found.'}</p>`;
-    return;
-  }
-
-  container.innerHTML = links.map(link => {
-    const formattedUrl = formatShortUrl(link);
-    const title = escapeHTML(link.title || link.shortCode || 'Untitled Link');
-    const originalUrl = escapeHTML(link.originalUrl || link.targetUrl || link.url || '');
-    const clicks = link.views || link.clicks || 0;
-    const validImp = link.validImpressions || 0;
-    const earnings = (link.totalEarnings || 0).toFixed(4);
-    const linkId = link._id || link.id || link.shortCode;
-
-    return `
-      <div class="link-item">
-        <div class="link-header">
-          <strong style="font-size: 14px; color: var(--text);">${title}</strong>
-          <span style="font-size: 11px; color: var(--success); font-weight: 700;">$${earnings}</span>
-        </div>
-        <div style="margin: 6px 0; font-size: 12px;">
-          <a href="${formattedUrl}" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: none; word-break: break-all; font-weight: 600;">${formattedUrl}</a>
-        </div>
-        <div style="font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 8px;">
-          ↪ ${originalUrl}
-        </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--card-border); padding-top: 8px; margin-top: 8px;">
-          <span style="font-size: 11px; color: var(--text-muted);">👁️ ${clicks} ${currentLang === 'ar' ? 'زيارة' : 'clicks'} (${validImp} ${currentLang === 'ar' ? 'مؤكدة' : 'valid'})</span>
-          <div class="link-actions">
-            <button class="btn-small" onclick="copyToClipboard('${formattedUrl}')">${t('btn_copy', 'نسخ')}</button>
-            <button class="btn-small btn-danger" onclick="deleteLink('${linkId}')">${t('delete', 'حذف')}</button>
-          </div>
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-
-function filterUserLinks(term) {
-  if (!rawUserLinksCache) return;
-  const lower = term.toLowerCase().trim();
-  if (!lower) {
-    renderUserLinks(rawUserLinksCache);
-    return;
-  }
-  const filtered = rawUserLinksCache.filter(l => 
-    (l.title && l.title.toLowerCase().includes(lower)) ||
-    (l.originalUrl && l.originalUrl.toLowerCase().includes(lower)) ||
-    (l.targetUrl && l.targetUrl.toLowerCase().includes(lower)) ||
-    (l.shortCode && l.shortCode.toLowerCase().includes(lower))
-  );
-  renderUserLinks(filtered);
 }
 
 async function handleShortenClick(e) {
@@ -600,7 +504,7 @@ async function handleShortenClick(e) {
     const data = await res.json().catch(() => ({}));
 
     if (res.ok && (data.success || data.link || data.shortCode)) {
-      showToast(t('link_success_msg', 'تم اختصار الرابط بنجاح!'));
+      showToast(i18n[currentLang]?.link_success_msg || 'تم اختصار الرابط بنجاح!');
       titleInput.value = '';
       urlInput.value = '';
       
@@ -644,8 +548,66 @@ async function handleShortenClick(e) {
   }
 }
 
+function renderUserLinks(links) {
+  const container = document.getElementById('links-list');
+  if (!container) return;
+
+  if (!links || links.length === 0) {
+    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${currentLang === 'ar' ? 'لا توجد روابط مختصرة بعد.' : 'No shortened links found.'}</p>`;
+    return;
+  }
+
+  container.innerHTML = links.map(link => {
+    const formattedUrl = formatShortUrl(link);
+    const title = escapeHTML(link.title || link.shortCode || 'Untitled Link');
+    const originalUrl = escapeHTML(link.originalUrl || link.targetUrl || link.url || '');
+    const clicks = link.views || link.clicks || 0;
+    const validImp = link.validImpressions || 0;
+    const earnings = (link.totalEarnings || 0).toFixed(4);
+    const linkId = link._id || link.id || link.shortCode;
+
+    return `
+      <div class="link-item">
+        <div class="link-header">
+          <strong style="font-size: 14px; color: var(--text);">${title}</strong>
+          <span style="font-size: 11px; color: var(--success); font-weight: 700;">$${earnings}</span>
+        </div>
+        <div style="margin: 6px 0; font-size: 12px;">
+          <a href="${formattedUrl}" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: none; word-break: break-all; font-weight: 600;">${formattedUrl}</a>
+        </div>
+        <div style="font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 8px;">
+          ↪ ${originalUrl}
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--card-border); padding-top: 8px; margin-top: 8px;">
+          <span style="font-size: 11px; color: var(--text-muted);">👁️ ${clicks} ${currentLang === 'ar' ? 'زيارة' : 'clicks'} (${validImp} ${currentLang === 'ar' ? 'مؤكدة' : 'valid'})</span>
+          <div class="link-actions">
+            <button class="btn-small" onclick="copyToClipboard('${formattedUrl}')">${i18n[currentLang]?.btn_copy || 'نسخ'}</button>
+            <button class="btn-small btn-danger" onclick="deleteLink('${linkId}')">${currentLang === 'ar' ? 'حذف' : 'Delete'}</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function filterUserLinks(term) {
+  if (!rawUserLinksCache) return;
+  const lower = term.toLowerCase().trim();
+  if (!lower) {
+    renderUserLinks(rawUserLinksCache);
+    return;
+  }
+  const filtered = rawUserLinksCache.filter(l => 
+    (l.title && l.title.toLowerCase().includes(lower)) ||
+    (l.originalUrl && l.originalUrl.toLowerCase().includes(lower)) ||
+    (l.targetUrl && l.targetUrl.toLowerCase().includes(lower)) ||
+    (l.shortCode && l.shortCode.toLowerCase().includes(lower))
+  );
+  renderUserLinks(filtered);
+}
+
 async function deleteLink(linkId) {
-  if (!confirm(t('confirm_delete', 'هل أنت تأكد من حذف هذا الرابط؟'))) return;
+  if (!confirm(currentLang === 'ar' ? 'هل أنت تأكد من حذف هذا الرابط؟' : 'Are you sure you want to delete this link?')) return;
   
   try {
     const res = await safeFetch(`/api/links/${linkId}`, { method: 'DELETE' });
@@ -663,8 +625,6 @@ async function deleteLink(linkId) {
     showToast(err.message || (currentLang === 'ar' ? 'خطأ في الشبكة' : 'Network error'));
   }
 }
-
-// --- Wallet & Transactions Operations ---
 
 async function requestDeposit() {
   const network = document.getElementById('deposit-network').value;
@@ -713,26 +673,55 @@ async function requestDeposit() {
     }
   } catch (err) {
     console.error("Deposit request error:", err);
-    showToast(currentLang === 'ar' ? 'حدث خطأ أثناء تقديم الطلب' : 'Error submitting deposit request');
+    showToast(err.message || (currentLang === 'ar' ? 'خطأ أثناء تقديم الطلب' : 'Error submitting request'));
   } finally {
     setButtonLoading('btn-request-deposit', false);
   }
 }
 
-async function requestWithdrawal() {
-  const walletInput = document.getElementById('default-wallet');
-  const amountInput = document.getElementById('withdraw-amount');
-  const wallet = walletInput.value.trim();
-  const amount = parseFloat(amountInput.value);
-
-  if (!wallet) {
-    showToast(currentLang === 'ar' ? 'يرجى إدخال عنوان محفظة السحب أولاً' : 'Please set a withdrawal wallet address first');
-    toggleWalletEdit();
+async function saveSettings() {
+  const walletAddr = document.getElementById('default-wallet').value.trim();
+  if (!walletAddr) {
+    showToast(currentLang === 'ar' ? 'يرجى إدخال عنوان المحفظة' : 'Please enter wallet address');
     return;
   }
 
-  if (!amount || amount < 30) {
-    showToast(currentLang === 'ar' ? 'الحد الأدنى للسحب هو $30' : 'Minimum withdrawal amount is $30');
+  try {
+    const res = await safeFetch('/api/user/settings', {
+      method: 'POST',
+      body: {
+        userId: currentUserTelegramId,
+        telegramId: currentUserTelegramId,
+        defaultWallet: walletAddr
+      }
+    });
+
+    if (res) {
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && (data.success || data.user)) {
+        showToast(currentLang === 'ar' ? 'تم حفظ العنوان بنجاح' : 'Wallet address saved');
+        toggleWalletEdit();
+        await loadUserData();
+      } else {
+        showToast(data.error || (currentLang === 'ar' ? 'فشل حفظ العنوان' : 'Failed to save address'));
+      }
+    }
+  } catch (err) {
+    showToast(err.message || (currentLang === 'ar' ? 'خطأ أثناء الحفظ' : 'Error saving settings'));
+  }
+}
+
+async function requestWithdrawal() {
+  const walletAddr = document.getElementById('default-wallet').value.trim();
+  const amountVal = parseFloat(document.getElementById('withdraw-amount').value) || 0;
+
+  if (!walletAddr) {
+    showToast(currentLang === 'ar' ? 'يرجى إدخال وتحديد عنوان محفظة السحب أولاً' : 'Please define withdrawal wallet address first');
+    return;
+  }
+
+  if (amountVal < 30) {
+    showToast(currentLang === 'ar' ? 'الحد الأدنى للسحب هو 30$' : 'Minimum withdrawal is $30');
     return;
   }
 
@@ -744,9 +733,8 @@ async function requestWithdrawal() {
       body: {
         userId: currentUserTelegramId,
         telegramId: currentUserTelegramId,
-        network: 'TRC20',
-        walletAddress: wallet,
-        amount: amount
+        amount: amountVal,
+        wallet: walletAddr
       }
     });
 
@@ -754,172 +742,172 @@ async function requestWithdrawal() {
       const data = await res.json().catch(() => ({}));
       if (res.ok && (data.success || data.withdraw)) {
         showToast(currentLang === 'ar' ? 'تم تقديم طلب السحب بنجاح' : 'Withdrawal requested successfully');
-        amountInput.value = '';
+        document.getElementById('withdraw-amount').value = '';
         updateWithdrawCalculations();
         await loadUserData();
       } else {
-        showToast(data.error || data.message || (currentLang === 'ar' ? 'فشل طلب السحب' : 'Failed to request withdrawal'));
+        showToast(data.error || data.message || (currentLang === 'ar' ? 'فشل تقديم طلب السحب' : 'Failed to request withdrawal'));
       }
     }
   } catch (err) {
-    console.error("Withdrawal request error:", err);
-    showToast(currentLang === 'ar' ? 'حدث خطأ أثناء تقديم طلب السحب' : 'Error requesting withdrawal');
+    showToast(err.message || (currentLang === 'ar' ? 'خطأ في عملية السحب' : 'Error processing withdrawal'));
   } finally {
     setButtonLoading('btn-request-withdraw', false);
   }
 }
 
-async function saveSettings() {
-  const walletInput = document.getElementById('default-wallet');
-  const wallet = walletInput.value.trim();
+function renderWithdrawalsHistory(withdraws) {
+  const container = document.getElementById('withdraws-list');
+  if (!container) return;
 
-  if (!wallet) {
-    showToast(currentLang === 'ar' ? 'يرجى إدخال عنوان المحفظة' : 'Please enter wallet address');
+  if (!withdraws || withdraws.length === 0) {
+    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 10px 0;">${currentLang === 'ar' ? 'لا توجد طلبات سحب سابقة.' : 'No withdrawal history found.'}</p>`;
     return;
   }
 
-  setButtonLoading('save-wallet-btn', true);
+  container.innerHTML = withdraws.map(w => {
+    const statusClass = w.status === 'completed' || w.status === 'approved' ? 'color: var(--success);' : w.status === 'rejected' ? 'color: var(--danger);' : 'color: var(--warning);';
+    const statusText = w.status === 'completed' || w.status === 'approved' ? (currentLang === 'ar' ? 'مكتمل' : 'Approved') : w.status === 'rejected' ? (currentLang === 'ar' ? 'مرفوض' : 'Rejected') : (currentLang === 'ar' ? 'قيد المراجعة' : 'Pending');
+    const dateStr = new Date(w.createdAt || Date.now()).toLocaleDateString();
 
-  try {
-    const res = await safeFetch('/api/user/settings', {
-      method: 'POST',
-      body: {
-        userId: currentUserTelegramId,
-        defaultWallet: wallet,
-        language: currentLang
-      }
-    });
-
-    if (res) {
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && (data.success || data.message)) {
-        showToast(currentLang === 'ar' ? 'تم حفظ عنوان المحفظة بنجاح' : 'Wallet address saved successfully');
-        toggleWalletEdit();
-      } else {
-        showToast(data.error || data.message || (currentLang === 'ar' ? 'فشل حفظ المحفظة' : 'Failed to save wallet address'));
-      }
-    }
-  } catch (err) {
-    console.error("Save settings error:", err);
-    showToast(currentLang === 'ar' ? 'خطأ في الاتصال' : 'Network error');
-  } finally {
-    setButtonLoading('save-wallet-btn', false);
-  }
+    return `
+      <div style="background: #0f172a; padding: 12px; border-radius: 12px; border: 1px solid var(--card-border); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <strong style="font-size: 13px; color: var(--text);">$${(w.amount || 0).toFixed(2)}</strong>
+          <small style="display: block; color: var(--text-muted); font-size: 10px;">${dateStr}</small>
+        </div>
+        <span style="font-size: 12px; font-weight: bold; ${statusClass}">${statusText}</span>
+      </div>
+    `;
+  }).join('');
 }
-
-// --- Advertising Operations ---
 
 async function createAdCampaign() {
   const title = document.getElementById('ad-title').value.trim();
-  const targetUrl = document.getElementById('ad-target-url').value.trim();
-  const budget = parseFloat(document.getElementById('ad-budget').value);
+  let targetUrl = document.getElementById('ad-target-url').value.trim();
+  const budget = parseFloat(document.getElementById('ad-budget').value) || 0;
 
-  if (!title || !targetUrl || isNaN(budget) || budget < 5) {
-    showToast(currentLang === 'ar' ? 'يرجى تعبئة كافة الحقول (الحد الأدنى للميزانية $5)' : 'Please fill all fields (Min budget $5)');
+  if (!title) {
+    showToast(currentLang === 'ar' ? 'يرجى إدخال عنوان الإعلان' : 'Please enter ad title');
+    return;
+  }
+
+  if (!targetUrl) {
+    showToast(currentLang === 'ar' ? 'يرجى إدخال رابط التوجيه' : 'Please enter target URL');
+    return;
+  }
+
+  if (!/^https?:\/\//i.test(targetUrl)) {
+    targetUrl = 'https://' + targetUrl;
+  }
+
+  if (budget < 5) {
+    showToast(currentLang === 'ar' ? 'الحد الأدنى لميزانية الحملة هو $5' : 'Minimum campaign budget is $5');
     return;
   }
 
   setButtonLoading('btn-create-ad', true);
 
   try {
-    const res = await safeFetch('/api/ads', {
+    const res = await safeFetch('/api/ads/create', {
       method: 'POST',
       body: {
         userId: currentUserTelegramId,
         telegramId: currentUserTelegramId,
         title: title,
         targetUrl: targetUrl,
-        totalBudget: budget
+        budget: budget
       }
     });
 
     if (res) {
       const data = await res.json().catch(() => ({}));
       if (res.ok && (data.success || data.ad)) {
-        showToast(currentLang === 'ar' ? 'تم إنشاء الحملة الإعلانية بنجاح' : 'Ad campaign created successfully');
+        showToast(currentLang === 'ar' ? 'تم إطلاق الحملة الإعلانية بنجاح!' : 'Ad campaign launched successfully!');
         document.getElementById('ad-title').value = '';
         document.getElementById('ad-target-url').value = '';
         document.getElementById('ad-budget').value = '';
         await fetchUserAds();
         await loadUserData();
       } else {
-        showToast(data.error || data.message || (currentLang === 'ar' ? 'فشل إنشاء الحملة الإعلانية' : 'Failed to create ad campaign'));
+        showToast(data.error || (currentLang === 'ar' ? 'فشل إنشاء الحملة الإعلانية' : 'Failed to create ad campaign'));
       }
     }
   } catch (err) {
-    console.error("Create ad error:", err);
-    showToast(currentLang === 'ar' ? 'خطأ في الاتصال' : 'Network error');
+    showToast(err.message || (currentLang === 'ar' ? 'خطأ أثناء إنشاء الحملة' : 'Error creating campaign'));
   } finally {
     setButtonLoading('btn-create-ad', false);
   }
 }
 
 async function fetchUserAds() {
-  const adsListContainer = document.getElementById('ads-list');
+  const container = document.getElementById('ads-list');
+  if (container) {
+    container.innerHTML = `<div style="text-align:center; padding: 10px;"><div class="spinner"></div></div>`;
+  }
+
   try {
-    const res = await safeFetch('/api/user/ads');
+    const res = await safeFetch('/api/ads');
     if (res) {
       const data = await res.json().catch(() => null);
-      if (data && data.ads) {
-        renderUserAds(data.ads);
-      } else if (Array.isArray(data)) {
-        renderUserAds(data);
-      } else {
-        if (adsListContainer) {
-          adsListContainer.innerHTML = `<p style="text-align:center; color: var(--text-muted);">${currentLang === 'ar' ? 'لا توجد حملات إعلانية حالياً' : 'No ad campaigns found'}</p>`;
-        }
+      if (data) {
+        const ads = Array.isArray(data) ? data : (data.ads || data.data || []);
+        renderUserAds(ads);
+        return ads;
       }
     }
-  } catch (e) {
-    console.error("Error fetching ads:", e);
+  } catch (err) {
+    console.error("Error fetching user ads:", err);
   }
+  return [];
 }
 
 function renderUserAds(ads) {
   const container = document.getElementById('ads-list');
   if (!container) return;
+
   if (!ads || ads.length === 0) {
-    container.innerHTML = `<p style="text-align:center; color: var(--text-muted);">${currentLang === 'ar' ? 'لا توجد حملات إعلانية حالياً' : 'No ad campaigns found'}</p>`;
+    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${currentLang === 'ar' ? 'لا توجد حملات إعلانية نشطة.' : 'No active ad campaigns.'}</p>`;
     return;
   }
-  container.innerHTML = ads.map(ad => `
-    <div class="ad-item">
-      <div class="ad-header">
-        <strong>${escapeHTML(ad.title)}</strong>
-        <span class="user-badge">${t('status_' + (ad.status || 'active').toLowerCase(), ad.status || 'Active')}</span>
+
+  container.innerHTML = ads.map(ad => {
+    const title = escapeHTML(ad.title || 'Untitled Ad');
+    const targetUrl = escapeHTML(ad.targetUrl || ad.url || '');
+    const budget = (ad.budget || 0).toFixed(2);
+    const spent = (ad.spent || ad.totalSpent || 0).toFixed(2);
+    const impressions = ad.impressions || ad.views || 0;
+
+    return `
+      <div class="ad-item">
+        <div class="ad-header">
+          <strong style="font-size: 14px; color: var(--text);">${title}</strong>
+          <span style="font-size: 11px; color: var(--accent); font-weight: 700;">$${spent} / $${budget}</span>
+        </div>
+        <div style="margin: 6px 0; font-size: 11px; color: var(--text-muted); word-break: break-all;">
+          🔗 ${targetUrl}
+        </div>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 8px; border-top: 1px solid var(--card-border); padding-top: 8px;">
+          👁️ ${impressions} ${currentLang === 'ar' ? 'مشاهدة حقيقية' : 'impressions'}
+        </div>
       </div>
-      <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px; word-break: break-all;">
-        ${escapeHTML(ad.targetUrl)}
-      </div>
-      <div style="display: flex; justify-content: space-between; font-size: 11px; margin-top: 6px;">
-        <span>${currentLang === 'ar' ? 'الميزانية' : 'Budget'}: $${(ad.totalBudget || ad.budget || 0).toFixed(2)}</span>
-        <span>${t('views', 'المشاهدات')}: ${ad.impressionsCount || ad.impressions || 0}</span>
-      </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
-// --- Referral Operations ---
-
 async function fetchUserReferrals() {
+  const container = document.getElementById('ref-list');
+  if (container) {
+    container.innerHTML = `<div style="text-align:center; padding: 10px;"><div class="spinner"></div></div>`;
+  }
+
   try {
-    const res = await safeFetch('/api/user/referrals');
-    if (res && res.ok) {
-      const data = await res.json().catch(() => ({}));
-      if (data.referralsCount !== undefined) {
-        const el = document.getElementById('ref-count');
-        if (el) el.innerText = data.referralsCount;
-      }
-      if (data.referralEarnings !== undefined) {
-        const el = document.getElementById('ref-earnings');
-        if (el) el.innerText = `$${(data.referralEarnings || 0).toFixed(2)}`;
-      }
-      if (data.referralLink) {
-        const el = document.getElementById('ref-link');
-        if (el) el.value = data.referralLink;
-      }
-      if (data.referrals && Array.isArray(data.referrals)) {
-        renderReferralsList(data.referrals);
+    const res = await safeFetch('/api/referrals');
+    if (res) {
+      const data = await res.json().catch(() => null);
+      if (data) {
+        const referrals = Array.isArray(data) ? data : (data.referrals || data.data || []);
+        renderUserReferrals(referrals);
       }
     }
   } catch (err) {
@@ -927,241 +915,145 @@ async function fetchUserReferrals() {
   }
 }
 
-function renderReferralsList(list) {
+function renderUserReferrals(referrals) {
   const container = document.getElementById('ref-list');
   if (!container) return;
-  if (!list || list.length === 0) {
-    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 8px 0;">${currentLang === 'ar' ? 'لا توجد إحالات بعد.' : 'No referrals yet.'}</p>`;
-    return;
-  }
-  container.innerHTML = list.map(item => `
-    <div style="background: #070a12; padding: 10px 12px; border-radius: 10px; margin-bottom: 8px; border: 1px solid var(--card-border); font-size: 12px; display: flex; justify-content: space-between; align-items: center;">
-      <div>
-        <strong style="color: var(--text);">${escapeHTML(item.username || item.firstName || ('User ' + (item.telegramId || '').slice(-4)))}</strong>
-        <div style="font-size: 10px; color: var(--text-muted);">ID: ${item.telegramId || '-'}</div>
-      </div>
-      <span style="color: var(--success); font-weight: bold;">+$${(item.referralEarnings || 0).toFixed(2)}</span>
-    </div>
-  `).join('');
-}
 
-function renderWithdrawalsHistory(list) {
-  const container = document.getElementById('withdraws-list');
-  if (!container) return;
-  if (!list || list.length === 0) {
-    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 8px 0;">${currentLang === 'ar' ? 'لا توجد طلبات سحب سابقة' : 'No withdrawal history'}</p>`;
+  if (!referrals || referrals.length === 0) {
+    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${currentLang === 'ar' ? 'لم تنضم أي إحالات عبر رابطك بعد.' : 'No referrals registered yet.'}</p>`;
     return;
   }
-  container.innerHTML = list.map(item => {
-    const statusKey = 'status_' + (item.status || 'pending').toLowerCase();
-    const statusLabel = t(statusKey, item.status || 'pending');
+
+  container.innerHTML = referrals.map(ref => {
+    const name = escapeHTML(ref.firstName || ref.username || 'User');
+    const earnings = (ref.earnedAmount || ref.contribution || 0).toFixed(2);
+    const dateStr = new Date(ref.createdAt || Date.now()).toLocaleDateString();
+
     return `
-      <div style="background: #070a12; padding: 10px 12px; border-radius: 10px; margin-bottom: 8px; border: 1px solid var(--card-border); font-size: 12px;">
-        <div style="display: flex; justify-content: space-between;">
-          <strong style="color: var(--text);">$${(item.amount || 0).toFixed(2)}</strong>
-          <span style="color: ${item.status === 'approved' || item.status === 'completed' ? 'var(--success)' : item.status === 'rejected' || item.status === 'failed' ? 'var(--danger)' : 'var(--warning)'}; font-weight: bold;">${statusLabel}</span>
+      <div style="background: #0f172a; padding: 12px; border-radius: 12px; border: 1px solid var(--card-border); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <strong style="font-size: 13px; color: var(--text);">${name}</strong>
+          <small style="display: block; color: var(--text-muted); font-size: 10px;">${dateStr}</small>
         </div>
-        <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px; word-break: break-all;">
-          ${escapeHTML(item.walletAddress || item.wallet || item.address || '')}
-        </div>
+        <span style="font-size: 12px; color: var(--success); font-weight: bold;">+$${earnings}</span>
       </div>
     `;
   }).join('');
 }
 
-// --- Admin Dashboard Panel ---
-
 async function loadAdminData() {
   if (!isUserAdmin) return;
+
   try {
-    const res = await safeFetch('/api/admin/dashboard-data');
+    const res = await safeFetch('/api/admin/dashboard');
     if (res && res.ok) {
       const data = await res.json().catch(() => ({}));
-      const userCountElem = document.getElementById('admin-total-users');
-      if (userCountElem) {
-        userCountElem.innerText = data.stats?.totalUsers || data.users?.length || 0;
-      }
-      const pendingElem = document.getElementById('admin-total-pending');
-      if (pendingElem) {
-        pendingElem.innerText = `$${(data.stats?.totalPending || 0).toFixed(2)}`;
-      }
       
-      if (data.deposits) renderAdminDeposits(data.deposits);
-      if (data.withdraws) renderAdminWithdrawals(data.withdraws);
+      document.getElementById('admin-total-users').innerText = data.totalUsers || 0;
+      document.getElementById('admin-total-pending').innerText = `$${(data.totalPendingBalance || 0).toFixed(2)}`;
+
+      if (data.pendingDeposits) renderAdminDeposits(data.pendingDeposits);
+      if (data.pendingWithdraws) renderAdminWithdraws(data.pendingWithdraws);
       if (data.users) renderAdminUsers(data.users);
       if (data.links) renderAdminLinks(data.links);
       if (data.ads) renderAdminAds(data.ads);
     }
   } catch (err) {
-    console.error("Error loading admin data:", err);
+    console.error("Admin data error:", err);
   }
 }
 
-function renderAdminDeposits(deposits) {
-  const container = document.getElementById('admin-deposits-list');
-  if (!container) return;
-  if (!deposits || deposits.length === 0) {
-    container.innerHTML = `<p style="color: var(--text-muted);">${currentLang === 'ar' ? 'لا توجد طلبات إيداع معلقة' : 'No pending deposits'}</p>`;
-    return;
-  }
-  container.innerHTML = deposits.map(d => `
-    <div style="background: #070a12; padding: 10px; border-radius: 10px; margin-bottom: 8px; border: 1px solid var(--card-border);">
-      <div>User: <b>${d.advertiserTelegramId || d.telegramId || d.userId}</b> | Network: <b>${d.network}</b> | Amount: <b style="color:var(--success);">$${d.amount}</b></div>
-      <div style="font-size: 10px; color: var(--text-muted); word-break: break-all; margin: 4px 0;">TxID: ${escapeHTML(d.txid || d.txHash)}</div>
-      <div style="display: flex; gap: 6px; margin-top: 6px;">
-        <button class="btn-small btn-success" onclick="processAdminDeposit('${d._id || d.id}', 'approve')">Approve</button>
-        <button class="btn-small btn-danger" onclick="processAdminDeposit('${d._id || d.id}', 'reject')">Reject</button>
+function renderAdminDeposits(list) {
+  const c = document.getElementById('admin-deposits-list');
+  if (!c) return;
+  if (!list.length) { c.innerHTML = '<p style="color:var(--text-muted);">لا توجد طلبات إيداع معلقة</p>'; return; }
+  c.innerHTML = list.map(d => `
+    <div style="background:#070a12; padding:10px; border-radius:10px; margin-bottom:8px; border:1px solid var(--card-border);">
+      <div><b>مستخدم:</b> ${d.userId} | <b>المبلغ:</b> $${d.amount}</div>
+      <div style="font-size:10px; color:var(--text-muted); word-break:break-all;"><b>TxID:</b> ${d.txid || d.txHash}</div>
+      <div style="margin-top:6px;">
+        <button class="btn-small btn-success" onclick="processAdminAction('deposit', '${d._id}', 'approve')">قبول</button>
+        <button class="btn-small btn-danger" onclick="processAdminAction('deposit', '${d._id}', 'reject')">رفض</button>
       </div>
     </div>
   `).join('');
 }
 
-function renderAdminWithdrawals(withdrawals) {
-  const container = document.getElementById('admin-withdraws-list');
-  if (!container) return;
-  if (!withdrawals || withdrawals.length === 0) {
-    container.innerHTML = `<p style="color: var(--text-muted);">${currentLang === 'ar' ? 'لا توجد طلبات سحب معلقة' : 'No pending withdrawals'}</p>`;
-    return;
-  }
-  container.innerHTML = withdrawals.map(w => `
-    <div style="background: #070a12; padding: 10px; border-radius: 10px; margin-bottom: 8px; border: 1px solid var(--card-border);">
-      <div>User: <b>${w.telegramId || w.userId}</b> | Amount: <b style="color:var(--warning);">$${w.amount}</b></div>
-      <div style="font-size: 10px; color: var(--text-muted); word-break: break-all; margin: 4px 0;">Wallet: ${escapeHTML(w.walletAddress || w.wallet)}</div>
-      <div style="display: flex; gap: 6px; margin-top: 6px;">
-        <button class="btn-small btn-success" onclick="processAdminWithdrawal('${w._id || w.id}', 'approve')">Approve</button>
-        <button class="btn-small btn-danger" onclick="processAdminWithdrawal('${w._id || w.id}', 'reject')">Reject</button>
+function renderAdminWithdraws(list) {
+  const c = document.getElementById('admin-withdraws-list');
+  if (!c) return;
+  if (!list.length) { c.innerHTML = '<p style="color:var(--text-muted);">لا توجد طلبات سحب معلقة</p>'; return; }
+  c.innerHTML = list.map(w => `
+    <div style="background:#070a12; padding:10px; border-radius:10px; margin-bottom:8px; border:1px solid var(--card-border);">
+      <div><b>مستخدم:</b> ${w.userId} | <b>المبلغ:</b> $${w.amount}</div>
+      <div style="font-size:10px; color:var(--text-muted); word-break:break-all;"><b>المحفظة:</b> ${w.wallet}</div>
+      <div style="margin-top:6px;">
+        <button class="btn-small btn-success" onclick="processAdminAction('withdraw', '${w._id}', 'approve')">تأكيد الدفع</button>
+        <button class="btn-small btn-danger" onclick="processAdminAction('withdraw', '${w._id}', 'reject')">إلغاء الطلب</button>
       </div>
     </div>
   `).join('');
 }
 
-function renderAdminUsers(users) {
-  const container = document.getElementById('admin-users-list');
-  if (!container) return;
-  if (!users || users.length === 0) {
-    container.innerHTML = `<p style="color: var(--text-muted);">No users data</p>`;
-    return;
-  }
-  container.innerHTML = users.slice(0, 20).map(u => `
-    <div style="padding: 6px 0; border-bottom: 1px solid var(--card-border); font-size: 11px;">
-      ID: <b>${u.telegramId || u._id}</b> | Name: <b>${escapeHTML(u.username || u.firstName || 'N/A')}</b> | Bal: <b style="color:var(--success);">$${(u.availableBalance || 0).toFixed(2)}</b>
+function renderAdminUsers(list) {
+  const c = document.getElementById('admin-users-list');
+  if (!c) return;
+  c.innerHTML = list.map(u => `
+    <div style="background:#070a12; padding:8px; border-radius:8px; margin-bottom:6px; font-size:11px;">
+      <b>ID:</b> ${u.telegramId} | <b>المتاح:</b> $${(u.availableBalance||0).toFixed(2)} | <b>المعلق:</b> $${(u.pendingBalance||0).toFixed(2)}
     </div>
   `).join('');
 }
 
-function renderAdminLinks(links) {
-  const container = document.getElementById('admin-links-list');
-  if (!container) return;
-  if (!links || links.length === 0) {
-    container.innerHTML = `<p style="color: var(--text-muted);">No links found</p>`;
-    return;
-  }
-  container.innerHTML = links.slice(0, 15).map(l => `
-    <div style="padding: 6px 0; border-bottom: 1px solid var(--card-border); font-size: 11px;">
-      Code: <b>${l.shortCode}</b> | Views: <b>${l.views || 0}</b> | Owner: <b>${l.publisherTelegramId || l.telegramId || 'N/A'}</b>
+function renderAdminLinks(list) {
+  const c = document.getElementById('admin-links-list');
+  if (!c) return;
+  c.innerHTML = list.map(l => `
+    <div style="background:#070a12; padding:8px; border-radius:8px; margin-bottom:6px; font-size:11px;">
+      <b>كود:</b> ${l.shortCode} | <b>الزيارات:</b> ${l.views||0}
     </div>
   `).join('');
 }
 
-function renderAdminAds(ads) {
-  const container = document.getElementById('admin-ads-list');
-  if (!container) return;
-  if (!ads || ads.length === 0) {
-    container.innerHTML = `<p style="color: var(--text-muted);">No ads found</p>`;
-    return;
-  }
-  container.innerHTML = ads.slice(0, 15).map(a => `
-    <div style="padding: 6px 0; border-bottom: 1px solid var(--card-border); font-size: 11px;">
-      Title: <b>${escapeHTML(a.title)}</b> | Budget: <b>$${a.totalBudget || a.budget}</b> | Status: <b>${a.status}</b>
+function renderAdminAds(list) {
+  const c = document.getElementById('admin-ads-list');
+  if (!c) return;
+  c.innerHTML = list.map(a => `
+    <div style="background:#070a12; padding:8px; border-radius:8px; margin-bottom:6px; font-size:11px;">
+      <b>عنوان:</b> ${escapeHTML(a.title)} | <b>الميزانية:</b> $${a.budget}
     </div>
   `).join('');
 }
 
-async function processAdminDeposit(depositId, action) {
+async function processAdminAction(type, itemId, action) {
   try {
-    const res = await safeFetch(`/api/admin/deposits/${action}`, {
+    const res = await safeFetch(`/api/admin/${type}/${action}`, {
       method: 'POST',
-      body: { depositId }
+      body: { id: itemId }
     });
     if (res && res.ok) {
-      showToast(`Deposit ${action}d successfully`);
+      showToast("تم تنفيذ الإجراء بنجاح");
       loadAdminData();
     }
   } catch (e) {
-    console.error("Process deposit error:", e);
+    showToast("خطأ أثناء تنفيذ الإجراء");
   }
 }
 
-async function processAdminWithdrawal(withdrawId, action) {
+async function initBridgeView(code) {
+  currentShortCode = code;
+  document.getElementById('app-view').classList.add('hidden');
+  document.getElementById('bridge-view').classList.remove('hidden');
+
   try {
-    const res = await safeFetch(`/api/admin/withdraws/${action}`, {
-      method: 'POST',
-      body: { withdrawId }
-    });
+    const res = await safeFetch(`/api/bridge/${code}`);
     if (res && res.ok) {
-      showToast(`Withdrawal ${action}d successfully`);
-      loadAdminData();
-    }
-  } catch (e) {
-    console.error("Process withdrawal error:", e);
-  }
-}
-
-// --- Bridge Page & Traffic Verification ---
-
-function checkBridgeMode() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const code = urlParams.get('code') || urlParams.get('r') || (window.location.pathname.startsWith('/r/') ? window.location.pathname.split('/r/')[1] : null);
-
-  if (code) {
-    const appView = document.getElementById('app-view');
-    const bridgeView = document.getElementById('bridge-view');
-    if (appView) appView.classList.add('hidden');
-    if (bridgeView) bridgeView.classList.remove('hidden');
-    currentShortCode = code;
-    initBridgePage(code);
-  }
-}
-
-async function initBridgePage(code) {
-  try {
-    const res = await safeFetch('/api/init-click', {
-      method: 'POST',
-      body: { linkCode: code }
-    });
-    if (res && res.ok) {
-      const data = await res.json();
-      if (data.success) {
-        currentSessionId = data.sessionId;
-        bridgeToken = data.bridgeToken;
-        bridgeStartTime = Date.now();
-        
-        if (data.adData) {
-          const adContainer = document.getElementById('ad-container');
-          if (adContainer) {
-            adContainer.innerHTML = `
-              <div style="padding: 14px; text-align: center;">
-                <span class="user-badge" style="margin-bottom: 8px;">إعلان ممول / Sponsored Ad</span>
-                <h3 style="margin: 8px 0; color: var(--accent); font-size: 16px;">${escapeHTML(data.adData.title)}</h3>
-                <a href="${escapeHTML(data.adData.targetUrl)}" target="_blank" class="btn-small" style="margin-top: 10px; text-decoration: none; display: inline-block;">زيارة الإعلان / Visit Ad</a>
-              </div>
-            `;
-          }
-        } else if (data.blockId && window.Adsgram) {
-          try {
-            const AdController = window.Adsgram.init({ blockId: String(data.blockId) });
-            AdController.show();
-          } catch (adErr) {
-            console.log("Adsgram display error:", adErr);
-          }
-        }
-
-        startBridgeTimer(5);
-      } else {
-        showToast(data.error || (currentLang === 'ar' ? "الرابط غير صالح أو معطل" : "Invalid link"));
-      }
+      const data = await res.json().catch(() => ({}));
+      bridgeDestinationUrl = data.targetUrl || data.originalUrl || '/';
+      bridgeToken = data.token || null;
+      startBridgeTimer(5);
     } else {
-      showToast(currentLang === 'ar' ? "الرابط غير موجود أو معطل" : "Link not found");
+      showToast("تعذر تحميل الرابط المطلوب");
     }
   } catch (err) {
     console.error("Bridge init error:", err);
@@ -1171,71 +1063,52 @@ async function initBridgePage(code) {
 function startBridgeTimer(seconds) {
   let timeLeft = seconds;
   const timerElem = document.getElementById('timer');
-  const goBtn = document.getElementById('go-btn');
+  const btn = document.getElementById('go-btn');
 
   const interval = setInterval(() => {
     timeLeft--;
     if (timerElem) timerElem.innerText = timeLeft;
     if (timeLeft <= 0) {
       clearInterval(interval);
-      if (goBtn) {
-        goBtn.disabled = false;
-        goBtn.classList.add('btn-success');
-      }
+      if (btn) btn.disabled = false;
     }
   }, 1000);
 }
 
 async function completeImpression() {
-  if (!currentSessionId || !bridgeToken) {
-    showToast(currentLang === 'ar' ? "الجلسة غير صالحة" : "Invalid session");
-    return;
-  }
+  if (!bridgeDestinationUrl) return;
 
-  const duration = Math.round((Date.now() - bridgeStartTime) / 1000);
   setButtonLoading('go-btn', true);
 
   try {
-    const res = await safeFetch('/api/impression', {
+    await safeFetch('/api/bridge/complete', {
       method: 'POST',
       body: {
-        sessionId: currentSessionId,
-        bridgeToken: bridgeToken,
-        duration: duration
+        shortCode: currentShortCode,
+        token: bridgeToken,
+        duration: Math.round((Date.now() - bridgeStartTime) / 1000)
       }
     });
-
-    if (res && res.ok) {
-      const data = await res.json();
-      if (data.targetUrl) {
-        window.location.href = data.targetUrl;
-        return;
-      }
-    }
   } catch (e) {
-    console.error("Error logging impression:", e);
+    console.error("Complete impression error:", e);
   } finally {
-    setButtonLoading('go-btn', false);
+    window.location.href = bridgeDestinationUrl;
   }
 }
 
-// --- Application Lifecycle Initialization ---
-
-async function initializeApp() {
-  if (tg) {
-    tg.ready();
-    tg.expand();
-  }
-
+document.addEventListener('DOMContentLoaded', async () => {
   renderTelegramUser();
   await authLogin();
+  
+  const pathParts = window.location.pathname.split('/');
+  if (pathParts.length >= 3 && pathParts[1] === 'r') {
+    const code = pathParts[2];
+    if (code) {
+      initBridgeView(code);
+      return;
+    }
+  }
 
   await loadUserData();
   await fetchUserLinks();
-
-  checkBridgeMode();
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  initializeApp();
 });
