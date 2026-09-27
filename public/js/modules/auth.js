@@ -1,104 +1,26 @@
-// public/js/modules/auth.js
 import { state } from '../state.js';
 import { safeFetch } from './api.js';
-import { escapeHTML } from './ui.js';
+import { renderTelegramUser } from './user.js';
 
-/**
- * دالة تهيئة التطبيق الأساسية للتأكد من جاهزية Telegram WebApp وتوثيق المستخدم
- */
 export async function initApp() {
-  if (window.Telegram?.WebApp) {
-    state.tg = window.Telegram.WebApp;
-    // إبلاغ تلجرام بأن الواجهة جاهزة للعرض
-    window.Telegram.WebApp.ready();
-    // توسيع نافذة الميني اب لتغطي الشاشة
-    if (typeof window.Telegram.WebApp.expand === 'function') {
-      window.Telegram.WebApp.expand();
+  const tg = state.tg || window.Telegram?.WebApp;
+  if (tg) {
+    try {
+      if (typeof tg.ready === 'function') tg.ready();
+      if (typeof tg.expand === 'function') tg.expand();
+    } catch (e) {
+      console.error("Error initializing Telegram WebApp:", e);
     }
   }
-
-  // عرض بيانات المستخدم المستخرجة من تلجرام
   renderTelegramUser();
-
-  // إرسال بيانات التوثيق إلى السيرفر
-  return await authLogin();
+  await authLogin();
 }
 
-/**
- * عرض وتنسيق بيانات المستخدم على الشاشة
- */
-export function renderTelegramUser() {
-  if (!state.tg && window.Telegram?.WebApp) {
-    state.tg = window.Telegram.WebApp;
-  }
-
-  const u = state.tg?.initDataUnsafe?.user;
-  const avatarContainer = document.getElementById('user-avatar-container');
-  const nameElem = document.getElementById('user-display-name');
-  const handleElem = document.getElementById('user-display-handle');
-  const idElem = document.getElementById('user-tg-id');
-  const premiumBadge = document.getElementById('user-premium-badge');
-
-  if (u && u.id) {
-    state.currentUserTelegramId = String(u.id);
-    localStorage.setItem('telegramId', state.currentUserTelegramId);
-    const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || 'Telegram User';
-    if (nameElem) nameElem.innerText = fullName;
-    if (handleElem) handleElem.innerText = u.username ? `@${u.username}` : '@no_username';
-    if (idElem) idElem.innerText = `ID: ${u.id}`;
-
-    if (u.is_premium && premiumBadge) {
-      premiumBadge.classList.remove('hidden');
-    }
-
-    if (avatarContainer) {
-      if (u.photo_url) {
-        avatarContainer.innerHTML = `<img src="${escapeHTML(u.photo_url)}" class="user-avatar-img" alt="Avatar">`;
-      } else {
-        const letter = (u.first_name || 'U').charAt(0).toUpperCase();
-        avatarContainer.innerHTML = `<div class="user-avatar-placeholder">${escapeHTML(letter)}</div>`;
-      }
-    }
-
-    const savedLang = localStorage.getItem('appLang');
-    if (savedLang && window.i18n && window.i18n[savedLang]) {
-      state.currentLang = savedLang;
-    } else if (u.language_code && window.i18n && window.i18n[u.language_code]) {
-      state.currentLang = u.language_code === 'ar' ? 'ar' : 'en';
-    } else {
-      state.currentLang = 'ar';
-    }
-  } else {
-    if (!state.currentUserTelegramId) {
-      state.currentUserTelegramId = localStorage.getItem('telegramId') || '123456789';
-    }
-    if (nameElem) nameElem.innerText = 'Telegram User';
-    if (handleElem) handleElem.innerText = '@user';
-    if (idElem) idElem.innerText = `ID: ${state.currentUserTelegramId}`;
-    if (avatarContainer) {
-      avatarContainer.innerHTML = `<div class="user-avatar-placeholder">U</div>`;
-    }
-    if (!localStorage.getItem('appLang')) {
-      state.currentLang = 'ar';
-    }
-  }
-
-  if (typeof window.applyLanguage === 'function') {
-    window.applyLanguage(state.currentLang);
-  }
-}
-
-/**
- * تسجيل الدخول وإرسال بيانات initData للسيرفر
- */
 export async function authLogin() {
-  if (!state.tg && window.Telegram?.WebApp) {
-    state.tg = window.Telegram.WebApp;
-  }
-
-  const startParam = state.tg?.initDataUnsafe?.start_param || null;
-  const u = state.tg?.initDataUnsafe?.user || {};
-  const initDataStr = window.Telegram?.WebApp?.initData || state.tg?.initData || '';
+  const tg = state.tg || window.Telegram?.WebApp;
+  const startParam = tg?.initDataUnsafe?.start_param || null;
+  const u = tg?.initDataUnsafe?.user || {};
+  const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || '';
 
   try {
     const res = await safeFetch('/api/auth/login', {
@@ -115,23 +37,20 @@ export async function authLogin() {
         initData: initDataStr
       }
     });
-    
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-
     if (data && (data.success || data.token)) {
       if (data.token) {
         state.authToken = data.token;
         localStorage.setItem('authToken', state.authToken);
       }
 
-      if (data.user && data.user.telegramId) {
-        state.currentUserTelegramId = String(data.user.telegramId);
-        localStorage.setItem('telegramId', state.currentUserTelegramId);
-      }
-
       if (data.user) {
         state.user = data.user;
+        if (data.user.telegramId) {
+          state.currentUserTelegramId = String(data.user.telegramId);
+          localStorage.setItem('telegramId', state.currentUserTelegramId);
+        }
       }
 
       if (data.isAdmin === true) {
