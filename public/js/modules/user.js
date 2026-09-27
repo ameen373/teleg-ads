@@ -1,10 +1,70 @@
-// js/modules/user.js
-import { state } from '../state.js';
+import { state, i18n } from '../state.js';
 import { safeFetch } from './api.js';
 import { triggerHaptic, escapeHTML } from './ui.js';
 import { renderUserLinks } from './shortener.js';
 import { renderWithdrawalsHistory } from './wallet.js';
 import { renderUserAds } from './ads.js';
+
+export function renderTelegramUser() {
+  const tg = state.tg || window.Telegram?.WebApp;
+  const u = tg?.initDataUnsafe?.user;
+  const avatarContainer = document.getElementById('user-avatar-container');
+  const nameElem = document.getElementById('user-display-name');
+  const handleElem = document.getElementById('user-display-handle');
+  const idElem = document.getElementById('user-tg-id');
+  const premiumBadge = document.getElementById('user-premium-badge');
+
+  if (u && u.id) {
+    state.currentUserTelegramId = String(u.id);
+    localStorage.setItem('telegramId', state.currentUserTelegramId);
+    const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || 'Telegram User';
+    if (nameElem) nameElem.innerText = fullName;
+    if (handleElem) handleElem.innerText = u.username ? `@${u.username}` : '@no_username';
+    if (idElem) idElem.innerText = `ID: ${u.id}`;
+
+    if (premiumBadge && u.is_premium) {
+      premiumBadge.classList.remove('hidden');
+    }
+
+    if (avatarContainer) {
+      if (u.photo_url) {
+        avatarContainer.innerHTML = `<img src="${escapeHTML(u.photo_url)}" class="user-avatar-img" alt="Avatar">`;
+      } else {
+        const letter = (u.first_name || 'U').charAt(0).toUpperCase();
+        avatarContainer.innerHTML = `<div class="user-avatar-placeholder">${escapeHTML(letter)}</div>`;
+      }
+    }
+
+    const savedLang = localStorage.getItem('appLang');
+    if (savedLang && i18n[savedLang]) {
+      state.currentLang = savedLang;
+    } else if (u.language_code && i18n[u.language_code]) {
+      state.currentLang = u.language_code === 'ar' ? 'ar' : 'en';
+    } else {
+      state.currentLang = 'ar';
+    }
+  } else {
+    if (!state.currentUserTelegramId) {
+      state.currentUserTelegramId = localStorage.getItem('telegramId') || '123456789';
+    }
+    if (nameElem) nameElem.innerText = 'Telegram User';
+    if (handleElem) handleElem.innerText = '@user';
+    if (idElem) idElem.innerText = `ID: ${state.currentUserTelegramId}`;
+    if (avatarContainer) avatarContainer.innerHTML = `<div class="user-avatar-placeholder">U</div>`;
+    if (!localStorage.getItem('appLang')) {
+      state.currentLang = 'ar';
+    }
+  }
+
+  applyLanguage(state.currentLang);
+}
+
+export function applyLanguage(lang) {
+  state.currentLang = lang;
+  localStorage.setItem('appLang', lang);
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+}
 
 export async function loadUserData() {
   try {
@@ -12,14 +72,15 @@ export async function loadUserData() {
     if (res && res.ok) {
       const data = await res.json().catch(() => ({}));
       const u = data.user || {};
+      state.user = u;
 
-      const pendingBal = document.getElementById('pending-bal');
-      const availBal = document.getElementById('avail-bal');
-      const refEarnings = document.getElementById('ref-earnings');
+      const pendingElem = document.getElementById('pending-bal');
+      const availElem = document.getElementById('avail-bal');
+      const refEarnElem = document.getElementById('ref-earnings');
 
-      if (pendingBal) pendingBal.innerText = `$${(u.pendingBalance || 0).toFixed(2)}`;
-      if (availBal) availBal.innerText = `$${(u.availableBalance || 0).toFixed(2)}`;
-      if (refEarnings) refEarnings.innerText = `$${(u.referralEarnings || 0).toFixed(2)}`;
+      if (pendingElem) pendingElem.innerText = `$${(u.pendingBalance || 0).toFixed(2)}`;
+      if (availElem) availElem.innerText = `$${(u.availableBalance || 0).toFixed(2)}`;
+      if (refEarnElem) refEarnElem.innerText = `$${(u.referralEarnings || 0).toFixed(2)}`;
       
       const refCountElem = document.getElementById('ref-count');
       if (refCountElem) {
@@ -82,8 +143,9 @@ export function shareReferralLink() {
   const shareText = encodeURIComponent(state.currentLang === 'ar' ? "انضم إليّ في أفضل منصة لاختصار الروابط واكسب الأرباح بسهولة! 🚀" : "Join me on the best url shortener platform & earn money! 🚀");
   const url = `https://t.me/share/url?url=${encodeURIComponent(refUrl)}&text=${shareText}`;
   
-  if (state.tg && state.tg.openTelegramLink) {
-    state.tg.openTelegramLink(url);
+  const tg = state.tg || window.Telegram?.WebApp;
+  if (tg && tg.openTelegramLink) {
+    tg.openTelegramLink(url);
   } else {
     window.open(url, '_blank');
   }
