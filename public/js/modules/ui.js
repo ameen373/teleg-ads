@@ -43,6 +43,14 @@ export function closeModal(modalId) {
   if (modal) modal.classList.add('hidden');
 }
 
+export function toggleModal(modalId, show) {
+  if (show) {
+    showModal(modalId);
+  } else {
+    closeModal(modalId);
+  }
+}
+
 export function copyToClipboard(text) {
   if (!text) return;
   navigator.clipboard.writeText(text).then(() => {
@@ -66,35 +74,28 @@ export function setButtonLoading(btnId, isLoading, originalText) {
 }
 
 export function switchTab(tabName) {
-  const targetTab = (tabName === 'home') ? 'dashboard' : tabName;
-
-  if (targetTab === 'admin' && !state.isUserAdmin) {
-    showToast(i18n[state.currentLang]?.access_denied || "غير مصرح لك بالوصول للوحة التحكم");
+  if (tabName === 'admin' && !state.isUserAdmin) {
+    showToast(state.currentLang === 'ar' ? "غير مصرح لك بالوصول للوحة التحكم" : "Access denied");
     return;
   }
-  
   triggerHaptic('light');
-  state.activeTab = targetTab;
-
+  state.activeTab = tabName;
   const tabs = ['dashboard', 'wallet', 'ads', 'referral', 'settings', 'admin'];
   
   tabs.forEach(t => {
     const content = document.getElementById(`tab-content-${t}`);
-    const btn = document.getElementById(`tab-btn-${t}`) || (t === 'dashboard' ? document.getElementById('tab-btn-home') : null);
-
-    if (content) {
-      content.classList.toggle('hidden', t !== targetTab);
-    }
-    if (btn) {
-      btn.classList.toggle('active', t === targetTab);
-    }
+    const btn = document.getElementById(`tab-btn-${t}`);
+    const isTarget = t === tabName || (t === 'dashboard' && tabName === 'home');
+    
+    if (content) content.classList.toggle('hidden', !isTarget);
+    if (btn) btn.classList.toggle('active', isTarget);
   });
 
-  if (targetTab === 'admin' && state.isUserAdmin) {
+  if (tabName === 'admin' && state.isUserAdmin) {
     loadAdminData();
-  } else if (targetTab === 'ads') {
+  } else if (tabName === 'ads') {
     fetchUserAds();
-  } else if (targetTab === 'referral') {
+  } else if (tabName === 'referral') {
     fetchUserReferrals();
   }
 }
@@ -129,13 +130,11 @@ export function switchWalletView(view) {
 }
 
 export function toggleInstructionsModal(show) {
-  triggerHaptic('medium');
-  const modal = document.getElementById('instructions-modal');
-  if (modal) modal.classList.toggle('hidden', !show);
+  toggleModal('instructions-modal', show);
 }
 
 export function updateWithdrawCalculations() {
-  const amtInput = document.getElementById('withdraw-amount');
+  const amtInput = document.getElementById('withdraw-amount') || document.getElementById('modal-withdraw-amount');
   const feeBox = document.getElementById('withdraw-fee-box');
   if (!amtInput) return;
   const val = parseFloat(amtInput.value) || 0;
@@ -177,4 +176,23 @@ export function toggleWalletEdit() {
     editBtn.className = "btn-small btn-warning";
     if (saveBtn) saveBtn.classList.add('hidden');
   }
+}
+
+export function updateDOMTranslations() {
+  const lang = state.currentLang || 'ar';
+  const dict = i18n[lang] || i18n.ar;
+
+  document.querySelectorAll('[data-i18n]').forEach(elem => {
+    const key = elem.getAttribute('data-i18n');
+    if (dict[key]) {
+      elem.innerText = dict[key];
+    }
+  });
+
+  document.querySelectorAll('[data-i18n-ph]').forEach(elem => {
+    const key = elem.getAttribute('data-i18n-ph');
+    if (dict[key]) {
+      elem.setAttribute('placeholder', dict[key]);
+    }
+  });
 }
