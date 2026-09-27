@@ -54,7 +54,7 @@ export async function handleShortenClick(e) {
   let url = urlInput.value.trim();
 
   if (!url) {
-    showToast(state.currentLang === 'ar' ? 'يرجى إدخال الرابط الأصلي' : 'Please enter original URL');
+    showToast(i18n[state.currentLang]?.enter_url || 'يرجى إدخال الرابط الأصلي');
     return;
   }
 
@@ -120,12 +120,12 @@ export async function handleShortenClick(e) {
       await loadUserData();
       await fetchUserLinks();
     } else {
-      const errorMsg = data.error || data.message || (state.currentLang === 'ar' ? 'فشل إنشاء الرابط المختصر' : 'Failed to create short link');
+      const errorMsg = data.error || data.message || i18n[state.currentLang]?.shorten_failed;
       showToast(errorMsg);
     }
   } catch (err) {
     console.error("Shorten Link Error:", err);
-    showToast(err.message || (state.currentLang === 'ar' ? 'حدث خطأ أثناء اختصار الرابط' : 'An error occurred while shortening link'));
+    showToast(err.message || i18n[state.currentLang]?.shorten_failed);
   } finally {
     setButtonLoading('btn-create-link', false);
   }
@@ -136,7 +136,7 @@ export function renderUserLinks(links) {
   if (!container) return;
 
   if (!links || links.length === 0) {
-    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${state.currentLang === 'ar' ? 'لا توجد روابط مختصرة بعد.' : 'No shortened links found.'}</p>`;
+    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${i18n[state.currentLang]?.no_links || 'لا توجد روابط مختصرة بعد.'}</p>`;
     return;
   }
 
@@ -162,10 +162,10 @@ export function renderUserLinks(links) {
           ↪ ${originalUrl}
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--card-border); padding-top: 8px; margin-top: 8px;">
-          <span style="font-size: 11px; color: var(--text-muted);">👁️ ${clicks} ${state.currentLang === 'ar' ? 'زيارة' : 'clicks'} (${validImp} ${state.currentLang === 'ar' ? 'مؤكدة' : 'valid'})</span>
+          <span style="font-size: 11px; color: var(--text-muted);">👁️ ${clicks} (${validImp})</span>
           <div class="link-actions">
             <button class="btn-small" onclick="copyToClipboard('${formattedUrl}')">${i18n[state.currentLang]?.btn_copy || 'نسخ'}</button>
-            <button class="btn-small btn-danger" onclick="deleteLink('${linkId}')">${state.currentLang === 'ar' ? 'حذف' : 'Delete'}</button>
+            <button class="btn-small btn-danger" onclick="deleteLink('${linkId}')">${i18n[state.currentLang]?.btn_delete || 'حذف'}</button>
           </div>
         </div>
       </div>
@@ -190,22 +190,22 @@ export function filterUserLinks(term) {
 }
 
 export async function deleteLink(linkId) {
-  if (!confirm(state.currentLang === 'ar' ? 'هل أنت تأكد من حذف هذا الرابط؟' : 'Are you sure you want to delete this link?')) return;
+  if (!confirm(i18n[state.currentLang]?.delete_confirm || 'هل أنت تأكد من حذف هذا الرابط؟')) return;
   
   try {
     const res = await safeFetch(`/api/links/${linkId}`, { method: 'DELETE' });
     if (res) {
       const data = await res.json().catch(() => ({}));
       if (res.ok && (data.success || data.message)) {
-        showToast(state.currentLang === 'ar' ? 'تم حذف الرابط بنجاح' : 'Link deleted successfully');
+        showToast(i18n[state.currentLang]?.delete_success || 'تم حذف الرابط بنجاح');
         await loadUserData();
         await fetchUserLinks();
       } else {
-        showToast(data.error || data.message || (state.currentLang === 'ar' ? 'فشل حذف الرابط' : 'Failed to delete link'));
+        showToast(data.error || data.message || i18n[state.currentLang]?.delete_failed);
       }
     }
   } catch (err) {
-    showToast(err.message || (state.currentLang === 'ar' ? 'خطأ في الشبكة' : 'Network error'));
+    showToast(err.message || i18n[state.currentLang]?.network_error);
   }
 }
 
