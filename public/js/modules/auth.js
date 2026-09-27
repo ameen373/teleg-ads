@@ -37,10 +37,8 @@ export async function authLogin() {
         initData: initDataStr
       }
     });
-
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-
     if (data && (data.success || data.token)) {
       if (data.token) {
         state.authToken = data.token;
