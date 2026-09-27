@@ -1,26 +1,31 @@
-// public/js/modules/api.js
-import { state } from '../state.js';
+import { state, i18n } from '../state.js';
 import { showToast } from './ui.js';
 
-/**
- * دالة إرسال الطلبات للسيرفر وإرفاق بيانات توثيق تلجرام تلقائياً
- */
-export async function apiRequest(endpoint, options = {}) {
+export async function apiRequest(endpoint, method = 'GET', body = null, headers = {}) {
+  const options = {
+    method,
+    headers: { ...headers }
+  };
+  if (body) {
+    options.body = body;
+  }
+  const response = await safeFetch(endpoint, options);
+  if (!response) return null;
+  return await response.json().catch(() => ({}));
+}
+
+export async function safeFetch(endpoint, options = {}) {
   options.headers = options.headers || {};
   
-  // التأكد من استخراج معرّف المستخدم من Telegram WebApp إن وجد
-  const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user || state.tg?.initDataUnsafe?.user;
-  if (tgUser?.id) {
-    state.currentUserTelegramId = String(tgUser.id);
+  const tg = state.tg || window.Telegram?.WebApp;
+
+  if (!state.currentUserTelegramId && tg?.initDataUnsafe?.user?.id) {
+    state.currentUserTelegramId = String(tg.initDataUnsafe.user.id);
     localStorage.setItem('telegramId', state.currentUserTelegramId);
-  } else if (!state.currentUserTelegramId) {
-    state.currentUserTelegramId = localStorage.getItem('telegramId') || '';
   }
 
-  // جلب initData المباشرة من نافذة WebApp أو من state
-  const initDataStr = window.Telegram?.WebApp?.initData || state.tg?.initData || '';
+  const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || '';
   
-  // إرفاق بيانات التوثيق في الترويسات (Headers) أوتوماتيكياً
   if (initDataStr) {
     options.headers['Authorization'] = `Bearer ${initDataStr}`;
     options.headers['x-telegram-init-data'] = initDataStr;
@@ -36,7 +41,6 @@ export async function apiRequest(endpoint, options = {}) {
     options.headers['user-id'] = state.currentUserTelegramId;
   }
 
-  // تجهيز نص الطلب (Body) وإضافة المعاملات التلقائية
   if (options.body && typeof options.body === 'object') {
     if (state.currentUserTelegramId && !options.body.userId && !options.body.telegramId) {
       options.body.userId = state.currentUserTelegramId;
@@ -52,8 +56,7 @@ export async function apiRequest(endpoint, options = {}) {
     options.headers['Content-Type'] = 'application/json; charset=utf-8';
   }
   
-  // صياغة الرابط النهائي
-  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  let cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   let targetUrl = endpoint.startsWith('http') ? endpoint : `${state.API_BASE}${cleanEndpoint}`;
 
   if (state.currentUserTelegramId && !targetUrl.includes('telegramId=') && !targetUrl.includes('userId=')) {
@@ -62,24 +65,12 @@ export async function apiRequest(endpoint, options = {}) {
   }
 
   try {
-    const response = await fetch(targetUrl, options);
+    let response = await fetch(targetUrl, options);
     return response;
   } catch (err) {
     console.error("Fetch Network Error:", err);
-    const langMsg = (window.i18n && state.currentLang && window.i18n[state.currentLang]?.network_error)
-      ? window.i18n[state.currentLang].network_error
-      : "خطأ في الاتصال بالشبكة";
-    
-    if (typeof showToast === 'function') {
-      showToast(langMsg);
-    }
+    const errorMsg = i18n[state.currentLang]?.network_error || "خطأ في الاتصال بالشبكة";
+    showToast(errorMsg);
     return null;
   }
-}
-
-/**
- * دالة safeFetch للعمل كدالة بديلة لـ apiRequest لضمان توافق باقي الموديولات
- */
-export async function safeFetch(endpoint, options = {}) {
-  return await apiRequest(endpoint, options);
 }
