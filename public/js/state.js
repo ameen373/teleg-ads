@@ -1,4 +1,3 @@
-// js/state.js
 export const state = {
   API_BASE: window.location.protocol.startsWith('file') 
     ? 'http://localhost:3000' 
@@ -14,7 +13,11 @@ export const state = {
   rawUserLinksCache: [],
   bridgeDestinationUrl: null,
   currentShortCode: null,
-  currentLang: localStorage.getItem('appLang') || 'ar'
+  currentLang: localStorage.getItem('appLang') || 'ar',
+  user: null,
+  activeTab: 'dashboard',
+  ads: [],
+  wallet: {}
 };
 
 if (state.tg?.initDataUnsafe?.user?.id) {
@@ -24,31 +27,21 @@ if (state.tg?.initDataUnsafe?.user?.id) {
   state.currentUserTelegramId = state.storedTelegramId || null;
 }
 
-// تهيئة احتياطية ونظام اللغات لمنع أي خطأ برمي
-if (!window.i18n) {
-  window.i18n = {
-    ar: {
-      copied: "تم النسخ بنجاح!",
-      network_error: "خطأ في الاتصال بالشبكة",
-      cancel: "إلغاء",
-      btn_edit: "تعديل",
-      btn_copy: "نسخ",
-      link_success_msg: "تم اختصار الرابط بنجاح!"
-    },
-    en: {
-      copied: "Copied successfully!",
-      network_error: "Network connection error",
-      cancel: "Cancel",
-      btn_edit: "Edit",
-      btn_copy: "Copy",
-      link_success_msg: "Link shortened successfully!"
-    }
-  };
-}
-
-if (typeof window.applyLanguage !== 'function') {
-  window.applyLanguage = function(lang) {
-    document.documentElement.lang = lang;
-    document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
-  };
-}
+export const i18n = {
+  ar: {
+    copied: "تم النسخ بنجاح!",
+    network_error: "خطأ في الاتصال بالشبكة",
+    cancel: "إلغاء",
+    btn_edit: "تعديل",
+    btn_copy: "نسخ",
+    link_success_msg: "تم اختصار الرابط بنجاح!"
+  },
+  en: {
+    copied: "Copied successfully!",
+    network_error: "Network connection error",
+    cancel: "Cancel",
+    btn_edit: "Edit",
+    btn_copy: "Copy",
+    link_success_msg: "Link shortened successfully!"
+  }
+};
