@@ -41,7 +41,7 @@ export async function safeFetch(endpoint, options = {}) {
     options.headers['user-id'] = state.currentUserTelegramId;
   }
 
-  if (options.body && typeof options.body === 'object') {
+  if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
     if (state.currentUserTelegramId && !options.body.userId && !options.body.telegramId) {
       options.body.userId = state.currentUserTelegramId;
       options.body.telegramId = state.currentUserTelegramId;
@@ -52,11 +52,11 @@ export async function safeFetch(endpoint, options = {}) {
     options.body = JSON.stringify(options.body);
   }
 
-  if (options.body && !options.headers['Content-Type']) {
+  if (options.body && typeof options.body === 'string' && !options.headers['Content-Type']) {
     options.headers['Content-Type'] = 'application/json; charset=utf-8';
   }
   
-  let cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   let targetUrl = endpoint.startsWith('http') ? endpoint : `${state.API_BASE}${cleanEndpoint}`;
 
   if (state.currentUserTelegramId && !targetUrl.includes('telegramId=') && !targetUrl.includes('userId=')) {
@@ -65,7 +65,7 @@ export async function safeFetch(endpoint, options = {}) {
   }
 
   try {
-    let response = await fetch(targetUrl, options);
+    const response = await fetch(targetUrl, options);
     return response;
   } catch (err) {
     console.error("Fetch Network Error:", err);
