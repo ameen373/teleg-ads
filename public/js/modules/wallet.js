@@ -1,12 +1,18 @@
-import { state, i18n } from '../state.js';
+import { state } from '../state.js';
 import { safeFetch } from './api.js';
-import { showToast, setButtonLoading, toggleWalletEdit, updateWithdrawCalculations } from './ui.js';
+import { showToast, setButtonLoading, toggleWalletEdit, updateWithdrawCalculations, toggleModal } from './ui.js';
 import { loadUserData } from './user.js';
 
 export async function requestDeposit() {
-  const netElem = document.getElementById('deposit-network');
-  const amtElem = document.getElementById('deposit-amount');
-  const txidElem = document.getElementById('deposit-txhash');
+  let netElem = document.getElementById('modal-deposit-network');
+  let amtElem = document.getElementById('modal-deposit-amount');
+  let txidElem = document.getElementById('modal-deposit-txhash');
+
+  if (!netElem || !netElem.value) {
+    netElem = document.getElementById('deposit-network');
+    amtElem = document.getElementById('deposit-amount');
+    txidElem = document.getElementById('deposit-txhash');
+  }
 
   if (!netElem || !amtElem || !txidElem) return;
 
@@ -15,20 +21,21 @@ export async function requestDeposit() {
   const txHashVal = txidElem.value.trim();
 
   if (!network) {
-    showToast(i18n[state.currentLang]?.select_network || 'يرجى اختيار شبكة الدفع');
+    showToast(state.currentLang === 'ar' ? 'يرجى اختيار شبكة الدفع' : 'Please select payment network');
     return;
   }
   const amount = parseFloat(amountVal);
   if (!amount || amount < 1) {
-    showToast(i18n[state.currentLang]?.min_deposit || 'الحد الأدنى للإيداع هو $1');
+    showToast(state.currentLang === 'ar' ? 'الحد الأدنى للإيداع هو $1' : 'Minimum deposit amount is $1');
     return;
   }
   if (!txHashVal || txHashVal.length < 5) {
-    showToast(i18n[state.currentLang]?.enter_txid || 'يرجى إدخال رمز المعاملة (TxID)');
+    showToast(state.currentLang === 'ar' ? 'يرجى إدخال رمز المعاملة (TxID)' : 'Please enter transaction TxID / Hash');
     return;
   }
 
-  setButtonLoading('btn-request-deposit', true);
+  const activeBtnId = document.getElementById('modal-deposit-amount')?.value ? 'modal-deposit-btn' : 'btn-request-deposit';
+  setButtonLoading(activeBtnId, true);
 
   try {
     const res = await safeFetch('/api/deposit', {
@@ -46,19 +53,20 @@ export async function requestDeposit() {
     if (res) {
       const data = await res.json().catch(() => ({}));
       if (res.ok && (data.success || data.deposit)) {
-        showToast(i18n[state.currentLang]?.deposit_success || 'تم تقديم طلب الشحن بنجاح!');
+        showToast(state.currentLang === 'ar' ? 'تم تقديم طلب الشحن بنجاح! سيتم مراجعته قريباً.' : 'Deposit request submitted successfully!');
         amtElem.value = '';
         txidElem.value = '';
+        toggleModal('deposit-modal', false);
         await loadUserData();
       } else {
-        showToast(data.error || data.message || 'فشل تقديم طلب الشحن');
+        showToast(data.error || data.message || (state.currentLang === 'ar' ? 'فشل تقديم طلب الشحن' : 'Failed to submit deposit request'));
       }
     }
   } catch (err) {
     console.error("Deposit request error:", err);
-    showToast(err.message || 'خطأ أثناء تقديم الطلب');
+    showToast(err.message || (state.currentLang === 'ar' ? 'خطأ أثناء تقديم الطلب' : 'Error submitting request'));
   } finally {
-    setButtonLoading('btn-request-deposit', false);
+    setButtonLoading(activeBtnId, false);
   }
 }
 
@@ -68,7 +76,7 @@ export async function saveSettings() {
 
   const walletAddr = walletElem.value.trim();
   if (!walletAddr) {
-    showToast(i18n[state.currentLang]?.enter_wallet || 'يرجى إدخال عنوان المحفظة');
+    showToast(state.currentLang === 'ar' ? 'يرجى إدخال عنوان المحفظة' : 'Please enter wallet address');
     return;
   }
 
@@ -85,21 +93,25 @@ export async function saveSettings() {
     if (res) {
       const data = await res.json().catch(() => ({}));
       if (res.ok && (data.success || data.user)) {
-        showToast(i18n[state.currentLang]?.wallet_saved || 'تم حفظ العنوان بنجاح');
+        showToast(state.currentLang === 'ar' ? 'تم حفظ العنوان بنجاح' : 'Wallet address saved');
         toggleWalletEdit();
         await loadUserData();
       } else {
-        showToast(data.error || 'فشل حفظ العنوان');
+        showToast(data.error || (state.currentLang === 'ar' ? 'فشل حفظ العنوان' : 'Failed to save address'));
       }
     }
   } catch (err) {
-    showToast(err.message || 'خطأ أثناء الحفظ');
+    showToast(err.message || (state.currentLang === 'ar' ? 'خطأ أثناء الحفظ' : 'Error saving settings'));
   }
 }
 
 export async function requestWithdrawal() {
   const walletElem = document.getElementById('default-wallet');
-  const amtElem = document.getElementById('withdraw-amount');
+  let amtElem = document.getElementById('modal-withdraw-amount');
+  
+  if (!amtElem || !amtElem.value) {
+    amtElem = document.getElementById('withdraw-amount');
+  }
 
   if (!walletElem || !amtElem) return;
 
@@ -107,16 +119,17 @@ export async function requestWithdrawal() {
   const amountVal = parseFloat(amtElem.value) || 0;
 
   if (!walletAddr) {
-    showToast(i18n[state.currentLang]?.enter_wallet || 'يرجى إدخال وتحديد عنوان محفظة السحب أولاً');
+    showToast(state.currentLang === 'ar' ? 'يرجى إدخال وتحديد عنوان محفظة السحب أولاً' : 'Please define withdrawal wallet address first');
     return;
   }
 
   if (amountVal < 30) {
-    showToast(i18n[state.currentLang]?.min_withdraw || 'الحد الأدنى للسحب هو 30$');
+    showToast(state.currentLang === 'ar' ? 'الحد الأدنى للسحب هو 30$' : 'Minimum withdrawal is $30');
     return;
   }
 
-  setButtonLoading('btn-request-withdraw', true);
+  const activeBtnId = document.getElementById('modal-withdraw-amount')?.value ? 'modal-withdraw-btn' : 'btn-request-withdraw';
+  setButtonLoading(activeBtnId, true);
 
   try {
     const res = await safeFetch('/api/withdraw', {
@@ -132,18 +145,19 @@ export async function requestWithdrawal() {
     if (res) {
       const data = await res.json().catch(() => ({}));
       if (res.ok && (data.success || data.withdraw)) {
-        showToast(i18n[state.currentLang]?.withdraw_success || 'تم تقديم طلب السحب بنجاح');
+        showToast(state.currentLang === 'ar' ? 'تم تقديم طلب السحب بنجاح' : 'Withdrawal requested successfully');
         amtElem.value = '';
         updateWithdrawCalculations();
+        toggleModal('withdraw-modal', false);
         await loadUserData();
       } else {
-        showToast(data.error || data.message || 'فشل تقديم طلب السحب');
+        showToast(data.error || data.message || (state.currentLang === 'ar' ? 'فشل تقديم طلب السحب' : 'Failed to request withdrawal'));
       }
     }
   } catch (err) {
-    showToast(err.message || 'خطأ في عملية السحب');
+    showToast(err.message || (state.currentLang === 'ar' ? 'خطأ في عملية السحب' : 'Error processing withdrawal'));
   } finally {
-    setButtonLoading('btn-request-withdraw', false);
+    setButtonLoading(activeBtnId, false);
   }
 }
 
@@ -152,16 +166,13 @@ export function renderWithdrawalsHistory(withdraws) {
   if (!container) return;
 
   if (!withdraws || withdraws.length === 0) {
-    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 10px 0;">${i18n[state.currentLang]?.no_withdraws || 'لا توجد طلبات سحب سابقة.'}</p>`;
+    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 10px 0;">${state.currentLang === 'ar' ? 'لا توجد طلبات سحب سابقة.' : 'No withdrawal history found.'}</p>`;
     return;
   }
 
   container.innerHTML = withdraws.map(w => {
-    const isApproved = w.status === 'completed' || w.status === 'approved';
-    const isRejected = w.status === 'rejected';
-    
-    const statusClass = isApproved ? 'color: var(--success);' : isRejected ? 'color: var(--danger);' : 'color: var(--warning);';
-    const statusText = isApproved ? (i18n[state.currentLang]?.approved || 'مكتمل') : isRejected ? (i18n[state.currentLang]?.rejected || 'مرفوض') : (i18n[state.currentLang]?.pending || 'قيد المراجعة');
+    const statusClass = w.status === 'completed' || w.status === 'approved' ? 'color: var(--success);' : w.status === 'rejected' ? 'color: var(--danger);' : 'color: var(--warning);';
+    const statusText = w.status === 'completed' || w.status === 'approved' ? (state.currentLang === 'ar' ? 'مكتمل' : 'Approved') : w.status === 'rejected' ? (state.currentLang === 'ar' ? 'مرفوض' : 'Rejected') : (state.currentLang === 'ar' ? 'قيد المراجعة' : 'Pending');
     const dateStr = new Date(w.createdAt || Date.now()).toLocaleDateString();
 
     return `
