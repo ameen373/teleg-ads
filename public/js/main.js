@@ -1,55 +1,36 @@
-// js/main.js
-import { 
-  showToast, 
-  copyToClipboard, 
-  switchTab, 
-  handleNetworkChange, 
-  switchWalletView, 
-  toggleInstructionsModal, 
-  updateWithdrawCalculations, 
-  toggleWalletEdit, 
-  filterUserLinks 
-} from './modules/ui.js';
-import { renderTelegramUser, authLogin } from './modules/auth.js';
-import { createAdCampaign, fetchUserAds } from './modules/ads.js';
-import { handleShortenClick, fetchUserLinks, deleteLink, initBridgeView, completeImpression } from './modules/shortener.js';
-import { requestDeposit, saveSettings, requestWithdrawal } from './modules/wallet.js';
-import { loadUserData, shareReferralLink, fetchUserReferrals } from './modules/user.js';
-import { loadAdminData, processAdminAction } from './modules/admin.js';
+// public/js/main.js
+import * as UI from './modules/ui.js';
+import * as Auth from './modules/auth.js';
+import * as Ads from './modules/ads.js';
+import * as Shortener from './modules/shortener.js';
+import * as Wallet from './modules/wallet.js';
+import * as User from './modules/user.js';
+import * as Admin from './modules/admin.js';
 
-// ربط جميع الدوال المطلوبة مباشرة بنطاق window للتأكد من تشغيل الأحداث من داخل HTML
-window.copyToClipboard = copyToClipboard;
-window.deleteLink = deleteLink;
-window.switchTab = switchTab;
-window.handleNetworkChange = handleNetworkChange;
-window.switchWalletView = switchWalletView;
-window.toggleInstructionsModal = toggleInstructionsModal;
-window.updateWithdrawCalculations = updateWithdrawCalculations;
-window.shareReferralLink = shareReferralLink;
-window.toggleWalletEdit = toggleWalletEdit;
-window.handleShortenClick = handleShortenClick;
-window.filterUserLinks = filterUserLinks;
-window.requestDeposit = requestDeposit;
-window.saveSettings = saveSettings;
-window.requestWithdrawal = requestWithdrawal;
-window.createAdCampaign = createAdCampaign;
-window.processAdminAction = processAdminAction;
-window.completeImpression = completeImpression;
+// ربط جميع الموديولات والدوال المطلوبة بالنطاق العام window 
+// هذا يضمن تشغيل كافة أزرار onclick="..." في صفحات HTML بشكل مباشر بدون تعديل ملفات HTML
+Object.assign(window, UI, Auth, Ads, Shortener, Wallet, User, Admin);
 
-// نقطة الانطلاق الرئيسية عند تحميل الواجهة
+// نقطة الانطلاق الرئيسية عند تحميل الواجهة (DOMContentLoaded)
 document.addEventListener('DOMContentLoaded', async () => {
-  renderTelegramUser();
-  await authLogin();
+  // 1. تهيئة واجهة تلجرام والتوثيق
+  await Auth.initApp();
   
+  // 2. التحقق من مسارات الإحالة أو الجسر الإعلاني (Bridge View)
   const pathParts = window.location.pathname.split('/');
   if (pathParts.length >= 3 && pathParts[1] === 'r') {
     const code = pathParts[2];
-    if (code) {
-      initBridgeView(code);
+    if (code && typeof Shortener.initBridgeView === 'function') {
+      Shortener.initBridgeView(code);
       return;
     }
   }
 
-  await loadUserData();
-  await fetchUserLinks();
+  // 3. تحميل بيانات المستخدم والروابط الخاصة به
+  if (typeof User.loadUserData === 'function') {
+    await User.loadUserData();
+  }
+  if (typeof Shortener.fetchUserLinks === 'function') {
+    await Shortener.fetchUserLinks();
+  }
 });
