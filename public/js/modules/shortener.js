@@ -137,13 +137,8 @@ export function renderUserLinks(links) {
 
   if (!links || links.length === 0) {
     container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${state.currentLang === 'ar' ? 'لا توجد روابط مختصرة بعد.' : 'No shortened links found.'}</p>`;
-    
-    updateDashboardStats(0, 0, 0);
     return;
   }
-
-  let totalClicks = 0;
-  let totalEarned = 0;
 
   container.innerHTML = links.map(link => {
     const formattedUrl = formatShortUrl(link);
@@ -151,17 +146,14 @@ export function renderUserLinks(links) {
     const originalUrl = escapeHTML(link.originalUrl || link.targetUrl || link.url || '');
     const clicks = link.views || link.clicks || 0;
     const validImp = link.validImpressions || 0;
-    const earnings = (link.totalEarnings || 0);
+    const earnings = (link.totalEarnings || 0).toFixed(4);
     const linkId = link._id || link.id || link.shortCode;
-
-    totalClicks += clicks;
-    totalEarned += earnings;
 
     return `
       <div class="link-item">
         <div class="link-header">
           <strong style="font-size: 14px; color: var(--text);">${title}</strong>
-          <span style="font-size: 11px; color: var(--success); font-weight: 700;">$${earnings.toFixed(4)}</span>
+          <span style="font-size: 11px; color: var(--success); font-weight: 700;">$${earnings}</span>
         </div>
         <div style="margin: 6px 0; font-size: 12px;">
           <a href="${formattedUrl}" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: none; word-break: break-all; font-weight: 600;">${formattedUrl}</a>
@@ -179,18 +171,6 @@ export function renderUserLinks(links) {
       </div>
     `;
   }).join('');
-
-  updateDashboardStats(links.length, totalClicks, totalEarned);
-}
-
-function updateDashboardStats(count, clicks, earnings) {
-  const countElem = document.getElementById('dash-total-links');
-  const clicksElem = document.getElementById('dash-total-clicks');
-  const earnElem = document.getElementById('dash-total-earnings');
-
-  if (countElem) countElem.innerText = count;
-  if (clicksElem) clicksElem.innerText = clicks;
-  if (earnElem) earnElem.innerText = `$${earnings.toFixed(2)}`;
 }
 
 export function filterUserLinks(term) {
@@ -210,7 +190,7 @@ export function filterUserLinks(term) {
 }
 
 export async function deleteLink(linkId) {
-  if (!confirm(state.currentLang === 'ar' ? 'هل أنت تأكد من حذف هذا الرابط؟' : 'Are you sure you want to delete this link?')) return;
+  if (!confirm(i18n[state.currentLang]?.delete_confirm || 'هل أنت متأكد من حذف هذا الرابط؟')) return;
   
   try {
     const res = await safeFetch(`/api/links/${linkId}`, { method: 'DELETE' });
@@ -244,7 +224,7 @@ export async function initBridgeView(code) {
       state.bridgeToken = data.token || null;
       startBridgeTimer(5);
     } else {
-      showToast(state.currentLang === 'ar' ? "تعذر تحميل الرابط المطلوب" : "Unable to load requested link");
+      showToast("تعذر تحميل الرابط المطلوب");
     }
   } catch (err) {
     console.error("Bridge init error:", err);
