@@ -1,12 +1,18 @@
-import { state, i18n } from '../state.js';
+import { state } from '../state.js';
 import { safeFetch } from './api.js';
-import { showToast, setButtonLoading, escapeHTML } from './ui.js';
+import { showToast, setButtonLoading, escapeHTML, toggleModal } from './ui.js';
 import { loadUserData } from './user.js';
 
 export async function createAdCampaign() {
-  const titleElem = document.getElementById('ad-title');
-  const targetUrlElem = document.getElementById('ad-target-url');
-  const budgetElem = document.getElementById('ad-budget');
+  let titleElem = document.getElementById('modal-ad-title');
+  let targetUrlElem = document.getElementById('modal-ad-target-url');
+  let budgetElem = document.getElementById('modal-ad-budget');
+
+  if (!titleElem || !titleElem.value) {
+    titleElem = document.getElementById('ad-title');
+    targetUrlElem = document.getElementById('ad-target-url');
+    budgetElem = document.getElementById('ad-budget');
+  }
 
   if (!titleElem || !targetUrlElem || !budgetElem) return;
 
@@ -15,12 +21,12 @@ export async function createAdCampaign() {
   const budget = parseFloat(budgetElem.value) || 0;
 
   if (!title) {
-    showToast(i18n[state.currentLang]?.enter_ad_title || 'يرجى إدخال عنوان الإعلان');
+    showToast(state.currentLang === 'ar' ? 'يرجى إدخال عنوان الإعلان' : 'Please enter ad title');
     return;
   }
 
   if (!targetUrl) {
-    showToast(i18n[state.currentLang]?.enter_target_url || 'يرجى إدخال رابط التوجيه');
+    showToast(state.currentLang === 'ar' ? 'يرجى إدخال رابط التوجيه' : 'Please enter target URL');
     return;
   }
 
@@ -29,11 +35,12 @@ export async function createAdCampaign() {
   }
 
   if (budget < 5) {
-    showToast(i18n[state.currentLang]?.min_ad_budget || 'الحد الأدنى لميزانية الحملة هو $5');
+    showToast(state.currentLang === 'ar' ? 'الحد الأدنى لميزانية الحملة هو $5' : 'Minimum campaign budget is $5');
     return;
   }
 
-  setButtonLoading('btn-create-ad', true);
+  const activeBtnId = document.getElementById('modal-ad-title')?.value ? 'modal-ad-btn' : 'btn-create-ad';
+  setButtonLoading(activeBtnId, true);
 
   try {
     const res = await safeFetch('/api/ads/create', {
@@ -50,20 +57,21 @@ export async function createAdCampaign() {
     if (res) {
       const data = await res.json().catch(() => ({}));
       if (res.ok && (data.success || data.ad)) {
-        showToast(i18n[state.currentLang]?.ad_success || 'تم إطلاق الحملة الإعلانية بنجاح!');
+        showToast(state.currentLang === 'ar' ? 'تم إطلاق الحملة الإعلانية بنجاح!' : 'Ad campaign launched successfully!');
         titleElem.value = '';
         targetUrlElem.value = '';
         budgetElem.value = '';
+        toggleModal('create-ad-modal', false);
         await fetchUserAds();
         await loadUserData();
       } else {
-        showToast(data.error || 'فشل إنشاء الحملة الإعلانية');
+        showToast(data.error || (state.currentLang === 'ar' ? 'فشل إنشاء الحملة الإعلانية' : 'Failed to create ad campaign'));
       }
     }
   } catch (err) {
-    showToast(err.message || 'خطأ أثناء إنشاء الحملة');
+    showToast(err.message || (state.currentLang === 'ar' ? 'خطأ أثناء إنشاء الحملة' : 'Error creating campaign'));
   } finally {
-    setButtonLoading('btn-create-ad', false);
+    setButtonLoading(activeBtnId, false);
   }
 }
 
@@ -95,7 +103,7 @@ export function renderUserAds(ads) {
   if (!container) return;
 
   if (!ads || ads.length === 0) {
-    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${i18n[state.currentLang]?.no_ads || 'لا توجد حملات إعلانية نشطة.'}</p>`;
+    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${state.currentLang === 'ar' ? 'لا توجد حملات إعلانية نشطة.' : 'No active ad campaigns.'}</p>`;
     return;
   }
 
@@ -116,7 +124,7 @@ export function renderUserAds(ads) {
           🔗 ${targetUrl}
         </div>
         <div style="font-size: 11px; color: var(--text-muted); margin-top: 8px; border-top: 1px solid var(--card-border); padding-top: 8px;">
-          👁️ ${impressions}
+          👁️ ${impressions} ${state.currentLang === 'ar' ? 'مشاهدة حقيقية' : 'impressions'}
         </div>
       </div>
     `;
