@@ -1,9 +1,37 @@
-// js/modules/auth.js
+// public/js/modules/auth.js
 import { state } from '../state.js';
 import { safeFetch } from './api.js';
 import { escapeHTML } from './ui.js';
 
+/**
+ * دالة تهيئة التطبيق الأساسية للتأكد من جاهزية Telegram WebApp وتوثيق المستخدم
+ */
+export async function initApp() {
+  if (window.Telegram?.WebApp) {
+    state.tg = window.Telegram.WebApp;
+    // إبلاغ تلجرام بأن الواجهة جاهزة للعرض
+    window.Telegram.WebApp.ready();
+    // توسيع نافذة الميني اب لتغطي الشاشة
+    if (typeof window.Telegram.WebApp.expand === 'function') {
+      window.Telegram.WebApp.expand();
+    }
+  }
+
+  // عرض بيانات المستخدم المستخرجة من تلجرام
+  renderTelegramUser();
+
+  // إرسال بيانات التوثيق إلى السيرفر
+  return await authLogin();
+}
+
+/**
+ * عرض وتنسيق بيانات المستخدم على الشاشة
+ */
 export function renderTelegramUser() {
+  if (!state.tg && window.Telegram?.WebApp) {
+    state.tg = window.Telegram.WebApp;
+  }
+
   const u = state.tg?.initDataUnsafe?.user;
   const avatarContainer = document.getElementById('user-avatar-container');
   const nameElem = document.getElementById('user-display-name');
@@ -33,9 +61,9 @@ export function renderTelegramUser() {
     }
 
     const savedLang = localStorage.getItem('appLang');
-    if (savedLang && window.i18n[savedLang]) {
+    if (savedLang && window.i18n && window.i18n[savedLang]) {
       state.currentLang = savedLang;
-    } else if (u.language_code && window.i18n[u.language_code]) {
+    } else if (u.language_code && window.i18n && window.i18n[u.language_code]) {
       state.currentLang = u.language_code === 'ar' ? 'ar' : 'en';
     } else {
       state.currentLang = 'ar';
@@ -60,7 +88,14 @@ export function renderTelegramUser() {
   }
 }
 
+/**
+ * تسجيل الدخول وإرسال بيانات initData للسيرفر
+ */
 export async function authLogin() {
+  if (!state.tg && window.Telegram?.WebApp) {
+    state.tg = window.Telegram.WebApp;
+  }
+
   const startParam = state.tg?.initDataUnsafe?.start_param || null;
   const u = state.tg?.initDataUnsafe?.user || {};
   const initDataStr = window.Telegram?.WebApp?.initData || state.tg?.initData || '';
@@ -80,8 +115,10 @@ export async function authLogin() {
         initData: initDataStr
       }
     });
+    
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
+
     if (data && (data.success || data.token)) {
       if (data.token) {
         state.authToken = data.token;
@@ -91,6 +128,10 @@ export async function authLogin() {
       if (data.user && data.user.telegramId) {
         state.currentUserTelegramId = String(data.user.telegramId);
         localStorage.setItem('telegramId', state.currentUserTelegramId);
+      }
+
+      if (data.user) {
+        state.user = data.user;
       }
 
       if (data.isAdmin === true) {
