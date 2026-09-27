@@ -43,10 +43,6 @@ export function closeModal(modalId) {
   if (modal) modal.classList.add('hidden');
 }
 
-export function renderViews() {
-  // دالة المساعدة لإعادة توجيه وعرض العروض
-}
-
 export function copyToClipboard(text) {
   if (!text) return;
   navigator.clipboard.writeText(text).then(() => {
@@ -70,25 +66,35 @@ export function setButtonLoading(btnId, isLoading, originalText) {
 }
 
 export function switchTab(tabName) {
-  if (tabName === 'admin' && !state.isUserAdmin) {
-    showToast(state.currentLang === 'ar' ? "غير مصرح لك بالوصول للوحة التحكم" : "Access denied");
+  const targetTab = (tabName === 'home') ? 'dashboard' : tabName;
+
+  if (targetTab === 'admin' && !state.isUserAdmin) {
+    showToast(i18n[state.currentLang]?.access_denied || "غير مصرح لك بالوصول للوحة التحكم");
     return;
   }
+  
   triggerHaptic('light');
-  state.activeTab = tabName;
-  const tabs = ['dashboard', 'home', 'wallet', 'ads', 'referral', 'settings', 'admin'];
+  state.activeTab = targetTab;
+
+  const tabs = ['dashboard', 'wallet', 'ads', 'referral', 'settings', 'admin'];
+  
   tabs.forEach(t => {
     const content = document.getElementById(`tab-content-${t}`);
-    const btn = document.getElementById(`tab-btn-${t}`);
-    if (content) content.classList.toggle('hidden', t !== tabName && (t !== 'home' || tabName !== 'dashboard'));
-    if (btn) btn.classList.toggle('active', t === tabName || (t === 'home' && tabName === 'dashboard'));
+    const btn = document.getElementById(`tab-btn-${t}`) || (t === 'dashboard' ? document.getElementById('tab-btn-home') : null);
+
+    if (content) {
+      content.classList.toggle('hidden', t !== targetTab);
+    }
+    if (btn) {
+      btn.classList.toggle('active', t === targetTab);
+    }
   });
 
-  if (tabName === 'admin' && state.isUserAdmin) {
+  if (targetTab === 'admin' && state.isUserAdmin) {
     loadAdminData();
-  } else if (tabName === 'ads') {
+  } else if (targetTab === 'ads') {
     fetchUserAds();
-  } else if (tabName === 'referral') {
+  } else if (targetTab === 'referral') {
     fetchUserReferrals();
   }
 }
