@@ -1,5 +1,4 @@
-// js/modules/shortener.js
-import { state } from '../state.js';
+import { state, i18n } from '../state.js';
 import { safeFetch } from './api.js';
 import { showToast, setButtonLoading, escapeHTML } from './ui.js';
 import { loadUserData } from './user.js';
@@ -88,7 +87,7 @@ export async function handleShortenClick(e) {
     const data = await res.json().catch(() => ({}));
 
     if (res.ok && (data.success || data.link || data.shortCode)) {
-      showToast(window.i18n[state.currentLang]?.link_success_msg || 'تم اختصار الرابط بنجاح!');
+      showToast(i18n[state.currentLang]?.link_success_msg || 'تم اختصار الرابط بنجاح!');
       titleInput.value = '';
       urlInput.value = '';
       
@@ -165,13 +164,29 @@ export function renderUserLinks(links) {
         <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--card-border); padding-top: 8px; margin-top: 8px;">
           <span style="font-size: 11px; color: var(--text-muted);">👁️ ${clicks} ${state.currentLang === 'ar' ? 'زيارة' : 'clicks'} (${validImp} ${state.currentLang === 'ar' ? 'مؤكدة' : 'valid'})</span>
           <div class="link-actions">
-            <button class="btn-small" onclick="copyToClipboard('${formattedUrl}')">${window.i18n[state.currentLang]?.btn_copy || 'نسخ'}</button>
+            <button class="btn-small" onclick="copyToClipboard('${formattedUrl}')">${i18n[state.currentLang]?.btn_copy || 'نسخ'}</button>
             <button class="btn-small btn-danger" onclick="deleteLink('${linkId}')">${state.currentLang === 'ar' ? 'حذف' : 'Delete'}</button>
           </div>
         </div>
       </div>
     `;
   }).join('');
+}
+
+export function filterUserLinks(term) {
+  if (!state.rawUserLinksCache) return;
+  const lower = term.toLowerCase().trim();
+  if (!lower) {
+    renderUserLinks(state.rawUserLinksCache);
+    return;
+  }
+  const filtered = state.rawUserLinksCache.filter(l => 
+    (l.title && l.title.toLowerCase().includes(lower)) ||
+    (l.originalUrl && l.originalUrl.toLowerCase().includes(lower)) ||
+    (l.targetUrl && l.targetUrl.toLowerCase().includes(lower)) ||
+    (l.shortCode && l.shortCode.toLowerCase().includes(lower))
+  );
+  renderUserLinks(filtered);
 }
 
 export async function deleteLink(linkId) {
@@ -196,8 +211,10 @@ export async function deleteLink(linkId) {
 
 export async function initBridgeView(code) {
   state.currentShortCode = code;
-  document.getElementById('app-view')?.classList.add('hidden');
-  document.getElementById('bridge-view')?.classList.remove('hidden');
+  const appView = document.getElementById('app-view');
+  const bridgeView = document.getElementById('bridge-view');
+  if (appView) appView.classList.add('hidden');
+  if (bridgeView) bridgeView.classList.remove('hidden');
 
   try {
     const res = await safeFetch(`/api/bridge/${code}`);
