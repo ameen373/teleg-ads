@@ -9,8 +9,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Telega.ads | Enterprise Shortener & Ad Network</title>
   
-  <!-- CSS Integration -->
-  <link rel="stylesheet" href="/css/styles.css">
+  <!-- CSS Integration مع معالج الكاش -->
+  <link rel="stylesheet" href="/css/styles.css?v=1.0.1">
 
   <!-- Official Telegram WebApp SDK & Ads SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -38,7 +38,7 @@
           </li>
           <li><b data-i18n="guide_step4_b">إرسال الطلب:</b> <span data-i18n="guide_step4_t">عد هنا وأدخل قيمة المبلغ المودع ورمز المعاملة ثم انقر تقديم الطلب.</span></li>
         </ol>
-        <button class="btn-danger" style="margin-top: 16px; width: 100%;" onclick="toggleInstructionsModal(false)" data-i18n="close">إغلاق</button>
+        <button class="btn-danger" style="margin-top: 16px; width: 100%;" onclick="toggleModal('instructions-modal', false)" data-i18n="close">إغلاق</button>
       </div>
     </div>
 
@@ -206,7 +206,7 @@
         <div id="wallet-view-deposit" class="card">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <h3 style="font-size: 16px; margin:0;" data-i18n="deposit_funds_title">شحن الرصيد (USDT)</h3>
-            <button class="btn-small btn-warning" style="width: auto;" onclick="toggleInstructionsModal(true)" data-i18n="btn_deposit_guide">❓ دليل الشحن</button>
+            <button class="btn-small btn-warning" style="width: auto;" onclick="toggleModal('instructions-modal', true)" data-i18n="btn_deposit_guide">❓ دليل الشحن</button>
           </div>
           
           <h4 style="font-size: 13px; margin: 12px 0 4px 0;" data-i18n="select_network_label">اختر الشبكة:</h4>
@@ -220,7 +220,7 @@
             <small style="color: var(--text-muted);" data-i18n="lbl_trc20_addr">عنوان USDT - TRC20:</small>
             <div class="address-row">
               <span class="address-text" id="addr-trc20">TYqN8xM9KzL3pQ2vA5wR7jH4uE1sD8fX9k</span>
-              <button class="btn-small" onclick="copyToClipboard(document.getElementById('addr-trc20').innerText)" data-i18n="btn_copy">نسخ</button>
+              <button class="btn-small" onclick="copyToClipboard(document.getElementById('addr-trc20').textContent.trim())" data-i18n="btn_copy">نسخ</button>
             </div>
           </div>
 
@@ -228,7 +228,7 @@
             <small style="color: var(--text-muted);" data-i18n="lbl_bep20_addr">عنوان USDT - BEP20 (BSC):</small>
             <div class="address-row">
               <span class="address-text" id="addr-bep20">0x71C7656EC7ab88b098defB751B7401B5f6d8976F</span>
-              <button class="btn-small" onclick="copyToClipboard(document.getElementById('addr-bep20').innerText)" data-i18n="btn_copy">نسخ</button>
+              <button class="btn-small" onclick="copyToClipboard(document.getElementById('addr-bep20').textContent.trim())" data-i18n="btn_copy">نسخ</button>
             </div>
           </div>
 
@@ -431,12 +431,12 @@
     </div>
   </div>
 
-  <!-- Language Dictionaries Scripts -->
-  <script src="/js/language/ar.js"></script>
-  <script src="/js/language/en.js"></script>
-  <script src="/js/language/i18n.js"></script>
+  <!-- Language Dictionaries Scripts مع معالج الكاش -->
+  <script src="/js/language/ar.js?v=1.0.1"></script>
+  <script src="/js/language/en.js?v=1.0.1"></script>
+  <script src="/js/language/i18n.js?v=1.0.1"></script>
 
-  <!-- ES Module Main Entry Point -->
-  <script type="module" src="/js/main.js"></script>
+  <!-- ES Module Main Entry Point مع معالج الكاش الكاسر للتخزين القديم -->
+  <script type="module" src="/js/main.js?v=1.0.1"></script>
 </body>
 </html>
