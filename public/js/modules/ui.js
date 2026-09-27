@@ -1,9 +1,7 @@
-// js/modules/ui.js
-import { state } from '../state.js';
+import { state, i18n } from '../state.js';
 import { loadAdminData } from './admin.js';
 import { fetchUserAds } from './ads.js';
 import { fetchUserReferrals } from './user.js';
-import { renderUserLinks } from './shortener.js';
 
 export function escapeHTML(str) {
   if (!str) return '';
@@ -17,8 +15,9 @@ export function escapeHTML(str) {
 
 export function triggerHaptic(style = 'light') {
   try {
-    if (state.tg && state.tg.isVersionAtLeast && state.tg.isVersionAtLeast('6.1') && state.tg.HapticFeedback) {
-      state.tg.HapticFeedback.impactOccurred(style);
+    const tg = state.tg || window.Telegram?.WebApp;
+    if (tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.1') && tg.HapticFeedback) {
+      tg.HapticFeedback.impactOccurred(style);
     }
   } catch (e) {}
 }
@@ -32,10 +31,26 @@ export function showToast(msg) {
   setTimeout(() => { toast.classList.remove("show"); }, 3200);
 }
 
+export function showModal(modalId) {
+  triggerHaptic('medium');
+  const modal = document.getElementById(modalId);
+  if (modal) modal.classList.remove('hidden');
+}
+
+export function closeModal(modalId) {
+  triggerHaptic('light');
+  const modal = document.getElementById(modalId);
+  if (modal) modal.classList.add('hidden');
+}
+
+export function renderViews() {
+  // دالة المساعدة لإعادة توجيه وعرض العروض
+}
+
 export function copyToClipboard(text) {
   if (!text) return;
   navigator.clipboard.writeText(text).then(() => {
-    showToast(window.i18n[state.currentLang]?.copied || "تم النسخ بنجاح!");
+    showToast(i18n[state.currentLang]?.copied || "تم النسخ بنجاح!");
   }).catch(() => {
     showToast(state.currentLang === 'ar' ? "فشل النسخ تلقائياً" : "Failed to copy");
   });
@@ -60,12 +75,13 @@ export function switchTab(tabName) {
     return;
   }
   triggerHaptic('light');
-  const tabs = ['dashboard', 'wallet', 'ads', 'referral', 'settings', 'admin'];
+  state.activeTab = tabName;
+  const tabs = ['dashboard', 'home', 'wallet', 'ads', 'referral', 'settings', 'admin'];
   tabs.forEach(t => {
     const content = document.getElementById(`tab-content-${t}`);
     const btn = document.getElementById(`tab-btn-${t}`);
-    if (content) content.classList.toggle('hidden', t !== tabName);
-    if (btn) btn.classList.toggle('active', t === tabName);
+    if (content) content.classList.toggle('hidden', t !== tabName && (t !== 'home' || tabName !== 'dashboard'));
+    if (btn) btn.classList.toggle('active', t === tabName || (t === 'home' && tabName === 'dashboard'));
   });
 
   if (tabName === 'admin' && state.isUserAdmin) {
@@ -94,39 +110,44 @@ export function handleNetworkChange(networkVal) {
 
 export function switchWalletView(view) {
   triggerHaptic('light');
-  document.getElementById('wallet-nav-deposit')?.classList.toggle('active', view === 'deposit');
-  document.getElementById('wallet-nav-withdraw')?.classList.toggle('active', view === 'withdraw');
+  const depNav = document.getElementById('wallet-nav-deposit');
+  const withNav = document.getElementById('wallet-nav-withdraw');
+  const depView = document.getElementById('wallet-view-deposit');
+  const withView = document.getElementById('wallet-view-withdraw');
 
-  document.getElementById('wallet-view-deposit')?.classList.toggle('hidden', view !== 'deposit');
-  document.getElementById('wallet-view-withdraw')?.classList.toggle('hidden', view !== 'withdraw');
+  if (depNav) depNav.classList.toggle('active', view === 'deposit');
+  if (withNav) withNav.classList.toggle('active', view === 'withdraw');
+
+  if (depView) depView.classList.toggle('hidden', view !== 'deposit');
+  if (withView) withView.classList.toggle('hidden', view !== 'withdraw');
 }
 
 export function toggleInstructionsModal(show) {
   triggerHaptic('medium');
-  document.getElementById('instructions-modal')?.classList.toggle('hidden', !show);
+  const modal = document.getElementById('instructions-modal');
+  if (modal) modal.classList.toggle('hidden', !show);
 }
 
 export function updateWithdrawCalculations() {
   const amtInput = document.getElementById('withdraw-amount');
   const feeBox = document.getElementById('withdraw-fee-box');
-  if (!amtInput || !feeBox) return;
-
+  if (!amtInput) return;
   const val = parseFloat(amtInput.value) || 0;
 
   if (val > 0) {
-    feeBox.classList.remove('hidden');
+    if (feeBox) feeBox.classList.remove('hidden');
     const fee = 3;
     const net = Math.max(0, val - fee);
 
-    const calcReq = document.getElementById('calc-req');
-    const calcFee = document.getElementById('calc-fee');
-    const calcNet = document.getElementById('calc-net');
+    const reqElem = document.getElementById('calc-req');
+    const feeElem = document.getElementById('calc-fee');
+    const netElem = document.getElementById('calc-net');
 
-    if (calcReq) calcReq.innerText = `$${val.toFixed(2)}`;
-    if (calcFee) calcFee.innerText = `$${fee.toFixed(2)}`;
-    if (calcNet) calcNet.innerText = `$${net.toFixed(2)}`;
+    if (reqElem) reqElem.innerText = `$${val.toFixed(2)}`;
+    if (feeElem) feeElem.innerText = `$${fee.toFixed(2)}`;
+    if (netElem) netElem.innerText = `$${net.toFixed(2)}`;
   } else {
-    feeBox.classList.add('hidden');
+    if (feeBox) feeBox.classList.add('hidden');
   }
 }
 
@@ -135,34 +156,19 @@ export function toggleWalletEdit() {
   const walletInput = document.getElementById('default-wallet');
   const editBtn = document.getElementById('edit-wallet-btn');
   const saveBtn = document.getElementById('save-wallet-btn');
-  if (!walletInput || !editBtn || !saveBtn) return;
+
+  if (!walletInput || !editBtn) return;
 
   if (walletInput.hasAttribute('readonly')) {
     walletInput.removeAttribute('readonly');
     walletInput.focus();
-    editBtn.innerText = window.i18n[state.currentLang]?.cancel || 'إلغاء';
+    editBtn.innerText = i18n[state.currentLang]?.cancel || "إلغاء";
     editBtn.className = "btn-small btn-danger";
-    saveBtn.classList.remove('hidden');
+    if (saveBtn) saveBtn.classList.remove('hidden');
   } else {
     walletInput.setAttribute('readonly', 'readonly');
-    editBtn.innerText = window.i18n[state.currentLang]?.btn_edit || 'تعديل';
+    editBtn.innerText = i18n[state.currentLang]?.btn_edit || "تعديل";
     editBtn.className = "btn-small btn-warning";
-    saveBtn.classList.add('hidden');
+    if (saveBtn) saveBtn.classList.add('hidden');
   }
-}
-
-export function filterUserLinks(term) {
-  if (!state.rawUserLinksCache) return;
-  const lower = term.toLowerCase().trim();
-  if (!lower) {
-    renderUserLinks(state.rawUserLinksCache);
-    return;
-  }
-  const filtered = state.rawUserLinksCache.filter(l => 
-    (l.title && l.title.toLowerCase().includes(lower)) ||
-    (l.originalUrl && l.originalUrl.toLowerCase().includes(lower)) ||
-    (l.targetUrl && l.targetUrl.toLowerCase().includes(lower)) ||
-    (l.shortCode && l.shortCode.toLowerCase().includes(lower))
-  );
-  renderUserLinks(filtered);
 }
