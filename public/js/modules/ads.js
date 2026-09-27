@@ -1,4 +1,4 @@
-import { state } from '../state.js';
+import { state, i18n } from '../state.js';
 import { safeFetch } from './api.js';
 import { showToast, setButtonLoading, escapeHTML } from './ui.js';
 import { loadUserData } from './user.js';
@@ -15,12 +15,12 @@ export async function createAdCampaign() {
   const budget = parseFloat(budgetElem.value) || 0;
 
   if (!title) {
-    showToast(state.currentLang === 'ar' ? 'يرجى إدخال عنوان الإعلان' : 'Please enter ad title');
+    showToast(i18n[state.currentLang]?.enter_ad_title || 'يرجى إدخال عنوان الإعلان');
     return;
   }
 
   if (!targetUrl) {
-    showToast(state.currentLang === 'ar' ? 'يرجى إدخال رابط التوجيه' : 'Please enter target URL');
+    showToast(i18n[state.currentLang]?.enter_target_url || 'يرجى إدخال رابط التوجيه');
     return;
   }
 
@@ -29,7 +29,7 @@ export async function createAdCampaign() {
   }
 
   if (budget < 5) {
-    showToast(state.currentLang === 'ar' ? 'الحد الأدنى لميزانية الحملة هو $5' : 'Minimum campaign budget is $5');
+    showToast(i18n[state.currentLang]?.min_ad_budget || 'الحد الأدنى لميزانية الحملة هو $5');
     return;
   }
 
@@ -50,18 +50,18 @@ export async function createAdCampaign() {
     if (res) {
       const data = await res.json().catch(() => ({}));
       if (res.ok && (data.success || data.ad)) {
-        showToast(state.currentLang === 'ar' ? 'تم إطلاق الحملة الإعلانية بنجاح!' : 'Ad campaign launched successfully!');
+        showToast(i18n[state.currentLang]?.ad_success || 'تم إطلاق الحملة الإعلانية بنجاح!');
         titleElem.value = '';
         targetUrlElem.value = '';
         budgetElem.value = '';
         await fetchUserAds();
         await loadUserData();
       } else {
-        showToast(data.error || (state.currentLang === 'ar' ? 'فشل إنشاء الحملة الإعلانية' : 'Failed to create ad campaign'));
+        showToast(data.error || 'فشل إنشاء الحملة الإعلانية');
       }
     }
   } catch (err) {
-    showToast(err.message || (state.currentLang === 'ar' ? 'خطأ أثناء إنشاء الحملة' : 'Error creating campaign'));
+    showToast(err.message || 'خطأ أثناء إنشاء الحملة');
   } finally {
     setButtonLoading('btn-create-ad', false);
   }
@@ -95,7 +95,7 @@ export function renderUserAds(ads) {
   if (!container) return;
 
   if (!ads || ads.length === 0) {
-    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${state.currentLang === 'ar' ? 'لا توجد حملات إعلانية نشطة.' : 'No active ad campaigns.'}</p>`;
+    container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${i18n[state.currentLang]?.no_ads || 'لا توجد حملات إعلانية نشطة.'}</p>`;
     return;
   }
 
@@ -116,7 +116,7 @@ export function renderUserAds(ads) {
           🔗 ${targetUrl}
         </div>
         <div style="font-size: 11px; color: var(--text-muted); margin-top: 8px; border-top: 1px solid var(--card-border); padding-top: 8px;">
-          👁️ ${impressions} ${state.currentLang === 'ar' ? 'مشاهدة حقيقية' : 'impressions'}
+          👁️ ${impressions}
         </div>
       </div>
     `;
