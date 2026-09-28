@@ -38,20 +38,131 @@
       </div>
     </div>
 
-    <!-- Bridge Page View for Redirect Traffic -->
+    <!-- Bridge Page View for Redirect Traffic (صفحة التحويل الذكية والإعلانات) -->
     <div id="bridge-view" class="card hidden tab-pane">
-      <h2 style="text-align: center; margin-bottom: 6px; font-size: 22px;" data-i18n="bridge_title">جاري تجهيز الرابط...</h2>
-      <p style="text-align: center; color: var(--text-muted); font-size: 12px; margin: 0;" data-i18n="bridge_desc">الرجاء الانتظار للتحويل التلقائي للجهة المطلوبة</p>
       
-      <div id="ad-container" style="min-height: 230px; background: #000; border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 18px 0; border: 1px dashed var(--card-border); overflow: hidden; padding: 14px; text-align: center;">
+      <!-- 1. Top AdsGram / Banner Slot -->
+      <div id="bridge-top-ad-slot" style="margin-bottom: 14px; text-align: center;">
+        <div id="adsgram-top-banner" style="min-height: 60px; background: rgba(15, 23, 42, 0.6); border: 1px dashed var(--card-border, #2a364f); border-radius: 12px; display: flex; align-items: center; justify-content: center; padding: 8px;">
+          <span style="font-size: 11px; color: var(--text-muted);" data-i18n="ad_top_placeholder">📢 إعلان مميز (AdsGram Top Banner)</span>
+        </div>
+      </div>
+
+      <!-- DYNAMIC CONTENT AREA: Video, App/Game, or General Link -->
+      
+      <!-- MODE A: VIDEO PLAYER MODE -->
+      <div id="bridge-video-mode" class="bridge-mode-card hidden" style="background: #090d16; border-radius: 16px; border: 1px solid var(--card-border, #1e293b); overflow: hidden; margin-bottom: 16px;">
+        <div class="video-player-wrapper" style="position: relative; width: 100%; aspect-ratio: 16/9; background: #000; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+          <img id="video-thumbnail" src="https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=800&auto=format&fit=crop" alt="Video Preview" style="width: 100%; height: 100%; object-fit: cover; opacity: 0.6;">
+          
+          <!-- Play Overlay Button -->
+          <div class="play-btn-overlay" style="position: absolute; width: 60px; height: 60px; background: rgba(59, 130, 246, 0.9); border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 20px rgba(59, 130, 246, 0.6); cursor: pointer;">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="#ffffff"><path d="M8 5v14l11-7z"/></svg>
+          </div>
+
+          <!-- Video Duration Badge -->
+          <span style="position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.85); color: #fff; font-size: 10px; padding: 3px 8px; border-radius: 6px; font-weight: bold;">08:45</span>
+
+          <!-- Pop-up Overlay Ad inside Video Frame -->
+          <div id="video-popup-ad" class="video-overlay-ad" style="position: absolute; top: 10%; left: 5%; right: 5%; bottom: 10%; background: rgba(15, 23, 42, 0.95); border: 1px solid var(--accent, #3b82f6); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; z-index: 10; backdrop-filter: blur(8px);">
+            <button onclick="closeVideoAd()" style="position: absolute; top: 6px; left: 8px; background: rgba(255,255,255,0.15); border: none; color: #fff; font-size: 11px; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; display: flex; align-items: center; justify-content: center;">✕</button>
+            <span style="font-size: 10px; color: var(--accent, #3b82f6); text-transform: uppercase; letter-spacing: 1px; font-weight: bold; margin-bottom: 4px;">إعلان مميز</span>
+            <h5 style="margin: 4px 0; font-size: 13px; color: #fff;" id="video-ad-title">شاهد المحتوى بأعلى جودة</h5>
+            <p style="margin: 0 0 10px 0; font-size: 10px; color: #94a3b8;">انقر لعرض الرابط والتخطي السريع</p>
+            <a id="video-ad-link" href="#" target="_blank" style="background: var(--accent, #3b82f6); color: #fff; text-decoration: none; padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: bold;">عرض الإعلان ↗</a>
+          </div>
+        </div>
+
+        <div style="padding: 12px 14px;">
+          <h3 id="video-title-display" style="font-size: 14px; margin: 0 0 6px 0; color: #f8fafc; font-weight: 700; line-height: 1.4;">الفيديو جاهز للمشاهدة...</h3>
+          <div style="display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--text-muted);">
+            <span>👁️ <span id="video-views-count">124.5K</span> مشاهدة</span>
+            <span>⏱️ جاهز للتشغيل</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODE B: APP / GAME DOWNLOAD MODE -->
+      <div id="bridge-app-mode" class="bridge-mode-card hidden" style="background: #090d16; border-radius: 16px; border: 1px solid var(--card-border, #1e293b); padding: 16px; margin-bottom: 16px;">
+        <div style="display: flex; gap: 14px; align-items: center;">
+          <div style="width: 64px; height: 64px; border-radius: 16px; background: linear-gradient(135deg, #1e293b, #0f172a); border: 1px solid var(--card-border, #334155); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; box-shadow: 0 4px 12px rgba(0,0,0,0.4);">
+            <img id="app-icon-img" src="https://cdn-icons-png.flaticon.com/512/2950/2950650.png" alt="App Icon" style="width: 100%; height: 100%; object-fit: cover;">
+          </div>
+          
+          <div style="flex: 1; min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 2px;">
+              <span style="background: rgba(34, 197, 94, 0.15); color: var(--success, #22c55e); font-size: 9px; padding: 2px 6px; border-radius: 10px; font-weight: bold; border: 1px solid rgba(34, 197, 94, 0.3);">✓ آمن ومعتمد</span>
+              <span style="background: rgba(59, 130, 246, 0.15); color: var(--accent, #3b82f6); font-size: 9px; padding: 2px 6px; border-radius: 10px; font-weight: bold;">تطبيق / لعبة</span>
+            </div>
+            <h3 id="app-title-display" style="font-size: 15px; margin: 2px 0; color: #fff; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">تطبيق مميز جاهز للتحميل</h3>
+            <p id="app-developer-display" style="margin: 0; font-size: 11px; color: var(--text-muted);">تحديث معتمد 2026</p>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); text-align: center;">
+          <div style="background: rgba(255,255,255,0.03); padding: 6px; border-radius: 8px;">
+            <div style="font-size: 12px; color: #fbbf24; font-weight: bold;">4.9 ★</div>
+            <small style="font-size: 9px; color: var(--text-muted);">98K تقييم</small>
+          </div>
+          <div style="background: rgba(255,255,255,0.03); padding: 6px; border-radius: 8px;">
+            <div style="font-size: 12px; color: #fff; font-weight: bold;">+1M</div>
+            <small style="font-size: 9px; color: var(--text-muted);">تنزيل</small>
+          </div>
+          <div style="background: rgba(255,255,255,0.03); padding: 6px; border-radius: 8px;">
+            <div style="font-size: 12px; color: var(--accent, #3b82f6); font-weight: bold;">42 MB</div>
+            <small style="font-size: 9px; color: var(--text-muted);">الحجم</small>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODE C: GENERAL LINK MODE (Fallback Default) -->
+      <div id="bridge-general-mode" class="bridge-mode-card">
+        <h2 style="text-align: center; margin-bottom: 6px; font-size: 22px;" data-i18n="bridge_title">جاري تجهيز الرابط...</h2>
+        <p style="text-align: center; color: var(--text-muted); font-size: 12px; margin: 0 0 14px 0;" data-i18n="bridge_desc">الرجاء الانتظار للتحويل التلقائي للجهة المطلوبة</p>
+      </div>
+
+      <!-- 2. Central Main Banner Ad Container -->
+      <div id="ad-container" style="min-height: 200px; background: #000; border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 14px 0; border: 1px dashed var(--card-border); overflow: hidden; padding: 14px; text-align: center; position: relative;">
         <span id="ad-text-placeholder" style="color: var(--text-muted); font-size: 12px;" data-i18n="ad_loading">جاري تحميل الإعلان...</span>
       </div>
 
-      <p style="text-align: center; font-size: 14px;"><span data-i18n="timer_text">سيفعل الزر خلال:</span> <b id="timer" style="color: var(--accent); font-size: 20px;">5</b> <span data-i18n="seconds">ثوانٍ</span></p>
-      <button id="go-btn" disabled onclick="completeImpression()">
-        <span id="go-btn-text" data-i18n="go_button">الانتقال إلى الرابط الأصلي</span>
-      </button>
+      <!-- 3. Dedicated AdsGram Widget Container -->
+      <div id="adsgram-ad-container" style="margin: 14px 0; border-radius: 14px; background: rgba(15, 23, 42, 0.8); border: 1px solid var(--card-border); padding: 12px; text-align: center;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 11px; color: var(--text-muted);">
+          <span>⚡ إعلانات AdsGram المعتمدة</span>
+          <span style="color: var(--accent);">Sponsored</span>
+        </div>
+        <div id="adsgram-widget-area" style="min-height: 100px; display: flex; align-items: center; justify-content: center;">
+          <span style="font-size: 11px; color: var(--text-muted);" data-i18n="adsgram_loading">جاري تحميل وحدات AdsGram...</span>
+        </div>
+      </div>
 
+      <!-- 4. Timer & Action Progress Area -->
+      <div style="background: rgba(15, 23, 42, 0.9); border-radius: 14px; padding: 16px; border: 1px solid var(--card-border); margin-top: 14px; text-align: center;">
+        <p style="text-align: center; font-size: 14px; margin-top: 0; margin-bottom: 8px;">
+          <span data-i18n="timer_text">سيفعل الزر خلال:</span> 
+          <b id="timer" style="color: var(--accent); font-size: 22px;">5</b> 
+          <span data-i18n="seconds">ثوانٍ</span>
+        </p>
+
+        <!-- Progress Bar Indicator -->
+        <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 10px; overflow: hidden; margin-bottom: 14px;">
+          <div id="timer-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, var(--accent, #3b82f6), var(--success, #22c55e)); transition: width 1s linear;"></div>
+        </div>
+
+        <button id="go-btn" disabled onclick="completeImpression()" style="width: 100%; padding: 14px; font-size: 15px; font-weight: bold; border-radius: 12px;">
+          <span id="go-btn-text" data-i18n="go_button">الانتقال إلى الرابط الأصلي</span>
+        </button>
+      </div>
+
+      <!-- 5. Bottom Extra Banner Slot -->
+      <div id="bridge-bottom-ad-slot" style="margin-top: 16px; text-align: center;">
+        <div id="banner-bottom-ad" style="min-height: 50px; background: rgba(15, 23, 42, 0.5); border: 1px dashed var(--card-border); border-radius: 10px; display: flex; align-items: center; justify-content: center; padding: 6px;">
+          <span style="font-size: 10px; color: var(--text-muted);" data-i18n="ad_bottom_placeholder">مساحة إعلانية بوب أب / بانر سفلي</span>
+        </div>
+      </div>
+
+      <!-- Footer Info -->
       <div style="margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--card-border); text-align: center; font-size: 11px; color: var(--text-muted);">
         <p style="margin: 0 0 8px 0;">
           <span data-i18n="rights_reserved">جميع الحقوق محفوظة لمنصة</span> <a id="official-bot-link" href="https://t.me/Ads_telegabot" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: none; font-weight: bold;">Telega.ads</a>
@@ -352,31 +463,70 @@
     </div>
   </div>
 
-<!-- 1. ملفات الترجمة واللغة (موجودة سابقاً) -->
-<script src="/js/language/i18n.js"></script>
-<script src="/js/language/ar.js"></script>
-<script src="/js/language/en.js"></script>
+  <!-- 1. ملفات الترجمة واللغة -->
+  <script src="/js/language/i18n.js"></script>
+  <script src="/js/language/ar.js"></script>
+  <script src="/js/language/en.js"></script>
 
-<!-- 2. موديول الواجهة والتنبيهات (UI) -->
-<script src="/js/modules/ui.js"></script>
+  <!-- 2. موديول الواجهة والتنبيهات (UI) -->
+  <script src="/js/modules/ui.js"></script>
 
-<!-- 3. موديول الاتصال بالخادم والتوثيق (API) -->
-<script src="/js/modules/api.js"></script>
+  <!-- 3. موديول الاتصال بالخادم والتوثيق (API) -->
+  <script src="/js/modules/api.js"></script>
 
-<!-- 4. موديول الإدارة (Admin) -->
-<script src="/js/modules/admin.js"></script>
+  <!-- 4. موديول الإدارة (Admin) -->
+  <script src="/js/modules/admin.js"></script>
 
-<!-- 5. موديول الحملات الإعلانية (Ads) -->
-<script src="/js/modules/ads.js"></script>
+  <!-- 5. موديول الحملات الإعلانية (Ads) -->
+  <script src="/js/modules/ads.js"></script>
 
-<!-- 6. موديول اختصار الروابط (Shortener) -->
-<script src="/js/modules/shortener.js"></script>
+  <!-- 6. موديول اختصار الروابط (Shortener) -->
+  <script src="/js/modules/shortener.js"></script>
 
-<!-- 7. موديول المحفظة والإحالات (Wallet) -->
-<script src="/js/modules/wallet.js"></script>
+  <!-- 7. موديول المحفظة والإحالات (Wallet) -->
+  <script src="/js/modules/wallet.js"></script>
 
-<!-- 8. الملف الرئيسي والتشغيلي (App) -->
-<script src="/js/app.js"></script>
-  
+  <!-- 8. الملف الرئيسي والتشغيلي (App) -->
+  <script src="/js/app.js"></script>
+
+  <!-- Helper Script للتحويل الذكي بين أنواع الروابط وإغلاق إعلان البوب أب -->
+  <script>
+    function closeVideoAd() {
+      const vAd = document.getElementById('video-popup-ad');
+      if (vAd) vAd.classList.add('hidden');
+    }
+
+    function adaptBridgeUI(targetUrl, linkTitle) {
+      const vMode = document.getElementById('bridge-video-mode');
+      const aMode = document.getElementById('bridge-app-mode');
+      const gMode = document.getElementById('bridge-general-mode');
+      const goBtnText = document.getElementById('go-btn-text');
+
+      if (!targetUrl) return;
+      const urlLower = targetUrl.toLowerCase();
+
+      const isVideo = /(youtube\.com|youtu\.be|vimeo\.com|tiktok\.com|dailymotion\.com|\.mp4|\.m3u8|\.webm|video)/i.test(urlLower);
+      const isApp = /(play\.google\.com|apps\.apple\.com|\.apk|mediafire\.com|mega\.nz|drive\.google\.com|app|game|download)/i.test(urlLower) && !isVideo;
+
+      if (vMode) vMode.classList.add('hidden');
+      if (aMode) aMode.classList.add('hidden');
+      if (gMode) gMode.classList.add('hidden');
+
+      if (isVideo) {
+        if (vMode) vMode.classList.remove('hidden');
+        const vTitle = document.getElementById('video-title-display');
+        if (vTitle && linkTitle) vTitle.innerText = linkTitle;
+        if (goBtnText) goBtnText.innerText = '▶ مشاهدة الفيديو الآن';
+      } else if (isApp) {
+        if (aMode) aMode.classList.remove('hidden');
+        const aTitle = document.getElementById('app-title-display');
+        if (aTitle && linkTitle) aTitle.innerText = linkTitle;
+        if (goBtnText) goBtnText.innerText = '🚀 تحميل التطبيق / انتقال';
+      } else {
+        if (gMode) gMode.classList.remove('hidden');
+        if (goBtnText) goBtnText.innerText = 'الانتقال إلى الرابط الأصلي';
+      }
+    }
+  </script>
 </body>
 </html>
