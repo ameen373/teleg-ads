@@ -45,7 +45,47 @@ const adSchema = new mongoose.Schema({
     trim: true
   },
 
-  /* --- حقل استهداف نوع المحتوى المُضاف --- */
+  /* --- نوع الإعلان وحقول الوسائط المتقدمة --- */
+  type: {
+    type: String,
+    enum: ['image', 'video', 'app', 'game'],
+    default: 'image',
+    index: true
+  },
+  mediaUrl: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  appDownloadUrl: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  gameEmbedUrl: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+
+  /* --- حقول الاستهداف المتقدم (Targeting) --- */
+  targeting: {
+    countries: {
+      type: [String],
+      default: ['ALL']
+    },
+    devices: {
+      type: [String],
+      enum: ['Android', 'iOS', 'Desktop'],
+      default: ['Android', 'iOS', 'Desktop']
+    },
+    operatingSystems: {
+      type: [String],
+      default: ['ALL']
+    }
+  },
+
+  /* --- حقل استهداف نوع المحتوى --- */
   targetCategory: {
     type: String,
     enum: ['all', 'video', 'image', 'app_game', 'file'],
@@ -53,19 +93,31 @@ const adSchema = new mongoose.Schema({
     index: true,
     trim: true
   },
-  /* ------------------------------------ */
 
+  /* --- حقول الميزانية والإحصائيات والأسعار --- */
   totalBudget: { 
     type: Number, 
     required: [true, 'Total budget is required'], 
     min: [5, 'Minimum campaign budget is $5'], 
     set: formatCurrency 
   },
+  dailyBudget: {
+    type: Number,
+    default: 0,
+    min: [0, 'Daily budget cannot be negative'],
+    set: formatCurrency
+  },
   remainingBudget: { 
     type: Number, 
     required: [true, 'Remaining budget is required'], 
     min: [0, 'Remaining budget cannot be negative'], 
     set: formatCurrency 
+  },
+  cpcRate: {
+    type: Number,
+    default: 0.05,
+    min: [0, 'CPC rate cannot be negative'],
+    set: formatCurrency
   },
   cpmRate: { 
     type: Number, 
@@ -96,6 +148,11 @@ const adSchema = new mongoose.Schema({
     default: 0, 
     min: [0, 'Impressions count cannot be negative'] 
   },
+  clicksCount: {
+    type: Number,
+    default: 0,
+    min: [0, 'Clicks count cannot be negative']
+  },
   status: { 
     type: String, 
     enum: ['active', 'paused', 'completed', 'cancelled', 'pending'], 
@@ -114,7 +171,7 @@ adSchema.pre('validate', function(next) {
 
 adSchema.index({ userId: 1, createdAt: -1 });
 adSchema.index({ advertiserTelegramId: 1, status: 1, createdAt: -1 });
-adSchema.index({ status: 1, targetCategory: 1, remainingBudget: 1 });
+adSchema.index({ status: 1, targetCategory: 1, type: 1, remainingBudget: 1 });
 
 adSchema.statics.findAdvertiserAdsIsolated = function(identifier, filter = {}) {
   if (!identifier) return this.find({ _id: { $exists: false } });
