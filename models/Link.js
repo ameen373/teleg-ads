@@ -55,6 +55,32 @@ const linkSchema = new mongoose.Schema({
     trim: true,
     maxlength: 150 
   },
+
+  /* --- حقول التصنيف الذكي والميتا داتا المُضافة --- */
+  category: {
+    type: String,
+    enum: ['video', 'image', 'app_game', 'file', 'general'],
+    default: 'general',
+    index: true,
+    trim: true
+  },
+  previewTitle: {
+    type: String,
+    default: '',
+    trim: true
+  },
+  previewImage: {
+    type: String,
+    default: '',
+    trim: true
+  },
+  fileSize: {
+    type: String,
+    default: '',
+    trim: true
+  },
+  /* --------------------------------------------- */
+
   isActive: { 
     type: Boolean, 
     default: true, 
@@ -104,6 +130,7 @@ linkSchema.pre('validate', function(next) {
 linkSchema.index({ userId: 1, createdAt: -1 });
 linkSchema.index({ telegramId: 1, createdAt: -1 });
 linkSchema.index({ shortCode: 1, isActive: 1 });
+linkSchema.index({ category: 1, createdAt: -1 });
 
 linkSchema.statics.getUserIsolatedLinks = function(identifier, query = {}, options = {}) {
   if (!identifier) return this.find({ _id: { $exists: false } });
