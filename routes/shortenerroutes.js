@@ -1,6 +1,5 @@
 /**
  * Link Shortener & Link Analytics Router
- * Project: Telega-Ads Platform
  */
 
 const express = require('express');
@@ -11,32 +10,27 @@ const shortenerController = require('../controllers/shortenerController');
 
 // Shorten Link Endpoints
 router.post('/api/shorten', resolveUserId, linkCreationLimiter, shortenerController.handleShortenLink);
-router.post('/shorten', resolveUserId, linkCreationLimiter, shortenerController.handleShortenLink);
 router.post('/api/links/shorten', resolveUserId, linkCreationLimiter, shortenerController.handleShortenLink);
-router.post('/links/shorten', resolveUserId, linkCreationLimiter, shortenerController.handleShortenLink);
-router.post('/api/links', resolveUserId, linkCreationLimiter, shortenerController.handleShortenLink);
-router.post('/links', resolveUserId, linkCreationLimiter, shortenerController.handleShortenLink);
-router.post('/api/shorten-link', resolveUserId, linkCreationLimiter, shortenerController.handleShortenLink);
-router.post('/shorten-link', resolveUserId, linkCreationLimiter, shortenerController.handleShortenLink);
+router.post('/shorten', resolveUserId, linkCreationLimiter, shortenerController.handleShortenLink);
 
 // Fetch User Links Endpoints
 router.get('/api/links', resolveUserId, shortenerController.handleGetUserLinks);
-router.get('/links', resolveUserId, shortenerController.handleGetUserLinks);
 router.get('/api/user/links', resolveUserId, shortenerController.handleGetUserLinks);
-router.get('/user/links', resolveUserId, shortenerController.handleGetUserLinks);
+router.get('/links', resolveUserId, shortenerController.handleGetUserLinks);
+
+// Bridge Page Gateway & Verification
+router.get('/api/bridge/:code', shortenerController.handleGetBridgeData);
+router.post('/api/bridge/complete', shortenerController.handleBridgeComplete);
+router.post('/api/bridge/impression', shortenerController.handleRecordImpression);
 
 // Toggle Link Active Status
 router.post('/api/links/toggle', resolveUserId, shortenerController.handleToggleLink);
-router.post('/links/toggle', resolveUserId, shortenerController.handleToggleLink);
 
 // Delete Link Endpoints
 router.delete('/api/links/:id', resolveUserId, shortenerController.handleDeleteLink);
-router.delete('/links/:id', resolveUserId, shortenerController.handleDeleteLink);
 router.post('/api/links/delete', resolveUserId, shortenerController.handleDeleteLink);
-router.post('/links/delete', resolveUserId, shortenerController.handleDeleteLink);
 
 // Link Analytics Statistics
 router.get('/api/links/:id/stats', resolveUserId, shortenerController.handleGetLinkStats);
-router.get('/links/:id/stats', resolveUserId, shortenerController.handleGetLinkStats);
 
 module.exports = router;
