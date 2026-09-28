@@ -23,10 +23,6 @@ const {
 
 const { User, Link, Impression, Ad, Campaign } = require('../models');
 
-/**
- * خوارزمية الاختيار الذكي للإعلان (Smart Matching Algorithm)
- * تختار أفضل إعلان نشط يناسب دولة الزائر وجهازه وله ميزانية كافية
- */
 const selectSmartAd = async (country, device, category) => {
   try {
     let adModel = Ad || Campaign;
@@ -74,7 +70,7 @@ const selectSmartAd = async (country, device, category) => {
           description: selected.description || 'انقر لمشاهدة التفاصيل والعرض الخاص',
           mediaUrl: selected.bannerUrl || selected.mediaUrl || selected.imageUrl || '',
           targetUrl: selected.targetUrl || selected.url || 'https://telega-ads.com',
-          type: selected.type || selected.format || 'banner', // image, video, app, game
+          type: selected.type || selected.format || 'banner',
           cpm: selected.cpm || 1.50
         };
       }
@@ -83,7 +79,6 @@ const selectSmartAd = async (country, device, category) => {
     logger.warn('Warning in selectSmartAd:', err.message);
   }
 
-  // Fallback Ad عند عدم توفر إعلان يطابق الاستهداف المباشر
   return {
     id: 'fallback_telega_ad',
     title: 'انضم إلى منصة Telega-Ads الإعلانية',
@@ -95,14 +90,10 @@ const selectSmartAd = async (country, device, category) => {
   };
 };
 
-/**
- * التعرّف الذكي على تصنيف الرابط بناءً على النطاق والامتداد
- */
 const detectCategory = (url) => {
   if (!url) return 'general';
   const lowerUrl = url.toLowerCase();
 
-  // 1. الفيديو
   if (
     lowerUrl.includes('youtube.com') || lowerUrl.includes('youtu.be') ||
     lowerUrl.includes('vimeo.com') || lowerUrl.includes('tiktok.com') ||
@@ -112,7 +103,6 @@ const detectCategory = (url) => {
     return 'video';
   }
 
-  // 2. التطبيقات والألعاب
   if (
     lowerUrl.includes('play.google.com') || lowerUrl.includes('apps.apple.com') ||
     lowerUrl.includes('steampowered.com') || lowerUrl.includes('epicgames.com') ||
@@ -122,7 +112,6 @@ const detectCategory = (url) => {
     return 'app_game';
   }
 
-  // 3. الصور
   if (
     lowerUrl.includes('imgur.com') || lowerUrl.includes('pinterest.com') ||
     lowerUrl.includes('flickr.com') ||
@@ -131,7 +120,6 @@ const detectCategory = (url) => {
     return 'image';
   }
 
-  // 4. الملفات والمستندات
   if (
     lowerUrl.includes('drive.google.com') || lowerUrl.includes('mediafire.com') ||
     lowerUrl.includes('mega.nz') || lowerUrl.includes('dropbox.com') ||
@@ -145,7 +133,7 @@ const detectCategory = (url) => {
 };
 
 /**
- * اختصار رابط جديد
+ * Shorten Link Handler
  */
 const handleShortenLink = async (req, res) => {
   try {
@@ -155,17 +143,17 @@ const handleShortenLink = async (req, res) => {
     const cleanUrl = normalizeAndValidateUrl(rawUrl);
 
     if (!cleanUrl) {
-      return res.status(400).json({ success: false, error: 'الرابط المستهدف غير صالح، يرجى التأكد من كتابة رابط صحيح' });
+      return res.status(400).json({ success: false, message: 'الرابط المستهدف غير صالح، يرجى التأكد من كتابة رابط صحيح' });
     }
 
     if (isPhishingOrMalicious(cleanUrl)) {
-      return res.status(400).json({ success: false, error: 'الرابط ينتهك معايير الأمان والسياسات' });
+      return res.status(400).json({ success: false, message: 'الرابط ينتهك معايير الأمان والسياسات' });
     }
 
     try {
       const domainCheck = new URL(cleanUrl).hostname;
       if (domainCheck.includes(CONFIG.APP_DOMAIN)) {
-        return res.status(400).json({ success: false, error: 'لا يمكن اختصار روابط منصة الاختصار نفسها' });
+        return res.status(400).json({ success: false, message: 'لا يمكن اختصار روابط منصة الاختصار نفسها' });
       }
     } catch (e) {}
 
@@ -204,24 +192,25 @@ const handleShortenLink = async (req, res) => {
     return res.json({ 
       success: true, 
       message: 'تم اختصار الرابط بنجاح',
+      shortCode,
+      shortUrl,
       link: {
         ...linkObj,
         id: linkObj._id,
         shortUrl
-      },
-      shortUrl
+      }
     });
   } catch (err) {
     logger.error('Error in handleShortenLink:', err);
     return res.status(500).json({ 
       success: false, 
-      error: 'حدث خطأ أثناء اختصار الرابط، يرجى المحاولة لاحقاً' 
+      message: 'حدث خطأ أثناء اختصار الرابط، يرجى المحاولة لاحقاً' 
     });
   }
 };
 
 /**
- * معالجة طلب فتح صفحة التوجيه للإعلان (Bridge Page Initialization)
+ * Get Bridge Page Data
  */
 const handleGetBridgeData = async (req, res, next) => {
   try {
@@ -229,12 +218,12 @@ const handleGetBridgeData = async (req, res, next) => {
     const { code } = req.params;
 
     if (!code) {
-      return res.status(400).json({ success: false, error: 'كود الرابط غير موجود' });
+      return res.status(400).json({ success: false, message: 'كود الرابط غير موجود' });
     }
 
     const link = await Link.findOne({ shortCode: code, isActive: true });
     if (!link) {
-      return res.status(404).json({ success: false, error: 'الرابط المطلوب غير موجود أو غير نشط' });
+      return res.status(404).json({ success: false, message: 'الرابط المطلوب غير موجود أو غير نشط' });
     }
 
     const clientIp = getRealIp(req);
@@ -246,10 +235,14 @@ const handleGetBridgeData = async (req, res, next) => {
 
     return res.json({
       success: true,
+      message: "تم تجهيز بيانات التوجيه",
       shortCode: code,
+      targetUrl: link.targetUrl,
+      originalUrl: link.targetUrl,
       token,
       timer: 5,
       category: link.category,
+      title: link.title,
       previewTitle: link.previewTitle || link.title,
       previewImage: link.previewImage || '',
       fileSize: link.fileSize || '',
@@ -262,7 +255,7 @@ const handleGetBridgeData = async (req, res, next) => {
 };
 
 /**
- * معالجة طلب استلام الرابط النهائي بعد التحقق من صحة التوكين والوقت والتفاعل البشري
+ * Handle Bridge Completion
  */
 const handleBridgeComplete = async (req, res, next) => {
   try {
@@ -270,31 +263,28 @@ const handleBridgeComplete = async (req, res, next) => {
     const { shortCode, token, duration, interactionProof, fingerprint } = req.body || {};
 
     if (!shortCode || !token) {
-      return res.status(400).json({ success: false, error: 'بيانات التوثيق غير كاملة' });
+      return res.status(400).json({ success: false, message: 'بيانات التوثيق غير كاملة' });
     }
 
     const clientIp = getRealIp(req);
     const country = getGeoLocation(req, clientIp);
     const device = getDeviceType(req.headers['user-agent']);
 
-    // التحقق من صحة التوكين المشفر
     const tokenCheck = verifyBridgeToken(token, shortCode, clientIp);
     if (!tokenCheck.valid) {
-      return res.status(403).json({ success: false, error: tokenCheck.error || 'رمز التوثيق غير صالح' });
+      return res.status(403).json({ success: false, message: tokenCheck.error || 'رمز التوثيق غير صالح' });
     }
 
-    // التحقق من انقضاء الوقت المطلوب (على الأقل ثانيتان)
     const spentDuration = parseInt(duration, 10) || 0;
     if (spentDuration < 2) {
-      return res.status(400).json({ success: false, error: 'لم يتم قضاء وقت كافٍ لتأكيد الزيارة' });
+      return res.status(400).json({ success: false, message: 'لم يتم قضاء وقت كافٍ لتأكيد الزيارة' });
     }
 
     const link = await Link.findOne({ shortCode, isActive: true });
     if (!link) {
-      return res.status(404).json({ success: false, error: 'الرابط المستهدف غير موجود' });
+      return res.status(404).json({ success: false, message: 'الرابط المستهدف غير موجود' });
     }
 
-    // احتساب أرباح الناشر والمنصة ($1.35 لكل 1000 مشاهدة)
     const publisherEarning = 0.00135;
     const platformFee = 0.00015;
 
@@ -314,13 +304,11 @@ const handleBridgeComplete = async (req, res, next) => {
     });
     await impression.save();
 
-    // تحديث إحصائيات الرابط
     link.views = (link.views || 0) + 1;
     link.validImpressions = (link.validImpressions || 0) + 1;
     link.totalEarnings = (link.totalEarnings || 0) + publisherEarning;
     await link.save();
 
-    // إضافة الأرباح لحساب الناشر
     if (link.userId) {
       await User.findByIdAndUpdate(link.userId, {
         $inc: {
@@ -336,8 +324,8 @@ const handleBridgeComplete = async (req, res, next) => {
 
     return res.json({
       success: true,
-      targetUrl: link.targetUrl,
-      message: 'تم التوثيق بنجاح'
+      message: 'تم التوثيق بنجاح',
+      targetUrl: link.targetUrl
     });
   } catch (err) {
     logger.error('Error in handleBridgeComplete:', err);
@@ -346,7 +334,7 @@ const handleBridgeComplete = async (req, res, next) => {
 };
 
 /**
- * تسجيل وتتبع زيارات الرابط
+ * Handle Record Impression
  */
 const handleRecordImpression = async (req, res, next) => {
   try {
@@ -361,7 +349,7 @@ const handleRecordImpression = async (req, res, next) => {
     }
 
     if (!link) {
-      return res.status(404).json({ success: false, error: 'الرابط غير موجود أو غير نشط' });
+      return res.status(404).json({ success: false, message: 'الرابط غير موجود أو غير نشط' });
     }
 
     const publisherEarning = 0.00135;
@@ -409,38 +397,33 @@ const handleRecordImpression = async (req, res, next) => {
 };
 
 /**
- * جلب روابط المستخدم
+ * Get User Links
  */
-const getUserLinksHelper = async (user) => {
-  if (!user) return [];
-  await connectDB();
-
-  const userId = user._id || user;
-  const userTelegramId = user.telegramId ? String(user.telegramId) : null;
-
-  const queryConditions = [];
-  if (userId) queryConditions.push({ userId: userId });
-  if (userTelegramId) queryConditions.push({ publisherTelegramId: userTelegramId }, { telegramId: userTelegramId });
-
-  const rawLinks = await Link.find(queryConditions.length > 0 ? { $or: queryConditions } : { userId: userId }).sort({ createdAt: -1 }).lean();
-
-  return rawLinks.map(link => {
-    const totalViews = link.views || 0;
-    const validImp = link.validImpressions || 0;
-    const ctr = totalViews > 0 ? ((validImp / totalViews) * 100).toFixed(1) : "0.0";
-    return { 
-      ...link, 
-      id: link._id,
-      ctr,
-      shortUrl: link.shortUrl || buildShortUrl(link.shortCode)
-    };
-  });
-};
-
 const handleGetUserLinks = async (req, res, next) => {
   try {
-    const links = await getUserLinksHelper(req.user || req.userId);
-    return res.json({ success: true, links });
+    await connectDB();
+    const targetUserId = req.userId;
+    const targetTgId = req.user ? String(req.user.telegramId) : null;
+
+    const queryConditions = [];
+    if (targetUserId) queryConditions.push({ userId: targetUserId });
+    if (targetTgId) queryConditions.push({ publisherTelegramId: targetTgId }, { telegramId: targetTgId });
+
+    const rawLinks = await Link.find(queryConditions.length > 0 ? { $or: queryConditions } : { userId: targetUserId }).sort({ createdAt: -1 }).lean();
+
+    const links = rawLinks.map(link => {
+      const totalViews = link.views || 0;
+      const validImp = link.validImpressions || 0;
+      const ctr = totalViews > 0 ? ((validImp / totalViews) * 100).toFixed(1) : "0.0";
+      return { 
+        ...link, 
+        id: link._id,
+        ctr,
+        shortUrl: link.shortUrl || buildShortUrl(link.shortCode)
+      };
+    });
+
+    return res.json({ success: true, message: "تم جلب الروابط بنجاح", links });
   } catch (err) {
     next(err);
   }
@@ -450,16 +433,16 @@ const handleToggleLink = async (req, res, next) => {
   try {
     await connectDB();
     const linkId = req.body?.linkId || req.body?.id;
-    if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
+    if (!mongoose.Types.ObjectId.isValid(linkId)) return res.status(400).json({ success: false, message: 'معرف الرابط غير صالح' });
 
     const link = await Link.findOne({ _id: linkId, $or: [{ userId: req.userId }, { publisherTelegramId: req.user?.telegramId }] });
-    if (!link) return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات التعديل عليه' });
+    if (!link) return res.status(404).json({ success: false, message: 'الرابط غير موجود أو لا تملك صلاحيات التعديل عليه' });
 
     link.isActive = !link.isActive;
     await link.save();
     await safeRedisDel(`link:data:${link.shortCode}`);
 
-    return res.json({ success: true, isActive: link.isActive });
+    return res.json({ success: true, message: "تم تحديث حالة الرابط", isActive: link.isActive });
   } catch (err) {
     next(err);
   }
@@ -470,12 +453,12 @@ const handleDeleteLink = async (req, res, next) => {
     await connectDB();
     const linkId = req.params.id || req.body?.linkId || req.body?.id;
     if (!mongoose.Types.ObjectId.isValid(linkId)) {
-      return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
+      return res.status(400).json({ success: false, message: 'معرف الرابط غير صالح' });
     }
 
     const link = await Link.findOneAndDelete({ _id: linkId, $or: [{ userId: req.userId }, { publisherTelegramId: req.user?.telegramId }] });
     if (!link) {
-      return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحيات حذفه' });
+      return res.status(404).json({ success: false, message: 'الرابط غير موجود أو لا تملك صلاحيات حذفه' });
     }
 
     await safeRedisDel(`link:data:${link.shortCode}`);
@@ -490,12 +473,12 @@ const handleGetLinkStats = async (req, res, next) => {
     await connectDB();
     const linkId = req.params.id;
     if (!mongoose.Types.ObjectId.isValid(linkId)) {
-      return res.status(400).json({ success: false, error: 'معرف الرابط غير صالح' });
+      return res.status(400).json({ success: false, message: 'معرف الرابط غير صالح' });
     }
 
     const link = await Link.findOne({ _id: linkId, $or: [{ userId: req.userId }, { publisherTelegramId: req.user?.telegramId }] }).lean();
     if (!link) {
-      return res.status(404).json({ success: false, error: 'الرابط غير موجود أو لا تملك صلاحية الوصول إليه' });
+      return res.status(404).json({ success: false, message: 'الرابط غير موجود أو لا تملك صلاحية الوصول إليه' });
     }
 
     const impressions = await Impression.find({ linkId: link._id }).sort({ createdAt: -1 }).limit(100).lean();
@@ -507,6 +490,7 @@ const handleGetLinkStats = async (req, res, next) => {
 
     return res.json({
       success: true,
+      message: "تم جلب إحصائيات الرابط بنجاح",
       stats: {
         linkId: link._id,
         shortCode: link.shortCode,
