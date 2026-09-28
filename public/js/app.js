@@ -1,9 +1,25 @@
 // public/js/app.js
 
+// تهيئة تليجرام WebApp وتوسيع الشاشة عند بداية التشغيل
+if (window.Telegram && window.Telegram.WebApp) {
+  window.Telegram.WebApp.ready();
+  window.Telegram.WebApp.expand();
+}
+
+// حفظ بيانات المستخدم الأولية في المتغير العام
+window.currentUser = window.Telegram?.WebApp?.initDataUnsafe?.user || null;
+
 async function authLogin() {
-  const startParam = tg?.initDataUnsafe?.start_param || null;
-  const u = tg?.initDataUnsafe?.user || {};
-  const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || '';
+  const tgApp = window.Telegram?.WebApp;
+  const startParam = tgApp?.initDataUnsafe?.start_param || null;
+  const u = tgApp?.initDataUnsafe?.user || {};
+  const initDataStr = tgApp?.initData || '';
+
+  if (u && u.id) {
+    window.currentUser = Object.assign({}, window.currentUser || {}, u);
+    currentUserTelegramId = String(u.id);
+    localStorage.setItem('telegramId', currentUserTelegramId);
+  }
 
   try {
     const res = await safeFetch('/api/auth/login', {
@@ -28,9 +44,12 @@ async function authLogin() {
         localStorage.setItem('authToken', authToken);
       }
 
-      if (data.user && data.user.telegramId) {
-        currentUserTelegramId = String(data.user.telegramId);
-        localStorage.setItem('telegramId', currentUserTelegramId);
+      if (data.user) {
+        window.currentUser = Object.assign({}, window.currentUser || {}, data.user);
+        if (data.user.telegramId) {
+          currentUserTelegramId = String(data.user.telegramId);
+          localStorage.setItem('telegramId', currentUserTelegramId);
+        }
       }
 
       if (data.isAdmin === true) {
@@ -82,6 +101,10 @@ async function loadUserData() {
       const data = await res.json().catch(() => ({}));
       const u = data.user || {};
 
+      if (Object.keys(u).length > 0) {
+        window.currentUser = Object.assign({}, window.currentUser || {}, u);
+      }
+
       const pendingElem = document.getElementById('pending-bal');
       const availElem = document.getElementById('avail-bal');
       const refEarnElem = document.getElementById('ref-earnings');
@@ -98,7 +121,7 @@ async function loadUserData() {
       const refInput = document.getElementById('ref-link');
       const botUsername = (data.botUsername || 'Ads_telegabot').replace(/^@/, '');
       if (refInput) {
-        refInput.value = `https://t.me/${botUsername}?start=${currentUserTelegramId}`;
+        refInput.value = `https://t.me/${botUsername}?start=${currentUserTelegramId || u.telegramId || ''}`;
       }
 
       const walletInput = document.getElementById('default-wallet');
@@ -143,9 +166,21 @@ async function loadUserData() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  if (typeof renderTelegramUser === 'function') renderTelegramUser();
+  if (window.Telegram && window.Telegram.WebApp) {
+    window.Telegram.WebApp.ready();
+    window.Telegram.WebApp.expand();
+  }
+
+  if (typeof renderTelegramUser === 'function') {
+    renderTelegramUser();
+  }
+
   await authLogin();
   
+  if (typeof renderTelegramUser === 'function') {
+    renderTelegramUser();
+  }
+
   const pathParts = window.location.pathname.split('/');
   if (pathParts.length >= 3 && pathParts[1] === 'r') {
     const code = pathParts[2];
