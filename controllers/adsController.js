@@ -16,8 +16,22 @@ const handleCreateAd = async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
-    const { title, targetUrl, totalBudget, targetCategory } = req.body;
+    const { 
+      title, 
+      targetUrl, 
+      type = 'image', 
+      mediaUrl = '', 
+      appDownloadUrl = '', 
+      gameEmbedUrl = '', 
+      countries = [], 
+      devices = [], 
+      totalBudget, 
+      dailyBudget = 0, 
+      targetCategory = 'all' 
+    } = req.body;
+
     const budget = Number(totalBudget);
+    const parsedDailyBudget = Number(dailyBudget) || 0;
     const cleanTarget = normalizeAndValidateUrl(targetUrl);
     const targetUserId = req.userId;
 
@@ -36,8 +50,49 @@ const handleCreateAd = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'الحد الأدنى لميزانية الحملة هو $5' });
     }
 
+    // التحقق من نوع الإعلان والروابط التابعة
+    const validTypes = ['image', 'video', 'app', 'game'];
+    const finalType = validTypes.includes(type) ? type : 'image';
+
+    let cleanMediaUrl = mediaUrl ? normalizeAndValidateUrl(mediaUrl) : '';
+    let cleanAppUrl = appDownloadUrl ? normalizeAndValidateUrl(appDownloadUrl) : '';
+    let cleanGameUrl = gameEmbedUrl ? normalizeAndValidateUrl(gameEmbedUrl) : '';
+
+    if (finalType === 'image' || finalType === 'video') {
+      if (mediaUrl && !cleanMediaUrl) {
+        await session.abortTransaction();
+        return res.status(400).json({ success: false, error: 'رابط الصورة/الفيديو غير صالح' });
+      }
+    } else if (finalType === 'app') {
+      if (appDownloadUrl && !cleanAppUrl) {
+        await session.abortTransaction();
+        return res.status(400).json({ success: false, error: 'رابط تحميل التطبيق غير صالح' });
+      }
+      if (!cleanAppUrl) cleanAppUrl = cleanTarget;
+    } else if (finalType === 'game') {
+      if (gameEmbedUrl && !cleanGameUrl) {
+        await session.abortTransaction();
+        return res.status(400).json({ success: false, error: 'رابط تضمين اللعبة غير صالح' });
+      }
+      if (!cleanGameUrl) cleanGameUrl = cleanTarget;
+    }
+
     const validCategories = ['all', 'video', 'image', 'app_game', 'file'];
     const finalTargetCategory = validCategories.includes(targetCategory) ? targetCategory : 'all';
+
+    // معالجة بيانات الاستهداف
+    const allowedDevicesList = ['Android', 'iOS', 'Desktop'];
+    const filteredDevices = Array.isArray(devices) 
+      ? devices.filter(d => allowedDevicesList.includes(d))
+      : allowedDevicesList;
+    
+    const finalDevices = filteredDevices.length > 0 ? filteredDevices : allowedDevicesList;
+
+    const parsedCountries = Array.isArray(countries) 
+      ? countries.map(c => String(c).trim().toUpperCase()).filter(Boolean)
+      : (typeof countries === 'string' && countries.trim() ? countries.split(',').map(c => c.trim().toUpperCase()) : ['ALL']);
+    
+    const finalCountries = parsedCountries.length > 0 ? parsedCountries : ['ALL'];
 
     const updatedUser = await User.findOneAndUpdate(
       { _id: targetUserId, availableBalance: { $gte: budget } },
@@ -56,10 +111,21 @@ const handleCreateAd = async (req, res, next) => {
       advertiserTelegramId: req.user ? req.user.telegramId : null,
       title: String(title).trim(),
       targetUrl: cleanTarget,
+      type: finalType,
+      mediaUrl: cleanMediaUrl,
+      appDownloadUrl: cleanAppUrl,
+      gameEmbedUrl: cleanGameUrl,
+      targeting: {
+        countries: finalCountries,
+        devices: finalDevices,
+        operatingSystems: ['ALL']
+      },
       targetCategory: finalTargetCategory,
       totalBudget: budget,
+      dailyBudget: parsedDailyBudget,
       remainingBudget: budget,
       cpmRate: 1.50,
+      cpcRate: 0.05,
       costPerImpression: 0.0015,
       publisherEarningsPerImpression: 0.00135,
       platformFeePerImpression: 0.00015,
@@ -82,12 +148,11 @@ const handleCreateAd = async (req, res, next) => {
 const handleGetMatchingAd = async (req, res, next) => {
   try {
     await connectDB();
-    const { shortCode, linkId, category } = req.query || req.body || {};
+    const { shortCode, linkId, category, device } = req.query || req.body || {};
 
     let linkCategory = category || 'general';
     let link = null;
 
-    // البحث عن الرابط لمعرفة نوعه
     if (linkId && mongoose.Types.ObjectId.isValid(linkId)) {
       link = await Link.findById(linkId);
     } else if (shortCode) {
@@ -98,23 +163,28 @@ const handleGetMatchingAd = async (req, res, next) => {
       linkCategory = link.category || linkCategory;
     }
 
-    // البحث عن الإعلان المناسب (أولوية للنوع المطابق للرابط، ثم الإعلانات العامة 'all')
-    let ad = await Ad.findOne({
+    const queryFilter = {
       status: 'active',
-      remainingBudget: { $gte: 0.0015 },
+      remainingBudget: { $gte: 0.0015 }
+    };
+
+    if (device && ['Android', 'iOS', 'Desktop'].includes(device)) {
+      queryFilter['targeting.devices'] = { $in: [device, 'ALL'] };
+    }
+
+    let ad = await Ad.findOne({
+      ...queryFilter,
       targetCategory: linkCategory
     });
 
     if (!ad) {
       ad = await Ad.findOne({
-        status: 'active',
-        remainingBudget: { $gte: 0.0015 },
+        ...queryFilter,
         targetCategory: 'all'
       });
     }
 
     if (!ad) {
-      // إعلان افتراضي في حال عدم وجود إعلانات نشطة
       return res.json({
         success: true,
         hasAd: false,
@@ -123,12 +193,10 @@ const handleGetMatchingAd = async (req, res, next) => {
       });
     }
 
-    // التكلفة فورية وبدون قيود
     const cost = ad.costPerImpression || 0.0015;
     const publisherEarning = ad.publisherEarningsPerImpression || 0.00135;
     const platformFee = ad.platformFeePerImpression || 0.00015;
 
-    // خصم التكلفة من ميزانية الإعلان وتحديث المشاهدات
     ad.remainingBudget = Math.max(0, ad.remainingBudget - cost);
     ad.impressionsCount = (ad.impressionsCount || 0) + 1;
     if (ad.remainingBudget < cost) {
@@ -136,10 +204,8 @@ const handleGetMatchingAd = async (req, res, next) => {
     }
     await ad.save();
 
-    // احتساب الأرباح للناشر والرابط فورياً
     if (link) {
       link.views = (link.views || 0) + 1;
-      link.clicks = (link.clicks || 0) + 1;
       link.validImpressions = (link.validImpressions || 0) + 1;
       link.totalEarnings = (link.totalEarnings || 0) + publisherEarning;
       await link.save();
@@ -155,7 +221,6 @@ const handleGetMatchingAd = async (req, res, next) => {
         }).catch(() => {});
       }
 
-      // توثيق المشاهدة فورياً في سجل المشاهدات
       const impression = new Impression({
         linkId: link._id,
         publisherUserId: link.userId,
@@ -175,8 +240,13 @@ const handleGetMatchingAd = async (req, res, next) => {
       hasAd: true,
       ad: {
         id: ad._id,
+        _id: ad._id,
         title: ad.title,
         targetUrl: ad.targetUrl,
+        type: ad.type || 'image',
+        mediaUrl: ad.mediaUrl || '',
+        appDownloadUrl: ad.appDownloadUrl || '',
+        gameEmbedUrl: ad.gameEmbedUrl || '',
         targetCategory: ad.targetCategory
       }
     });
@@ -263,11 +333,28 @@ const handleDeleteAd = async (req, res, next) => {
   }
 };
 
+/**
+ * Record Ad Click Controller
+ */
+const handleRecordClick = async (req, res, next) => {
+  try {
+    await connectDB();
+    const { adId } = req.body;
+    if (adId && mongoose.Types.ObjectId.isValid(adId)) {
+      await Ad.findByIdAndUpdate(adId, { $inc: { clicksCount: 1 } });
+    }
+    return res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   handleCreateAd,
   handleGetUserAds,
   handleToggleAd,
   handleDeleteAd,
   handleGetMatchingAd,
-  handleServeAd: handleGetMatchingAd
+  handleServeAd: handleGetMatchingAd,
+  handleRecordClick
 };
