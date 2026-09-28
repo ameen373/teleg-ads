@@ -313,12 +313,67 @@
         <div class="card">
           <h3 style="font-size: 16px; margin-top:0;" data-i18n="create_ad_title">إنشاء حملة إعلانية جديدة</h3>
           <p style="font-size: 11px; color: var(--text-muted); margin-top:-4px;" data-i18n="ad_rate_desc">تكلفة الإعلان: $1.50 لكل 1,000 مشاهدة حقيقية (CPM)</p>
-          
+
+          <!-- نوع الإعلان المتقدم -->
+          <label style="font-size: 12px; color: var(--text-muted); display: block; margin-top: 10px; margin-bottom: 4px;">نوع الإعلان:</label>
+          <select id="ad-type" onchange="onAdTypeChange()" style="margin-top: 0;">
+            <option value="image">🖼️ إعلان صورة (Image Banner)</option>
+            <option value="video">🎥 إعلان فيديو (Video Ad)</option>
+            <option value="app">📱 إعلان تطبيق (App Install)</option>
+            <option value="game">🎮 إعلان لعبة (HTML5 Game Embed)</option>
+          </select>
+
+          <!-- عنوان الإعلان -->
           <input type="text" id="ad-title" data-i18n-ph="ph_ad_title" placeholder="عنوان الإعلان">
-          <input type="url" id="ad-target-url" data-i18n-ph="ph_ad_target_url" placeholder="رابط التوجيه (https://...)">
-          <input type="number" id="ad-budget" data-i18n-ph="ph_ad_budget" placeholder="الميزانية الإجمالية (الحد الأدنى 5$)" min="5" step="any">
+
+          <!-- رابط التوجيه الرئيسي -->
+          <input type="url" id="ad-target-url" data-i18n-ph="ph_ad_target_url" placeholder="رابط التوجيه الأساسي (https://...)">
+
+          <!-- حقول ديناميكية تظهر حسب نوع الإعلان المختار -->
+          <div id="container-media-url">
+            <input type="url" id="ad-media-url" placeholder="رابط الصورة أو الفيديو (Direct Media URL)">
+          </div>
+
+          <div id="container-app-url" class="hidden">
+            <input type="url" id="ad-app-download-url" placeholder="رابط التحميل المباشر للتطبيق (APK / App Store)">
+          </div>
+
+          <div id="container-game-url" class="hidden">
+            <input type="url" id="ad-game-embed-url" placeholder="رابط تضمين اللعبة (Game iFrame / Embed URL)">
+          </div>
+
+          <!-- استهداف نوع المحتوى -->
+          <label style="font-size: 12px; color: var(--text-muted); display: block; margin-top: 10px; margin-bottom: 4px;">تصنيف المحتوى المستهدف:</label>
+          <select id="ad-category" style="margin-top: 0;">
+            <option value="all">الكل (All Categories)</option>
+            <option value="video">مقاطع فيديو (Videos)</option>
+            <option value="image">صور ومعارض (Images)</option>
+            <option value="app_game">تطبيقات وألعاب (Apps & Games)</option>
+            <option value="file">ملفات وتحميلات (Files)</option>
+          </select>
+
+          <!-- قسم الاستهداف المتقدم (Targeting) -->
+          <div style="background: rgba(15, 23, 42, 0.4); border: 1px solid var(--card-border); padding: 12px; border-radius: 10px; margin: 12px 0;">
+            <h4 style="margin: 0 0 8px 0; font-size: 13px; color: var(--accent);">🎯 خيارات الاستهداف المتقدم:</h4>
+            
+            <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 6px;">الأجهزة المستهدفة:</label>
+            <div style="display: flex; gap: 12px; font-size: 12px; color: var(--text); margin-bottom: 10px;">
+              <label><input type="checkbox" id="device-android" checked> Android</label>
+              <label><input type="checkbox" id="device-ios" checked> iOS</label>
+              <label><input type="checkbox" id="device-desktop" checked> Desktop</label>
+            </div>
+
+            <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">الدول المستهدفة (اتركها فارغة للكل، أو أدخل رمزي الدول مثل: US, SA, EG):</label>
+            <input type="text" id="ad-countries" placeholder="مثال: SA, AE, EG, US (أو ALL للجميع)" style="margin-top: 0;">
+          </div>
+
+          <!-- الميزانية والتسعير -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <input type="number" id="ad-budget" data-i18n-ph="ph_ad_budget" placeholder="الميزانية الإجمالية ($)" min="5" step="any">
+            <input type="number" id="ad-daily-budget" placeholder="الميزانية اليومية (اختياري)" min="0" step="any">
+          </div>
           
-          <button id="btn-create-ad" onclick="createAdCampaign()">
+          <button id="btn-create-ad" onclick="createAdCampaign()" style="margin-top: 10px;">
             <span data-i18n="btn_launch_ad">إطلاق الحملة الإعلانية</span>
           </button>
         </div>
