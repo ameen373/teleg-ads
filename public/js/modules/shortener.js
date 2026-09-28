@@ -1,12 +1,15 @@
 window.rawUserLinksCache = window.rawUserLinksCache || [];
 window.bridgeDestinationUrl = null;
 window.currentShortCode = null;
+window.bridgeToken = null;
+window.bridgeStartTime = null;
+window.bridgeTimerInterval = null;
 
 function formatShortUrl(link) {
   if (!link) return '';
   let rawUrl = link.shortUrl || link.shortLink || link.url;
   if (!rawUrl && link.shortCode) {
-    rawUrl = `${window.API_BASE}/r/${link.shortCode}`;
+    rawUrl = `${window.API_BASE || ''}/r/${link.shortCode}`;
   }
   if (!rawUrl) return '';
 
@@ -102,7 +105,7 @@ async function handleShortenClick(e) {
         originalUrl: url,
         targetUrl: url,
         shortCode: data.shortCode || data.code || '',
-        shortUrl: data.shortUrl || data.shortLink || (data.shortCode ? `${window.API_BASE}/r/${data.shortCode}` : ''),
+        shortUrl: data.shortUrl || data.shortLink || (data.shortCode ? `${window.API_BASE || ''}/r/${data.shortCode}` : ''),
         views: 0,
         validImpressions: 0,
         totalEarnings: 0
@@ -153,8 +156,8 @@ function renderUserLinks(links) {
 
   container.innerHTML = links.map(link => {
     const formattedUrl = formatShortUrl(link);
-    const title = window.escapeHTML(link.title || link.shortCode || 'Untitled Link');
-    const originalUrl = window.escapeHTML(link.originalUrl || link.targetUrl || link.url || '');
+    const title = window.escapeHTML ? window.escapeHTML(link.title || link.shortCode || 'Untitled Link') : (link.title || link.shortCode || 'Untitled Link');
+    const originalUrl = window.escapeHTML ? window.escapeHTML(link.originalUrl || link.targetUrl || link.url || '') : (link.originalUrl || link.targetUrl || link.url || '');
     const clicks = link.views || link.clicks || 0;
     const validImp = link.validImpressions || 0;
     const earnings = (link.totalEarnings || 0).toFixed(4);
@@ -226,11 +229,26 @@ window.deleteLink = deleteLink;
 
 async function initBridgeView(code) {
   window.currentShortCode = code;
+  window.bridgeStartTime = Date.now();
+  
   const appView = document.getElementById('app-view');
   const bridgeView = document.getElementById('bridge-view');
 
   if (appView) appView.classList.add('hidden');
   if (bridgeView) bridgeView.classList.remove('hidden');
+
+  // إعداد زر التوجيه أولاً بحالة تعطيل أثناء الانتظار
+  const btn = document.getElementById('go-btn') || document.getElementById('btn-go');
+  const lang = window.currentLang || 'ar';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = lang === 'ar' ? 'يرجى الانتظار...' : 'Please wait...';
+  }
+
+  // استدعاء الإعلانات وتسجيل الأرباح فوراً في الخلفية عند التحميل
+  if (typeof window.triggerBridgeAds === 'function') {
+    window.triggerBridgeAds('load').catch(err => console.error("Ad trigger on load error:", err));
+  }
 
   try {
     const res = await window.safeFetch(`/api/bridge/${code}`);
@@ -238,9 +256,12 @@ async function initBridgeView(code) {
       const data = await res.json().catch(() => ({}));
       window.bridgeDestinationUrl = data.targetUrl || data.originalUrl || '/';
       window.bridgeToken = data.token || null;
-      startBridgeTimer(5);
+      
+      const timerDuration = parseInt(data.timer || data.countdown || 5, 10);
+      startBridgeTimer(isNaN(timerDuration) ? 5 : timerDuration);
     } else {
-      if (typeof window.showToast === 'function') window.showToast("تعذر تحميل الرابط المطلوب");
+      if (typeof window.showToast === 'function') window.showToast(lang === 'ar' ? 'تعذر تحميل الرابط المطلوب' : 'Failed to load link');
+      if (btn) btn.innerText = lang === 'ar' ? 'خطأ في تحميل الرابط' : 'Link Error';
     }
   } catch (err) {
     console.error("Bridge init error:", err);
@@ -249,16 +270,41 @@ async function initBridgeView(code) {
 window.initBridgeView = initBridgeView;
 
 function startBridgeTimer(seconds) {
-  let timeLeft = seconds;
-  const timerElem = document.getElementById('timer');
-  const btn = document.getElementById('go-btn');
+  if (window.bridgeTimerInterval) {
+    clearInterval(window.bridgeTimerInterval);
+  }
 
-  const interval = setInterval(() => {
+  let timeLeft = seconds;
+  const timerElem = document.getElementById('timer') || document.getElementById('timer-count');
+  const btn = document.getElementById('go-btn') || document.getElementById('btn-go');
+  const lang = window.currentLang || 'ar';
+
+  if (timerElem) timerElem.innerText = timeLeft;
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = lang === 'ar' ? `يرجى الانتظار (${timeLeft})` : `Please wait (${timeLeft})`;
+  }
+
+  window.bridgeTimerInterval = setInterval(() => {
     timeLeft--;
     if (timerElem) timerElem.innerText = timeLeft;
+    
+    if (btn && timeLeft > 0) {
+      btn.innerText = lang === 'ar' ? `يرجى الانتظار (${timeLeft})` : `Please wait (${timeLeft})`;
+    }
+
     if (timeLeft <= 0) {
-      clearInterval(interval);
-      if (btn) btn.disabled = false;
+      clearInterval(window.bridgeTimerInterval);
+      window.bridgeTimerInterval = null;
+      
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = lang === 'ar' ? 'الانتقال إلى الرابط' : 'Go to Link';
+        btn.onclick = function(e) {
+          if (e) e.preventDefault();
+          completeImpression();
+        };
+      }
     }
   }, 1000);
 }
@@ -267,21 +313,43 @@ window.startBridgeTimer = startBridgeTimer;
 async function completeImpression() {
   if (!window.bridgeDestinationUrl) return;
 
-  if (typeof window.setButtonLoading === 'function') window.setButtonLoading('go-btn', true);
+  const btn = document.getElementById('go-btn') || document.getElementById('btn-go');
+  const lang = window.currentLang || 'ar';
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = lang === 'ar' ? 'جاري التوجيه...' : 'Redirecting...';
+  }
+
+  if (typeof window.setButtonLoading === 'function') {
+    window.setButtonLoading(btn.id || 'go-btn', true);
+  }
+
+  // تسجيل النقر والأرباح فوراً في الخلفية عند الضغط على الزر
+  if (typeof window.triggerBridgeAds === 'function') {
+    window.triggerBridgeAds('click').catch(err => console.error("Ad trigger on click error:", err));
+  }
 
   try {
-    await window.safeFetch('/api/bridge/complete', {
+    const durationSec = Math.round((Date.now() - (window.bridgeStartTime || Date.now())) / 1000);
+    
+    // استدعاء تسجيل اكتمال المشاهدة بدون تعليق انتقال المستخدم
+    window.safeFetch('/api/bridge/complete', {
       method: 'POST',
       body: {
         shortCode: window.currentShortCode,
         token: window.bridgeToken,
-        duration: Math.round((Date.now() - (window.bridgeStartTime || Date.now())) / 1000)
+        duration: durationSec
       }
-    });
+    }).catch(e => console.error("Bridge complete fetch error:", e));
+
   } catch (e) {
     console.error("Complete impression error:", e);
   } finally {
-    window.location.href = window.bridgeDestinationUrl;
+    // توجيه المستخدم مباشرة بعد إرسال الطلب
+    setTimeout(() => {
+      window.location.href = window.bridgeDestinationUrl;
+    }, 150);
   }
 }
 window.completeImpression = completeImpression;
