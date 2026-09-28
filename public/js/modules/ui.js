@@ -110,6 +110,10 @@ function switchWalletView(view) {
 
   if (viewDep) viewDep.classList.toggle('hidden', view !== 'deposit');
   if (viewWith) viewWith.classList.toggle('hidden', view !== 'withdraw');
+
+  if (view === 'withdraw' && typeof window.API?.fetchWithdrawals === 'function') {
+    window.API.fetchWithdrawals().then(list => window.UI.renderWithdrawals(list));
+  }
 }
 window.switchWalletView = switchWalletView;
 
@@ -173,16 +177,6 @@ function renderTelegramUser() {
         avatarContainer.innerHTML = `<div class="user-avatar-placeholder">${escapeHTML(letter)}</div>`;
       }
     }
-
-    const savedLang = localStorage.getItem('appLang');
-    const i18n = window.i18n || {};
-    if (savedLang && i18n[savedLang]) {
-      window.currentLang = savedLang;
-    } else if (u.language_code && i18n[u.language_code]) {
-      window.currentLang = u.language_code === 'ar' ? 'ar' : 'en';
-    } else {
-      window.currentLang = 'ar';
-    }
   } else {
     if (!window.currentUserTelegramId) {
       window.currentUserTelegramId = localStorage.getItem('telegramId') || '123456789';
@@ -191,13 +185,6 @@ function renderTelegramUser() {
     if (handleElem) handleElem.innerText = '@user';
     if (idElem) idElem.innerText = `ID: ${window.currentUserTelegramId}`;
     if (avatarContainer) avatarContainer.innerHTML = `<div class="user-avatar-placeholder">U</div>`;
-    if (!localStorage.getItem('appLang')) {
-      window.currentLang = 'ar';
-    }
-  }
-
-  if (typeof window.applyLanguage === 'function') {
-    window.applyLanguage(window.currentLang);
   }
 }
 window.renderTelegramUser = renderTelegramUser;
@@ -245,3 +232,131 @@ function toggleWalletEdit() {
   }
 }
 window.toggleWalletEdit = toggleWalletEdit;
+
+function onAdTypeChange() {
+  const typeSelect = document.getElementById('ad-type');
+  if (!typeSelect) return;
+  const val = typeSelect.value;
+
+  const mediaContainer = document.getElementById('container-media-url');
+  const appContainer = document.getElementById('container-app-url');
+  const gameContainer = document.getElementById('container-game-url');
+
+  if (mediaContainer) mediaContainer.classList.add('hidden');
+  if (appContainer) appContainer.classList.add('hidden');
+  if (gameContainer) gameContainer.classList.add('hidden');
+
+  if (val === 'image' || val === 'video') {
+    if (mediaContainer) mediaContainer.classList.remove('hidden');
+  } else if (val === 'app') {
+    if (appContainer) appContainer.classList.remove('hidden');
+  } else if (val === 'game') {
+    if (gameContainer) gameContainer.classList.remove('hidden');
+  }
+}
+window.onAdTypeChange = onAdTypeChange;
+
+function closeVideoAd() {
+  const vAd = document.getElementById('video-popup-ad');
+  if (vAd) vAd.classList.add('hidden');
+}
+window.closeVideoAd = closeVideoAd;
+
+function renderLinks(links) {
+  const container = document.getElementById('links-list');
+  if (!container) return;
+  if (!links || links.length === 0) {
+    container.innerHTML = `<p style="text-align:center; padding:10px;">لا توجد روابط حتى الآن.</p>`;
+    return;
+  }
+  container.innerHTML = links.map(link => `
+    <div class="link-item card" style="margin-bottom:10px; padding:10px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <strong style="font-size:13px; color:var(--text);">${escapeHTML(link.title || 'بدون عنوان')}</strong>
+        <span style="font-size:11px; color:var(--accent);">👁️ ${link.views || 0}</span>
+      </div>
+      <div style="margin: 6px 0; font-size:11px; word-break:break-all;">
+        <a href="${escapeHTML(link.shortUrl || link.url)}" target="_blank" style="color:var(--accent);">${escapeHTML(link.shortUrl || link.url)}</a>
+      </div>
+      <div style="display:flex; gap:6px;">
+        <button class="btn-small" onclick="window.copyToClipboard('${escapeHTML(link.shortUrl || link.url)}')">نسخ</button>
+        <button class="btn-small btn-danger" onclick="window.handleDeleteLink('${link.id || link._id}')">حذف</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderAds(ads) {
+  const container = document.getElementById('ads-list');
+  if (!container) return;
+  if (!ads || ads.length === 0) {
+    container.innerHTML = `<p style="text-align:center; padding:10px;">لا توجد حملات إعلانية.</p>`;
+    return;
+  }
+  container.innerHTML = ads.map(ad => `
+    <div class="card" style="margin-bottom:10px; padding:10px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <strong>${escapeHTML(ad.title)}</strong>
+        <span class="badge">${escapeHTML(ad.status || 'نشط')}</span>
+      </div>
+      <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">
+        الميزانية: $${ad.budget} | المشاهدات: ${ad.impressions || 0}
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderWithdrawals(withdrawals) {
+  const container = document.getElementById('withdraws-list');
+  if (!container) return;
+  if (!withdrawals || withdrawals.length === 0) {
+    container.innerHTML = `<p style="text-align:center; padding:10px;">لا توجد طلبات سحب سابقة.</p>`;
+    return;
+  }
+  container.innerHTML = withdrawals.map(w => `
+    <div class="card" style="margin-bottom:8px; padding:8px 12px; display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <div><b>$${(w.amount || 0).toFixed(2)}</b></div>
+        <small style="color:var(--text-muted);">${new Date(w.createdAt || Date.now()).toLocaleDateString()}</small>
+      </div>
+      <span class="badge ${w.status === 'approved' ? 'btn-success' : w.status === 'rejected' ? 'btn-danger' : 'btn-warning'}">${escapeHTML(w.status)}</span>
+    </div>
+  `).join('');
+}
+
+function renderReferrals(refs) {
+  const container = document.getElementById('ref-list');
+  if (!container) return;
+  if (!refs || refs.length === 0) {
+    container.innerHTML = `<p style="text-align:center; padding:10px;">لا يوجد إحالات مسجلة عبر رابطك.</p>`;
+    return;
+  }
+  container.innerHTML = refs.map(r => `
+    <div class="card" style="margin-bottom:8px; padding:8px 12px; display:flex; justify-content:space-between; align-items:center;">
+      <span>${escapeHTML(r.name || r.username || 'مستخدم')}</span>
+      <small style="color:var(--success);">+$${(r.earned || 0).toFixed(2)}</small>
+    </div>
+  `).join('');
+}
+
+window.UI = {
+  escapeHTML,
+  triggerHaptic,
+  showToast,
+  copyToClipboard,
+  setButtonLoading,
+  switchTab,
+  handleNetworkChange,
+  switchWalletView,
+  toggleInstructionsModal,
+  updateWithdrawCalculations,
+  renderTelegramUser,
+  shareReferralLink,
+  toggleWalletEdit,
+  onAdTypeChange,
+  closeVideoAd,
+  renderLinks,
+  renderAds,
+  renderWithdrawals,
+  renderReferrals
+};
