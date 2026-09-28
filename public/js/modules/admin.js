@@ -1,222 +1,169 @@
-// وحدة لوحة التحكم والموافقات الإدارية وتصفية الإعلانات والروابط والمستخدمين
+// Telega.ads - Admin Dashboard & System Management Module
 
-(function () {
+window.AdminModule = {
   /**
-   * تحميل بيانات لوحة المسؤول بالكامل
+   * تحميل بيانات لوحة تحكم الإدارة بالكامل
    */
-  async function loadAdminData() {
+  loadAdminData: async function() {
     if (!window.isUserAdmin) return;
 
     try {
-      let data = null;
-      if (window.API && typeof window.API.get === 'function') {
-        data = await window.API.get('/api/admin/dashboard');
-      } else if (typeof window.safeFetch === 'function') {
-        const res = await window.safeFetch('/api/admin/dashboard');
-        if (res && res.ok) data = await res.json().catch(() => ({}));
-      }
-
+      const data = await window.API.loadAdminData();
       if (data) {
         const totalUsersEl = document.getElementById('admin-total-users');
         const totalPendingEl = document.getElementById('admin-total-pending');
 
         if (totalUsersEl) totalUsersEl.innerText = data.totalUsers || 0;
-        if (totalPendingEl) totalPendingEl.innerText = `$${Number(data.totalPendingBalance || 0).toFixed(2)}`;
+        if (totalPendingEl) totalPendingEl.innerText = `$${(data.totalPendingBalance || 0).toFixed(2)}`;
 
-        if (data.pendingDeposits) renderAdminDeposits(data.pendingDeposits);
-        if (data.pendingWithdraws) renderAdminWithdraws(data.pendingWithdraws);
-        if (data.users) renderAdminUsers(data.users);
-        if (data.links) renderAdminLinks(data.links);
-        if (data.ads) renderAdminAds(data.ads);
+        if (data.pendingDeposits) this.renderAdminDeposits(data.pendingDeposits);
+        if (data.pendingWithdraws) this.renderAdminWithdraws(data.pendingWithdraws);
+        if (data.users) this.renderAdminUsers(data.users);
+        if (data.links) this.renderAdminLinks(data.links);
+        if (data.ads) this.renderAdminAds(data.ads);
       }
     } catch (err) {
       console.error("Admin data error:", err);
     }
-  }
+  },
 
   /**
    * عرض طلبات الإيداع المعلقة
    */
-  function renderAdminDeposits(list) {
+  renderAdminDeposits: function(list) {
     const c = document.getElementById('admin-deposits-list');
     if (!c) return;
     if (!list || !list.length) { 
-      c.innerHTML = '<p style="color:var(--text-muted); font-size: 12px; text-align: center;">لا توجد طلبات إيداع معلقة</p>'; 
+      c.innerHTML = '<p style="color:var(--text-muted);">لا توجد طلبات إيداع معلقة</p>'; 
       return; 
     }
-    c.innerHTML = list.map(d => {
-      const depId = d._id || d.id;
-      const tx = d.txid || d.txHash || 'N/A';
-      return `
-        <div style="background:#070a12; padding:10px; border-radius:10px; margin-bottom:8px; border:1px solid var(--card-border);">
-          <div style="font-size:12px; color:var(--text);"><b>مستخدم:</b> ${d.userId || d.telegramId} | <b>المبلغ:</b> <span style="color:var(--success);">$${d.amount}</span></div>
-          <div style="font-size:10px; color:var(--text-muted); word-break:break-all; margin: 4px 0;"><b>TxID:</b> ${tx}</div>
-          <div style="margin-top:6px; display:flex; gap:6px;">
-            <button class="btn-small btn-success" onclick="processAdminAction('deposit', '${depId}', 'approve')">قبول</button>
-            <button class="btn-small btn-danger" onclick="processAdminAction('deposit', '${depId}', 'reject')">رفض</button>
-          </div>
+    c.innerHTML = list.map(d => `
+      <div style="background:#070a12; padding:10px; border-radius:10px; margin-bottom:8px; border:1px solid var(--card-border);">
+        <div><b>مستخدم:</b> ${d.userId} | <b>المبلغ:</b> $${d.amount}</div>
+        <div style="font-size:10px; color:var(--text-muted); word-break:break-all;"><b>TxID:</b> ${d.txid || d.txHash}</div>
+        <div style="margin-top:6px;">
+          <button class="btn-small btn-success" onclick="window.AdminModule.processAdminAction('deposit', '${d._id}', 'approve')">قبول</button>
+          <button class="btn-small btn-danger" onclick="window.AdminModule.processAdminAction('deposit', '${d._id}', 'reject')">رفض</button>
         </div>
-      `;
-    }).join('');
-  }
+      </div>
+    `).join('');
+  },
 
   /**
    * عرض طلبات السحب المعلقة
    */
-  function renderAdminWithdraws(list) {
+  renderAdminWithdraws: function(list) {
     const c = document.getElementById('admin-withdraws-list');
     if (!c) return;
     if (!list || !list.length) { 
-      c.innerHTML = '<p style="color:var(--text-muted); font-size: 12px; text-align: center;">لا توجد طلبات سحب معلقة</p>'; 
+      c.innerHTML = '<p style="color:var(--text-muted);">لا توجد طلبات سحب معلقة</p>'; 
       return; 
     }
-    c.innerHTML = list.map(w => {
-      const withId = w._id || w.id;
-      return `
-        <div style="background:#070a12; padding:10px; border-radius:10px; margin-bottom:8px; border:1px solid var(--card-border);">
-          <div style="font-size:12px; color:var(--text);"><b>مستخدم:</b> ${w.userId || w.telegramId} | <b>المبلغ:</b> <span style="color:var(--warning);">$${w.amount}</span></div>
-          <div style="font-size:10px; color:var(--text-muted); word-break:break-all; margin: 4px 0;"><b>المحفظة:</b> ${w.wallet}</div>
-          <div style="margin-top:6px; display:flex; gap:6px;">
-            <button class="btn-small btn-success" onclick="processAdminAction('withdraw', '${withId}', 'approve')">تأكيد الدفع</button>
-            <button class="btn-small btn-danger" onclick="processAdminAction('withdraw', '${withId}', 'reject')">إلغاء الطلب</button>
-          </div>
+    c.innerHTML = list.map(w => `
+      <div style="background:#070a12; padding:10px; border-radius:10px; margin-bottom:8px; border:1px solid var(--card-border);">
+        <div><b>مستخدم:</b> ${w.userId} | <b>المبلغ:</b> $${w.amount}</div>
+        <div style="font-size:10px; color:var(--text-muted); word-break:break-all;"><b>المحفظة:</b> ${w.wallet}</div>
+        <div style="margin-top:6px;">
+          <button class="btn-small btn-success" onclick="window.AdminModule.processAdminAction('withdraw', '${w._id}', 'approve')">تأكيد الدفع</button>
+          <button class="btn-small btn-danger" onclick="window.AdminModule.processAdminAction('withdraw', '${w._id}', 'reject')">إلغاء الطلب</button>
         </div>
-      `;
-    }).join('');
-  }
+      </div>
+    `).join('');
+  },
 
   /**
-   * عرض إدارة المستخدمين
+   * عرض قائمة مستخدمي النظام
    */
-  function renderAdminUsers(list) {
+  renderAdminUsers: function(list) {
     const c = document.getElementById('admin-users-list');
     if (!c) return;
     if (!list || !list.length) { 
-      c.innerHTML = '<p style="color:var(--text-muted); font-size: 12px; text-align: center;">لا يوجد مستخدمين</p>'; 
+      c.innerHTML = '<p style="color:var(--text-muted);">لا يوجد مستخدمين</p>'; 
       return; 
     }
-    c.innerHTML = list.map(u => {
-      const userId = u._id || u.telegramId;
-      const isBlocked = u.isBlocked || u.status === 'blocked';
-      return `
-        <div style="background:#070a12; padding:10px; border-radius:8px; margin-bottom:6px; font-size:11px; display:flex; justify-style:space-between; align-items:center; border:1px solid var(--card-border);">
-          <div>
-            <b>ID:</b> ${u.telegramId} | <b>المتاح:</b> $${Number(u.availableBalance||0).toFixed(2)} | <b>المعلق:</b> $${Number(u.pendingBalance||0).toFixed(2)}
-          </div>
-          <div>
-            <button class="btn-small ${isBlocked ? 'btn-success' : 'btn-danger'}" onclick="processAdminAction('user', '${userId}', '${isBlocked ? 'unblock' : 'block'}')">
-              ${isBlocked ? 'إلغاء الحظر' : 'حظر'}
-            </button>
-          </div>
-        </div>
-      `;
-    }).join('');
-  }
+    c.innerHTML = list.map(u => `
+      <div style="background:#070a12; padding:8px; border-radius:8px; margin-bottom:6px; font-size:11px;">
+        <b>ID:</b> ${u.telegramId} | <b>المتاح:</b> $${(u.availableBalance||0).toFixed(2)} | <b>المعلق:</b> $${(u.pendingBalance||0).toFixed(2)}
+      </div>
+    `).join('');
+  },
 
   /**
-   * عرض الروابط وإدارتها
+   * عرض قائمة روابط المنصة
    */
-  function renderAdminLinks(list) {
+  renderAdminLinks: function(list) {
     const c = document.getElementById('admin-links-list');
     if (!c) return;
     if (!list || !list.length) { 
-      c.innerHTML = '<p style="color:var(--text-muted); font-size: 12px; text-align: center;">لا توجد روابط</p>'; 
+      c.innerHTML = '<p style="color:var(--text-muted);">لا توجد روابط</p>'; 
       return; 
     }
-    c.innerHTML = list.map(l => {
-      const linkId = l._id || l.shortCode;
-      return `
-        <div style="background:#070a12; padding:8px; border-radius:8px; margin-bottom:6px; font-size:11px; display:flex; justify-content:space-between; align-items:center; border:1px solid var(--card-border);">
-          <div>
-            <b>كود:</b> ${l.shortCode} | <b>الزيارات:</b> ${l.views||0} | <b>الرابط:</b> ${l.originalUrl || l.targetUrl || ''}
-          </div>
-          <button class="btn-small btn-danger" onclick="processAdminAction('link', '${linkId}', 'delete')">حذف المخالف</button>
-        </div>
-      `;
-    }).join('');
-  }
+    c.innerHTML = list.map(l => `
+      <div style="background:#070a12; padding:8px; border-radius:8px; margin-bottom:6px; font-size:11px;">
+        <b>كود:</b> ${l.shortCode} | <b>الزيارات:</b> ${l.views||0}
+      </div>
+    `).join('');
+  },
 
   /**
-   * عرض الإعلانات وإدارتها
+   * عرض قائمة إعلانات المنصة
    */
-  function renderAdminAds(list) {
+  renderAdminAds: function(list) {
     const c = document.getElementById('admin-ads-list');
     if (!c) return;
     if (!list || !list.length) { 
-      c.innerHTML = '<p style="color:var(--text-muted); font-size: 12px; text-align: center;">لا توجد إعلانات</p>'; 
+      c.innerHTML = '<p style="color:var(--text-muted);">لا توجد إعلانات</p>'; 
       return; 
     }
-    const escapeHTML = (str) => {
-      if (window.UI && typeof window.UI.escapeHTML === 'function') return window.UI.escapeHTML(str);
-      return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    };
-
-    c.innerHTML = list.map(a => {
-      const adId = a._id || a.id;
-      return `
-        <div style="background:#070a12; padding:8px; border-radius:8px; margin-bottom:6px; font-size:11px; display:flex; justify-content:space-between; align-items:center; border:1px solid var(--card-border);">
-          <div>
-            <b>عنوان:</b> ${escapeHTML(a.title)} | <b>الميزانية:</b> $${a.budget || a.totalBudget || 0}
-          </div>
-          <button class="btn-small btn-danger" onclick="processAdminAction('ad', '${adId}', 'delete')">حذف الإعلان</button>
-        </div>
-      `;
-    }).join('');
-  }
+    const escapeFn = window.UI ? window.UI.escapeHTML : (s => s);
+    c.innerHTML = list.map(a => `
+      <div style="background:#070a12; padding:8px; border-radius:8px; margin-bottom:6px; font-size:11px;">
+        <b>عنوان:</b> ${escapeFn(a.title)} | <b>الميزانية:</b> $${a.budget}
+      </div>
+    `).join('');
+  },
 
   /**
-   * تنفيذ الإجراءات الإدارية الموحدة
+   * تنفيذ الإجراء الإداري على الطلبات
    */
-  async function processAdminAction(type, itemId, action) {
-    const showToast = (msg, typeMsg = 'info') => {
-      if (window.UI && typeof window.UI.showToast === 'function') window.UI.showToast(msg, typeMsg);
-      else if (typeof window.showToast === 'function') window.showToast(msg);
-      else alert(msg);
-    };
-
+  processAdminAction: async function(type, itemId, action) {
     try {
-      let resOk = false;
-      const payload = { id: itemId, type, action };
-
-      if (window.API && typeof window.API.post === 'function') {
-        const res = await window.API.post(`/api/admin/${type}/${action}`, payload);
-        resOk = !!(res && (res.success || res.ok));
-      } else if (typeof window.safeFetch === 'function') {
-        const res = await window.safeFetch(`/api/admin/${type}/${action}`, {
+      let success = false;
+      if (type === 'deposit') {
+        success = await window.API.processAdminDeposit(itemId, action);
+      } else if (type === 'withdraw') {
+        success = await window.API.processAdminWithdraw(itemId, action);
+      } else {
+        const res = await window.API.safeFetch(`/api/admin/${type}/${action}`, {
           method: 'POST',
-          body: payload
+          body: { id: itemId }
         });
-        resOk = !!(res && res.ok);
+        success = res && res.ok;
       }
 
-      if (resOk) {
-        showToast("تم تنفيذ الإجراء الإداري بنجاح", 'success');
-        await loadAdminData();
+      if (success) {
+        if (window.UI && typeof window.UI.showToast === 'function') {
+          window.UI.showToast("تم تنفيذ الإجراء بنجاح");
+        }
+        await this.loadAdminData();
       } else {
-        showToast("فشل تنفيذ الإجراء", 'error');
+        if (window.UI && typeof window.UI.showToast === 'function') {
+          window.UI.showToast("فشل تنفيذ الإجراء");
+        }
       }
     } catch (e) {
-      showToast("خطأ أثناء تنفيذ الإجراء", 'error');
+      if (window.UI && typeof window.UI.showToast === 'function') {
+        window.UI.showToast("خطأ أثناء تنفيذ الإجراء");
+      }
     }
   }
+};
 
-  // تصدير الكائن العام والمكونات للواجهة
-  const AdminModule = {
-    loadAdminData,
-    renderAdminDeposits,
-    renderAdminWithdraws,
-    renderAdminUsers,
-    renderAdminLinks,
-    renderAdminAds,
-    processAdminAction
-  };
-
-  window.AdminModule = AdminModule;
-  window.loadAdminData = loadAdminData;
-  window.renderAdminDeposits = renderAdminDeposits;
-  window.renderAdminWithdraws = renderAdminWithdraws;
-  window.renderAdminUsers = renderAdminUsers;
-  window.renderAdminLinks = renderAdminLinks;
-  window.renderAdminAds = renderAdminAds;
-  window.processAdminAction = processAdminAction;
-})();
+// Global standard helpers mapping for compatibility
+window.loadAdminData = window.AdminModule.loadAdminData.bind(window.AdminModule);
+window.renderAdminDeposits = window.AdminModule.renderAdminDeposits.bind(window.AdminModule);
+window.renderAdminWithdraws = window.AdminModule.renderAdminWithdraws.bind(window.AdminModule);
+window.renderAdminUsers = window.AdminModule.renderAdminUsers.bind(window.AdminModule);
+window.renderAdminLinks = window.AdminModule.renderAdminLinks.bind(window.AdminModule);
+window.renderAdminAds = window.AdminModule.renderAdminAds.bind(window.AdminModule);
+window.processAdminAction = window.AdminModule.processAdminAction.bind(window.AdminModule);
