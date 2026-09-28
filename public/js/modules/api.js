@@ -11,12 +11,14 @@ var bridgeStartTime = Date.now();
 var isUserAdmin = false;
 
 var tg = window.Telegram?.WebApp;
+var currentUser = null;
+window.currentUser = null;
 
 var currentUserTelegramId = null;
 var storedTelegramId = localStorage.getItem('telegramId');
 
-if (tg?.initDataUnsafe?.user?.id) {
-  currentUserTelegramId = String(tg.initDataUnsafe.user.id);
+if (window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
+  currentUserTelegramId = String(window.Telegram.WebApp.initDataUnsafe.user.id);
   localStorage.setItem('telegramId', currentUserTelegramId);
 } else {
   currentUserTelegramId = storedTelegramId || null;
@@ -37,19 +39,15 @@ function getAuthHeaders() {
 }
 
 async function safeFetch(endpoint, options = {}) {
-  const dynamicHeaders = getAuthHeaders();
-  options.headers = Object.assign({}, dynamicHeaders, options.headers || {});
+  options.headers = options.headers || {};
   
   if (!currentUserTelegramId && window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
     currentUserTelegramId = String(window.Telegram.WebApp.initDataUnsafe.user.id);
     localStorage.setItem('telegramId', currentUserTelegramId);
   }
 
-  const initDataStr = window.Telegram?.WebApp?.initData || '';
-
-  if (authToken && (!options.headers['Authorization'] || options.headers['Authorization'] === 'Bearer ')) {
-    options.headers['Authorization'] = `Bearer ${authToken}`;
-  }
+  const dynamicHeaders = getAuthHeaders();
+  options.headers = Object.assign({}, dynamicHeaders, options.headers);
 
   if (currentUserTelegramId) {
     options.headers['x-telegram-id'] = currentUserTelegramId;
@@ -57,6 +55,12 @@ async function safeFetch(endpoint, options = {}) {
     options.headers['x-user-id'] = currentUserTelegramId;
     options.headers['user-id'] = currentUserTelegramId;
   }
+
+  if (authToken && !options.headers['Authorization']) {
+    options.headers['Authorization'] = `Bearer ${authToken}`;
+  }
+
+  const initDataStr = window.Telegram?.WebApp?.initData || '';
 
   if (options.body && typeof options.body === 'object') {
     if (currentUserTelegramId && !options.body.userId && !options.body.telegramId) {
