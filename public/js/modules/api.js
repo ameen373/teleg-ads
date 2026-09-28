@@ -27,21 +27,27 @@ var bridgeDestinationUrl = null;
 var currentShortCode = null;
 var currentLang = localStorage.getItem('appLang') || 'ar';
 
+function getAuthHeaders() {
+  const initData = window.Telegram?.WebApp?.initData || '';
+  return {
+    'Content-Type': 'application/json',
+    'x-telegram-init-data': initData,
+    'Authorization': 'Bearer ' + initData
+  };
+}
+
 async function safeFetch(endpoint, options = {}) {
-  options.headers = options.headers || {};
+  const dynamicHeaders = getAuthHeaders();
+  options.headers = Object.assign({}, dynamicHeaders, options.headers || {});
   
-  if (!currentUserTelegramId && tg?.initDataUnsafe?.user?.id) {
-    currentUserTelegramId = String(tg.initDataUnsafe.user.id);
+  if (!currentUserTelegramId && window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
+    currentUserTelegramId = String(window.Telegram.WebApp.initDataUnsafe.user.id);
     localStorage.setItem('telegramId', currentUserTelegramId);
   }
 
-  const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || '';
-  
-  if (initDataStr) {
-    options.headers['Authorization'] = `Bearer ${initDataStr}`;
-    options.headers['x-telegram-init-data'] = initDataStr;
-    options.headers['telegram-init-data'] = initDataStr;
-  } else if (authToken) {
+  const initDataStr = window.Telegram?.WebApp?.initData || '';
+
+  if (authToken && (!options.headers['Authorization'] || options.headers['Authorization'] === 'Bearer ')) {
     options.headers['Authorization'] = `Bearer ${authToken}`;
   }
 
