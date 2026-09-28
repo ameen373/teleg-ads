@@ -1,5 +1,6 @@
 /**
  * Link Shortener & Link Analytics Router
+ * Project: Telega-Ads Platform
  */
 
 const express = require('express');
@@ -26,12 +27,16 @@ router.get('/user/links', resolveUserId, shortenerController.handleGetUserLinks)
 
 // Toggle Link Active Status
 router.post('/api/links/toggle', resolveUserId, shortenerController.handleToggleLink);
+router.post('/links/toggle', resolveUserId, shortenerController.handleToggleLink);
 
 // Delete Link Endpoints
 router.delete('/api/links/:id', resolveUserId, shortenerController.handleDeleteLink);
+router.delete('/links/:id', resolveUserId, shortenerController.handleDeleteLink);
 router.post('/api/links/delete', resolveUserId, shortenerController.handleDeleteLink);
+router.post('/links/delete', resolveUserId, shortenerController.handleDeleteLink);
 
 // Link Analytics Statistics
 router.get('/api/links/:id/stats', resolveUserId, shortenerController.handleGetLinkStats);
+router.get('/links/:id/stats', resolveUserId, shortenerController.handleGetLinkStats);
 
 module.exports = router;
