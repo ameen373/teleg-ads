@@ -49,15 +49,23 @@ const handleUserData = async (req, res, next) => {
       };
     });
 
-    const isAdmin = Boolean(CONFIG.ADMIN_ID && String(req.user.telegramId).trim() === CONFIG.ADMIN_ID);
+    const userObj = req.user ? req.user.toObject() : {};
+    const isAdmin = Boolean(CONFIG.ADMIN_ID && String(req.user?.telegramId).trim() === CONFIG.ADMIN_ID);
+
     return res.json({ 
       success: true,
+      message: "تم جلب بيانات لوحة التحكم بنجاح",
       userId: targetUserId,
+      pendingBalance: userObj.pendingBalance || 0,
+      availableBalance: userObj.availableBalance || 0,
+      referralEarnings: userObj.referralEarnings || 0,
+      referralCode: userObj.telegramId || targetUserId,
+      walletAddress: userObj.defaultWallet || '',
       user: {
-        ...req.user.toObject(),
+        ...userObj,
         referralsCount
       }, 
-      language: req.user.language || CONFIG.DEFAULT_LANGUAGE,
+      language: req.user?.language || CONFIG.DEFAULT_LANGUAGE,
       links, 
       withdraws, 
       announcements, 
@@ -88,16 +96,17 @@ const handleUserReferrals = async (req, res, next) => {
     await connectDB();
     const targetUserId = req.userId;
     const referrals = await User.find({ referredBy: targetUserId })
-      .select('username telegramId referralEarnings createdAt')
+      .select('username telegramId firstName referralEarnings createdAt')
       .sort({ createdAt: -1 })
       .lean();
 
-    const referralLink = `${CONFIG.OFFICIAL_BOT_URL}?start=${req.user.telegramId}`;
+    const referralLink = `${CONFIG.OFFICIAL_BOT_URL}?start=${req.user?.telegramId || targetUserId}`;
 
     return res.json({
       success: true,
+      message: "تم جلب بيانات الإحالة بنجاح",
       referralsCount: referrals.length,
-      referralEarnings: req.user.referralEarnings || 0,
+      referralEarnings: req.user?.referralEarnings || 0,
       referralLink,
       referrals
     });
@@ -125,17 +134,17 @@ const handleDeposit = async (req, res, next) => {
     let cleanTxid = String(txid || '').trim();
 
     if (amount === undefined || amount === null || amount === '' || isNaN(numAmount) || numAmount < 1) {
-      return res.status(400).json({ success: false, error: 'المبلغ مطلوب والحد الأدنى للإيداع هو $1' });
+      return res.status(400).json({ success: false, message: 'المبلغ مطلوب والحد الأدنى للإيداع هو $1' });
     }
 
     if (!['BEP20', 'TRC20', 'TON'].includes(cleanNetwork)) {
-      return res.status(400).json({ success: false, error: 'يرجى تحديد شبكة صالحة (BEP20, TRC20, TON)' });
+      return res.status(400).json({ success: false, message: 'يرجى تحديد شبكة صالحة (BEP20, TRC20, TON)' });
     }
 
     if (!cleanTxid || cleanTxid === 'null' || cleanTxid === 'undefined' || cleanTxid === '' || cleanTxid === 'NaN') {
       cleanTxid = 'DEP_' + Date.now() + '_' + crypto.randomBytes(6).toString('hex');
     } else if (cleanTxid.length < 3) {
-      return res.status(400).json({ success: false, error: 'معرف المعاملة (TxID / TxHash) غير صالح' });
+      return res.status(400).json({ success: false, message: 'معرف المعاملة (TxID / TxHash) غير صالح' });
     }
 
     let targetUserId = req.userId;
@@ -153,12 +162,12 @@ const handleDeposit = async (req, res, next) => {
     }
 
     if (!targetUserId || !mongoose.Types.ObjectId.isValid(targetUserId)) {
-      return res.status(400).json({ success: false, error: 'معرف المستخدم (userId) مطلوب أو غير صالح' });
+      return res.status(400).json({ success: false, message: 'معرف المستخدم (userId) مطلوب أو غير صالح' });
     }
 
     const userObj = req.user && String(req.user._id) === String(targetUserId) ? req.user : await User.findById(targetUserId);
     if (!userObj) {
-      return res.status(404).json({ success: false, error: 'المستخدم غير موجود في قاعدة البيانات' });
+      return res.status(404).json({ success: false, message: 'المستخدم غير موجود في قاعدة البيانات' });
     }
 
     let deposit = null;
@@ -185,7 +194,7 @@ const handleDeposit = async (req, res, next) => {
           cleanTxid = 'DEP_' + Date.now() + '_' + crypto.randomBytes(6).toString('hex');
           attempts++;
           if (attempts >= 3) {
-            return res.status(400).json({ success: false, error: 'معرف المعاملة (TxID) مسجل مسبقاً، يرجى التأكد من صحة البيانات' });
+            return res.status(400).json({ success: false, message: 'معرف المعاملة (TxID) مسجل مسبقاً، يرجى التأكد من صحة البيانات' });
           }
         } else {
           throw dbErr;
@@ -201,10 +210,10 @@ const handleDeposit = async (req, res, next) => {
       );
     }
 
-    return res.json({ success: true, deposit });
+    return res.json({ success: true, message: "تم تقديم طلب الإيداع بنجاح", deposit });
   } catch (err) {
     logger.error('Error in handleDeposit:', err);
-    return res.status(500).json({ success: false, error: err.message || 'حدث خطأ داخلي أثناء معالجة طلب الإيداع' });
+    return res.status(500).json({ success: false, message: err.message || 'حدث خطأ داخلي أثناء معالجة طلب الإيداع' });
   }
 };
 
@@ -216,20 +225,21 @@ const handleWithdraw = async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
-    const { amount, walletAddress, network } = req.body;
+    const { amount, walletAddress, wallet, network } = req.body;
+    const targetWallet = walletAddress || wallet;
     const numAmount = Number(amount);
 
     if (isNaN(numAmount) || numAmount < CONFIG.MIN_WITHDRAWAL_AMOUNT) {
       await session.abortTransaction();
       return res.status(400).json({
         success: false,
-        error: `الحد الأدنى للسحب هو $${CONFIG.MIN_WITHDRAWAL_AMOUNT}`
+        message: `الحد الأدنى للسحب هو $${CONFIG.MIN_WITHDRAWAL_AMOUNT}`
       });
     }
 
-    if (!walletAddress || String(walletAddress).trim().length < 5) {
+    if (!targetWallet || String(targetWallet).trim().length < 5) {
       await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'عنوان المحفظة غير صالح' });
+      return res.status(400).json({ success: false, message: 'عنوان المحفظة غير صالح' });
     }
 
     const targetUserId = req.userId;
@@ -241,14 +251,14 @@ const handleWithdraw = async (req, res, next) => {
 
     if (!updatedUser) {
       await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'رصيدك المتاح غير كافي لإتمام عملية السحب' });
+      return res.status(400).json({ success: false, message: 'رصيدك المتاح غير كافي لإتمام عملية السحب' });
     }
 
     const withdraw = await Withdraw.create([{
       userId: targetUserId,
-      telegramId: req.user.telegramId,
+      telegramId: req.user?.telegramId,
       amount: numAmount,
-      walletAddress: String(walletAddress).trim(),
+      walletAddress: String(targetWallet).trim(),
       network: network ? String(network).toUpperCase() : 'BEP20',
       status: 'pending'
     }], { session });
@@ -259,7 +269,7 @@ const handleWithdraw = async (req, res, next) => {
     if (adminTgId) {
       sendTelegramNotification(
         adminTgId,
-        `💸 <b>طلب سحب جديد!</b>\nالمستخدم: <code>${req.user.username || targetUserId}</code>\nالمبلغ: <code>$${numAmount}</code>\nالمحفظة: <code>${walletAddress}</code>`
+        `💸 <b>طلب سحب جديد!</b>\nالمستخدم: <code>${req.user?.username || targetUserId}</code>\nالمبلغ: <code>$${numAmount}</code>\nالمحفظة: <code>${targetWallet}</code>`
       );
     }
 
@@ -289,7 +299,7 @@ const handleUserTransactions = async (req, res, next) => {
       ...withdraws.map(w => ({ ...w, type: 'withdraw' }))
     ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-    return res.json({ success: true, transactions });
+    return res.json({ success: true, message: "تم جلب سجل العمليات المالية", transactions, withdrawals: withdraws, deposits });
   } catch (err) {
     next(err);
   }
@@ -301,13 +311,13 @@ const handleUserTransactions = async (req, res, next) => {
 const handleUpdateSettings = async (req, res, next) => {
   try {
     await connectDB();
-    const { language, walletAddress } = req.body;
+    const { language, walletAddress, defaultWallet } = req.body;
     const updateData = {};
     if (language) updateData.language = language;
-    if (walletAddress) updateData.defaultWallet = walletAddress;
+    if (walletAddress || defaultWallet) updateData.defaultWallet = walletAddress || defaultWallet;
 
     const user = await User.findByIdAndUpdate(req.userId, updateData, { new: true });
-    return res.json({ success: true, user });
+    return res.json({ success: true, message: "تم تحديث الإعدادات بنجاح", user });
   } catch (err) {
     next(err);
   }
