@@ -7,7 +7,13 @@ const crypto = require('crypto');
 
 const CONFIG = require('../config/config');
 const connectDB = require('../config/db');
-const { safeRedisGet, safeRedisSet, safeRedisDel } = require('../config/redis');
+const { 
+  safeRedisGet, 
+  safeRedisSet, 
+  safeRedisDel, 
+  checkUniqueness, 
+  banIp 
+} = require('../config/redis');
 const { User, Ad, Link, Impression, ClickSession } = require('../models');
 
 /**
@@ -16,11 +22,16 @@ const { User, Ad, Link, Impression, ClickSession } = require('../models');
 const handleInitClick = async (req, res, next) => {
   try {
     await connectDB();
-    const { shortCode } = req.body;
+    const { shortCode, deviceFingerprint } = req.body;
+    
     if (!shortCode) {
       return res.status(400).json({ success: false, error: 'رمز الرابط مطلوب' });
     }
 
+    const clientIp = req.trafficData?.realIp || req.realIp || req.ip;
+    const userAgent = req.trafficData?.userAgent || req.headers['user-agent'] || '';
+
+    // Fetch Link Data from Cache or DB
     const cachedLink = await safeRedisGet(`link:data:${shortCode}`);
     let link = cachedLink ? JSON.parse(cachedLink) : null;
 
@@ -29,36 +40,45 @@ const handleInitClick = async (req, res, next) => {
       if (!link) {
         return res.status(404).json({ success: false, error: 'الرابط غير موجود أو تم إيقافه' });
       }
-      await safeRedisSet(`link:data:${shortCode}`, JSON.stringify(link), 300);
+      await safeRedisSet(`link:data:${shortCode}`, JSON.stringify(link), 'EX', 300);
     }
 
-    // Select Internal Ad or Fallback to Adsgram Network
+    // Select Internal Active Ad or Fallback to Adsgram Network
     const activeAd = await Ad.findOne({
       status: 'active',
       remainingBudget: { $gte: 0.0015 }
     }).sort({ createdAt: -1 }).lean();
 
     const sessionId = crypto.randomBytes(16).toString('hex');
+    const nonceToken = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
-    const clickSession = new ClickSession({
+    const clickSessionData = {
       sessionId,
       linkId: link._id,
-      publisherUserId: link.userId,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'] || '',
+      userId: link.userId,
+      publisherId: link.userId,
+      ip: clientIp,
+      userAgent,
+      deviceFingerprint: deviceFingerprint || null,
+      nonceToken,
+      bridgeToken: nonceToken,
       adSource: activeAd ? 'internal' : 'adsgram',
       adId: activeAd ? activeAd._id : null,
+      isVerified: false,
       expiresAt
-    });
+    };
 
+    const clickSession = new ClickSession(clickSessionData);
     await clickSession.save();
-    await safeRedisSet(`session:${sessionId}`, JSON.stringify(clickSession), 900);
+
+    await safeRedisSet(`session:${sessionId}`, JSON.stringify(clickSessionData), 'EX', 900);
 
     return res.json({
       success: true,
       sessionId,
-      requiredDelay: 5,
+      nonceToken,
+      requiredDelay: 5, // Minimum delay required for human validation (seconds)
       adConfig: activeAd ? {
         type: 'internal',
         title: activeAd.title,
@@ -82,12 +102,19 @@ const handleImpression = async (req, res, next) => {
   try {
     sessionDb.startTransaction();
 
-    const { sessionId } = req.body;
-    if (!sessionId) {
+    const { sessionId, nonceToken, deviceFingerprint, interactionTime } = req.body;
+    const clientIp = req.trafficData?.realIp || req.realIp || req.ip;
+    const userAgent = req.trafficData?.userAgent || req.headers['user-agent'] || '';
+    const country = req.trafficData?.country || 'XX';
+
+    if (!sessionId || (!nonceToken && !req.body.bridgeToken)) {
       await sessionDb.abortTransaction();
-      return res.status(400).json({ success: false, error: 'معرف الجلسة مطلوب' });
+      return res.status(400).json({ success: false, error: 'بيانات الجلسة أو التوكين غير مكتملة' });
     }
 
+    const tokenToValidate = nonceToken || req.body.bridgeToken;
+
+    // 1. Fetch Session
     const cachedSession = await safeRedisGet(`session:${sessionId}`);
     let clickSession = cachedSession ? JSON.parse(cachedSession) : null;
 
@@ -99,10 +126,28 @@ const handleImpression = async (req, res, next) => {
       }
     }
 
+    // 2. Anti-Replay & Token Match Checks
+    if (clickSession.nonceToken !== tokenToValidate && clickSession.bridgeToken !== tokenToValidate) {
+      await sessionDb.abortTransaction();
+      await banIp(clientIp, 86400, 'Invalid Nonce Token submission');
+      return res.status(403).json({ success: false, error: 'رمز التحقق المعاملاتي غير مطابق' });
+    }
+
     if (clickSession.isVerified) {
       await sessionDb.abortTransaction();
       return res.status(400).json({ success: false, error: 'تم احتساب هذه النقرة مسبقاً' });
     }
+
+    // 3. Human Interaction Time Validation (Min 3 Seconds)
+    const timeSpent = Number(interactionTime) || 0;
+    if (timeSpent < 3) {
+      await sessionDb.abortTransaction();
+      return res.status(400).json({ success: false, error: 'تفاعل بشري غير كافٍ قبل تخطي الإعلان' });
+    }
+
+    // 4. IP & Fingerprint Uniqueness Check
+    const effectiveFingerprint = deviceFingerprint || clickSession.deviceFingerprint;
+    const uniqueCheck = await checkUniqueness(clientIp, effectiveFingerprint, 86400);
 
     const link = await Link.findById(clickSession.linkId).populate('userId').session(sessionDb);
     if (!link) {
@@ -116,25 +161,32 @@ const handleImpression = async (req, res, next) => {
     // Record Impression Document
     await Impression.create([{
       linkId: link._id,
-      publisherUserId: link.userId ? link.userId._id : null,
-      publisherTelegramId: link.publisherTelegramId,
+      userId: link.userId ? link.userId._id : null,
+      publisherId: link.userId ? link.userId._id : null,
+      publisherTelegramId: link.publisherTelegramId || (link.userId ? link.userId.telegramId : null),
       adSource: clickSession.adSource,
       adId: clickSession.adId,
-      revenueGenerated: publisherShare,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'] || '',
-      isValid: true
+      publisherEarnings: publisherShare,
+      cost: costPerImpression,
+      viewerIp: clientIp,
+      ip: clientIp,
+      deviceFingerprint: effectiveFingerprint,
+      country,
+      status: uniqueCheck.isUnique ? 'valid' : 'flagged',
+      userAgent,
+      isUnique: uniqueCheck.isUnique
     }], { session: sessionDb });
 
     // Update Link Stats
     await Link.findByIdAndUpdate(
       link._id,
-      { $inc: { views: 1, validImpressions: 1 } },
+      { $inc: { views: 1, validImpressions: uniqueCheck.isUnique ? 1 : 0 } },
       { session: sessionDb }
     );
 
     const linkOwnerId = link.userId ? link.userId._id : null;
 
+    // Deduct Advertiser Budget if Internal Ad
     if (clickSession.adSource === 'internal' && clickSession.adId) {
       const ad = await Ad.findById(clickSession.adId).session(sessionDb);
       if (ad) {
@@ -147,8 +199,8 @@ const handleImpression = async (req, res, next) => {
       }
     }
 
-    // Process Referral Bonus Distribution
-    if (linkOwnerId && link.userId && link.userId.referredBy) {
+    // Process Referral Bonus Distribution (10%)
+    if (uniqueCheck.isUnique && linkOwnerId && link.userId && link.userId.referredBy) {
       const refBonus = Math.round((publisherShare * 0.10 + Number.EPSILON) * 100000) / 100000;
       publisherShare = Math.round((publisherShare - refBonus + Number.EPSILON) * 100000) / 100000;
 
@@ -160,7 +212,7 @@ const handleImpression = async (req, res, next) => {
     }
 
     // Credit Publisher Balance
-    if (linkOwnerId) {
+    if (uniqueCheck.isUnique && linkOwnerId) {
       await User.findByIdAndUpdate(
         linkOwnerId,
         { $inc: { availableBalance: publisherShare, 'statsSummary.totalEarnings': publisherShare } },
@@ -171,7 +223,7 @@ const handleImpression = async (req, res, next) => {
     // Update Session Status
     await ClickSession.updateOne(
       { sessionId },
-      { $set: { isVerified: true, verifiedAt: new Date() } },
+      { $set: { isVerified: true, verifiedAt: new Date(), interactionTime: timeSpent } },
       { session: sessionDb }
     );
 
@@ -181,8 +233,8 @@ const handleImpression = async (req, res, next) => {
     return res.json({
       success: true,
       targetUrl: link.targetUrl,
-      counted: true,
-      publisherEarnings: publisherShare
+      counted: uniqueCheck.isUnique,
+      publisherEarnings: uniqueCheck.isUnique ? publisherShare : 0
     });
   } catch (err) {
     await sessionDb.abortTransaction();
@@ -194,5 +246,7 @@ const handleImpression = async (req, res, next) => {
 
 module.exports = {
   handleInitClick,
-  handleImpression
+  handleImpression,
+  verifyClick: handleInitClick,
+  verifyImpression: handleImpression
 };
