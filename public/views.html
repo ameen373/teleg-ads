@@ -7,6 +7,10 @@
   
   <!-- External CSS Integration -->
   <link rel="stylesheet" href="/css/style.css">
+
+  <!-- Official Telegram WebApp SDK & Ads SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 </head>
 <body>
 
@@ -348,25 +352,31 @@
     </div>
   </div>
 
-  <!-- 1. مكتبة تليجرام الرسمية والإعلانات -->
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+<!-- 1. ملفات الترجمة واللغة (موجودة سابقاً) -->
+<script src="/js/language/i18n.js"></script>
+<script src="/js/language/ar.js"></script>
+<script src="/js/language/en.js"></script>
 
-  <!-- 2. ملفات الترجمة واللغات -->
-  <script src="/js/language/i18n.js"></script>
-  <script src="/js/language/ar.js"></script>
-  <script src="/js/language/en.js"></script>
+<!-- 2. موديول الواجهة والتنبيهات (UI) -->
+<script src="/js/modules/ui.js"></script>
 
-  <!-- 3. الموديولات الأساسية بترتيب الاعتمادية الصحيح -->
-  <script src="/js/modules/api.js"></script>
-  <script src="/js/modules/ui.js"></script>
-  <script src="/js/modules/ads.js"></script>
-  <script src="/js/modules/shortener.js"></script>
-  <script src="/js/modules/wallet.js"></script>
-  <script src="/js/modules/admin.js"></script>
+<!-- 3. موديول الاتصال بالخادم والتوثيق (API) -->
+<script src="/js/modules/api.js"></script>
 
-  <!-- 4. الملف الرئيسي للربط والتشغيل في النهاية تماماً -->
-  <script src="/js/app.js"></script>
+<!-- 4. موديول الإدارة (Admin) -->
+<script src="/js/modules/admin.js"></script>
 
+<!-- 5. موديول الحملات الإعلانية (Ads) -->
+<script src="/js/modules/ads.js"></script>
+
+<!-- 6. موديول اختصار الروابط (Shortener) -->
+<script src="/js/modules/shortener.js"></script>
+
+<!-- 7. موديول المحفظة والإحالات (Wallet) -->
+<script src="/js/modules/wallet.js"></script>
+
+<!-- 8. الملف الرئيسي والتشغيلي (App) -->
+<script src="/js/app.js"></script>
+  
 </body>
 </html>
