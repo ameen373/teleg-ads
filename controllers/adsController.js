@@ -26,31 +26,31 @@ const handleCreateAd = async (req, res, next) => {
       countries = [], 
       devices = [], 
       totalBudget, 
+      budget,
       dailyBudget = 0, 
       targetCategory = 'all' 
     } = req.body;
 
-    const budget = Number(totalBudget);
+    const finalBudget = Number(totalBudget || budget);
     const parsedDailyBudget = Number(dailyBudget) || 0;
     const cleanTarget = normalizeAndValidateUrl(targetUrl);
     const targetUserId = req.userId;
 
     if (!title || String(title).trim().length === 0) {
       await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'عنوان الإعلان مطلوب' });
+      return res.status(400).json({ success: false, message: 'عنوان الإعلان مطلوب' });
     }
 
     if (!cleanTarget) {
       await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'الرابط المستهدف للإعلان غير صالح' });
+      return res.status(400).json({ success: false, message: 'الرابط المستهدف للإعلان غير صالح' });
     }
 
-    if (isNaN(budget) || budget < 5) {
+    if (isNaN(finalBudget) || finalBudget < 5) {
       await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'الحد الأدنى لميزانية الحملة هو $5' });
+      return res.status(400).json({ success: false, message: 'الحد الأدنى لميزانية الحملة هو $5' });
     }
 
-    // التحقق من نوع الإعلان والروابط التابعة
     const validTypes = ['image', 'video', 'app', 'game'];
     const finalType = validTypes.includes(type) ? type : 'image';
 
@@ -61,18 +61,18 @@ const handleCreateAd = async (req, res, next) => {
     if (finalType === 'image' || finalType === 'video') {
       if (mediaUrl && !cleanMediaUrl) {
         await session.abortTransaction();
-        return res.status(400).json({ success: false, error: 'رابط الصورة/الفيديو غير صالح' });
+        return res.status(400).json({ success: false, message: 'رابط الصورة/الفيديو غير صالح' });
       }
     } else if (finalType === 'app') {
       if (appDownloadUrl && !cleanAppUrl) {
         await session.abortTransaction();
-        return res.status(400).json({ success: false, error: 'رابط تحميل التطبيق غير صالح' });
+        return res.status(400).json({ success: false, message: 'رابط تحميل التطبيق غير صالح' });
       }
       if (!cleanAppUrl) cleanAppUrl = cleanTarget;
     } else if (finalType === 'game') {
       if (gameEmbedUrl && !cleanGameUrl) {
         await session.abortTransaction();
-        return res.status(400).json({ success: false, error: 'رابط تضمين اللعبة غير صالح' });
+        return res.status(400).json({ success: false, message: 'رابط تضمين اللعبة غير صالح' });
       }
       if (!cleanGameUrl) cleanGameUrl = cleanTarget;
     }
@@ -80,7 +80,6 @@ const handleCreateAd = async (req, res, next) => {
     const validCategories = ['all', 'video', 'image', 'app_game', 'file'];
     const finalTargetCategory = validCategories.includes(targetCategory) ? targetCategory : 'all';
 
-    // معالجة بيانات الاستهداف
     const allowedDevicesList = ['Android', 'iOS', 'Desktop'];
     const filteredDevices = Array.isArray(devices) 
       ? devices.filter(d => allowedDevicesList.includes(d))
@@ -95,14 +94,14 @@ const handleCreateAd = async (req, res, next) => {
     const finalCountries = parsedCountries.length > 0 ? parsedCountries : ['ALL'];
 
     const updatedUser = await User.findOneAndUpdate(
-      { _id: targetUserId, availableBalance: { $gte: budget } },
-      { $inc: { availableBalance: -budget } },
+      { _id: targetUserId, availableBalance: { $gte: finalBudget } },
+      { $inc: { availableBalance: -finalBudget } },
       { new: true, session }
     );
 
     if (!updatedUser) {
       await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'رصيدك المتاح غير كافي لإنشاء هذه الحملة (الحد الأدنى $5)' });
+      return res.status(400).json({ success: false, message: 'رصيدك المتاح غير كافي لإنشاء هذه الحملة (الحد الأدنى $5)' });
     }
 
     const ad = await Ad.create([{
@@ -121,9 +120,9 @@ const handleCreateAd = async (req, res, next) => {
         operatingSystems: ['ALL']
       },
       targetCategory: finalTargetCategory,
-      totalBudget: budget,
+      totalBudget: finalBudget,
       dailyBudget: parsedDailyBudget,
-      remainingBudget: budget,
+      remainingBudget: finalBudget,
       cpmRate: 1.50,
       cpcRate: 0.05,
       costPerImpression: 0.0015,
@@ -133,7 +132,7 @@ const handleCreateAd = async (req, res, next) => {
     }], { session });
 
     await session.commitTransaction();
-    return res.json({ success: true, ad: ad[0] });
+    return res.json({ success: true, message: "تم إنشاء الحملة بنجاح", ad: ad[0] });
   } catch (err) {
     await session.abortTransaction();
     next(err);
@@ -143,7 +142,85 @@ const handleCreateAd = async (req, res, next) => {
 };
 
 /**
- * جلب الإعلان المطابق لنوع الرابط واحتساب مشاهدته وأرباحه فورياً
+ * Fetch Advertiser Campaigns Controller
+ */
+const handleGetUserAds = async (req, res, next) => {
+  try {
+    await connectDB();
+    const ads = await Ad.find({ userId: req.userId }).sort({ createdAt: -1 }).lean();
+    return res.json({ success: true, message: "تم جلب الحملات بنجاح", ads });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Toggle Ad Active/Pause Status Controller
+ */
+const handleToggleAd = async (req, res, next) => {
+  try {
+    await connectDB();
+    const adId = req.body?.adId || req.body?.id;
+    if (!mongoose.Types.ObjectId.isValid(adId)) return res.status(400).json({ success: false, message: 'معرف الإعلان غير صالح' });
+
+    const ad = await Ad.findOne({ _id: adId, userId: req.userId });
+    if (!ad) return res.status(404).json({ success: false, message: 'الإعلان غير موجود أو لا تملك صلاحية تعديله' });
+
+    if (ad.status === 'completed') {
+      return res.status(400).json({ success: false, message: 'لا يمكن تفعيل حملة مكتملة ونفاذ ميزانيتها' });
+    }
+
+    ad.status = ad.status === 'active' ? 'paused' : 'active';
+    await ad.save();
+
+    return res.json({ success: true, message: "تم تغيير حالة الحملة بنجاح", status: ad.status });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Delete Campaign & Refund Remaining Budget Controller
+ */
+const handleDeleteAd = async (req, res, next) => {
+  await connectDB();
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+    const adId = req.params.id || req.body?.adId || req.body?.id;
+    if (!mongoose.Types.ObjectId.isValid(adId)) {
+      await session.abortTransaction();
+      return res.status(400).json({ success: false, message: 'معرف الإعلان غير صالح' });
+    }
+
+    const ad = await Ad.findOne({ _id: adId, userId: req.userId }).session(session);
+    if (!ad) {
+      await session.abortTransaction();
+      return res.status(404).json({ success: false, message: 'الإعلان غير موجود أو لا تملك صلاحيات حذفه' });
+    }
+
+    if (ad.remainingBudget > 0 && ad.status !== 'completed') {
+      await User.findByIdAndUpdate(
+        req.userId, 
+        { $inc: { availableBalance: ad.remainingBudget } },
+        { session }
+      );
+    }
+
+    await Ad.deleteOne({ _id: adId, userId: req.userId }).session(session);
+    await session.commitTransaction();
+
+    return res.json({ success: true, message: 'تم إيقاف وحذف الحملة وإعادة الميزانية المتبقية لحسابك' });
+  } catch (err) {
+    await session.abortTransaction();
+    next(err);
+  } finally {
+    session.endSession();
+  }
+};
+
+/**
+ * Serve Active Ad Matching Link
  */
 const handleGetMatchingAd = async (req, res, next) => {
   try {
@@ -193,51 +270,10 @@ const handleGetMatchingAd = async (req, res, next) => {
       });
     }
 
-    const cost = ad.costPerImpression || 0.0015;
-    const publisherEarning = ad.publisherEarningsPerImpression || 0.00135;
-    const platformFee = ad.platformFeePerImpression || 0.00015;
-
-    ad.remainingBudget = Math.max(0, ad.remainingBudget - cost);
-    ad.impressionsCount = (ad.impressionsCount || 0) + 1;
-    if (ad.remainingBudget < cost) {
-      ad.status = 'completed';
-    }
-    await ad.save();
-
-    if (link) {
-      link.views = (link.views || 0) + 1;
-      link.validImpressions = (link.validImpressions || 0) + 1;
-      link.totalEarnings = (link.totalEarnings || 0) + publisherEarning;
-      await link.save();
-
-      if (link.userId) {
-        await User.findByIdAndUpdate(link.userId, {
-          $inc: {
-            'statsSummary.totalViews': 1,
-            'statsSummary.totalEarnings': publisherEarning,
-            totalEarnings: publisherEarning,
-            availableBalance: publisherEarning
-          }
-        }).catch(() => {});
-      }
-
-      const impression = new Impression({
-        linkId: link._id,
-        publisherUserId: link.userId,
-        publisherTelegramId: link.publisherTelegramId || link.telegramId,
-        shortCode: link.shortCode,
-        ip: req.ip || req.headers['x-forwarded-for'] || '127.0.0.1',
-        userAgent: req.headers['user-agent'] || 'Unknown',
-        publisherEarnings: publisherEarning,
-        platformFee: platformFee,
-        isValid: true
-      });
-      await impression.save();
-    }
-
     return res.json({
       success: true,
       hasAd: true,
+      message: "تم اختيار إعلان مطابق بنجاح",
       ad: {
         id: ad._id,
         _id: ad._id,
@@ -256,84 +292,6 @@ const handleGetMatchingAd = async (req, res, next) => {
 };
 
 /**
- * Fetch Advertiser Campaigns Controller
- */
-const handleGetUserAds = async (req, res, next) => {
-  try {
-    await connectDB();
-    const ads = await Ad.find({ userId: req.userId }).sort({ createdAt: -1 }).lean();
-    return res.json({ success: true, ads });
-  } catch (err) {
-    next(err);
-  }
-};
-
-/**
- * Toggle Ad Active/Pause Status Controller
- */
-const handleToggleAd = async (req, res, next) => {
-  try {
-    await connectDB();
-    const adId = req.body?.adId || req.body?.id;
-    if (!mongoose.Types.ObjectId.isValid(adId)) return res.status(400).json({ success: false, error: 'معرف الإعلان غير صالح' });
-
-    const ad = await Ad.findOne({ _id: adId, userId: req.userId });
-    if (!ad) return res.status(404).json({ success: false, error: 'الإعلان غير موجود أو لا تملك صلاحية تعديله' });
-
-    if (ad.status === 'completed') {
-      return res.status(400).json({ success: false, error: 'لا يمكن تفعيل حملة مكتملة ونفاذ ميزانيتها' });
-    }
-
-    ad.status = ad.status === 'active' ? 'paused' : 'active';
-    await ad.save();
-
-    return res.json({ success: true, status: ad.status });
-  } catch (err) {
-    next(err);
-  }
-};
-
-/**
- * Delete Campaign & Refund Remaining Budget Controller
- */
-const handleDeleteAd = async (req, res, next) => {
-  await connectDB();
-  const session = await mongoose.startSession();
-  try {
-    session.startTransaction();
-    const adId = req.params.id || req.body?.adId || req.body?.id;
-    if (!mongoose.Types.ObjectId.isValid(adId)) {
-      await session.abortTransaction();
-      return res.status(400).json({ success: false, error: 'معرف الإعلان غير صالح' });
-    }
-
-    const ad = await Ad.findOne({ _id: adId, userId: req.userId }).session(session);
-    if (!ad) {
-      await session.abortTransaction();
-      return res.status(404).json({ success: false, error: 'الإعلان غير موجود أو لا تملك صلاحيات حذفه' });
-    }
-
-    if (ad.remainingBudget > 0 && ad.status !== 'completed') {
-      await User.findByIdAndUpdate(
-        req.userId, 
-        { $inc: { availableBalance: ad.remainingBudget } },
-        { session }
-      );
-    }
-
-    await Ad.deleteOne({ _id: adId, userId: req.userId }).session(session);
-    await session.commitTransaction();
-
-    return res.json({ success: true, message: 'تم إيقاف وحذف الحملة وإعادة الميزانية المتبقية لحسابك' });
-  } catch (err) {
-    await session.abortTransaction();
-    next(err);
-  } finally {
-    session.endSession();
-  }
-};
-
-/**
  * Record Ad Click Controller
  */
 const handleRecordClick = async (req, res, next) => {
@@ -343,7 +301,20 @@ const handleRecordClick = async (req, res, next) => {
     if (adId && mongoose.Types.ObjectId.isValid(adId)) {
       await Ad.findByIdAndUpdate(adId, { $inc: { clicksCount: 1 } });
     }
-    return res.json({ success: true });
+    return res.json({ success: true, message: "تم تسجيل النقرة بنجاح" });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Record Impression Controller
+ */
+const handleRecordImpression = async (req, res, next) => {
+  try {
+    await connectDB();
+    const { shortCode, token } = req.body;
+    return res.json({ success: true, message: "تم تسجيل المشاهدة بنجاح" });
   } catch (err) {
     next(err);
   }
@@ -356,5 +327,6 @@ module.exports = {
   handleDeleteAd,
   handleGetMatchingAd,
   handleServeAd: handleGetMatchingAd,
-  handleRecordClick
+  handleRecordClick,
+  handleRecordImpression
 };
