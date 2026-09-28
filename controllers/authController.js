@@ -1,6 +1,5 @@
 /**
  * Authentication & Admin Gateway Controller
- * Handles Telegram WebApp Login & Admin Permission Verification
  */
 
 const mongoose = require('mongoose');
@@ -9,7 +8,6 @@ const jwt = require('jsonwebtoken');
 const CONFIG = require('../config/config');
 const connectDB = require('../config/db');
 const { verifyTelegramData } = require('../utils/telegram');
-const { findOrCreateUser } = require('../utils/userHelpers');
 const { User } = require('../models');
 
 /**
@@ -27,15 +25,14 @@ const handleCheckAdmin = async (req, res, next) => {
     const telegramIdToCheck = telegramUser ? String(telegramUser.id || telegramUser.telegramId).trim() : null;
 
     const isAdmin = Boolean(CONFIG.ADMIN_ID && telegramIdToCheck && telegramIdToCheck === CONFIG.ADMIN_ID);
-    return res.json({ success: true, isAdmin });
+    return res.json({ success: true, message: "تمت مراجعة حالة المدير", isAdmin });
   } catch (err) {
-    return res.json({ success: true, isAdmin: false });
+    return res.json({ success: true, message: "غير مصرح كمدير", isAdmin: false });
   }
 };
 
 /**
  * Telegram Authentication & Token Issuance Gateway Controller
- * Updated with automatic Upsert logic to sync user profile data on login
  */
 const handleLogin = async (req, res, next) => {
   try {
@@ -63,13 +60,11 @@ const handleLogin = async (req, res, next) => {
 
     const { referrerId } = req.body || {};
 
-    // استخراج وتنسيق كافة البيانات الواردة من التليجرام
     const currentUsername = telegramUser?.username || `User_${tgId.slice(-4)}`;
     const currentFirstName = telegramUser?.firstName || telegramUser?.first_name || '';
     const currentLastName = telegramUser?.lastName || telegramUser?.last_name || '';
     const userLanguage = telegramUser?.languageCode || telegramUser?.language_code || CONFIG.DEFAULT_LANGUAGE;
 
-    // بناء كائن التحديث التلقائي (Upsert)
     const updatePayload = {
       telegramId: tgId,
       username: currentUsername,
@@ -78,37 +73,29 @@ const handleLogin = async (req, res, next) => {
       ...(userLanguage && { language: userLanguage })
     };
 
-    const updateOps = {
-      $set: updatePayload
-    };
+    const updateOps = { $set: updatePayload };
 
-    // إضافة الاحالة فقط عند إنشاء حساب جديد (Insert)
     if (referrerId && mongoose.Types.ObjectId.isValid(referrerId)) {
       updateOps.$setOnInsert = { referredBy: referrerId };
     }
 
-    // تنفيذ التحديث التلقائي (Upsert) وحفظ البيانات فوراً
     const user = await User.findOneAndUpdate(
       { telegramId: tgId },
       updateOps,
-      { 
-        new: true, 
-        upsert: true, 
-        setDefaultsOnInsert: true 
-      }
+      { new: true, upsert: true, setDefaultsOnInsert: true }
     );
 
     if (!user) {
       return res.status(400).json({ 
         success: false, 
-        error: 'فشل إنشاء أو تحديث بيانات المستخدم' 
+        message: 'فشل إنشاء أو تحديث بيانات المستخدم' 
       });
     }
 
     if (user.isBanned) {
       return res.status(403).json({ 
         success: false, 
-        error: `حسابك معطل بسبب مخالفة الشروط. التواصل مع الدعم: ${CONFIG.SUPPORT_USERNAME}` 
+        message: `حسابك معطل بسبب مخالفة الشروط. التواصل مع الدعم: ${CONFIG.SUPPORT_USERNAME}` 
       });
     }
 
@@ -120,6 +107,7 @@ const handleLogin = async (req, res, next) => {
 
     return res.json({ 
       success: true, 
+      message: "تم تسجيل الدخول بنجاح",
       token, 
       userId: user._id,
       user, 
