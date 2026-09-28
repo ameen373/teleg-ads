@@ -1,5 +1,5 @@
 /**
- * Traffic Engine Controller (Bridge Page Gateway, Session Creation & Impression Tracking)
+ * Traffic Engine Controller (Session Creation & Impression Tracking)
  */
 
 const mongoose = require('mongoose');
@@ -25,25 +25,23 @@ const handleInitClick = async (req, res, next) => {
     const { shortCode, deviceFingerprint } = req.body;
     
     if (!shortCode) {
-      return res.status(400).json({ success: false, error: 'رمز الرابط مطلوب' });
+      return res.status(400).json({ success: false, message: 'رمز الرابط مطلوب' });
     }
 
     const clientIp = req.trafficData?.realIp || req.realIp || req.ip;
     const userAgent = req.trafficData?.userAgent || req.headers['user-agent'] || '';
 
-    // Fetch Link Data from Cache or DB
     const cachedLink = await safeRedisGet(`link:data:${shortCode}`);
     let link = cachedLink ? JSON.parse(cachedLink) : null;
 
     if (!link) {
       link = await Link.findOne({ shortCode, isActive: true }).lean();
       if (!link) {
-        return res.status(404).json({ success: false, error: 'الرابط غير موجود أو تم إيقافه' });
+        return res.status(404).json({ success: false, message: 'الرابط غير موجود أو تم إيقافه' });
       }
       await safeRedisSet(`link:data:${shortCode}`, JSON.stringify(link), 'EX', 300);
     }
 
-    // Select Internal Active Ad or Fallback to Adsgram Network
     const activeAd = await Ad.findOne({
       status: 'active',
       remainingBudget: { $gte: 0.0015 }
@@ -76,9 +74,10 @@ const handleInitClick = async (req, res, next) => {
 
     return res.json({
       success: true,
+      message: "تم بدء جلسة التوجيه بنجاح",
       sessionId,
       nonceToken,
-      requiredDelay: 5, // Minimum delay required for human validation (seconds)
+      requiredDelay: 5,
       adConfig: activeAd ? {
         type: 'internal',
         title: activeAd.title,
@@ -109,12 +108,11 @@ const handleImpression = async (req, res, next) => {
 
     if (!sessionId || (!nonceToken && !req.body.bridgeToken)) {
       await sessionDb.abortTransaction();
-      return res.status(400).json({ success: false, error: 'بيانات الجلسة أو التوكين غير مكتملة' });
+      return res.status(400).json({ success: false, message: 'بيانات الجلسة أو التوكين غير مكتملة' });
     }
 
     const tokenToValidate = nonceToken || req.body.bridgeToken;
 
-    // 1. Fetch Session
     const cachedSession = await safeRedisGet(`session:${sessionId}`);
     let clickSession = cachedSession ? JSON.parse(cachedSession) : null;
 
@@ -122,43 +120,39 @@ const handleImpression = async (req, res, next) => {
       clickSession = await ClickSession.findOne({ sessionId }).session(sessionDb);
       if (!clickSession) {
         await sessionDb.abortTransaction();
-        return res.status(404).json({ success: false, error: 'جلسة النقرة غير صالحة أو انتهت صلاحيتها' });
+        return res.status(404).json({ success: false, message: 'جلسة النقرة غير صالحة أو انتهت صلاحيتها' });
       }
     }
 
-    // 2. Anti-Replay & Token Match Checks
     if (clickSession.nonceToken !== tokenToValidate && clickSession.bridgeToken !== tokenToValidate) {
       await sessionDb.abortTransaction();
       await banIp(clientIp, 86400, 'Invalid Nonce Token submission');
-      return res.status(403).json({ success: false, error: 'رمز التحقق المعاملاتي غير مطابق' });
+      return res.status(403).json({ success: false, message: 'رمز التحقق المعاملاتي غير مطابق' });
     }
 
     if (clickSession.isVerified) {
       await sessionDb.abortTransaction();
-      return res.status(400).json({ success: false, error: 'تم احتساب هذه النقرة مسبقاً' });
+      return res.status(400).json({ success: false, message: 'تم احتساب هذه النقرة مسبقاً' });
     }
 
-    // 3. Human Interaction Time Validation (Min 3 Seconds)
     const timeSpent = Number(interactionTime) || 0;
     if (timeSpent < 3) {
       await sessionDb.abortTransaction();
-      return res.status(400).json({ success: false, error: 'تفاعل بشري غير كافٍ قبل تخطي الإعلان' });
+      return res.status(400).json({ success: false, message: 'تفاعل بشري غير كافٍ قبل تخطي الإعلان' });
     }
 
-    // 4. IP & Fingerprint Uniqueness Check
     const effectiveFingerprint = deviceFingerprint || clickSession.deviceFingerprint;
     const uniqueCheck = await checkUniqueness(clientIp, effectiveFingerprint, 86400);
 
     const link = await Link.findById(clickSession.linkId).populate('userId').session(sessionDb);
     if (!link) {
       await sessionDb.abortTransaction();
-      return res.status(404).json({ success: false, error: 'الرابط المرتبط بالجلسة غير موجود' });
+      return res.status(404).json({ success: false, message: 'الرابط المرتبط بالجلسة غير موجود' });
     }
 
     let publisherShare = 0.00135;
     let costPerImpression = 0.0015;
 
-    // Record Impression Document
     await Impression.create([{
       linkId: link._id,
       userId: link.userId ? link.userId._id : null,
@@ -177,7 +171,6 @@ const handleImpression = async (req, res, next) => {
       isUnique: uniqueCheck.isUnique
     }], { session: sessionDb });
 
-    // Update Link Stats
     await Link.findByIdAndUpdate(
       link._id,
       { $inc: { views: 1, validImpressions: uniqueCheck.isUnique ? 1 : 0 } },
@@ -186,7 +179,6 @@ const handleImpression = async (req, res, next) => {
 
     const linkOwnerId = link.userId ? link.userId._id : null;
 
-    // Deduct Advertiser Budget if Internal Ad
     if (clickSession.adSource === 'internal' && clickSession.adId) {
       const ad = await Ad.findById(clickSession.adId).session(sessionDb);
       if (ad) {
@@ -199,7 +191,6 @@ const handleImpression = async (req, res, next) => {
       }
     }
 
-    // Process Referral Bonus Distribution (10%)
     if (uniqueCheck.isUnique && linkOwnerId && link.userId && link.userId.referredBy) {
       const refBonus = Math.round((publisherShare * 0.10 + Number.EPSILON) * 100000) / 100000;
       publisherShare = Math.round((publisherShare - refBonus + Number.EPSILON) * 100000) / 100000;
@@ -211,7 +202,6 @@ const handleImpression = async (req, res, next) => {
       );
     }
 
-    // Credit Publisher Balance
     if (uniqueCheck.isUnique && linkOwnerId) {
       await User.findByIdAndUpdate(
         linkOwnerId,
@@ -220,7 +210,6 @@ const handleImpression = async (req, res, next) => {
       );
     }
 
-    // Update Session Status
     await ClickSession.updateOne(
       { sessionId },
       { $set: { isVerified: true, verifiedAt: new Date(), interactionTime: timeSpent } },
@@ -232,6 +221,7 @@ const handleImpression = async (req, res, next) => {
 
     return res.json({
       success: true,
+      message: "تم توثيق الزيارة واحتساب الأرباح بنجاح",
       targetUrl: link.targetUrl,
       counted: uniqueCheck.isUnique,
       publisherEarnings: uniqueCheck.isUnique ? publisherShare : 0
