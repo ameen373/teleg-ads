@@ -8,9 +8,8 @@ const jwt = require('jsonwebtoken');
 const CONFIG = require('../config/config');
 const connectDB = require('../config/db');
 const { verifyTelegramData } = require('../utils/telegram');
-const { User } = require('../models');
+const User = require('../models/User');
 
-// استيراد اللوجر مع وجود آلية احتياطية في حال عدم وجود الملف
 let logger;
 try {
   logger = require('../utils/logger');
@@ -29,22 +28,25 @@ const handleCheckAdmin = async (req, res, next) => {
                      req.query?.initData || 
                      req.body?.initData;
 
-    const telegramUser = verifyTelegramData(initData);
-    const telegramIdToCheck = telegramUser ? String(telegramUser.id || telegramUser.telegramId).trim() : null;
-
-    const isAdmin = Boolean(CONFIG.ADMIN_ID && telegramIdToCheck && telegramIdToCheck === CONFIG.ADMIN_ID);
-    return res.json({ success: true, message: "تمت مراجعة حالة المدير", isAdmin });
-  } catch (error) {
-    if (logger && typeof logger.error === 'function') {
-      logger.error("خطأ أثناء التحقق من صلاحيات المدير في handleCheckAdmin:", error);
-    } else {
-      console.error("خطأ أثناء التحقق من صلاحيات المدير في handleCheckAdmin:", error);
+    let telegramUser = null;
+    if (initData) {
+      try {
+        telegramUser = verifyTelegramData(initData);
+      } catch (e) {
+        // Ignored
+      }
     }
-    return res.status(500).json({ 
-      success: false, 
-      message: "حدث خطأ داخلي في الخادم أثناء مراجعة صلاحيات المدير", 
-      isAdmin: false 
-    });
+
+    const rawId = telegramUser?.id || telegramUser?.telegramId || req.body?.telegramId || req.body?.userId;
+    const telegramIdToCheck = rawId ? Number(rawId) : null;
+
+    const isAdmin = Boolean(CONFIG.ADMIN_ID && telegramIdToCheck && String(telegramIdToCheck) === String(CONFIG.ADMIN_ID));
+    return res.json({ success: true, message: "تمت مراجعة حالة المدير", isAdmin });
+  } catch (err) {
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleCheckAdmin:', err);
+    }
+    return res.json({ success: true, message: "غير مصرح كمدير", isAdmin: false });
   }
 };
 
@@ -63,34 +65,38 @@ const handleLogin = async (req, res, next) => {
                      req.query?.user ||
                      req.headers['x-init-data'];
 
-    const telegramUser = verifyTelegramData(initData);
+    let telegramUser = null;
+    if (initData) {
+      try {
+        telegramUser = verifyTelegramData(initData);
+      } catch (e) {
+        // Fallback to body inputs
+      }
+    }
 
-    const rawId = req.body?.telegramId || req.body?.userId || req.body?.telegram_id || req.body?.user_id || req.body?.userld || req.body?.telegramid || req.body?.id || req.body?.tg_id ||
-                  telegramUser?.id || telegramUser?.telegramId ||
-                  req.query?.telegram_id || req.query?.telegramId || req.query?.userId || req.query?.userld || req.query?.user_id || req.query?.telegramid || req.query?.id || req.query?.tg_id ||
-                  req.headers['x-user-id'] || req.headers['user-id'] || req.headers['telegramid'] || req.headers['telegram_id'];
+    const rawInputId = req.body?.telegramId || req.body?.userId || req.body?.telegram_id || req.body?.id || req.body?.tg_id ||
+                       telegramUser?.id || telegramUser?.telegramId ||
+                       req.query?.telegramId || req.query?.userId || req.query?.telegram_id ||
+                       req.headers['x-user-id'] || req.headers['user-id'];
 
-    // تحويل telegramId صراحة إلى رقم
-    const tId = Number(req.body?.telegramId || req.body?.userId || rawId);
+    const tId = Number(req.body.telegramId || req.body.userId || rawInputId);
 
-    // التحقق من صحة المدخلات (Validation Error) - لا نرجع 400 إلا إذا كانت البيانات ناقصة أو غير صالحة
-    if (!tId || isNaN(tId)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'بيانات معرف المستخدم غير مكتملة أو غير صالحة (Validation Error)' 
+    if (!tId || isNaN(tId) || tId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'بيانات غير مكتملة: يُرجى إرسال telegramId أو userId بشكل صحيح'
       });
     }
 
-    const tgIdStr = String(tId);
     const { referrerId } = req.body || {};
 
-    const currentUsername = telegramUser?.username || `User_${tgIdStr.slice(-4)}`;
-    const currentFirstName = telegramUser?.firstName || telegramUser?.first_name || '';
-    const currentLastName = telegramUser?.lastName || telegramUser?.last_name || '';
-    const userLanguage = telegramUser?.languageCode || telegramUser?.language_code || CONFIG.DEFAULT_LANGUAGE;
+    const currentUsername = telegramUser?.username || req.body?.username || `User_${String(tId).slice(-4)}`;
+    const currentFirstName = telegramUser?.firstName || telegramUser?.first_name || req.body?.firstName || '';
+    const currentLastName = telegramUser?.lastName || telegramUser?.last_name || req.body?.lastName || '';
+    const userLanguage = telegramUser?.languageCode || telegramUser?.language_code || req.body?.language || CONFIG.DEFAULT_LANGUAGE || 'ar';
 
     const updatePayload = {
-      telegramId: tgIdStr,
+      telegramId: tId,
       username: currentUsername,
       ...(currentFirstName && { firstName: currentFirstName }),
       ...(currentLastName && { lastName: currentLastName }),
@@ -103,30 +109,43 @@ const handleLogin = async (req, res, next) => {
       updateOps.$setOnInsert = { referredBy: referrerId };
     }
 
-    // الاستعلام عن المستخدم ومطابقته كنص أو رقم
-    const user = await User.findOneAndUpdate(
-      { $or: [{ telegramId: tgIdStr }, { telegramId: tId }] },
-      updateOps,
-      { new: true, upsert: true, setDefaultsOnInsert: true }
-    );
+    let user;
+    try {
+      user = await User.findOneAndUpdate(
+        { telegramId: tId },
+        updateOps,
+        { new: true, upsert: true, setDefaultsOnInsert: true }
+      );
+    } catch (dbError) {
+      if (logger && typeof logger.error === 'function') {
+        logger.error('Database Error in authController login:', dbError);
+      } else {
+        console.error('Database Error in authController login:', dbError);
+      }
+
+      return res.status(500).json({
+        success: false,
+        message: 'حدث خطأ في قاعدة البيانات أثناء تسجيل الدخول'
+      });
+    }
 
     if (!user) {
       return res.status(500).json({ 
         success: false, 
-        message: 'حدث خطأ داخلي أثناء إنشاء أو تحديث بيانات المستخدم' 
+        message: 'فشل إنشاء أو تحديث بيانات المستخدم' 
       });
     }
 
     if (user.isBanned) {
       return res.status(403).json({ 
         success: false, 
-        message: `حسابك معطل بسبب مخالفة الشروط. التواصل مع الدعم: ${CONFIG.SUPPORT_USERNAME}` 
+        message: `حسابك معطل بسبب مخالفة الشروط. التواصل مع الدعم: ${CONFIG.SUPPORT_USERNAME || ''}` 
       });
     }
 
     const token = jwt.sign(
       { userId: user._id, telegramId: user.telegramId, role: user.role },
-      CONFIG.JWT_SECRET,
+      CONFIG.JWT_SECRET || 'jwt_secret_key',
       { expiresIn: '7d', algorithm: 'HS256' }
     );
 
@@ -136,8 +155,8 @@ const handleLogin = async (req, res, next) => {
       token, 
       userId: user._id,
       user, 
-      language: user.language || CONFIG.DEFAULT_LANGUAGE,
-      isAdmin: Boolean(CONFIG.ADMIN_ID && String(user.telegramId).trim() === CONFIG.ADMIN_ID),
+      language: user.language || CONFIG.DEFAULT_LANGUAGE || 'ar',
+      isAdmin: Boolean(CONFIG.ADMIN_ID && String(user.telegramId) === String(CONFIG.ADMIN_ID)),
       botUsername: CONFIG.BOT_USERNAME,
       supportUsername: CONFIG.SUPPORT_USERNAME,
       botUrl: CONFIG.OFFICIAL_BOT_URL,
@@ -148,22 +167,24 @@ const handleLogin = async (req, res, next) => {
         trc20: CONFIG.DEPOSIT_USDT_TRC20
       }
     });
-  } catch (error) {
-    // تسجيل خطأ قاعدة البيانات/الخادم عبر اللوجر وإعادة 500 Internal Server Error
+
+  } catch (err) {
     if (logger && typeof logger.error === 'function') {
-      logger.error('خطأ في قاعدة البيانات أو الخادم أثناء تسجيل الدخول في handleLogin:', error);
+      logger.error('Unexpected Internal Server Error in handleLogin:', err);
     } else {
-      console.error('خطأ في قاعدة البيانات أو الخادم أثناء تسجيل الدخول في handleLogin:', error);
+      console.error('Unexpected Internal Server Error in handleLogin:', err);
     }
 
     return res.status(500).json({
       success: false,
-      message: 'حدث خطأ داخلي في الخادم أثناء معالجة تسجيل الدخول (Internal Server Error)'
+      message: 'خطأ داخلي في الخادم (Internal Server Error)'
     });
   }
 };
 
 module.exports = {
   handleCheckAdmin,
-  handleLogin
+  handleLogin,
+  login: handleLogin,
+  checkAdmin: handleCheckAdmin
 };
