@@ -1,10 +1,85 @@
+/**
+ * Frontend Shortener & Ad Redirection Bridge Module
+ */
+
 window.rawUserLinksCache = window.rawUserLinksCache || [];
 window.bridgeDestinationUrl = null;
 window.currentShortCode = null;
 window.bridgeToken = null;
 window.bridgeStartTime = null;
 window.bridgeTimerInterval = null;
+window.humanInteractionScore = 0;
+window.visitorFingerprint = null;
 
+/**
+ * جمع بصمة المتصفح الأساسية (Canvas Fingerprint + تفاصيل الشاشة)
+ */
+function generateBrowserFingerprint() {
+  try {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 200;
+    canvas.height = 50;
+
+    if (ctx) {
+      ctx.textBaseline = 'top';
+      ctx.font = '14px Arial';
+      ctx.fillStyle = '#f60';
+      ctx.fillRect(125, 1, 62, 20);
+      ctx.fillStyle = '#069';
+      ctx.fillText('TelegaAds,2026', 2, 15);
+      ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
+      ctx.fillText('TelegaAds,2026', 4, 17);
+    }
+
+    const canvasData = canvas.toDataURL();
+    const screenInfo = `${screen.width}x${screen.height}x${screen.colorDepth}`;
+    const lang = navigator.language || '';
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+
+    let hash = 0;
+    const str = `${canvasData}___${screenInfo}___${lang}___${tz}`;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash |= 0;
+    }
+
+    window.visitorFingerprint = 'fp_' + Math.abs(hash).toString(16);
+    return window.visitorFingerprint;
+  } catch (e) {
+    window.visitorFingerprint = 'fp_fallback_' + Date.now();
+    return window.visitorFingerprint;
+  }
+}
+window.generateBrowserFingerprint = generateBrowserFingerprint;
+
+/**
+ * كشف التفاعل البشري الحقيقي (Human Interaction Tracker)
+ */
+function initHumanInteractionTracker() {
+  window.humanInteractionScore = 0;
+
+  const registerAction = () => {
+    window.humanInteractionScore += 1;
+    if (window.humanInteractionScore >= 5) {
+      window.removeEventListener('mousemove', registerAction);
+      window.removeEventListener('touchmove', registerAction);
+      window.removeEventListener('scroll', registerAction);
+      window.removeEventListener('keydown', registerAction);
+    }
+  };
+
+  window.addEventListener('mousemove', registerAction, { passive: true });
+  window.addEventListener('touchmove', registerAction, { passive: true });
+  window.addEventListener('scroll', registerAction, { passive: true });
+  window.addEventListener('keydown', registerAction, { passive: true });
+}
+window.initHumanInteractionTracker = initHumanInteractionTracker;
+
+/**
+ * تنسيق الرابط المختصر
+ */
 function formatShortUrl(link) {
   if (!link) return '';
   let rawUrl = link.shortUrl || link.shortLink || link.url;
@@ -23,12 +98,15 @@ function formatShortUrl(link) {
 }
 window.formatShortUrl = formatShortUrl;
 
+/**
+ * جلب قائمة روابط المستخدم
+ */
 async function fetchUserLinks() {
   const linksContainer = document.getElementById('links-list');
   if (linksContainer && (!window.rawUserLinksCache || window.rawUserLinksCache.length === 0)) {
     linksContainer.innerHTML = `<div style="text-align:center; padding: 10px;"><div class="spinner"></div></div>`;
   }
-  
+
   try {
     const res = await window.safeFetch('/api/links');
     if (res) {
@@ -47,6 +125,9 @@ async function fetchUserLinks() {
 }
 window.fetchUserLinks = fetchUserLinks;
 
+/**
+ * معالجة الضغط على زر اختصار رابط جديد
+ */
 async function handleShortenClick(e) {
   if (e) e.preventDefault();
   const titleInput = document.getElementById('link-title');
@@ -74,7 +155,7 @@ async function handleShortenClick(e) {
     const payload = {
       userId: window.currentUserTelegramId,
       telegramId: window.currentUserTelegramId,
-      title: title || 'Untitled Link',
+      title: title || 'رابط مختصر',
       targetUrl: url,
       url: url,
       originalUrl: url
@@ -98,10 +179,10 @@ async function handleShortenClick(e) {
       }
       if (titleInput) titleInput.value = '';
       urlInput.value = '';
-      
+
       const newLink = data.link || {
         _id: data._id || data.id || ('link_' + Date.now()),
-        title: title || data.title || 'Untitled Link',
+        title: title || data.title || 'رابط مختصر',
         originalUrl: url,
         targetUrl: url,
         shortCode: data.shortCode || data.code || '',
@@ -112,7 +193,7 @@ async function handleShortenClick(e) {
       };
 
       if (!window.rawUserLinksCache) window.rawUserLinksCache = [];
-      
+
       const existingIndex = window.rawUserLinksCache.findIndex(l => 
         (l._id && newLink._id && String(l._id) === String(newLink._id)) ||
         (l.shortCode && newLink.shortCode && l.shortCode === newLink.shortCode)
@@ -142,6 +223,9 @@ async function handleShortenClick(e) {
 }
 window.handleShortenClick = handleShortenClick;
 
+/**
+ * عرض قائمة روابط المستخدم بالواجهة
+ */
 function renderUserLinks(links) {
   const container = document.getElementById('links-list');
   if (!container) return;
@@ -188,6 +272,9 @@ function renderUserLinks(links) {
 }
 window.renderUserLinks = renderUserLinks;
 
+/**
+ * فلترة وتصفية قائمة الروابط
+ */
 function filterUserLinks(term) {
   if (!window.rawUserLinksCache) return;
   const lower = (term || '').toLowerCase().trim();
@@ -205,10 +292,13 @@ function filterUserLinks(term) {
 }
 window.filterUserLinks = filterUserLinks;
 
+/**
+ * حذف رابط
+ */
 async function deleteLink(linkId) {
   const lang = window.currentLang || 'ar';
   if (!confirm(lang === 'ar' ? 'هل أنت تأكد من حذف هذا الرابط؟' : 'Are you sure you want to delete this link?')) return;
-  
+
   try {
     const res = await window.safeFetch(`/api/links/${linkId}`, { method: 'DELETE' });
     if (res) {
@@ -227,36 +317,92 @@ async function deleteLink(linkId) {
 }
 window.deleteLink = deleteLink;
 
+/**
+ * عرض الإعلان ديناميكياً بحسب نوعه (صورة، فيديو، تطبيق، أو لعبة)
+ */
+function renderBridgeAd(ad) {
+  const adContainer = document.getElementById('bridge-ad-space') || document.getElementById('ad-container');
+  if (!adContainer || !ad) return;
+
+  const title = ad.title || 'إعلان مميز';
+  const desc = ad.description || '';
+  const mediaUrl = ad.mediaUrl || '';
+  const targetUrl = ad.targetUrl || '#';
+  const type = ad.type || 'banner';
+
+  let adHtml = '';
+
+  if (type === 'video' && mediaUrl) {
+    adHtml = `
+      <div class="ad-card ad-video" style="border: 1px solid var(--card-border, #ddd); border-radius: 8px; padding: 10px; margin: 10px 0; background: var(--card-bg, #fff);">
+        <h4 style="margin: 0 0 8px 0; font-size: 14px;">${title}</h4>
+        <video src="${mediaUrl}" controls autoplay muted playsinline style="width: 100%; max-height: 220px; border-radius: 6px;"></video>
+        <p style="font-size: 12px; color: var(--text-muted); margin: 6px 0;">${desc}</p>
+        <a href="${targetUrl}" target="_blank" rel="noopener" class="btn-small" style="display:inline-block; text-align:center; margin-top:4px;">شاهد المزيد</a>
+      </div>
+    `;
+  } else if ((type === 'app' || type === 'game') && mediaUrl) {
+    adHtml = `
+      <div class="ad-card ad-app" style="border: 1px solid var(--card-border, #ddd); border-radius: 8px; padding: 12px; margin: 10px 0; background: var(--card-bg, #fff); display: flex; align-items: center; gap: 12px;">
+        <img src="${mediaUrl}" alt="${title}" style="width: 60px; height: 60px; border-radius: 12px; object-fit: cover;">
+        <div style="flex: 1;">
+          <h4 style="margin: 0; font-size: 14px;">${title}</h4>
+          <p style="font-size: 11px; color: var(--text-muted); margin: 4px 0;">${desc}</p>
+          <a href="${targetUrl}" target="_blank" rel="noopener" class="btn-small" style="display:inline-block; padding: 4px 12px; font-weight: bold;">تثبيت الآن 🚀</a>
+        </div>
+      </div>
+    `;
+  } else {
+    // Banner / Image
+    adHtml = `
+      <div class="ad-card ad-banner" style="border: 1px solid var(--card-border, #ddd); border-radius: 8px; padding: 10px; margin: 10px 0; background: var(--card-bg, #fff); text-align: center;">
+        <a href="${targetUrl}" target="_blank" rel="noopener" style="text-decoration:none; color: inherit;">
+          ${mediaUrl ? `<img src="${mediaUrl}" alt="${title}" style="max-width: 100%; height: auto; border-radius: 6px; margin-bottom: 8px;">` : ''}
+          <h4 style="margin: 4px 0; font-size: 14px; color: var(--accent, #0088cc);">${title}</h4>
+          <p style="font-size: 12px; color: var(--text-muted); margin: 0;">${desc}</p>
+        </a>
+      </div>
+    `;
+  }
+
+  adContainer.innerHTML = adHtml;
+}
+window.renderBridgeAd = renderBridgeAd;
+
+/**
+ * تهيئة وإتاحة صفحة التوجيه للإعلان (Bridge View Initialization)
+ */
 async function initBridgeView(code) {
   window.currentShortCode = code;
   window.bridgeStartTime = Date.now();
-  
+
+  generateBrowserFingerprint();
+  initHumanInteractionTracker();
+
   const appView = document.getElementById('app-view');
   const bridgeView = document.getElementById('bridge-view');
 
   if (appView) appView.classList.add('hidden');
   if (bridgeView) bridgeView.classList.remove('hidden');
 
-  // إعداد زر التوجيه أولاً بحالة تعطيل أثناء الانتظار
   const btn = document.getElementById('go-btn') || document.getElementById('btn-go');
   const lang = window.currentLang || 'ar';
   if (btn) {
     btn.disabled = true;
-    btn.innerText = lang === 'ar' ? 'يرجى الانتظار...' : 'Please wait...';
-  }
-
-  // استدعاء الإعلانات وتسجيل الأرباح فوراً في الخلفية عند التحميل
-  if (typeof window.triggerBridgeAds === 'function') {
-    window.triggerBridgeAds('load').catch(err => console.error("Ad trigger on load error:", err));
+    btn.innerText = lang === 'ar' ? 'جاري تجهيز الرابط...' : 'Preparing link...';
   }
 
   try {
     const res = await window.safeFetch(`/api/bridge/${code}`);
     if (res && res.ok) {
       const data = await res.json().catch(() => ({}));
-      window.bridgeDestinationUrl = data.targetUrl || data.originalUrl || '/';
+      window.bridgeDestinationUrl = data.targetUrl || data.originalUrl || null;
       window.bridgeToken = data.token || null;
-      
+
+      if (data.ad) {
+        renderBridgeAd(data.ad);
+      }
+
       const timerDuration = parseInt(data.timer || data.countdown || 5, 10);
       startBridgeTimer(isNaN(timerDuration) ? 5 : timerDuration);
     } else {
@@ -269,6 +415,9 @@ async function initBridgeView(code) {
 }
 window.initBridgeView = initBridgeView;
 
+/**
+ * العداد الزمني التنازلي للإعلان
+ */
 function startBridgeTimer(seconds) {
   if (window.bridgeTimerInterval) {
     clearInterval(window.bridgeTimerInterval);
@@ -288,7 +437,7 @@ function startBridgeTimer(seconds) {
   window.bridgeTimerInterval = setInterval(() => {
     timeLeft--;
     if (timerElem) timerElem.innerText = timeLeft;
-    
+
     if (btn && timeLeft > 0) {
       btn.innerText = lang === 'ar' ? `يرجى الانتظار (${timeLeft})` : `Please wait (${timeLeft})`;
     }
@@ -296,7 +445,7 @@ function startBridgeTimer(seconds) {
     if (timeLeft <= 0) {
       clearInterval(window.bridgeTimerInterval);
       window.bridgeTimerInterval = null;
-      
+
       if (btn) {
         btn.disabled = false;
         btn.innerText = lang === 'ar' ? 'الانتقال إلى الرابط' : 'Go to Link';
@@ -310,9 +459,10 @@ function startBridgeTimer(seconds) {
 }
 window.startBridgeTimer = startBridgeTimer;
 
+/**
+ * إرسال إثبات التفاعل واستلام الرابط الاصلي ثم التحويل النهائي بآمان
+ */
 async function completeImpression() {
-  if (!window.bridgeDestinationUrl) return;
-
   const btn = document.getElementById('go-btn') || document.getElementById('btn-go');
   const lang = window.currentLang || 'ar';
 
@@ -325,31 +475,44 @@ async function completeImpression() {
     window.setButtonLoading(btn.id || 'go-btn', true);
   }
 
-  // تسجيل النقر والأرباح فوراً في الخلفية عند الضغط على الزر
-  if (typeof window.triggerBridgeAds === 'function') {
-    window.triggerBridgeAds('click').catch(err => console.error("Ad trigger on click error:", err));
-  }
-
   try {
     const durationSec = Math.round((Date.now() - (window.bridgeStartTime || Date.now())) / 1000);
-    
-    // استدعاء تسجيل اكتمال المشاهدة بدون تعليق انتقال المستخدم
-    window.safeFetch('/api/bridge/complete', {
-      method: 'POST',
-      body: {
-        shortCode: window.currentShortCode,
-        token: window.bridgeToken,
-        duration: durationSec
-      }
-    }).catch(e => console.error("Bridge complete fetch error:", e));
 
+    const payload = {
+      shortCode: window.currentShortCode,
+      token: window.bridgeToken,
+      duration: durationSec,
+      interactionProof: window.humanInteractionScore || 1,
+      fingerprint: window.visitorFingerprint || generateBrowserFingerprint()
+    };
+
+    const res = await window.safeFetch('/api/bridge/complete', {
+      method: 'POST',
+      body: payload
+    });
+
+    if (res && res.ok) {
+      const data = await res.json().catch(() => ({}));
+      const finalTarget = data.targetUrl || window.bridgeDestinationUrl;
+
+      if (finalTarget) {
+        window.location.href = finalTarget;
+        return;
+      }
+    }
+
+    if (window.bridgeDestinationUrl) {
+      window.location.href = window.bridgeDestinationUrl;
+    } else {
+      if (typeof window.showToast === 'function') {
+        window.showToast(lang === 'ar' ? 'حدث خطأ أثناء التوجيه للرابط' : 'Redirection error');
+      }
+    }
   } catch (e) {
     console.error("Complete impression error:", e);
-  } finally {
-    // توجيه المستخدم مباشرة بعد إرسال الطلب
-    setTimeout(() => {
+    if (window.bridgeDestinationUrl) {
       window.location.href = window.bridgeDestinationUrl;
-    }, 150);
+    }
   }
 }
 window.completeImpression = completeImpression;
