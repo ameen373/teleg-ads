@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const { 
   formatCurrency, 
   sanitizeTelegramId, 
+  sanitizeString,
   isObjectId, 
   globalSchemaOptions 
 } = require('./helpers');
@@ -19,18 +20,18 @@ const impressionSchema = new mongoose.Schema({
     default: null,
     index: true
   },
+  publisherId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+    index: true
+  },
   telegramId: {
     type: String,
     default: null,
     trim: true,
     index: true,
     set: sanitizeTelegramId
-  },
-  publisherId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    default: null,
-    index: true
   },
   publisherTelegramId: {
     type: String,
@@ -64,10 +65,41 @@ const impressionSchema = new mongoose.Schema({
     min: [0, 'Earnings cannot be negative'],
     set: formatCurrency
   },
+  cost: {
+    type: Number,
+    default: 0.0015,
+    min: [0, 'Cost cannot be negative'],
+    set: formatCurrency
+  },
+  viewerIp: { 
+    type: String, 
+    required: [true, 'Viewer IP address is required'], 
+    trim: true,
+    index: true
+  },
   ip: { 
     type: String, 
-    required: [true, 'IP address is required'], 
     trim: true 
+  },
+  deviceFingerprint: {
+    type: String,
+    default: null,
+    trim: true,
+    index: true,
+    set: sanitizeString
+  },
+  country: {
+    type: String,
+    default: 'XX',
+    trim: true,
+    uppercase: true,
+    maxLength: 3
+  },
+  status: {
+    type: String,
+    enum: ['valid', 'flagged', 'rejected'],
+    default: 'valid',
+    index: true
   },
   userAgent: { 
     type: String, 
@@ -76,7 +108,8 @@ const impressionSchema = new mongoose.Schema({
   },
   isUnique: { 
     type: Boolean, 
-    default: true 
+    default: true,
+    index: true 
   },
   createdAt: { 
     type: Date, 
@@ -90,11 +123,17 @@ impressionSchema.pre('validate', function(next) {
   if (this.userId && !this.publisherId) this.publisherId = this.userId;
   if (this.telegramId && !this.publisherTelegramId) this.publisherTelegramId = this.telegramId;
   if (this.publisherTelegramId && !this.telegramId) this.telegramId = this.publisherTelegramId;
+  if (this.viewerIp && !this.ip) this.ip = this.viewerIp;
+  if (this.ip && !this.viewerIp) this.viewerIp = this.ip;
   next();
 });
 
 impressionSchema.index({ userId: 1, createdAt: -1 });
 impressionSchema.index({ telegramId: 1, createdAt: -1 });
+impressionSchema.index({ adId: 1, createdAt: -1 });
+impressionSchema.index({ viewerIp: 1, createdAt: -1 });
+impressionSchema.index({ deviceFingerprint: 1, createdAt: -1 });
+impressionSchema.index({ linkId: 1, viewerIp: 1, createdAt: -1 });
 
 impressionSchema.statics.getPublisherImpressionsIsolated = function(identifier, extraFilter = {}) {
   if (!identifier) return this.find({ _id: { $exists: false } });
