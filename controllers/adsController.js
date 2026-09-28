@@ -6,7 +6,7 @@ const mongoose = require('mongoose');
 
 const connectDB = require('../config/db');
 const { normalizeAndValidateUrl } = require('../utils/urlHelpers');
-const { User, Ad } = require('../models');
+const { User, Ad, Link, Impression } = require('../models');
 
 /**
  * Create New Ad Campaign Controller
@@ -16,7 +16,7 @@ const handleCreateAd = async (req, res, next) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
-    const { title, targetUrl, totalBudget } = req.body;
+    const { title, targetUrl, totalBudget, targetCategory } = req.body;
     const budget = Number(totalBudget);
     const cleanTarget = normalizeAndValidateUrl(targetUrl);
     const targetUserId = req.userId;
@@ -36,6 +36,9 @@ const handleCreateAd = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'الحد الأدنى لميزانية الحملة هو $5' });
     }
 
+    const validCategories = ['all', 'video', 'image', 'app_game', 'file'];
+    const finalTargetCategory = validCategories.includes(targetCategory) ? targetCategory : 'all';
+
     const updatedUser = await User.findOneAndUpdate(
       { _id: targetUserId, availableBalance: { $gte: budget } },
       { $inc: { availableBalance: -budget } },
@@ -50,9 +53,10 @@ const handleCreateAd = async (req, res, next) => {
     const ad = await Ad.create([{
       userId: targetUserId,
       advertiserId: targetUserId,
-      advertiserTelegramId: req.user.telegramId,
+      advertiserTelegramId: req.user ? req.user.telegramId : null,
       title: String(title).trim(),
       targetUrl: cleanTarget,
+      targetCategory: finalTargetCategory,
       totalBudget: budget,
       remainingBudget: budget,
       cpmRate: 1.50,
@@ -69,6 +73,115 @@ const handleCreateAd = async (req, res, next) => {
     next(err);
   } finally {
     session.endSession();
+  }
+};
+
+/**
+ * جلب الإعلان المطابق لنوع الرابط واحتساب مشاهدته وأرباحه فورياً
+ */
+const handleGetMatchingAd = async (req, res, next) => {
+  try {
+    await connectDB();
+    const { shortCode, linkId, category } = req.query || req.body || {};
+
+    let linkCategory = category || 'general';
+    let link = null;
+
+    // البحث عن الرابط لمعرفة نوعه
+    if (linkId && mongoose.Types.ObjectId.isValid(linkId)) {
+      link = await Link.findById(linkId);
+    } else if (shortCode) {
+      link = await Link.findOne({ shortCode, isActive: true });
+    }
+
+    if (link) {
+      linkCategory = link.category || linkCategory;
+    }
+
+    // البحث عن الإعلان المناسب (أولوية للنوع المطابق للرابط، ثم الإعلانات العامة 'all')
+    let ad = await Ad.findOne({
+      status: 'active',
+      remainingBudget: { $gte: 0.0015 },
+      targetCategory: linkCategory
+    });
+
+    if (!ad) {
+      ad = await Ad.findOne({
+        status: 'active',
+        remainingBudget: { $gte: 0.0015 },
+        targetCategory: 'all'
+      });
+    }
+
+    if (!ad) {
+      // إعلان افتراضي في حال عدم وجود إعلانات نشطة
+      return res.json({
+        success: true,
+        hasAd: false,
+        ad: null,
+        message: 'لا يوجد إعلان متاح حالياً'
+      });
+    }
+
+    // التكلفة فورية وبدون قيود
+    const cost = ad.costPerImpression || 0.0015;
+    const publisherEarning = ad.publisherEarningsPerImpression || 0.00135;
+    const platformFee = ad.platformFeePerImpression || 0.00015;
+
+    // خصم التكلفة من ميزانية الإعلان وتحديث المشاهدات
+    ad.remainingBudget = Math.max(0, ad.remainingBudget - cost);
+    ad.impressionsCount = (ad.impressionsCount || 0) + 1;
+    if (ad.remainingBudget < cost) {
+      ad.status = 'completed';
+    }
+    await ad.save();
+
+    // احتساب الأرباح للناشر والرابط فورياً
+    if (link) {
+      link.views = (link.views || 0) + 1;
+      link.clicks = (link.clicks || 0) + 1;
+      link.validImpressions = (link.validImpressions || 0) + 1;
+      link.totalEarnings = (link.totalEarnings || 0) + publisherEarning;
+      await link.save();
+
+      if (link.userId) {
+        await User.findByIdAndUpdate(link.userId, {
+          $inc: {
+            'statsSummary.totalViews': 1,
+            'statsSummary.totalEarnings': publisherEarning,
+            totalEarnings: publisherEarning,
+            availableBalance: publisherEarning
+          }
+        }).catch(() => {});
+      }
+
+      // توثيق المشاهدة فورياً في سجل المشاهدات
+      const impression = new Impression({
+        linkId: link._id,
+        publisherUserId: link.userId,
+        publisherTelegramId: link.publisherTelegramId || link.telegramId,
+        shortCode: link.shortCode,
+        ip: req.ip || req.headers['x-forwarded-for'] || '127.0.0.1',
+        userAgent: req.headers['user-agent'] || 'Unknown',
+        publisherEarnings: publisherEarning,
+        platformFee: platformFee,
+        isValid: true
+      });
+      await impression.save();
+    }
+
+    return res.json({
+      success: true,
+      hasAd: true,
+      ad: {
+        id: ad._id,
+        title: ad.title,
+        targetUrl: ad.targetUrl,
+        targetCategory: ad.targetCategory
+      }
+    });
+  } catch (err) {
+    next(err);
   }
 };
 
@@ -154,5 +267,7 @@ module.exports = {
   handleCreateAd,
   handleGetUserAds,
   handleToggleAd,
-  handleDeleteAd
+  handleDeleteAd,
+  handleGetMatchingAd,
+  handleServeAd: handleGetMatchingAd
 };
