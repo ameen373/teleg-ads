@@ -1,97 +1,88 @@
+// Telega.ads - API Management Module
 window.API_BASE = window.location.protocol.startsWith('file') 
   ? 'http://localhost:3000' 
   : window.location.origin;
 
 window.authToken = localStorage.getItem('authToken');
-window.currentSessionId = null;
-window.bridgeToken = null;
-window.bridgeStartTime = Date.now();
+window.currentUserTelegramId = localStorage.getItem('telegramId') || null;
 window.isUserAdmin = false;
 
-window.tg = window.Telegram?.WebApp;
-
-window.storedTelegramId = localStorage.getItem('telegramId');
-if (window.tg?.initDataUnsafe?.user?.id) {
-  window.currentUserTelegramId = String(window.tg.initDataUnsafe.user.id);
-  localStorage.setItem('telegramId', window.currentUserTelegramId);
-} else {
-  window.currentUserTelegramId = window.storedTelegramId || null;
-}
-
-async function safeFetch(endpoint, options = {}) {
-  options.headers = options.headers || {};
-  
-  if (!window.currentUserTelegramId && window.tg?.initDataUnsafe?.user?.id) {
-    window.currentUserTelegramId = String(window.tg.initDataUnsafe.user.id);
-    localStorage.setItem('telegramId', window.currentUserTelegramId);
-  }
-
-  const initDataStr = window.Telegram?.WebApp?.initData || window.tg?.initData || '';
-  
-  if (initDataStr) {
-    options.headers['Authorization'] = `Bearer ${initDataStr}`;
-    options.headers['x-telegram-init-data'] = initDataStr;
-    options.headers['telegram-init-data'] = initDataStr;
-  } else if (window.authToken) {
-    options.headers['Authorization'] = `Bearer ${window.authToken}`;
-  }
-
-  if (window.currentUserTelegramId) {
-    options.headers['x-telegram-id'] = window.currentUserTelegramId;
-    options.headers['telegram-id'] = window.currentUserTelegramId;
-    options.headers['x-user-id'] = window.currentUserTelegramId;
-    options.headers['user-id'] = window.currentUserTelegramId;
-  }
-
-  if (options.body && typeof options.body === 'object') {
-    if (window.currentUserTelegramId && !options.body.userId && !options.body.telegramId) {
-      options.body.userId = window.currentUserTelegramId;
-      options.body.telegramId = window.currentUserTelegramId;
-    }
-    if (initDataStr && !options.body.initData) {
-      options.body.initData = initDataStr;
-    }
-    options.body = JSON.stringify(options.body);
-  }
-
-  if (options.body && !options.headers['Content-Type']) {
-    options.headers['Content-Type'] = 'application/json; charset=utf-8';
-  }
-  
-  let cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  let targetUrl = endpoint.startsWith('http') ? endpoint : `${window.API_BASE}${cleanEndpoint}`;
-
-  if (window.currentUserTelegramId && !targetUrl.includes('telegramId=') && !targetUrl.includes('userId=')) {
-    const separator = targetUrl.includes('?') ? '&' : '?';
-    targetUrl = `${targetUrl}${separator}telegramId=${encodeURIComponent(window.currentUserTelegramId)}&userId=${encodeURIComponent(window.currentUserTelegramId)}`;
-  }
-
-  try {
-    let response = await fetch(targetUrl, options);
-    return response;
-  } catch (err) {
-    console.error("Fetch Network Error:", err);
-    const lang = window.currentLang || 'ar';
-    const i18n = window.i18n || {};
-    if (typeof window.showToast === 'function') {
-      window.showToast(i18n[lang]?.network_error || (lang === 'ar' ? "خطأ في الاتصال بالشبكة" : "Network error"));
-    }
-    return null;
-  }
-}
-window.safeFetch = safeFetch;
-
 window.API = {
-  fetch: safeFetch,
+  safeFetch: async function(endpoint, options = {}) {
+    options.headers = options.headers || {};
+    
+    const tg = window.Telegram?.WebApp;
+    if (!window.currentUserTelegramId && tg?.initDataUnsafe?.user?.id) {
+      window.currentUserTelegramId = String(tg.initDataUnsafe.user.id);
+      localStorage.setItem('telegramId', window.currentUserTelegramId);
+    }
 
-  authLogin: async function() {
-    const tg = window.tg || window.Telegram?.WebApp;
-    const startParam = tg?.initDataUnsafe?.start_param || null;
-    const u = tg?.initDataUnsafe?.user || {};
-    const initDataStr = window.Telegram?.WebApp?.initData || tg?.initData || '';
+    const initDataStr = tg?.initData || '';
+    
+    if (initDataStr) {
+      options.headers['Authorization'] = `Bearer ${initDataStr}`;
+      options.headers['x-telegram-init-data'] = initDataStr;
+      options.headers['telegram-init-data'] = initDataStr;
+    } else if (window.authToken) {
+      options.headers['Authorization'] = `Bearer ${window.authToken}`;
+    }
+
+    if (window.currentUserTelegramId) {
+      options.headers['x-telegram-id'] = window.currentUserTelegramId;
+      options.headers['telegram-id'] = window.currentUserTelegramId;
+      options.headers['x-user-id'] = window.currentUserTelegramId;
+      options.headers['user-id'] = window.currentUserTelegramId;
+    }
+
+    if (options.body && typeof options.body === 'object') {
+      if (window.currentUserTelegramId && !options.body.userId && !options.body.telegramId) {
+        options.body.userId = window.currentUserTelegramId;
+        options.body.telegramId = window.currentUserTelegramId;
+      }
+      if (initDataStr && !options.body.initData) {
+        options.body.initData = initDataStr;
+      }
+      options.body = JSON.stringify(options.body);
+    }
+
+    if (options.body && !options.headers['Content-Type']) {
+      options.headers['Content-Type'] = 'application/json; charset=utf-8';
+    }
+    
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    let targetUrl = endpoint.startsWith('http') ? endpoint : `${window.API_BASE}${cleanEndpoint}`;
+
+    if (window.currentUserTelegramId && !targetUrl.includes('telegramId=') && !targetUrl.includes('userId=')) {
+      const separator = targetUrl.includes('?') ? '&' : '?';
+      targetUrl = `${targetUrl}${separator}telegramId=${encodeURIComponent(window.currentUserTelegramId)}&userId=${encodeURIComponent(window.currentUserTelegramId)}`;
+    }
 
     try {
-      const res = await window.safeFetch('/api/auth/login', {
+      const response = await fetch(targetUrl, options);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+      return response;
+    } catch (err) {
+      console.error("API Fetch Error:", err);
+      const lang = window.UI ? window.UI.currentLang : 'ar';
+      const msg = lang === 'ar' ? "خطأ في الاتصال بالسيرفر" : "Server connection error";
+      if (window.UI && typeof window.UI.showToast === 'function') {
+        window.UI.showToast(msg);
+      }
+      return null;
+    }
+  },
+
+  authLogin: async function() {
+    const tg = window.Telegram?.WebApp;
+    const startParam = tg?.initDataUnsafe?.start_param || null;
+    const u = tg?.initDataUnsafe?.user || {};
+    const initDataStr = tg?.initData || '';
+
+    try {
+      const res = await this.safeFetch('/api/auth/login', {
         method: 'POST',
         body: { 
           userId: window.currentUserTelegramId,
@@ -105,8 +96,10 @@ window.API = {
           initData: initDataStr
         }
       });
+      
       if (!res) return false;
       const data = await res.json().catch(() => ({}));
+
       if (data && (data.success || data.token)) {
         if (data.token) {
           window.authToken = data.token;
@@ -155,172 +148,155 @@ window.API = {
         return true;
       }
     } catch (e) {
-      console.error("Auth error:", e);
+      console.error("Auth Exception:", e);
     }
     return false;
   },
 
-  loadUserData: async function() {
-    const res = await window.safeFetch('/api/user/me');
-    if (!res || !res.ok) return null;
-    const data = await res.json().catch(() => null);
-    if (data && data.user) {
-      const pBal = document.getElementById('pending-bal');
-      const aBal = document.getElementById('avail-bal');
-      const defW = document.getElementById('default-wallet');
-      const refL = document.getElementById('ref-link');
-      const refC = document.getElementById('ref-count');
-      const refE = document.getElementById('ref-earnings');
-
-      if (pBal) pBal.innerText = `$${(data.user.pendingBalance || 0).toFixed(2)}`;
-      if (aBal) aBal.innerText = `$${(data.user.availableBalance || 0).toFixed(2)}`;
-      if (defW) defW.value = data.user.walletAddress || '';
-      if (refL) refL.value = data.user.referralLink || `https://t.me/Ads_telegabot?start=${window.currentUserTelegramId}`;
-      if (refC) refC.innerText = data.user.referralCount || 0;
-      if (refE) refE.innerText = `$${(data.user.referralEarnings || 0).toFixed(2)}`;
-
-      if (data.user.role === 'admin' || data.isAdmin) {
-        window.isUserAdmin = true;
-        const adminBtn = document.getElementById('tab-btn-admin');
-        if (adminBtn) adminBtn.style.display = 'flex';
-      }
-    }
-    return data;
-  },
-
-  createShortLink: async function(title, originalUrl) {
-    const res = await window.safeFetch('/api/links', {
-      method: 'POST',
-      body: { title, originalUrl }
-    });
+  getDashboardData: async function() {
+    const res = await this.safeFetch('/api/user/dashboard', { method: 'GET' });
     if (!res) return null;
-    return await res.json();
+    return await res.json().catch(() => null);
   },
 
-  fetchUserLinks: async function() {
-    const res = await window.safeFetch('/api/links');
-    if (!res || !res.ok) return [];
+  getUserLinks: async function(search = '') {
+    const res = await this.safeFetch(`/api/links?search=${encodeURIComponent(search)}`, { method: 'GET' });
+    if (!res) return [];
     const data = await res.json().catch(() => []);
     return Array.isArray(data) ? data : (data.links || []);
   },
 
-  deleteLink: async function(linkId) {
-    const res = await window.safeFetch(`/api/links/${linkId}`, {
-      method: 'DELETE'
-    });
-    if (!res) return false;
-    return res.ok;
-  },
-
-  requestDeposit: async function(amount, network, txHash) {
-    const res = await window.safeFetch('/api/wallet/deposit', {
+  createShortLink: async function(title, originalUrl) {
+    const res = await this.safeFetch('/api/links/shorten', {
       method: 'POST',
-      body: { amount, network, txHash }
+      body: { title, originalUrl }
     });
     if (!res) return null;
-    return await res.json();
+    return await res.json().catch(() => null);
+  },
+
+  deleteLink: async function(linkId) {
+    const res = await this.safeFetch(`/api/links/${linkId}`, { method: 'DELETE' });
+    if (!res) return false;
+    const data = await res.json().catch(() => ({}));
+    return data.success;
+  },
+
+  requestDeposit: async function(network, amount, txHash) {
+    const res = await this.safeFetch('/api/wallet/deposit', {
+      method: 'POST',
+      body: { network, amount, txHash }
+    });
+    if (!res) return null;
+    return await res.json().catch(() => null);
   },
 
   requestWithdrawal: async function(amount, walletAddress) {
-    const res = await window.safeFetch('/api/wallet/withdraw', {
+    const res = await this.safeFetch('/api/wallet/withdraw', {
       method: 'POST',
       body: { amount, walletAddress }
     });
     if (!res) return null;
-    return await res.json();
+    return await res.json().catch(() => null);
   },
 
-  saveWalletAddress: async function(walletAddress) {
-    const res = await window.safeFetch('/api/user/wallet', {
-      method: 'PUT',
+  updateWalletAddress: async function(walletAddress) {
+    const res = await this.safeFetch('/api/wallet/update-address', {
+      method: 'POST',
       body: { walletAddress }
     });
     if (!res) return null;
-    return await res.json();
+    return await res.json().catch(() => null);
   },
 
-  fetchWithdrawals: async function() {
-    const res = await window.safeFetch('/api/wallet/withdrawals');
-    if (!res || !res.ok) return [];
+  getWithdrawalsHistory: async function() {
+    const res = await this.safeFetch('/api/wallet/withdrawals', { method: 'GET' });
+    if (!res) return [];
     const data = await res.json().catch(() => []);
     return Array.isArray(data) ? data : (data.withdrawals || []);
   },
 
-  createAdCampaign: async function(adData) {
-    const res = await window.safeFetch('/api/ads', {
-      method: 'POST',
-      body: adData
-    });
-    if (!res) return null;
-    return await res.json();
-  },
-
-  fetchUserAds: async function() {
-    const res = await window.safeFetch('/api/ads');
-    if (!res || !res.ok) return [];
+  getUserAds: async function() {
+    const res = await this.safeFetch('/api/ads/my-ads', { method: 'GET' });
+    if (!res) return [];
     const data = await res.json().catch(() => []);
     return Array.isArray(data) ? data : (data.ads || []);
   },
 
-  deleteAd: async function(adId) {
-    const res = await window.safeFetch(`/api/ads/${adId}`, {
-      method: 'DELETE'
+  createAdCampaign: async function(adData) {
+    const res = await this.safeFetch('/api/ads/create', {
+      method: 'POST',
+      body: adData
+    });
+    if (!res) return null;
+    return await res.json().catch(() => null);
+  },
+
+  toggleAdStatus: async function(adId, status) {
+    const res = await this.safeFetch(`/api/ads/toggle`, {
+      method: 'POST',
+      body: { adId, status }
     });
     if (!res) return false;
-    return res.ok;
+    const data = await res.json().catch(() => ({}));
+    return data.success;
   },
 
-  fetchReferrals: async function() {
-    const res = await window.safeFetch('/api/referrals');
-    if (!res || !res.ok) return [];
-    const data = await res.json().catch(() => []);
-    return Array.isArray(data) ? data : (data.referrals || []);
+  deleteAd: async function(adId) {
+    const res = await this.safeFetch(`/api/ads/${adId}`, { method: 'DELETE' });
+    if (!res) return false;
+    const data = await res.json().catch(() => ({}));
+    return data.success;
   },
 
-  getBridgeInfo: async function(code) {
-    const res = await window.safeFetch(`/api/bridge/${code}`);
-    if (!res || !res.ok) return null;
-    return await res.json();
+  getUserReferrals: async function() {
+    const res = await this.safeFetch('/api/user/referrals', { method: 'GET' });
+    if (!res) return null;
+    return await res.json().catch(() => null);
   },
 
-  completeImpression: async function(bridgeToken, code) {
-    const res = await window.safeFetch('/api/bridge/complete', {
+  getBridgeLinkInfo: async function(code) {
+    const res = await this.safeFetch(`/api/bridge/${code}`, { method: 'GET' });
+    if (!res) return null;
+    return await res.json().catch(() => null);
+  },
+
+  recordBridgeImpression: async function(code, token) {
+    const res = await this.safeFetch('/api/bridge/impression', {
       method: 'POST',
-      body: { bridgeToken, code }
+      body: { code, token }
     });
-    if (!res || !res.ok) return null;
-    return await res.json();
+    if (!res) return null;
+    return await res.json().catch(() => null);
   },
 
-  fetchAdminData: async function() {
-    const res = await window.safeFetch('/api/admin/dashboard');
-    if (!res || !res.ok) return null;
-    return await res.json();
+  loadAdminData: async function() {
+    const res = await this.safeFetch('/api/admin/dashboard', { method: 'GET' });
+    if (!res) return null;
+    return await res.json().catch(() => null);
   },
 
-  approveAdminDeposit: async function(id) {
-    const res = await window.safeFetch(`/api/admin/deposits/${id}/approve`, { method: 'POST' });
-    return res && res.ok;
+  processAdminDeposit: async function(depositId, action) {
+    const res = await this.safeFetch('/api/admin/deposits/action', {
+      method: 'POST',
+      body: { depositId, action }
+    });
+    if (!res) return false;
+    const data = await res.json().catch(() => ({}));
+    return data.success;
   },
 
-  rejectAdminDeposit: async function(id) {
-    const res = await window.safeFetch(`/api/admin/deposits/${id}/reject`, { method: 'POST' });
-    return res && res.ok;
-  },
-
-  approveAdminWithdraw: async function(id) {
-    const res = await window.safeFetch(`/api/admin/withdrawals/${id}/approve`, { method: 'POST' });
-    return res && res.ok;
-  },
-
-  rejectAdminWithdraw: async function(id) {
-    const res = await window.safeFetch(`/api/admin/withdrawals/${id}/reject`, { method: 'POST' });
-    return res && res.ok;
+  processAdminWithdraw: async function(withdrawId, action) {
+    const res = await this.safeFetch('/api/admin/withdrawals/action', {
+      method: 'POST',
+      body: { withdrawId, action }
+    });
+    if (!res) return false;
+    const data = await res.json().catch(() => ({}));
+    return data.success;
   }
 };
 
-window.authLogin = window.API.authLogin;
-window.loadUserData = window.API.loadUserData;
-window.fetchUserLinks = window.API.fetchUserLinks;
-window.fetchUserAds = window.API.fetchUserAds;
-window.fetchUserReferrals = window.API.fetchReferrals;
+// Global standard helpers for backwards compatibility
+window.safeFetch = window.API.safeFetch.bind(window.API);
+window.authLogin = window.API.authLogin.bind(window.API);
