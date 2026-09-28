@@ -1,19 +1,19 @@
-// وحدة اختصار الروابط وعرض الجسر والتحقق من التفاعل البشري
+// Telega.ads - URL Shortener & Bridge Controller Module
 
-(function () {
-  window.rawUserLinksCache = window.rawUserLinksCache || [];
-  window.bridgeDestinationUrl = null;
-  window.currentShortCode = null;
-  window.bridgeToken = null;
-  window.bridgeStartTime = null;
-  window.bridgeTimerInterval = null;
-  window.humanInteractionScore = 0;
-  window.visitorFingerprint = null;
+window.rawUserLinksCache = window.rawUserLinksCache || [];
+window.bridgeDestinationUrl = null;
+window.currentShortCode = null;
+window.bridgeToken = null;
+window.bridgeStartTime = null;
+window.bridgeTimerInterval = null;
+window.humanInteractionScore = 0;
+window.visitorFingerprint = null;
 
+window.ShortenerModule = {
   /**
-   * جمع بصمة المتصفح الأساسية (Canvas Fingerprint)
+   * جمع بصمة المتصفح الأساسية (Canvas Fingerprint + تفاصيل الشاشة)
    */
-  function generateBrowserFingerprint() {
+  generateBrowserFingerprint: function() {
     try {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
@@ -50,12 +50,12 @@
       window.visitorFingerprint = 'fp_fallback_' + Date.now();
       return window.visitorFingerprint;
     }
-  }
+  },
 
   /**
    * كشف التفاعل البشري الحقيقي (Human Interaction Tracker)
    */
-  function initHumanInteractionTracker() {
+  initHumanInteractionTracker: function() {
     window.humanInteractionScore = 0;
 
     const registerAction = () => {
@@ -72,12 +72,12 @@
     window.addEventListener('touchmove', registerAction, { passive: true });
     window.addEventListener('scroll', registerAction, { passive: true });
     window.addEventListener('keydown', registerAction, { passive: true });
-  }
+  },
 
   /**
-   * تنسيق الرابط المختصر بشكل قياسي
+   * تنسيق الرابط المختصر
    */
-  function formatShortUrl(link) {
+  formatShortUrl: function(link) {
     if (!link) return '';
     let rawUrl = link.shortUrl || link.shortLink || link.url;
     if (!rawUrl && link.shortCode) {
@@ -92,102 +92,47 @@
     }
     rawUrl = rawUrl.replace(/^\/+/, '');
     return `https://${rawUrl}`;
-  }
-
-  /**
-   * نسخ الرابط المختصر إلى الحافظة
-   */
-  async function copyToClipboard(text) {
-    if (!text) return;
-    const lang = window.currentLang || 'ar';
-    const successMsg = lang === 'ar' ? 'تم نسخ الرابط بنجاح!' : 'Link copied to clipboard!';
-    
-    const showToast = (msg, typeMsg = 'info') => {
-      if (window.UI && typeof window.UI.showToast === 'function') window.UI.showToast(msg, typeMsg);
-      else if (typeof window.showToast === 'function') window.showToast(msg);
-      else alert(msg);
-    };
-
-    try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(text);
-      } else {
-        const textArea = document.createElement('textarea');
-        textArea.value = text;
-        textArea.style.position = 'fixed';
-        textArea.style.left = '-999999px';
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        document.execCommand('copy');
-        textArea.remove();
-      }
-      showToast(successMsg, 'success');
-    } catch (err) {
-      console.error('Copy to clipboard failed:', err);
-      showToast(lang === 'ar' ? 'فشل نسخ الرابط' : 'Failed to copy link', 'error');
-    }
-  }
+  },
 
   /**
    * جلب قائمة روابط المستخدم
    */
-  async function fetchUserLinks() {
+  fetchUserLinks: async function() {
     const linksContainer = document.getElementById('links-list');
     if (linksContainer && (!window.rawUserLinksCache || window.rawUserLinksCache.length === 0)) {
       linksContainer.innerHTML = `<div style="text-align:center; padding: 10px;"><div class="spinner"></div></div>`;
     }
 
     try {
-      let data = null;
-      if (window.API && typeof window.API.get === 'function') {
-        data = await window.API.get('/api/links');
-      } else if (typeof window.safeFetch === 'function') {
-        const res = await window.safeFetch('/api/links');
-        if (res) data = await res.json().catch(() => null);
-      }
-
-      if (data) {
-        const links = Array.isArray(data) ? data : (data.links || data.data || []);
-        window.rawUserLinksCache = links;
-        renderUserLinks(window.rawUserLinksCache);
-        return window.rawUserLinksCache;
-      }
+      const links = await window.API.getUserLinks();
+      window.rawUserLinksCache = links;
+      this.renderUserLinks(window.rawUserLinksCache);
+      return window.rawUserLinksCache;
     } catch (err) {
       console.error("Error fetching user links:", err);
     }
     return [];
-  }
+  },
 
   /**
-   * اختصار رابط جديد (مع دعم الرابط المخصص Custom Alias)
+   * معالجة الضغط على زر اختصار رابط جديد
    */
-  async function handleShortenClick(e) {
+  handleShortenClick: async function(e) {
     if (e) e.preventDefault();
     const titleInput = document.getElementById('link-title');
     const urlInput = document.getElementById('link-url');
-    const aliasInput = document.getElementById('link-alias');
 
     if (!urlInput) return;
 
     const title = titleInput ? titleInput.value.trim() : '';
     let url = urlInput.value.trim();
-    const alias = aliasInput ? aliasInput.value.trim() : '';
-    const lang = window.currentLang || 'ar';
-
-    const showToast = (msg, typeMsg = 'info') => {
-      if (window.UI && typeof window.UI.showToast === 'function') window.UI.showToast(msg, typeMsg);
-      else if (typeof window.showToast === 'function') window.showToast(msg);
-      else alert(msg);
-    };
-
-    const setButtonLoading = (btnId, isLoading) => {
-      if (window.UI && typeof window.UI.setButtonLoading === 'function') window.UI.setButtonLoading(btnId, isLoading);
-      else if (typeof window.setButtonLoading === 'function') window.setButtonLoading(btnId, isLoading);
-    };
+    const lang = window.UI ? window.UI.currentLang : (window.currentLang || 'ar');
+    const i18n = window.i18n || {};
 
     if (!url) {
-      showToast(lang === 'ar' ? 'يرجى إدخال الرابط الأصلي' : 'Please enter original URL', 'error');
+      if (window.UI && typeof window.UI.showToast === 'function') {
+        window.UI.showToast(lang === 'ar' ? 'يرجى إدخال الرابط الأصلي' : 'Please enter original URL');
+      }
       return;
     }
 
@@ -195,31 +140,18 @@
       url = 'https://' + url;
     }
 
-    setButtonLoading('btn-create-link', true);
-
-    const payload = {
-      userId: window.currentUserTelegramId,
-      telegramId: window.currentUserTelegramId,
-      title: title || 'رابط مختصر',
-      targetUrl: url,
-      url: url,
-      originalUrl: url,
-      customAlias: alias || undefined
-    };
+    if (window.UI && typeof window.UI.setButtonLoading === 'function') {
+      window.UI.setButtonLoading('btn-create-link', true);
+    }
 
     try {
-      let data = null;
-      if (window.API && typeof window.API.post === 'function') {
-        data = await window.API.post('/api/shorten', payload);
-      } else if (typeof window.safeFetch === 'function') {
-        const res = await window.safeFetch('/api/shorten', { method: 'POST', body: payload });
-        if (res) data = await res.json().catch(() => ({}));
-      }
+      const data = await window.API.createShortLink(title || 'رابط مختصر', url);
 
       if (data && (data.success || data.link || data.shortCode)) {
-        showToast(lang === 'ar' ? 'تم اختصار الرابط بنجاح!' : 'Link shortened successfully!', 'success');
+        if (window.UI && typeof window.UI.showToast === 'function') {
+          window.UI.showToast(i18n[lang]?.link_success_msg || (lang === 'ar' ? 'تم اختصار الرابط بنجاح!' : 'Link shortened successfully!'));
+        }
         if (titleInput) titleInput.value = '';
-        if (aliasInput) aliasInput.value = '';
         urlInput.value = '';
 
         const newLink = data.link || {
@@ -247,36 +179,39 @@
           window.rawUserLinksCache.unshift(newLink);
         }
 
-        renderUserLinks(window.rawUserLinksCache);
+        this.renderUserLinks(window.rawUserLinksCache);
         if (window.WalletModule && typeof window.WalletModule.loadUserData === 'function') {
           await window.WalletModule.loadUserData();
-        } else if (typeof window.loadUserData === 'function') {
-          await window.loadUserData();
         }
+        await this.fetchUserLinks();
       } else {
-        const errorMsg = (data && (data.error || data.message)) || (lang === 'ar' ? 'فشل إنشاء الرابط المختصر' : 'Failed to create short link');
-        showToast(errorMsg, 'error');
+        const errorMsg = data?.error || data?.message || (lang === 'ar' ? 'فشل إنشاء الرابط المختصر' : 'Failed to create short link');
+        if (window.UI && typeof window.UI.showToast === 'function') {
+          window.UI.showToast(errorMsg);
+        }
       }
     } catch (err) {
       console.error("Shorten Link Error:", err);
-      showToast(err.message || (lang === 'ar' ? 'حدث خطأ أثناء اختصار الرابط' : 'An error occurred while shortening link'), 'error');
+      if (window.UI && typeof window.UI.showToast === 'function') {
+        window.UI.showToast(err.message || (lang === 'ar' ? 'حدث خطأ أثناء اختصار الرابط' : 'An error occurred while shortening link'));
+      }
     } finally {
-      setButtonLoading('btn-create-link', false);
+      if (window.UI && typeof window.UI.setButtonLoading === 'function') {
+        window.UI.setButtonLoading('btn-create-link', false);
+      }
     }
-  }
+  },
 
   /**
-   * عرض قائمة الروابط في الواجهة
+   * عرض قائمة روابط المستخدم بالواجهة
    */
-  function renderUserLinks(links) {
+  renderUserLinks: function(links) {
     const container = document.getElementById('links-list');
     if (!container) return;
 
-    const lang = window.currentLang || 'ar';
-    const escapeHTML = (str) => {
-      if (window.UI && typeof window.UI.escapeHTML === 'function') return window.UI.escapeHTML(str);
-      return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    };
+    const lang = window.UI ? window.UI.currentLang : (window.currentLang || 'ar');
+    const i18n = window.i18n || {};
+    const escapeFn = window.UI ? window.UI.escapeHTML : (s => s);
 
     if (!links || links.length === 0) {
       container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${lang === 'ar' ? 'لا توجد روابط مختصرة بعد.' : 'No shortened links found.'}</p>`;
@@ -284,17 +219,17 @@
     }
 
     container.innerHTML = links.map(link => {
-      const formattedUrl = formatShortUrl(link);
-      const title = escapeHTML(link.title || link.shortCode || 'Untitled Link');
-      const originalUrl = escapeHTML(link.originalUrl || link.targetUrl || link.url || '');
+      const formattedUrl = this.formatShortUrl(link);
+      const title = escapeFn(link.title || link.shortCode || 'Untitled Link');
+      const originalUrl = escapeFn(link.originalUrl || link.targetUrl || link.url || '');
       const clicks = link.views || link.clicks || 0;
       const validImp = link.validImpressions || 0;
-      const earnings = Number(link.totalEarnings || 0).toFixed(4);
+      const earnings = (link.totalEarnings || 0).toFixed(4);
       const linkId = link._id || link.id || link.shortCode;
 
       return `
-        <div class="link-item" style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--card-border); border-radius: 10px; padding: 12px; margin-bottom: 10px;">
-          <div class="link-header" style="display:flex; justify-content:space-between; align-items:center;">
+        <div class="link-item">
+          <div class="link-header">
             <strong style="font-size: 14px; color: var(--text);">${title}</strong>
             <span style="font-size: 11px; color: var(--success); font-weight: 700;">$${earnings}</span>
           </div>
@@ -306,24 +241,24 @@
           </div>
           <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--card-border); padding-top: 8px; margin-top: 8px;">
             <span style="font-size: 11px; color: var(--text-muted);">👁️ ${clicks} ${lang === 'ar' ? 'زيارة' : 'clicks'} (${validImp} ${lang === 'ar' ? 'مؤكدة' : 'valid'})</span>
-            <div class="link-actions" style="display:flex; gap:6px;">
-              <button class="btn-small" onclick="copyToClipboard('${formattedUrl}')">${lang === 'ar' ? 'نسخ' : 'Copy'}</button>
-              <button class="btn-small btn-danger" onclick="deleteLink('${linkId}')">${lang === 'ar' ? 'حذف' : 'Delete'}</button>
+            <div class="link-actions">
+              <button class="btn-small" onclick="window.UI.copyToClipboard('${formattedUrl}')">${i18n[lang]?.btn_copy || (lang === 'ar' ? 'نسخ' : 'Copy')}</button>
+              <button class="btn-small btn-danger" onclick="window.ShortenerModule.deleteLink('${linkId}')">${lang === 'ar' ? 'حذف' : 'Delete'}</button>
             </div>
           </div>
         </div>
       `;
     }).join('');
-  }
+  },
 
   /**
-   * تصفية قائمة الروابط
+   * فلترة وتصفية قائمة الروابط
    */
-  function filterUserLinks(term) {
+  filterUserLinks: function(term) {
     if (!window.rawUserLinksCache) return;
     const lower = (term || '').toLowerCase().trim();
     if (!lower) {
-      renderUserLinks(window.rawUserLinksCache);
+      this.renderUserLinks(window.rawUserLinksCache);
       return;
     }
     const filtered = window.rawUserLinksCache.filter(l => 
@@ -332,62 +267,48 @@
       (l.targetUrl && l.targetUrl.toLowerCase().includes(lower)) ||
       (l.shortCode && l.shortCode.toLowerCase().includes(lower))
     );
-    renderUserLinks(filtered);
-  }
+    this.renderUserLinks(filtered);
+  },
 
   /**
    * حذف رابط
    */
-  async function deleteLink(linkId) {
-    const lang = window.currentLang || 'ar';
-    const showToast = (msg, typeMsg = 'info') => {
-      if (window.UI && typeof window.UI.showToast === 'function') window.UI.showToast(msg, typeMsg);
-      else if (typeof window.showToast === 'function') window.showToast(msg);
-      else alert(msg);
-    };
-
+  deleteLink: async function(linkId) {
+    const lang = window.UI ? window.UI.currentLang : (window.currentLang || 'ar');
     if (!confirm(lang === 'ar' ? 'هل أنت تأكد من حذف هذا الرابط؟' : 'Are you sure you want to delete this link?')) return;
 
     try {
-      let resOk = false;
-      if (window.API && typeof window.API.delete === 'function') {
-        const res = await window.API.delete(`/api/links/${linkId}`);
-        resOk = !!(res && (res.success || res.ok));
-      } else if (typeof window.safeFetch === 'function') {
-        const res = await window.safeFetch(`/api/links/${linkId}`, { method: 'DELETE' });
-        resOk = !!(res && res.ok);
-      }
-
-      if (resOk) {
-        showToast(lang === 'ar' ? 'تم حذف الرابط بنجاح' : 'Link deleted successfully', 'success');
-        await fetchUserLinks();
+      const success = await window.API.deleteLink(linkId);
+      if (success) {
+        if (window.UI && typeof window.UI.showToast === 'function') {
+          window.UI.showToast(lang === 'ar' ? 'تم حذف الرابط بنجاح' : 'Link deleted successfully');
+        }
         if (window.WalletModule && typeof window.WalletModule.loadUserData === 'function') {
           await window.WalletModule.loadUserData();
-        } else if (typeof window.loadUserData === 'function') {
-          await window.loadUserData();
         }
+        await this.fetchUserLinks();
       } else {
-        showToast(lang === 'ar' ? 'فشل حذف الرابط' : 'Failed to delete link', 'error');
+        if (window.UI && typeof window.UI.showToast === 'function') {
+          window.UI.showToast(lang === 'ar' ? 'فشل حذف الرابط' : 'Failed to delete link');
+        }
       }
     } catch (err) {
-      showToast(err.message || (lang === 'ar' ? 'خطأ أثناء حذف الرابط' : 'Error deleting link'), 'error');
+      if (window.UI && typeof window.UI.showToast === 'function') {
+        window.UI.showToast(err.message || (lang === 'ar' ? 'خطأ في الشبكة' : 'Network error'));
+      }
     }
-  }
+  },
 
   /**
-   * عرض الإعلان على صفحة التوجيه (Bridge View)
+   * عرض الإعلان ديناميكياً بحسب نوعه
    */
-  function renderBridgeAd(ad) {
+  renderBridgeAd: function(ad) {
     const adContainer = document.getElementById('bridge-ad-space') || document.getElementById('ad-container');
     if (!adContainer || !ad) return;
 
-    const escapeHTML = (str) => {
-      if (window.UI && typeof window.UI.escapeHTML === 'function') return window.UI.escapeHTML(str);
-      return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    };
-
-    const title = escapeHTML(ad.title || 'إعلان مميز');
-    const desc = escapeHTML(ad.description || '');
+    const escapeFn = window.UI ? window.UI.escapeHTML : (s => s);
+    const title = escapeFn(ad.title || 'إعلان مميز');
+    const desc = escapeFn(ad.description || '');
     const mediaUrl = ad.mediaUrl || '';
     const targetUrl = ad.targetUrl || '#';
     const type = ad.type || 'banner';
@@ -396,30 +317,30 @@
 
     if (type === 'video' && mediaUrl) {
       adHtml = `
-        <div class="ad-card ad-video" style="border: 1px solid var(--card-border); border-radius: 8px; padding: 10px; margin: 10px 0; background: rgba(15, 23, 42, 0.8);">
-          <h4 style="margin: 0 0 8px 0; font-size: 14px; color: var(--text);">${title}</h4>
+        <div class="ad-card ad-video" style="border: 1px solid var(--card-border, #ddd); border-radius: 8px; padding: 10px; margin: 10px 0; background: var(--card-bg, #fff);">
+          <h4 style="margin: 0 0 8px 0; font-size: 14px;">${title}</h4>
           <video src="${mediaUrl}" controls autoplay muted playsinline style="width: 100%; max-height: 220px; border-radius: 6px;"></video>
           <p style="font-size: 12px; color: var(--text-muted); margin: 6px 0;">${desc}</p>
-          <a href="${targetUrl}" target="_blank" rel="noopener" onclick="recordAdClick('${ad._id || ad.id}')" class="btn-small" style="display:inline-block; text-align:center; margin-top:4px;">شاهد المزيد</a>
+          <a href="${targetUrl}" target="_blank" rel="noopener" class="btn-small" style="display:inline-block; text-align:center; margin-top:4px;">شاهد المزيد</a>
         </div>
       `;
     } else if ((type === 'app' || type === 'game') && mediaUrl) {
       adHtml = `
-        <div class="ad-card ad-app" style="border: 1px solid var(--card-border); border-radius: 8px; padding: 12px; margin: 10px 0; background: rgba(15, 23, 42, 0.8); display: flex; align-items: center; gap: 12px;">
+        <div class="ad-card ad-app" style="border: 1px solid var(--card-border, #ddd); border-radius: 8px; padding: 12px; margin: 10px 0; background: var(--card-bg, #fff); display: flex; align-items: center; gap: 12px;">
           <img src="${mediaUrl}" alt="${title}" style="width: 60px; height: 60px; border-radius: 12px; object-fit: cover;">
           <div style="flex: 1;">
-            <h4 style="margin: 0; font-size: 14px; color: var(--text);">${title}</h4>
+            <h4 style="margin: 0; font-size: 14px;">${title}</h4>
             <p style="font-size: 11px; color: var(--text-muted); margin: 4px 0;">${desc}</p>
-            <a href="${targetUrl}" target="_blank" rel="noopener" onclick="recordAdClick('${ad._id || ad.id}')" class="btn-small" style="display:inline-block; padding: 4px 12px; font-weight: bold;">تثبيت الآن 🚀</a>
+            <a href="${targetUrl}" target="_blank" rel="noopener" class="btn-small" style="display:inline-block; padding: 4px 12px; font-weight: bold;">تثبيت الآن 🚀</a>
           </div>
         </div>
       `;
     } else {
       adHtml = `
-        <div class="ad-card ad-banner" style="border: 1px solid var(--card-border); border-radius: 8px; padding: 10px; margin: 10px 0; background: rgba(15, 23, 42, 0.8); text-align: center;">
-          <a href="${targetUrl}" target="_blank" rel="noopener" onclick="recordAdClick('${ad._id || ad.id}')" style="text-decoration:none; color: inherit;">
+        <div class="ad-card ad-banner" style="border: 1px solid var(--card-border, #ddd); border-radius: 8px; padding: 10px; margin: 10px 0; background: var(--card-bg, #fff); text-align: center;">
+          <a href="${targetUrl}" target="_blank" rel="noopener" style="text-decoration:none; color: inherit;">
             ${mediaUrl ? `<img src="${mediaUrl}" alt="${title}" style="max-width: 100%; height: auto; border-radius: 6px; margin-bottom: 8px;">` : ''}
-            <h4 style="margin: 4px 0; font-size: 14px; color: var(--accent);">${title}</h4>
+            <h4 style="margin: 4px 0; font-size: 14px; color: var(--accent, #0088cc);">${title}</h4>
             <p style="font-size: 12px; color: var(--text-muted); margin: 0;">${desc}</p>
           </a>
         </div>
@@ -427,17 +348,17 @@
     }
 
     adContainer.innerHTML = adHtml;
-  }
+  },
 
   /**
-   * تهيئة واجهة الجسر للرابط
+   * تهيئة صفحة التوجيه (Bridge View Initialization)
    */
-  async function initBridgeView(code) {
+  initBridgeView: async function(code) {
     window.currentShortCode = code;
     window.bridgeStartTime = Date.now();
 
-    generateBrowserFingerprint();
-    initHumanInteractionTracker();
+    this.generateBrowserFingerprint();
+    this.initHumanInteractionTracker();
 
     const appView = document.getElementById('app-view');
     const bridgeView = document.getElementById('bridge-view');
@@ -446,48 +367,39 @@
     if (bridgeView) bridgeView.classList.remove('hidden');
 
     const btn = document.getElementById('go-btn') || document.getElementById('btn-go');
-    const lang = window.currentLang || 'ar';
+    const lang = window.UI ? window.UI.currentLang : (window.currentLang || 'ar');
     if (btn) {
       btn.disabled = true;
       btn.innerText = lang === 'ar' ? 'جاري تجهيز الرابط...' : 'Preparing link...';
     }
 
     try {
-      let data = null;
-      if (window.API && typeof window.API.get === 'function') {
-        data = await window.API.get(`/api/bridge/${code}`);
-      } else if (typeof window.safeFetch === 'function') {
-        const res = await window.safeFetch(`/api/bridge/${code}`);
-        if (res && res.ok) data = await res.json().catch(() => ({}));
-      }
-
-      if (data) {
+      const data = await window.API.getBridgeLinkInfo(code);
+      if (data && (data.targetUrl || data.originalUrl)) {
         window.bridgeDestinationUrl = data.targetUrl || data.originalUrl || null;
         window.bridgeToken = data.token || null;
 
         if (data.ad) {
-          renderBridgeAd(data.ad);
+          this.renderBridgeAd(data.ad);
         }
 
         const timerDuration = parseInt(data.timer || data.countdown || 5, 10);
-        startBridgeTimer(isNaN(timerDuration) ? 5 : timerDuration);
+        this.startBridgeTimer(isNaN(timerDuration) ? 5 : timerDuration);
       } else {
-        const showToast = (msg) => {
-          if (window.UI && typeof window.UI.showToast === 'function') window.UI.showToast(msg, 'error');
-          else if (typeof window.showToast === 'function') window.showToast(msg);
-        };
-        showToast(lang === 'ar' ? 'تعذر تحميل الرابط المطلوب' : 'Failed to load link');
+        if (window.UI && typeof window.UI.showToast === 'function') {
+          window.UI.showToast(lang === 'ar' ? 'تعذر تحميل الرابط المطلوب' : 'Failed to load link');
+        }
         if (btn) btn.innerText = lang === 'ar' ? 'خطأ في تحميل الرابط' : 'Link Error';
       }
     } catch (err) {
       console.error("Bridge init error:", err);
     }
-  }
+  },
 
   /**
    * العداد الزمني التنازلي للإعلان
    */
-  function startBridgeTimer(seconds) {
+  startBridgeTimer: function(seconds) {
     if (window.bridgeTimerInterval) {
       clearInterval(window.bridgeTimerInterval);
     }
@@ -495,7 +407,7 @@
     let timeLeft = seconds;
     const timerElem = document.getElementById('timer') || document.getElementById('timer-count');
     const btn = document.getElementById('go-btn') || document.getElementById('btn-go');
-    const lang = window.currentLang || 'ar';
+    const lang = window.UI ? window.UI.currentLang : (window.currentLang || 'ar');
 
     if (timerElem) timerElem.innerText = timeLeft;
     if (btn) {
@@ -518,33 +430,30 @@
         if (btn) {
           btn.disabled = false;
           btn.innerText = lang === 'ar' ? 'الانتقال إلى الرابط' : 'Go to Link';
-          btn.onclick = function(e) {
+          btn.onclick = (e) => {
             if (e) e.preventDefault();
-            completeImpression();
+            this.completeImpression();
           };
         }
       }
     }, 1000);
-  }
+  },
 
   /**
-   * تأكيد المشاهدة والتوجيه النهائي
+   * إرسال إثبات التفاعل والتحويل النهائي بآمان
    */
-  async function completeImpression() {
+  completeImpression: async function() {
     const btn = document.getElementById('go-btn') || document.getElementById('btn-go');
-    const lang = window.currentLang || 'ar';
-
-    const setButtonLoading = (btnId, isLoading) => {
-      if (window.UI && typeof window.UI.setButtonLoading === 'function') window.UI.setButtonLoading(btnId, isLoading);
-      else if (typeof window.setButtonLoading === 'function') window.setButtonLoading(btnId, isLoading);
-    };
+    const lang = window.UI ? window.UI.currentLang : (window.currentLang || 'ar');
 
     if (btn) {
       btn.disabled = true;
       btn.innerText = lang === 'ar' ? 'جاري التوجيه...' : 'Redirecting...';
     }
 
-    setButtonLoading(btn ? btn.id : 'go-btn', true);
+    if (window.UI && typeof window.UI.setButtonLoading === 'function') {
+      window.UI.setButtonLoading(btn.id || 'go-btn', true);
+    }
 
     try {
       const durationSec = Math.round((Date.now() - (window.bridgeStartTime || Date.now())) / 1000);
@@ -554,18 +463,11 @@
         token: window.bridgeToken,
         duration: durationSec,
         interactionProof: window.humanInteractionScore || 1,
-        fingerprint: window.visitorFingerprint || generateBrowserFingerprint()
+        fingerprint: window.visitorFingerprint || this.generateBrowserFingerprint()
       };
 
-      let data = null;
-      if (window.API && typeof window.API.post === 'function') {
-        data = await window.API.post('/api/bridge/complete', payload);
-      } else if (typeof window.safeFetch === 'function') {
-        const res = await window.safeFetch('/api/bridge/complete', { method: 'POST', body: payload });
-        if (res && res.ok) data = await res.json().catch(() => ({}));
-      }
-
-      const finalTarget = (data && data.targetUrl) || window.bridgeDestinationUrl;
+      const data = await window.API.recordBridgeImpression(payload.shortCode, payload.token);
+      const finalTarget = data?.targetUrl || window.bridgeDestinationUrl;
 
       if (finalTarget) {
         window.location.href = finalTarget;
@@ -575,11 +477,9 @@
       if (window.bridgeDestinationUrl) {
         window.location.href = window.bridgeDestinationUrl;
       } else {
-        const showToast = (msg) => {
-          if (window.UI && typeof window.UI.showToast === 'function') window.UI.showToast(msg, 'error');
-          else if (typeof window.showToast === 'function') window.showToast(msg);
-        };
-        showToast(lang === 'ar' ? 'حدث خطأ أثناء التوجيه للرابط' : 'Redirection error');
+        if (window.UI && typeof window.UI.showToast === 'function') {
+          window.UI.showToast(lang === 'ar' ? 'حدث خطأ أثناء التوجيه للرابط' : 'Redirection error');
+        }
       }
     } catch (e) {
       console.error("Complete impression error:", e);
@@ -588,36 +488,18 @@
       }
     }
   }
+};
 
-  // تصدير الكائن العام والمكونات للواجهة
-  const ShortenerModule = {
-    generateBrowserFingerprint,
-    initHumanInteractionTracker,
-    formatShortUrl,
-    copyToClipboard,
-    fetchUserLinks,
-    handleShortenClick,
-    renderUserLinks,
-    filterUserLinks,
-    deleteLink,
-    renderBridgeAd,
-    initBridgeView,
-    startBridgeTimer,
-    completeImpression
-  };
-
-  window.ShortenerModule = ShortenerModule;
-  window.generateBrowserFingerprint = generateBrowserFingerprint;
-  window.initHumanInteractionTracker = initHumanInteractionTracker;
-  window.formatShortUrl = formatShortUrl;
-  window.copyToClipboard = copyToClipboard;
-  window.fetchUserLinks = fetchUserLinks;
-  window.handleShortenClick = handleShortenClick;
-  window.renderUserLinks = renderUserLinks;
-  window.filterUserLinks = filterUserLinks;
-  window.deleteLink = deleteLink;
-  window.renderBridgeAd = renderBridgeAd;
-  window.initBridgeView = initBridgeView;
-  window.startBridgeTimer = startBridgeTimer;
-  window.completeImpression = completeImpression;
-})();
+// Global standard helpers mapping for compatibility
+window.generateBrowserFingerprint = window.ShortenerModule.generateBrowserFingerprint.bind(window.ShortenerModule);
+window.initHumanInteractionTracker = window.ShortenerModule.initHumanInteractionTracker.bind(window.ShortenerModule);
+window.formatShortUrl = window.ShortenerModule.formatShortUrl.bind(window.ShortenerModule);
+window.fetchUserLinks = window.ShortenerModule.fetchUserLinks.bind(window.ShortenerModule);
+window.handleShortenClick = window.ShortenerModule.handleShortenClick.bind(window.ShortenerModule);
+window.renderUserLinks = window.ShortenerModule.renderUserLinks.bind(window.ShortenerModule);
+window.filterUserLinks = window.ShortenerModule.filterUserLinks.bind(window.ShortenerModule);
+window.deleteLink = window.ShortenerModule.deleteLink.bind(window.ShortenerModule);
+window.renderBridgeAd = window.ShortenerModule.renderBridgeAd.bind(window.ShortenerModule);
+window.initBridgeView = window.ShortenerModule.initBridgeView.bind(window.ShortenerModule);
+window.startBridgeTimer = window.ShortenerModule.startBridgeTimer.bind(window.ShortenerModule);
+window.completeImpression = window.ShortenerModule.completeImpression.bind(window.ShortenerModule);
