@@ -8,7 +8,7 @@
   <!-- External CSS Integration -->
   <link rel="stylesheet" href="/css/style.css">
 
-  <!-- Official Telegram WebApp SDK & Ads SDK -->
+  <!-- 1. مكتبة تليجرام الرسمية والإعلانات -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 </head>
@@ -352,22 +352,24 @@
     </div>
   </div>
 
- <!-- 1. ملفات الترجمة واللغات -->
-<script src="/js/language/i18n.js"></script>
-<script src="/js/language/ar.js"></script>
-<script src="/js/language/en.js"></script>
+  <!-- 2. ملفات الترجمة واللغات -->
+  <script src="/js/language/i18n.js"></script>
+  <script src="/js/language/ar.js"></script>
+  <script src="/js/language/en.js"></script>
 
-<!-- 2. النواة الأساسية والاتصال بالسيرفر -->
-<script src="/js/modules/api.js"></script>
+  <!-- 3. النواة الأساسية والاتصال بالسيرفر -->
+  <script src="/js/modules/api.js"></script>
 
-<!-- 3. دوال الواجهة، التنبيهات، واللوادر -->
-<script src="/js/modules/ui.js"></script>
+  <!-- 4. دوال الواجهة، التنبيهات، واللوادر -->
+  <script src="/js/modules/ui.js"></script>
 
-<!-- 4. وحدات التطبيق المختلفة -->
-<script src="/js/modules/shortener.js"></script>
-<script src="/js/modules/wallet.js"></script>
-<script src="/js/modules/ads.js"></script>
-<script src="/js/modules/admin.js"></script>
+  <!-- 5. وحدات التطبيق المختلفة -->
+  <script src="/js/modules/ads.js"></script>
+  <script src="/js/modules/shortener.js"></script>
+  <script src="/js/modules/wallet.js"></script>
+  <script src="/js/modules/admin.js"></script>
 
-<!-- 5. الملف الرئيسي للربط عند تحميل الصفحة -->
-<script src="/js/app.js"></script>
+  <!-- 6. الملف الرئيسي للربط عند تحميل الصفحة (يأتي دائماً في النهاية) -->
+  <script src="/js/app.js"></script>
+</body>
+</html>
