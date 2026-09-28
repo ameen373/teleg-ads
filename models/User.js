@@ -11,7 +11,6 @@ const userSchema = new mongoose.Schema({
     type: String, 
     unique: true, 
     sparse: true,
-    index: true,
     trim: true,
     set: sanitizeTelegramId
   },
