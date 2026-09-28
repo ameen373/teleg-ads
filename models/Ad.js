@@ -44,6 +44,17 @@ const adSchema = new mongoose.Schema({
     required: [true, 'Target URL is required'], 
     trim: true
   },
+
+  /* --- حقل استهداف نوع المحتوى المُضاف --- */
+  targetCategory: {
+    type: String,
+    enum: ['all', 'video', 'image', 'app_game', 'file'],
+    default: 'all',
+    index: true,
+    trim: true
+  },
+  /* ------------------------------------ */
+
   totalBudget: { 
     type: Number, 
     required: [true, 'Total budget is required'], 
@@ -103,6 +114,7 @@ adSchema.pre('validate', function(next) {
 
 adSchema.index({ userId: 1, createdAt: -1 });
 adSchema.index({ advertiserTelegramId: 1, status: 1, createdAt: -1 });
+adSchema.index({ status: 1, targetCategory: 1, remainingBudget: 1 });
 
 adSchema.statics.findAdvertiserAdsIsolated = function(identifier, filter = {}) {
   if (!identifier) return this.find({ _id: { $exists: false } });
