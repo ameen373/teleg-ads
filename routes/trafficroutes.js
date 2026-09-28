@@ -1,6 +1,5 @@
 /**
- * Traffic Engine Router (Bridge Page Gateway, Session Creation & Impression Tracking)
- * Project: Telega-Ads Platform
+ * Traffic Engine Router (Session Creation & Impression Tracking)
  */
 
 const express = require('express');
