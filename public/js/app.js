@@ -1,13 +1,13 @@
 // public/js/app.js
 
-// تهيئة تليجرام WebApp وتوسيع الشاشة عند بداية التشغيل
-if (window.Telegram && window.Telegram.WebApp) {
-  window.Telegram.WebApp.ready();
-  window.Telegram.WebApp.expand();
+if (window.Telegram?.WebApp) {
+  try {
+    window.Telegram.WebApp.ready();
+    window.Telegram.WebApp.expand();
+  } catch (e) {
+    console.error("Error initializing Telegram WebApp SDK:", e);
+  }
 }
-
-// حفظ بيانات المستخدم الأولية في المتغير العام
-window.currentUser = window.Telegram?.WebApp?.initDataUnsafe?.user || null;
 
 async function authLogin() {
   const tgApp = window.Telegram?.WebApp;
@@ -16,9 +16,23 @@ async function authLogin() {
   const initDataStr = tgApp?.initData || '';
 
   if (u && u.id) {
-    window.currentUser = Object.assign({}, window.currentUser || {}, u);
     currentUserTelegramId = String(u.id);
     localStorage.setItem('telegramId', currentUserTelegramId);
+    
+    window.currentUser = {
+      id: currentUserTelegramId,
+      telegramId: currentUserTelegramId,
+      first_name: u.first_name || '',
+      firstName: u.first_name || '',
+      last_name: u.last_name || '',
+      lastName: u.last_name || '',
+      username: u.username || '',
+      photo_url: u.photo_url || '',
+      photoUrl: u.photo_url || '',
+      is_premium: !!u.is_premium,
+      isPremium: !!u.is_premium,
+      language_code: u.language_code || 'ar'
+    };
   }
 
   try {
@@ -36,9 +50,11 @@ async function authLogin() {
         initData: initDataStr
       }
     });
+
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-    if (data && (data.success || data.token)) {
+
+    if (data && (data.success || data.token || data.user)) {
       if (data.token) {
         authToken = data.token;
         localStorage.setItem('authToken', authToken);
@@ -86,6 +102,10 @@ async function authLogin() {
         if (sContact) sContact.href = data.supportUrl;
       }
 
+      if (typeof renderTelegramUser === 'function') {
+        renderTelegramUser();
+      }
+
       return true;
     }
   } catch (e) {
@@ -101,8 +121,8 @@ async function loadUserData() {
       const data = await res.json().catch(() => ({}));
       const u = data.user || {};
 
-      if (Object.keys(u).length > 0) {
-        window.currentUser = Object.assign({}, window.currentUser || {}, u);
+      if (data.user) {
+        window.currentUser = Object.assign({}, window.currentUser || {}, data.user);
       }
 
       const pendingElem = document.getElementById('pending-bal');
@@ -121,7 +141,7 @@ async function loadUserData() {
       const refInput = document.getElementById('ref-link');
       const botUsername = (data.botUsername || 'Ads_telegabot').replace(/^@/, '');
       if (refInput) {
-        refInput.value = `https://t.me/${botUsername}?start=${currentUserTelegramId || u.telegramId || ''}`;
+        refInput.value = `https://t.me/${botUsername}?start=${currentUserTelegramId}`;
       }
 
       const walletInput = document.getElementById('default-wallet');
@@ -159,6 +179,10 @@ async function loadUserData() {
         const adminBtn = document.getElementById('tab-btn-admin');
         if (adminBtn) adminBtn.style.display = 'flex';
       }
+
+      if (typeof renderTelegramUser === 'function') {
+        renderTelegramUser();
+      }
     }
   } catch (err) {
     console.error("Error loading user data:", err);
@@ -166,21 +190,14 @@ async function loadUserData() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  if (window.Telegram && window.Telegram.WebApp) {
+  if (window.Telegram?.WebApp) {
     window.Telegram.WebApp.ready();
     window.Telegram.WebApp.expand();
   }
 
-  if (typeof renderTelegramUser === 'function') {
-    renderTelegramUser();
-  }
-
+  if (typeof renderTelegramUser === 'function') renderTelegramUser();
   await authLogin();
   
-  if (typeof renderTelegramUser === 'function') {
-    renderTelegramUser();
-  }
-
   const pathParts = window.location.pathname.split('/');
   if (pathParts.length >= 3 && pathParts[1] === 'r') {
     const code = pathParts[2];
