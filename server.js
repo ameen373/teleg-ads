@@ -1,7 +1,7 @@
 /**
- * Ultra-Enterprise Server Architecture (V6.6 - Absolute Multi-Tenant Security & High-Performance Core)
+ * Ultra-Enterprise Server Architecture
  * Telegram Link Shortener & Mini App Engine (Telega.ads)
- * Full MVC Architecture - Step 3 Production Ready
+ * Main Server File
  */
 
 require('dotenv').config();
@@ -45,7 +45,7 @@ app.use(cors({
 }));
 app.options('*', cors());
 
-// --- Robust Body Parsing & Vercel Payload Normalization (10MB Limit) ---
+// --- Robust Body Parsing & Payload Normalization (10MB Limit) ---
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.text({ type: ['text/*', 'application/json'], limit: '10mb' }));
@@ -87,7 +87,7 @@ app.use(async (req, res, next) => {
     next();
   } catch (err) {
     logger.error('Database connection middleware error:', err);
-    return res.status(500).json({ success: false, error: 'خطأ في الاتصال بقاعدة البيانات' });
+    return res.status(500).json({ success: false, message: 'خطأ في الاتصال بقاعدة البيانات' });
   }
 });
 
@@ -121,5 +121,5 @@ app.use('/', adminRouter);
 // =========================================================================
 app.use(errorHandler);
 
-// Compatible Export for Vercel Serverless Function Engine
+// Compatible Export for Serverless / Server Engine
 module.exports = app;
