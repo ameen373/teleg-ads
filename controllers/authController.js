@@ -114,84 +114,38 @@ const handleLogin = async (req, res, next) => {
     const currentLastName = telegramUser?.lastName || telegramUser?.last_name || req.body?.lastName || '';
     const userLanguage = telegramUser?.languageCode || telegramUser?.language_code || req.body?.language || CONFIG.DEFAULT_LANGUAGE || 'ar';
 
-    let user = null;
+    const updatePayload = {
+      telegramId: tId,
+      username: currentUsername,
+      ...(currentFirstName && { firstName: currentFirstName }),
+      ...(currentLastName && { lastName: currentLastName }),
+      ...(userLanguage && { language: userLanguage })
+    };
 
-    // 1. البحث عن مستخدم موجود أولاً بالشكل الحديث أو القديم
-    user = await User.findOne({
-      $or: [
+    const updateOps = { $set: updatePayload };
+
+    if (referrerId && mongoose.Types.ObjectId.isValid(referrerId)) {
+      updateOps.$setOnInsert = { referredBy: referrerId };
+    }
+
+    let user;
+    try {
+      user = await User.findOneAndUpdate(
         { telegramId: tId },
-        { telegram_id: tId }
-      ]
-    });
-
-    if (user) {
-      // 2. تحديث بيانات المستخدم الموجود
-      user.telegramId = tId;
-      if (currentUsername) user.username = currentUsername;
-      if (currentFirstName) user.firstName = currentFirstName;
-      if (currentLastName) user.lastName = currentLastName;
-      if (userLanguage) user.language = userLanguage;
-
-      try {
-        await user.save();
-      } catch (saveErr) {
-        if (saveErr.code === 11000 || (saveErr.message && saveErr.message.includes('E11000'))) {
-          // التعامل مع تعارض اسم المستخدم أو المفتاح المكرر بحذر شديد
-          try {
-            user.username = `user_${tId}_${Date.now().toString().slice(-4)}`;
-            await user.save();
-          } catch (retryErr) {
-            // جلب الحساب الموجود كخيار أخير لتفادي تعطل السيرفر
-            user = await User.findOne({
-              $or: [{ telegramId: tId }, { telegram_id: tId }]
-            });
-          }
-        } else {
-          throw saveErr;
-        }
+        updateOps,
+        { new: true, upsert: true, setDefaultsOnInsert: true }
+      );
+    } catch (dbError) {
+      if (logger && typeof logger.error === 'function') {
+        logger.error('Database Error in authController login:', dbError);
+      } else {
+        console.error('Database Error in authController login:', dbError);
       }
-    } else {
-      // 3. مستخدم جديد - الاستعانة بعملية الذرة (Atomic Upsert) لمنع التعارض الموازي E11000
-      try {
-        const updateFields = {
-          telegramId: tId,
-          username: currentUsername,
-          ...(currentFirstName && { firstName: currentFirstName }),
-          ...(currentLastName && { lastName: currentLastName }),
-          ...(userLanguage && { language: userLanguage })
-        };
 
-        const insertFields = {
-          telegramId: tId,
-          username: currentUsername,
-          firstName: currentFirstName,
-          lastName: currentLastName,
-          language: userLanguage,
-          ...(referrerId && mongoose.Types.ObjectId.isValid(referrerId) ? { referredBy: referrerId } : {})
-        };
-
-        user = await User.findOneAndUpdate(
-          { telegramId: tId },
-          {
-            $set: updateFields,$setOnInsert: insertFields
-          },
-          {
-            new: true,
-            upsert: true,
-            setDefaultsOnInsert: true,
-            runValidators: true
-          }
-        );
-      } catch (createErr) {
-        if (createErr.code === 11000 || (createErr.message && createErr.message.includes('E11000'))) {
-          // إذا حدث تعارض مفتاح مكرر أثناء الإنشاء، نحضر المستخدم المسجل بالفعل
-          user = await User.findOne({
-            $or: [{ telegramId: tId }, { telegram_id: tId }]
-          });
-        } else {
-          throw createErr;
-        }
-      }
+      return res.status(500).json({
+        success: false,
+        message: 'حدث خطأ في قاعدة البيانات أثناء تسجيل الدخول'
+      });
     }
 
     if (!user) {
