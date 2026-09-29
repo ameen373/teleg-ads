@@ -43,30 +43,24 @@ app.use(cors({
   ],
   credentials: true
 }));
-app.options('*', cors());
 
-// --- Robust Body Parsing & Payload Normalization (10MB Limit) ---
+// --- Robust Body Parsing & Security Sanitization ---
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(express.text({ type: ['text/*', 'application/json'], limit: '10mb' }));
-
-app.use((req, res, next) => {
-  if (typeof req.body === 'string' && req.body.trim().length > 0) {
-    try {
-      req.body = JSON.parse(req.body);
-    } catch (e) {}
-  }
-  if (!req.body || typeof req.body !== 'object') {
-    req.body = {};
-  }
-  next();
-});
-
 app.use(mongoSanitize());
 
-// --- Static Files Serving ---
+// --- Morgan Logger Middleware ---
+app.use(morgan('combined', { stream: { write: (message) => logger.info(message.trim()) } }));
+
+// =========================================================================
+// --- Static Asset & Favicon Handling (BEFORE DB Middleware for Performance) ---
+// =========================================================================
+
+// Fix favicon 404 error
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
+// Safe Static Files Serving (Only from public folder)
 app.use(express.static(path.join(process.cwd(), 'public')));
-app.use(express.static(__dirname));
 
 // --- Force UTF-8 JSON Response Headers & No-Cache Privacy Guard ---
 app.use((req, res, next) => {
@@ -78,9 +72,9 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(morgan('combined', { stream: { write: (message) => logger.info(message.trim()) } }));
-
-// Middleware to ensure Database Connection per Request
+// =========================================================================
+// --- Database Connection Middleware ---
+// =========================================================================
 app.use(async (req, res, next) => {
   try {
     await connectDB();
@@ -117,9 +111,20 @@ app.use('/', trafficRouter);
 app.use('/', adminRouter);
 
 // =========================================================================
-// --- Centralized Error Logger & Exception Handler Middleware ---
+// --- Fallback 404 Handler & Centralized Error Handler ---
 // =========================================================================
+app.use((req, res) => {
+  res.status(404).json({ success: false, message: 'المسار المطلوب غير موجود' });
+});
+
 app.use(errorHandler);
 
-// Compatible Export for Serverless / Server Engine
+// Support direct execution (Node/Termux) and Vercel Serverless export
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    logger.info(`Server running on port ${PORT}`);
+  });
+}
+
 module.exports = app;
