@@ -1,6 +1,11 @@
-// Telega.ads - Admin Dashboard & System Management Module
+// public/js/modules/admin.js
+// Telega.ads - Admin Dashboard & System Management Module (ES Module)
 
-window.AdminModule = {
+import API from './api.js';
+import i18n from './i18n.js';
+import UI from './ui.js';
+
+export const AdminModule = {
   /**
    * تحميل بيانات لوحة تحكم الإدارة بالكامل
    */
@@ -8,7 +13,7 @@ window.AdminModule = {
     if (!window.isUserAdmin) return;
 
     try {
-      const data = await window.API.loadAdminData();
+      const data = await API.loadAdminData();
       if (data) {
         const totalUsersEl = document.getElementById('admin-total-users');
         const totalPendingEl = document.getElementById('admin-total-pending');
@@ -115,7 +120,7 @@ window.AdminModule = {
       c.innerHTML = '<p style="color:var(--text-muted);">لا توجد إعلانات</p>'; 
       return; 
     }
-    const escapeFn = window.UI ? window.UI.escapeHTML : (s => s);
+    const escapeFn = UI ? UI.escapeHTML : (s => s);
     c.innerHTML = list.map(a => `
       <div style="background:#070a12; padding:8px; border-radius:8px; margin-bottom:6px; font-size:11px;">
         <b>عنوان:</b> ${escapeFn(a.title)} | <b>الميزانية:</b> $${a.budget}
@@ -130,11 +135,11 @@ window.AdminModule = {
     try {
       let success = false;
       if (type === 'deposit') {
-        success = await window.API.processAdminDeposit(itemId, action);
+        success = await API.processAdminDeposit(itemId, action);
       } else if (type === 'withdraw') {
-        success = await window.API.processAdminWithdraw(itemId, action);
+        success = await API.processAdminWithdraw(itemId, action);
       } else {
-        const res = await window.API.safeFetch(`/api/admin/${type}/${action}`, {
+        const res = await API.safeFetch(`/api/admin/${type}/${action}`, {
           method: 'POST',
           body: { id: itemId }
         });
@@ -142,28 +147,30 @@ window.AdminModule = {
       }
 
       if (success) {
-        if (window.UI && typeof window.UI.showToast === 'function') {
-          window.UI.showToast("تم تنفيذ الإجراء بنجاح");
+        if (UI && typeof UI.showToast === 'function') {
+          UI.showToast("تم تنفيذ الإجراء بنجاح");
         }
         await this.loadAdminData();
       } else {
-        if (window.UI && typeof window.UI.showToast === 'function') {
-          window.UI.showToast("فشل تنفيذ الإجراء");
+        if (UI && typeof UI.showToast === 'function') {
+          UI.showToast("فشل تنفيذ الإجراء");
         }
       }
     } catch (e) {
-      if (window.UI && typeof window.UI.showToast === 'function') {
-        window.UI.showToast("خطأ أثناء تنفيذ الإجراء");
+      if (UI && typeof UI.showToast === 'function') {
+        UI.showToast("خطأ أثناء تنفيذ الإجراء");
       }
     }
   }
 };
 
-// Global standard helpers mapping for compatibility
-window.loadAdminData = window.AdminModule.loadAdminData.bind(window.AdminModule);
-window.renderAdminDeposits = window.AdminModule.renderAdminDeposits.bind(window.AdminModule);
-window.renderAdminWithdraws = window.AdminModule.renderAdminWithdraws.bind(window.AdminModule);
-window.renderAdminUsers = window.AdminModule.renderAdminUsers.bind(window.AdminModule);
-window.renderAdminLinks = window.AdminModule.renderAdminLinks.bind(window.AdminModule);
-window.renderAdminAds = window.AdminModule.renderAdminAds.bind(window.AdminModule);
-window.processAdminAction = window.AdminModule.processAdminAction.bind(window.AdminModule);
+window.AdminModule = AdminModule;
+window.loadAdminData = AdminModule.loadAdminData.bind(AdminModule);
+window.renderAdminDeposits = AdminModule.renderAdminDeposits.bind(AdminModule);
+window.renderAdminWithdraws = AdminModule.renderAdminWithdraws.bind(AdminModule);
+window.renderAdminUsers = AdminModule.renderAdminUsers.bind(AdminModule);
+window.renderAdminLinks = AdminModule.renderAdminLinks.bind(AdminModule);
+window.renderAdminAds = AdminModule.renderAdminAds.bind(AdminModule);
+window.processAdminAction = AdminModule.processAdminAction.bind(AdminModule);
+
+export default AdminModule;
