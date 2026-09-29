@@ -50,7 +50,7 @@ const handleUserData = async (req, res, next) => {
     });
 
     const userObj = req.user ? req.user.toObject() : {};
-    const isAdmin = Boolean(CONFIG.ADMIN_ID && String(req.user?.telegramId).trim() === CONFIG.ADMIN_ID);
+    const isAdmin = Boolean(CONFIG.ADMIN_ID && String(req.user?.telegramId).trim() === String(CONFIG.ADMIN_ID));
 
     return res.json({ 
       success: true,
@@ -84,6 +84,9 @@ const handleUserData = async (req, res, next) => {
       }
     });
   } catch (err) {
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleUserData:', err);
+    }
     next(err);
   }
 };
@@ -111,6 +114,9 @@ const handleUserReferrals = async (req, res, next) => {
       referrals
     });
   } catch (err) {
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleUserReferrals:', err);
+    }
     next(err);
   }
 };
@@ -212,7 +218,9 @@ const handleDeposit = async (req, res, next) => {
 
     return res.json({ success: true, message: "تم تقديم طلب الإيداع بنجاح", deposit });
   } catch (err) {
-    logger.error('Error in handleDeposit:', err);
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleDeposit:', err);
+    }
     return res.status(500).json({ success: false, message: err.message || 'حدث خطأ داخلي أثناء معالجة طلب الإيداع' });
   }
 };
@@ -229,11 +237,11 @@ const handleWithdraw = async (req, res, next) => {
     const targetWallet = walletAddress || wallet;
     const numAmount = Number(amount);
 
-    if (isNaN(numAmount) || numAmount < CONFIG.MIN_WITHDRAWAL_AMOUNT) {
+    if (isNaN(numAmount) || numAmount < (CONFIG.MIN_WITHDRAWAL_AMOUNT || 5)) {
       await session.abortTransaction();
       return res.status(400).json({
         success: false,
-        message: `الحد الأدنى للسحب هو $${CONFIG.MIN_WITHDRAWAL_AMOUNT}`
+        message: `الحد الأدنى للسحب هو $${CONFIG.MIN_WITHDRAWAL_AMOUNT || 5}`
       });
     }
 
@@ -276,6 +284,9 @@ const handleWithdraw = async (req, res, next) => {
     return res.json({ success: true, withdraw: withdraw[0], message: 'تم إرسال طلب السحب بنجاح وسيتم معالجته قريباً' });
   } catch (err) {
     await session.abortTransaction();
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleWithdraw:', err);
+    }
     next(err);
   } finally {
     session.endSession();
@@ -301,6 +312,9 @@ const handleUserTransactions = async (req, res, next) => {
 
     return res.json({ success: true, message: "تم جلب سجل العمليات المالية", transactions, withdrawals: withdraws, deposits });
   } catch (err) {
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleUserTransactions:', err);
+    }
     next(err);
   }
 };
@@ -319,6 +333,9 @@ const handleUpdateSettings = async (req, res, next) => {
     const user = await User.findByIdAndUpdate(req.userId, updateData, { new: true });
     return res.json({ success: true, message: "تم تحديث الإعدادات بنجاح", user });
   } catch (err) {
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleUpdateSettings:', err);
+    }
     next(err);
   }
 };
