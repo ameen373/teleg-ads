@@ -8,7 +8,7 @@ const crypto = require('crypto');
 const CONFIG = require('../config/config');
 const logger = require('../config/logger');
 const connectDB = require('../config/db');
-const { safeRedisDel } = require('../config/redis');
+const { safeRedisGet, safeRedisSet, safeRedisDel } = require('../config/redis');
 
 const { 
   normalizeAndValidateUrl, 
@@ -76,7 +76,9 @@ const selectSmartAd = async (country, device, category) => {
       }
     }
   } catch (err) {
-    logger.warn('Warning in selectSmartAd:', err.message);
+    if (logger && typeof logger.warn === 'function') {
+      logger.warn('Warning in selectSmartAd:', err.message);
+    }
   }
 
   return {
@@ -189,6 +191,8 @@ const handleShortenLink = async (req, res) => {
 
     const linkObj = newLink.toObject ? newLink.toObject() : newLink;
 
+    await safeRedisSet(`link:data:${shortCode}`, JSON.stringify(linkObj), 'EX', 600);
+
     return res.json({ 
       success: true, 
       message: 'تم اختصار الرابط بنجاح',
@@ -201,7 +205,9 @@ const handleShortenLink = async (req, res) => {
       }
     });
   } catch (err) {
-    logger.error('Error in handleShortenLink:', err);
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleShortenLink:', err);
+    }
     return res.status(500).json({ 
       success: false, 
       message: 'حدث خطأ أثناء اختصار الرابط، يرجى المحاولة لاحقاً' 
@@ -221,8 +227,19 @@ const handleGetBridgeData = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'كود الرابط غير موجود' });
     }
 
-    const link = await Link.findOne({ shortCode: code, isActive: true });
-    if (!link) {
+    let link = null;
+    const cachedLink = await safeRedisGet(`link:data:${code}`);
+
+    if (cachedLink) {
+      link = JSON.parse(cachedLink);
+    } else {
+      link = await Link.findOne({ shortCode: code, isActive: true }).lean();
+      if (link) {
+        await safeRedisSet(`link:data:${code}`, JSON.stringify(link), 'EX', 300);
+      }
+    }
+
+    if (!link || !link.isActive) {
       return res.status(404).json({ success: false, message: 'الرابط المطلوب غير موجود أو غير نشط' });
     }
 
@@ -249,7 +266,9 @@ const handleGetBridgeData = async (req, res, next) => {
       ad: matchedAd
     });
   } catch (err) {
-    logger.error('Error in handleGetBridgeData:', err);
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleGetBridgeData:', err);
+    }
     next(err);
   }
 };
@@ -328,7 +347,9 @@ const handleBridgeComplete = async (req, res, next) => {
       targetUrl: link.targetUrl
     });
   } catch (err) {
-    logger.error('Error in handleBridgeComplete:', err);
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleBridgeComplete:', err);
+    }
     next(err);
   }
 };
@@ -385,6 +406,10 @@ const handleRecordImpression = async (req, res, next) => {
       }).catch(() => {});
     }
 
+    if (link.shortCode) {
+      await safeRedisDel(`link:data:${link.shortCode}`);
+    }
+
     return res.json({
       success: true,
       message: 'تم تسجيل الزيارة واحتساب الأرباح بنجاح',
@@ -392,6 +417,9 @@ const handleRecordImpression = async (req, res, next) => {
       targetUrl: link.targetUrl
     });
   } catch (err) {
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleRecordImpression:', err);
+    }
     next(err);
   }
 };
@@ -425,6 +453,9 @@ const handleGetUserLinks = async (req, res, next) => {
 
     return res.json({ success: true, message: "تم جلب الروابط بنجاح", links });
   } catch (err) {
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleGetUserLinks:', err);
+    }
     next(err);
   }
 };
@@ -444,6 +475,9 @@ const handleToggleLink = async (req, res, next) => {
 
     return res.json({ success: true, message: "تم تحديث حالة الرابط", isActive: link.isActive });
   } catch (err) {
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleToggleLink:', err);
+    }
     next(err);
   }
 };
@@ -464,6 +498,9 @@ const handleDeleteLink = async (req, res, next) => {
     await safeRedisDel(`link:data:${link.shortCode}`);
     return res.json({ success: true, message: 'تم حذف الرابط بنجاح' });
   } catch (err) {
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleDeleteLink:', err);
+    }
     next(err);
   }
 };
@@ -509,6 +546,9 @@ const handleGetLinkStats = async (req, res, next) => {
       }
     });
   } catch (err) {
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleGetLinkStats:', err);
+    }
     next(err);
   }
 };
