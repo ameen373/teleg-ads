@@ -122,7 +122,7 @@ const handleLogin = async (req, res, next) => {
       ...(userLanguage && { language: userLanguage })
     };
 
-    // 1. البحث عن المستخدم بدعم لكلا الحقلين telegramId و telegram_id
+    // 1. البحث بالشكلين الجديد والقديم لتفادي التكرار
     let user = await User.findOne({
       $or: [
         { telegramId: tId },
@@ -131,7 +131,7 @@ const handleLogin = async (req, res, next) => {
     });
 
     if (user) {
-      // 2. تحديث بيانات الحساب القائم
+      // 2. تحديث الحساب
       user.telegramId = tId;
       if (currentUsername) user.username = currentUsername;
       if (currentFirstName) user.firstName = currentFirstName;
@@ -141,7 +141,7 @@ const handleLogin = async (req, res, next) => {
       try {
         await user.save();
       } catch (saveErr) {
-        if (saveErr.code === 11000 || (saveErr.message && saveErr.message.includes('E11000'))) {
+        if (saveErr.code === 11000) {
           user.username = `user_${tId}`;
           await user.save();
         } else {
@@ -149,7 +149,7 @@ const handleLogin = async (req, res, next) => {
         }
       }
     } else {
-      // 3. إنشاء أو تحديث مستخدم بطريقة ذرية (Atomic Upsert) لمنع تعارض E11000
+      // 3. إنشائه بأمان مع معالجة خطأ التعارض E11000
       try {
         const createData = {
           telegramId: tId,
@@ -160,26 +160,12 @@ const handleLogin = async (req, res, next) => {
           createData.referredBy = referrerId;
         }
 
-        user = await User.findOneAndUpdate(
-          { $or: [{ telegramId: tId }, { telegram_id: tId }] },
-          { $set: createData },
-          { new: true, upsert: true, setDefaultsOnInsert: true }
-        );
+        user = await User.create(createData);
       } catch (createErr) {
         if (createErr.code === 11000 || (createErr.message && createErr.message.includes('E11000'))) {
           user = await User.findOne({
             $or: [{ telegramId: tId }, { telegram_id: tId }]
           });
-
-          if (!user) {
-            const safeData = { 
-              telegramId: tId, 
-              firstName: currentFirstName, 
-              lastName: currentLastName, 
-              language: userLanguage 
-            };
-            user = await User.create(safeData);
-          }
         } else {
           throw createErr;
         }
