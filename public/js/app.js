@@ -1,43 +1,40 @@
-// Telega.ads - Main Application Controller (Entry Point)
+// Telega.ads - Main Application Controller (public/js/app.js)
 
-// استيراد الوحدات عبر نظام CommonJS في حال استخدام حزم مثل Browserify/Webpack
+// استيراد الوحدات باستخدام نظام CommonJS لحالات بيئات البناء والتجميع (Bundlers)
 if (typeof require !== 'undefined') {
   try {
-    if (typeof window !== 'undefined') {
-      window.UI = window.UI || require('./ui.js');
-      window.API = window.API || require('./api.js');
-      window.Shortener = window.Shortener || require('./shortener.js');
-      window.Ads = window.Ads || require('./ads.js');
-      window.Wallet = window.Wallet || require('./wallet.js');
-      window.Admin = window.Admin || require('./admin.js');
-      window.I18n = window.I18n || require('./i18n.js');
-    }
-  } catch (err) {
-    console.warn("تعذر تحميل الموديولات عبر require، سيتم الاعتماد على النطاق العام (window):", err);
+    var i18nModule = require('./i18n.js');
+    var uiModule = require('./ui.js');
+    var apiModule = require('./api.js');
+    var shortenerModule = require('./shortener.js');
+    var adsModule = require('./ads.js');
+    var walletModule = require('./wallet.js');
+    var adminModule = require('./admin.js');
+  } catch (e) {
+    // التجاوز في حالة التشغيل المباشر عبر المتصفح
   }
 }
 
-// الكائن الرئيسي للتطبيق
 window.App = {
-  // دالة الاستجابة اللمسية (Haptic Feedback) عبر Telegram WebApp API
-  triggerHaptic: function(type = 'light') {
+  // دالة الاستجابة اللمسية (Haptic Feedback) عبر التليجرام
+  triggerHaptic: function(type = 'impact', style = 'light') {
     try {
       const tg = window.Telegram?.WebApp;
       if (!tg || !tg.HapticFeedback) return;
 
-      if (type === 'selection') {
+      if (type === 'impact') {
+        tg.HapticFeedback.impactOccurred(style);
+      } else if (type === 'notification') {
+        tg.HapticFeedback.notificationOccurred(style);
+      } else if (type === 'selection') {
         tg.HapticFeedback.selectionChanged();
-      } else if (['light', 'medium', 'heavy', 'rigid', 'soft'].includes(type)) {
-        tg.HapticFeedback.impactOccurred(type);
-      } else if (['error', 'success', 'warning'].includes(type)) {
-        tg.HapticFeedback.notificationOccurred(type);
       }
-    } catch (e) {
-      console.error("خطأ أثناء تشغيل Haptic Feedback:", e);
+    } catch (err) {
+      console.error('Haptic Feedback Error:', err);
     }
   },
 
-  // منطق صفحة الجسر الانتقالية (/r/:code)
+  // تهيئة واجهة الجسر للروابط المقتطعة (/r/:code)
   initBridgeLogic: async function(code) {
     try {
       const appView = document.getElementById('app-view');
@@ -48,16 +45,12 @@ window.App = {
 
       const linkInfo = await window.API.getBridgeLinkInfo(code);
       if (!linkInfo || !linkInfo.targetUrl) {
-        this.triggerHaptic('error');
-        if (window.UI && typeof window.UI.showToast === 'function') {
-          window.UI.showToast(window.UI.currentLang === 'ar' ? "الرابط غير صالح أو غير موجود" : "Invalid link");
-        }
+        const msg = (window.UI?.currentLang === 'ar') ? "الرابط غير صالح أو غير موجود" : "Invalid link";
+        window.UI?.showToast(msg);
         return;
       }
 
-      if (window.UI && typeof window.UI.adaptBridgeUI === 'function') {
-        window.UI.adaptBridgeUI(linkInfo.targetUrl, linkInfo.title);
-      }
+      window.UI?.adaptBridgeUI(linkInfo.targetUrl, linkInfo.title);
 
       let timeLeft = 5;
       const timerElem = document.getElementById('timer');
@@ -74,10 +67,8 @@ window.App = {
           if (goBtn) {
             goBtn.disabled = false;
             goBtn.onclick = async () => {
-              this.triggerHaptic('medium');
-              if (window.UI && typeof window.UI.setButtonLoading === 'function') {
-                window.UI.setButtonLoading('go-btn', true);
-              }
+              this.triggerHaptic('impact', 'medium');
+              window.UI?.setButtonLoading('go-btn', true);
               await window.API.recordBridgeImpression(code, linkInfo.impressionToken);
               window.location.href = linkInfo.targetUrl;
             };
@@ -85,43 +76,44 @@ window.App = {
         }
       }, 1000);
     } catch (error) {
-      console.error("خطأ في تهيئة صفحة الجسر:", error);
+      console.error('Bridge logic error:', error);
     }
   },
 
-  // حذف رابط محدد
+  // حذف رابط مقتطع
   deleteLink: async function(linkId) {
     try {
-      this.triggerHaptic('warning');
-      const confirmMsg = window.UI?.currentLang === 'ar' ? "هل أنت تأكد من حذف هذا الرابط؟" : "Delete this link?";
+      this.triggerHaptic('impact', 'medium');
+      const confirmMsg = (window.UI?.currentLang === 'ar') ? "هل أنت تأكد من حذف هذا الرابط؟" : "Delete this link?";
       if (!confirm(confirmMsg)) return;
 
       const success = await window.API.deleteLink(linkId);
       if (success) {
-        this.triggerHaptic('success');
-        if (window.UI && typeof window.UI.showToast === 'function') {
-          window.UI.showToast(window.UI.currentLang === 'ar' ? "تم حذف الرابط بنجاح" : "Link deleted");
-        }
-        await this.loadUserLinks();
+        this.triggerHaptic('notification', 'success');
+        const toastMsg = (window.UI?.currentLang === 'ar') ? "تم حذف الرابط بنجاح" : "Link deleted";
+        window.UI?.showToast(toastMsg);
+        this.loadUserLinks();
       }
     } catch (error) {
-      console.error("خطأ أثناء حذف الرابط:", error);
+      console.error('Delete link error:', error);
     }
   },
 
-  // جلب وعرض روابط المستخدم
+  // تحميل قائمة روابط المستخدم
   loadUserLinks: async function(search = '') {
     try {
-      const links = await window.API.getUserLinks(search);
-      if (window.UI && typeof window.UI.renderLinksList === 'function') {
-        window.UI.renderLinksList(links);
+      if (window.Shortener && typeof window.Shortener.loadLinks === 'function') {
+        await window.Shortener.loadLinks(search);
+      } else {
+        const links = await window.API.getUserLinks(search);
+        window.UI?.renderLinksList(links);
       }
     } catch (error) {
-      console.error("خطأ أثناء تحميل الروابط:", error);
+      console.error('Load user links error:', error);
     }
   },
 
-  // تحميل بيانات لوحة التحكم
+  // تحميل بيانات لوحة التحكم الرئيسية
   loadDashboard: async function() {
     try {
       const data = await window.API.getDashboardData();
@@ -151,43 +143,52 @@ window.App = {
           ancBox.classList.remove('hidden');
         }
       }
+
+      // تمرير البيانات للوحدات المخصصة
+      if (window.Wallet && typeof window.Wallet.updateBalances === 'function') {
+        window.Wallet.updateBalances(data);
+      }
+      if (data.isAdmin && window.Admin && typeof window.Admin.showAdminTab === 'function') {
+        window.Admin.showAdminTab();
+      }
     } catch (error) {
-      console.error("خطأ في تحميل لوحة التحكم:", error);
+      console.error('Load dashboard error:', error);
     }
   },
 
-  // ربط كافة مستمعي الأحداث (Event Listeners)
+  // ربط جميع أحداث العناصر والأزرار
   bindEventListeners: function() {
-    // 1. حدث إنشاء رابط جديد
+    // 1. إنشاء رابط مقتطع
     const btnCreateLink = document.getElementById('btn-create-link');
     if (btnCreateLink) {
       btnCreateLink.addEventListener('click', async (e) => {
         e.preventDefault();
-        this.triggerHaptic('light');
-
+        this.triggerHaptic('impact', 'medium');
         const titleInput = document.getElementById('link-title');
         const urlInput = document.getElementById('link-url');
+
         if (!urlInput || !urlInput.value) {
-          this.triggerHaptic('error');
-          if (window.UI) window.UI.showToast(window.UI.currentLang === 'ar' ? "يرجى إدخال الرابط الأصلي" : "Please enter original URL");
+          const msg = (window.UI?.currentLang === 'ar') ? "يرجى إدخال الرابط الأصلي" : "Please enter original URL";
+          window.UI?.showToast(msg);
           return;
         }
 
-        if (window.UI) window.UI.setButtonLoading('btn-create-link', true);
-        const res = await window.API.createShortLink(titleInput ? titleInput.value : '', urlInput.value);
-        if (window.UI) window.UI.setButtonLoading('btn-create-link', false);
+        window.UI?.setButtonLoading('btn-create-link', true);
+        const res = await window.API.createShortLink(titleInput.value, urlInput.value);
+        window.UI?.setButtonLoading('btn-create-link', false);
 
         if (res) {
-          this.triggerHaptic('success');
-          if (window.UI) window.UI.showToast(window.UI.currentLang === 'ar' ? "تم اختصار الرابط بنجاح!" : "Link shortened!");
-          if (titleInput) titleInput.value = '';
+          this.triggerHaptic('notification', 'success');
+          const msg = (window.UI?.currentLang === 'ar') ? "تم اختصار الرابط بنجاح!" : "Link shortened!";
+          window.UI?.showToast(msg);
+          titleInput.value = '';
           urlInput.value = '';
-          await this.loadUserLinks();
+          this.loadUserLinks();
         }
       });
     }
 
-    // 2. حدث البحث في الروابط
+    // 2. البحث في الروابط
     const searchLinksInput = document.getElementById('search-links-input');
     if (searchLinksInput) {
       searchLinksInput.addEventListener('input', (e) => {
@@ -195,84 +196,85 @@ window.App = {
       });
     }
 
-    // 3. أحداث النافذة المنبثقة لتعليمات الإيداع
+    // 3. تعليمات وطريقة الإيداع
     const btnDepositGuide = document.getElementById('btn-deposit-guide');
     if (btnDepositGuide) {
       btnDepositGuide.addEventListener('click', () => {
-        this.triggerHaptic('light');
-        if (window.UI) window.UI.toggleInstructionsModal(true);
+        this.triggerHaptic('selection');
+        window.UI?.toggleInstructionsModal(true);
       });
     }
 
     const btnCloseInstructionsModal = document.getElementById('btn-close-instructions-modal');
     if (btnCloseInstructionsModal) {
       btnCloseInstructionsModal.addEventListener('click', () => {
-        this.triggerHaptic('light');
-        if (window.UI) window.UI.toggleInstructionsModal(false);
+        this.triggerHaptic('selection');
+        window.UI?.toggleInstructionsModal(false);
       });
     }
 
-    // 4. تغيير شبكة الإيداع ونسخ العناوين
+    // 4. تغيير شبكة الإيداع ونسخ العنوان
     const depositNetwork = document.getElementById('deposit-network');
     if (depositNetwork) {
       depositNetwork.addEventListener('change', (e) => {
         this.triggerHaptic('selection');
-        if (window.UI) window.UI.handleNetworkChange(e.target.value);
+        window.UI?.handleNetworkChange(e.target.value);
       });
     }
 
     const btnCopyTrc20 = document.getElementById('btn-copy-trc20');
     if (btnCopyTrc20) {
       btnCopyTrc20.addEventListener('click', () => {
-        this.triggerHaptic('light');
+        this.triggerHaptic('impact', 'light');
         const addr = document.getElementById('addr-trc20')?.innerText;
-        if (window.UI) window.UI.copyToClipboard(addr);
+        window.UI?.copyToClipboard(addr);
       });
     }
 
     const btnCopyBep20 = document.getElementById('btn-copy-bep20');
     if (btnCopyBep20) {
       btnCopyBep20.addEventListener('click', () => {
-        this.triggerHaptic('light');
+        this.triggerHaptic('impact', 'light');
         const addr = document.getElementById('addr-bep20')?.innerText;
-        if (window.UI) window.UI.copyToClipboard(addr);
+        window.UI?.copyToClipboard(addr);
       });
     }
 
-    // 5. تقديم طلب الإيداع
+    // 5. إرسال طلب إيداع
     const btnRequestDeposit = document.getElementById('btn-request-deposit');
     if (btnRequestDeposit) {
       btnRequestDeposit.addEventListener('click', async () => {
-        this.triggerHaptic('medium');
+        this.triggerHaptic('impact', 'medium');
         const network = document.getElementById('deposit-network')?.value;
         const amount = document.getElementById('deposit-amount')?.value;
         const txhash = document.getElementById('deposit-txhash')?.value;
 
         if (!network || !amount || !txhash) {
-          this.triggerHaptic('error');
-          if (window.UI) window.UI.showToast(window.UI.currentLang === 'ar' ? "يرجى ملء جميع حقول الإيداع" : "Please fill all deposit fields");
+          const msg = (window.UI?.currentLang === 'ar') ? "يرجى ملء جميع حقول الإيداع" : "Please fill all deposit fields";
+          window.UI?.showToast(msg);
           return;
         }
 
-        if (window.UI) window.UI.setButtonLoading('btn-request-deposit', true);
+        window.UI?.setButtonLoading('btn-request-deposit', true);
         const res = await window.API.requestDeposit(network, amount, txhash);
-        if (window.UI) window.UI.setButtonLoading('btn-request-deposit', false);
+        window.UI?.setButtonLoading('btn-request-deposit', false);
 
         if (res && res.success) {
-          this.triggerHaptic('success');
-          if (window.UI) window.UI.showToast(window.UI.currentLang === 'ar' ? "تم تقديم طلب الإيداع بنجاح!" : "Deposit submitted!");
+          this.triggerHaptic('notification', 'success');
+          const msg = (window.UI?.currentLang === 'ar') ? "تم تقديم طلب الإيداع بنجاح!" : "Deposit submitted!";
+          window.UI?.showToast(msg);
           document.getElementById('deposit-amount').value = '';
           document.getElementById('deposit-txhash').value = '';
         }
       });
     }
 
-    // 6. التنقل داخل واجهة المحفظة (إيداع / سحب)
+    // 6. التنقل داخل وحدة المحفظة (إيداع / سحب)
     const walletNavDeposit = document.getElementById('wallet-nav-deposit');
     if (walletNavDeposit) {
       walletNavDeposit.addEventListener('click', () => {
         this.triggerHaptic('selection');
-        if (window.UI) window.UI.switchWalletView('deposit');
+        window.UI?.switchWalletView('deposit');
       });
     }
 
@@ -280,7 +282,7 @@ window.App = {
     if (walletNavWithdraw) {
       walletNavWithdraw.addEventListener('click', () => {
         this.triggerHaptic('selection');
-        if (window.UI) window.UI.switchWalletView('withdraw');
+        window.UI?.switchWalletView('withdraw');
       });
     }
 
@@ -288,71 +290,81 @@ window.App = {
     const editWalletBtn = document.getElementById('edit-wallet-btn');
     if (editWalletBtn) {
       editWalletBtn.addEventListener('click', () => {
-        this.triggerHaptic('light');
-        if (window.UI) window.UI.toggleWalletEdit();
+        this.triggerHaptic('selection');
+        window.UI?.toggleWalletEdit();
       });
     }
 
     const saveWalletBtn = document.getElementById('save-wallet-btn');
     if (saveWalletBtn) {
       saveWalletBtn.addEventListener('click', async () => {
-        this.triggerHaptic('medium');
+        this.triggerHaptic('impact', 'medium');
         const addrInput = document.getElementById('default-wallet');
         if (!addrInput || !addrInput.value) return;
 
-        if (window.UI) window.UI.setButtonLoading('save-wallet-btn', true);
+        window.UI?.setButtonLoading('save-wallet-btn', true);
         const res = await window.API.updateWalletAddress(addrInput.value);
-        if (window.UI) window.UI.setButtonLoading('save-wallet-btn', false);
+        window.UI?.setButtonLoading('save-wallet-btn', false);
 
         if (res && res.success) {
-          this.triggerHaptic('success');
-          if (window.UI) window.UI.showToast(window.UI.currentLang === 'ar' ? "تم حفظ عنوان المحفظة!" : "Wallet saved!");
-          if (window.UI) window.UI.toggleWalletEdit();
+          this.triggerHaptic('notification', 'success');
+          const msg = (window.UI?.currentLang === 'ar') ? "تم حفظ عنوان المحفظة!" : "Wallet saved!";
+          window.UI?.showToast(msg);
+          window.UI?.toggleWalletEdit();
         }
       });
     }
 
-    // 8. حسابات وطلب السحب
+    // 8. حسابات طلب السحب وإرساله
     const withdrawAmount = document.getElementById('withdraw-amount');
     if (withdrawAmount) {
       withdrawAmount.addEventListener('input', () => {
-        if (window.UI) window.UI.updateWithdrawCalculations();
+        if (window.Wallet && typeof window.Wallet.updateCalculations === 'function') {
+          window.Wallet.updateCalculations();
+        } else {
+          window.UI?.updateWithdrawCalculations();
+        }
       });
     }
 
     const btnRequestWithdraw = document.getElementById('btn-request-withdraw');
     if (btnRequestWithdraw) {
       btnRequestWithdraw.addEventListener('click', async () => {
-        this.triggerHaptic('medium');
+        this.triggerHaptic('impact', 'medium');
         const amount = document.getElementById('withdraw-amount')?.value;
         const wallet = document.getElementById('default-wallet')?.value;
 
         if (!amount || amount < 30 || !wallet) {
-          this.triggerHaptic('error');
-          if (window.UI) window.UI.showToast(window.UI.currentLang === 'ar' ? "الحد الأدنى للسحب 30$ مع وجود محفظة" : "Min withdrawal is $30");
+          const msg = (window.UI?.currentLang === 'ar') ? "الحد الأدنى للسحب 30$ مع وجود محفظة" : "Min withdrawal is $30";
+          window.UI?.showToast(msg);
           return;
         }
 
-        if (window.UI) window.UI.setButtonLoading('btn-request-withdraw', true);
+        window.UI?.setButtonLoading('btn-request-withdraw', true);
         const res = await window.API.requestWithdrawal(amount, wallet);
-        if (window.UI) window.UI.setButtonLoading('btn-request-withdraw', false);
+        window.UI?.setButtonLoading('btn-request-withdraw', false);
 
         if (res && res.success) {
-          this.triggerHaptic('success');
-          if (window.UI) window.UI.showToast(window.UI.currentLang === 'ar' ? "تم إرسال طلب السحب بنجاح!" : "Withdrawal submitted!");
+          this.triggerHaptic('notification', 'success');
+          const msg = (window.UI?.currentLang === 'ar') ? "تم إرسال طلب السحب بنجاح!" : "Withdrawal submitted!";
+          window.UI?.showToast(msg);
           document.getElementById('withdraw-amount').value = '';
-          if (window.UI) window.UI.updateWithdrawCalculations();
-          await this.loadDashboard();
+          if (window.UI?.updateWithdrawCalculations) window.UI.updateWithdrawCalculations();
+          this.loadDashboard();
         }
       });
     }
 
-    // 9. اختار نوع الإعلان
+    // 9. اختيارات نوع الإعلان
     const adType = document.getElementById('ad-type');
     if (adType) {
       adType.addEventListener('change', () => {
         this.triggerHaptic('selection');
-        if (window.UI) window.UI.onAdTypeChange();
+        if (window.Ads && typeof window.Ads.onTypeChange === 'function') {
+          window.Ads.onTypeChange();
+        } else {
+          window.UI?.onAdTypeChange();
+        }
       });
     }
 
@@ -360,7 +372,7 @@ window.App = {
     const btnCreateAd = document.getElementById('btn-create-ad');
     if (btnCreateAd) {
       btnCreateAd.addEventListener('click', async () => {
-        this.triggerHaptic('medium');
+        this.triggerHaptic('impact', 'heavy');
         const type = document.getElementById('ad-type')?.value;
         const title = document.getElementById('ad-title')?.value;
         const targetUrl = document.getElementById('ad-target-url')?.value;
@@ -372,8 +384,8 @@ window.App = {
         const dailyBudget = document.getElementById('ad-daily-budget')?.value;
 
         if (!title || !targetUrl || !budget) {
-          this.triggerHaptic('error');
-          if (window.UI) window.UI.showToast(window.UI.currentLang === 'ar' ? "يرجى إكمال الحقول الرئيسية للإعلان" : "Please complete ad fields");
+          const msg = (window.UI?.currentLang === 'ar') ? "يرجى إكمال الحقول الرئيسية للإعلان" : "Please complete ad fields";
+          window.UI?.showToast(msg);
           return;
         }
 
@@ -387,13 +399,14 @@ window.App = {
           countries: document.getElementById('ad-countries')?.value || 'ALL'
         };
 
-        if (window.UI) window.UI.setButtonLoading('btn-create-ad', true);
+        window.UI?.setButtonLoading('btn-create-ad', true);
         const res = await window.API.createAdCampaign(adData);
-        if (window.UI) window.UI.setButtonLoading('btn-create-ad', false);
+        window.UI?.setButtonLoading('btn-create-ad', false);
 
         if (res && res.success) {
-          this.triggerHaptic('success');
-          if (window.UI) window.UI.showToast(window.UI.currentLang === 'ar' ? "تم إنشاء الحملة الإعلانية بنجاح!" : "Campaign created!");
+          this.triggerHaptic('notification', 'success');
+          const msg = (window.UI?.currentLang === 'ar') ? "تم إنشاء الحملة الإعلانية بنجاح!" : "Campaign created!";
+          window.UI?.showToast(msg);
         }
       });
     }
@@ -402,34 +415,46 @@ window.App = {
     const btnShareRef = document.getElementById('btn-share-ref');
     if (btnShareRef) {
       btnShareRef.addEventListener('click', () => {
-        this.triggerHaptic('light');
-        if (window.UI) window.UI.shareReferralLink();
-      });
-    }
-
-    // 12. تغيير لغة التطبيق
-    const languageSelect = document.getElementById('language-select');
-    if (languageSelect) {
-      languageSelect.addEventListener('change', (e) => {
-        this.triggerHaptic('selection');
-        if (typeof window.changeAppLanguage === 'function') {
-          window.changeAppLanguage(e.target.value);
-        } else if (window.I18n && typeof window.I18n.setLanguage === 'function') {
-          window.I18n.setLanguage(e.target.value);
+        this.triggerHaptic('impact', 'light');
+        if (window.UI?.shareReferralLink) {
+          window.UI.shareReferralLink();
+        } else {
+          const refInput = document.getElementById('ref-link');
+          if (refInput && refInput.value) {
+            window.Telegram?.WebApp?.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(refInput.value)}`);
+          }
         }
       });
     }
 
-    // 13. إغلاق إعلان الفيديو
-    const btnCloseVideoAd = document.getElementById('btn-close-video-ad');
-    if (btnCloseVideoAd) {
-      btnCloseVideoAd.addEventListener('click', () => {
-        this.triggerHaptic('light');
-        if (window.UI) window.UI.closeVideoAd();
+    // 12. اختيار اللغة
+    const languageSelect = document.getElementById('language-select');
+    if (languageSelect) {
+      languageSelect.addEventListener('change', (e) => {
+        this.triggerHaptic('selection');
+        const selectedLang = e.target.value;
+        if (window.i18n && typeof window.i18n.setLanguage === 'function') {
+          window.i18n.setLanguage(selectedLang);
+        } else if (typeof window.changeAppLanguage === 'function') {
+          window.changeAppLanguage(selectedLang);
+        }
       });
     }
 
-    // 14. أزرار الشريط السفلي (Navigation Dock Tabs)
+    // 13. إغلاق إعلان الفيديو Overlay
+    const btnCloseVideoAd = document.getElementById('btn-close-video-ad');
+    if (btnCloseVideoAd) {
+      btnCloseVideoAd.addEventListener('click', () => {
+        this.triggerHaptic('selection');
+        if (window.Ads && typeof window.Ads.closeVideo === 'function') {
+          window.Ads.closeVideo();
+        } else {
+          window.UI?.closeVideoAd();
+        }
+      });
+    }
+
+    // 14. التنقل عبر الشريط السفلي (Navigation Dock Buttons)
     const navDockTabs = ['dashboard', 'wallet', 'ads', 'referral', 'settings', 'admin'];
     navDockTabs.forEach(tab => {
       const btn = document.getElementById(`tab-btn-${tab}`);
@@ -439,60 +464,95 @@ window.App = {
           if (window.UI && typeof window.UI.switchTab === 'function') {
             window.UI.switchTab(tab);
           }
+          if (tab === 'admin' && window.Admin && typeof window.Admin.loadOverview === 'function') {
+            window.Admin.loadOverview();
+          }
         });
       }
     });
+
+    // 15. ربط أحداث وحدة لوحة الإدارة (Admin Module Events)
+    const btnAdminSave = document.getElementById('btn-admin-save-settings');
+    if (btnAdminSave) {
+      btnAdminSave.addEventListener('click', async () => {
+        this.triggerHaptic('impact', 'medium');
+        if (window.Admin && typeof window.Admin.saveSettings === 'function') {
+          await window.Admin.saveSettings();
+        }
+      });
+    }
+  },
+
+  // تهيئة تطبيق تليجرام المدمج (Telegram WebApp)
+  initTelegramWebApp: function() {
+    try {
+      const tg = window.Telegram?.WebApp;
+      if (tg) {
+        tg.ready();
+        tg.expand();
+
+        if (tg.setHeaderColor) tg.setHeaderColor('secondary');
+        if (tg.setBackgroundColor) tg.setBackgroundColor('bg_color');
+        if (tg.enableClosingConfirmation) tg.enableClosingConfirmation();
+      }
+    } catch (error) {
+      console.error('Telegram WebApp initialization error:', error);
+    }
+  },
+
+  // نقطة الانطلاق الشاملة للواجهة للتطبيق
+  init: async function() {
+    try {
+      // 1. تهيئة تليجرام WebApp
+      this.initTelegramWebApp();
+
+      // 2. عرض بيانات المستخدم الأولية في الواجهة
+      if (window.UI && typeof window.UI.renderTelegramUser === 'function') {
+        window.UI.renderTelegramUser();
+      }
+
+      // 3. تهيئة وحدات اللغات
+      if (window.i18n && typeof window.i18n.init === 'function') {
+        window.i18n.init();
+      }
+
+      // 4. مصادقة المستخدم وتأكيد الجلسة مع api.js
+      let authenticated = false;
+      if (window.API && typeof window.API.authLogin === 'function') {
+        const initData = window.Telegram?.WebApp?.initData || '';
+        authenticated = await window.API.authLogin(initData);
+      }
+
+      // 5. التحقق من مسار رابط الجسر (/r/:code)
+      const pathParts = window.location.pathname.split('/');
+      if (pathParts.length >= 3 && pathParts[1] === 'r') {
+        const code = pathParts[2];
+        if (code) {
+          await this.initBridgeLogic(code);
+          return;
+        }
+      }
+
+      // 6. ربط الأحداث لجميع المكونات والأزرار
+      this.bindEventListeners();
+
+      // 7. تحميل البيانات الأساسية في حال نجاح المصادقة
+      if (authenticated) {
+        await this.loadDashboard();
+        await this.loadUserLinks();
+      }
+    } catch (error) {
+      console.error('App initialization error:', error);
+    }
   }
 };
 
-// تهيئة وتشغيل التطبيق عند اكتمال تحميل DOM
-document.addEventListener('DOMContentLoaded', async () => {
-  try {
-    // 1. تهيئة Telegram WebApp
-    const tg = window.Telegram?.WebApp;
-    if (tg) {
-      tg.ready();
-      tg.expand();
-      if (typeof tg.enableClosingConfirmation === 'function') {
-        tg.enableClosingConfirmation();
-      }
-    }
-
-    // 2. عرض بيانات مستخدم تلجرام في الواجهة
-    if (window.UI && typeof window.UI.renderTelegramUser === 'function') {
-      window.UI.renderTelegramUser();
-    }
-
-    // 3. مصادقة المستخدم عبر API
-    let authenticated = false;
-    if (window.API && typeof window.API.authLogin === 'function') {
-      authenticated = await window.API.authLogin();
-    }
-
-    // 4. التحقق من مسار الجسر (/r/:code)
-    const pathParts = window.location.pathname.split('/');
-    if (pathParts.length >= 3 && pathParts[1] === 'r') {
-      const code = pathParts[2];
-      if (code) {
-        await window.App.initBridgeLogic(code);
-        return;
-      }
-    }
-
-    // 5. ربط أحداث العناصر التفاعلية
-    window.App.bindEventListeners();
-
-    // 6. تحميل بيانات لوحة التحكم والروابط إذا كانت المصادقة ناجحة
-    if (authenticated) {
-      await window.App.loadDashboard();
-      await window.App.loadUserLinks();
-    }
-  } catch (err) {
-    console.error("خطأ أثناء تشغيل التطبيق الرئيسية:", err);
-  }
+// تشغيل التطبيق فور اكتمال تحميل مستند HTML
+document.addEventListener('DOMContentLoaded', () => {
+  window.App.init();
 });
 
-// تصدير الكائن بنظام CommonJS للمحيطات التي تدعمه
+// تصدير الكود بنظام CommonJS
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = window.App;
 }
