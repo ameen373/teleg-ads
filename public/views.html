@@ -174,19 +174,28 @@
     <div id="app-view">
       
       <!-- User Profile Header -->
-      <div class="user-profile-header">
-        <div id="user-avatar-container"></div>
-        <div style="flex: 1; overflow: hidden;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span id="user-display-name" style="font-weight: 800; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">...</span>
-            <span id="user-premium-badge" class="user-badge hidden">★ Premium</span>
+      <div class="user-profile-header" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; background: rgba(15, 23, 42, 0.85); border-radius: 16px; border: 1px solid var(--card-border); margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 12px; flex: 1; overflow: hidden;">
+          <div id="user-avatar-container" style="width: 44px; height: 44px; border-radius: 50%; background: var(--card-border); display: flex; align-items: center; justify-content: center; font-weight: bold; overflow: hidden; flex-shrink: 0;"></div>
+          <div style="flex: 1; overflow: hidden;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span id="user-display-name" style="font-weight: 800; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff;">...</span>
+              <span id="user-premium-badge" class="user-badge hidden" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; font-size: 9px; padding: 2px 6px; border-radius: 8px; font-weight: bold;">★ Premium</span>
+            </div>
+            <div id="user-display-handle" style="font-size: 11px; color: var(--text-muted);">@user</div>
+            <div id="user-tg-id" style="font-size: 10px; color: var(--text-muted); margin-top: 1px;">ID: -</div>
           </div>
-          <div id="user-display-handle" style="font-size: 12px; color: var(--text-muted);">@user</div>
-          <div id="user-tg-id" style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">ID: -</div>
+        </div>
+
+        <!-- Header Balance & Quick Action -->
+        <div style="text-align: left; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+          <div style="font-size: 10px; color: var(--text-muted);" data-i18n="header_balance_label">الرصيد المتاح</div>
+          <div id="header-user-balance" style="font-size: 14px; font-weight: 800; color: var(--success);">$0.00</div>
+          <button id="btn-header-lang-toggle" class="btn-small" style="padding: 2px 8px; font-size: 10px; width: auto; background: rgba(255,255,255,0.08); border: 1px solid var(--card-border);">🌐 AR / EN</button>
         </div>
       </div>
 
-      <!-- Tab 1: Dashboard -->
+      <!-- Tab 1: Dashboard / Shortener -->
       <div id="tab-content-dashboard" class="tab-pane">
         <div class="card" style="border-color: var(--accent); background: rgba(21, 29, 48, 0.95);">
           <h4 style="margin: 0 0 6px 0; color: var(--accent); font-size: 14px;" data-i18n="about_title">ℹ️ نبذة وشروط الاستخدام</h4>
@@ -204,6 +213,14 @@
           <h3 style="font-size: 16px; margin-top:0;" data-i18n="create_link_title">اختصار رابط جديد</h3>
           <input type="text" id="link-title" data-i18n-ph="ph_link_title" placeholder="عنوان المعاينة (اختياري)">
           <input type="url" id="link-url" data-i18n-ph="ph_link_url" placeholder="الرابط الأصلي (https://...)">
+          
+          <label style="font-size: 12px; color: var(--text-muted); display: block; margin-top: 10px; margin-bottom: 4px;">نوع صفحة الجسر والتحويل:</label>
+          <select id="link-ad-type" style="margin-top: 0; margin-bottom: 12px;">
+            <option value="general">🔗 صفحة جسر عامة (General Interstitial)</option>
+            <option value="video">🎥 مشغل فيديو (Video Preview & Ads)</option>
+            <option value="app">📱 صفحة تطبيق/لعبة (App Store Style)</option>
+          </select>
+
           <button id="btn-create-link">
             <span data-i18n="btn_shorten">اختصار الرابط الآن</span>
           </button>
@@ -231,7 +248,7 @@
           </div>
         </div>
 
-        <div class="wallet-actions-nav">
+        <div class="wallet-actions-nav" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 14px 0;">
           <button id="wallet-nav-deposit" class="wallet-action-btn active" data-i18n="tab_deposit">📥 الشحن والإيداع</button>
           <button id="wallet-nav-withdraw" class="wallet-action-btn" data-i18n="tab_withdraw">📤 سحب الأرباح</button>
         </div>
@@ -251,17 +268,17 @@
 
           <div id="card-addr-trc20" class="address-card hidden">
             <small style="color: var(--text-muted);" data-i18n="lbl_trc20_addr">عنوان USDT - TRC20:</small>
-            <div class="address-row">
-              <span class="address-text" id="addr-trc20">TYqN8xM9KzL3pQ2vA5wR7jH4uE1sD8fX9k</span>
-              <button id="btn-copy-trc20" class="btn-small" data-i18n="btn_copy">نسخ</button>
+            <div class="address-row" style="display: flex; gap: 8px; align-items: center; margin-top: 4px;">
+              <span class="address-text" id="addr-trc20" style="font-family: monospace; font-size: 11px; color: var(--accent); word-break: break-all;">TYqN8xM9KzL3pQ2vA5wR7jH4uE1sD8fX9k</span>
+              <button id="btn-copy-trc20" class="btn-small" style="width: auto; flex-shrink: 0;" data-i18n="btn_copy">نسخ</button>
             </div>
           </div>
 
           <div id="card-addr-bep20" class="address-card hidden">
             <small style="color: var(--text-muted);" data-i18n="lbl_bep20_addr">عنوان USDT - BEP20 (BSC):</small>
-            <div class="address-row">
-              <span class="address-text" id="addr-bep20">0x71C7656EC7ab88b098defB751B7401B5f6d8976F</span>
-              <button id="btn-copy-bep20" class="btn-small" data-i18n="btn_copy">نسخ</button>
+            <div class="address-row" style="display: flex; gap: 8px; align-items: center; margin-top: 4px;">
+              <span class="address-text" id="addr-bep20" style="font-family: monospace; font-size: 11px; color: var(--accent); word-break: break-all;">0x71C7656EC7ab88b098defB751B7401B5f6d8976F</span>
+              <button id="btn-copy-bep20" class="btn-small" style="width: auto; flex-shrink: 0;" data-i18n="btn_copy">نسخ</button>
             </div>
           </div>
 
@@ -288,7 +305,7 @@
 
           <input type="number" id="withdraw-amount" data-i18n-ph="ph_withdraw_amount" placeholder="المبلغ (الحد الأدنى 30$)" min="30" step="any">
           
-          <div class="fee-breakdown hidden" id="withdraw-fee-box">
+          <div class="fee-breakdown hidden" id="withdraw-fee-box" style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; font-size: 11px; margin: 10px 0; display: flex; justify-content: space-between;">
             <span><span data-i18n="lbl_amount">المبلغ</span>: <b id="calc-req">$0.00</b></span>
             <span><span data-i18n="lbl_fee">الرسوم ($3)</span>: <b id="calc-fee" style="color: var(--danger);">$3.00</b></span>
             <span><span data-i18n="lbl_net">الصافي</span>: <b id="calc-net" style="color: var(--success);">$0.00</b></span>
@@ -410,12 +427,12 @@
 
         <div class="card">
           <h3 style="margin-top:0; font-size: 16px;" data-i18n="faq_title">الأسئلة الشائعة والدعم</h3>
-          <details>
-            <summary data-i18n="faq_q1">كيف يتم احتساب الأرباح؟</summary>
+          <details style="margin-bottom: 8px;">
+            <summary style="cursor: pointer; font-size: 13px; font-weight: bold;" data-i18n="faq_q1">كيف يتم احتساب الأرباح؟</summary>
             <p style="color: var(--text-muted); font-size: 12px; margin-top: 8px;" data-i18n="faq_a1">تعتمد الأرباح على إيرادات الإعلانات وتوزع نسبياً حسب الزيارات الحقيقية المعتمدة.</p>
           </details>
           <details>
-            <summary data-i18n="faq_q2">ما هي فترة الرصيد المعلق (يوم واحد)؟</summary>
+            <summary style="cursor: pointer; font-size: 13px; font-weight: bold;" data-i18n="faq_q2">ما هي فترة الرصيد المعلق (يوم واحد)؟</summary>
             <p style="color: var(--text-muted); font-size: 12px; margin-top: 8px;" data-i18n="faq_a2">هي فترة أمان لمراجعة مصادر الحركة والتأكد من عدم وجود نقرات وهمية قبل تحويل الأرباح للرصيد المتاح خلال 24 ساعة.</p>
           </details>
           
@@ -496,7 +513,7 @@
           <span data-i18n="nav_settings">الإعدادات</span>
         </button>
 
-        <button class="nav-btn" id="tab-btn-admin" style="color: var(--warning); display: none;">
+        <button class="nav-btn hidden" id="tab-btn-admin" style="color: var(--warning);">
           <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-5.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
           <span data-i18n="nav_admin">الإدارة</span>
         </button>
@@ -505,30 +522,30 @@
     </div>
   </div>
 
-  <!-- 1. ملفات الترجمة واللغة -->
+  <!-- 1. Translation and i18n modules -->
   <script src="/js/language/i18n.js"></script>
   <script src="/js/language/ar.js"></script>
   <script src="/js/language/en.js"></script>
 
-  <!-- 2. موديول الواجهة والتنبيهات (UI) -->
+  <!-- 2. UI Helper Module -->
   <script src="/js/modules/ui.js"></script>
 
-  <!-- 3. موديول الاتصال بالخادم والتوثيق (API) -->
+  <!-- 3. API Communication Module -->
   <script src="/js/modules/api.js"></script>
 
-  <!-- 4. موديول الإدارة (Admin) -->
+  <!-- 4. Admin Management Module -->
   <script src="/js/modules/admin.js"></script>
 
-  <!-- 5. موديول الحملات الإعلانية (Ads) -->
+  <!-- 5. Ads Management Module -->
   <script src="/js/modules/ads.js"></script>
 
-  <!-- 6. موديول اختصار الروابط (Shortener) -->
+  <!-- 6. Link Shortener Module -->
   <script src="/js/modules/shortener.js"></script>
 
-  <!-- 7. موديول المحفظة والإحالات (Wallet) -->
+  <!-- 7. Wallet & Referrals Module -->
   <script src="/js/modules/wallet.js"></script>
 
-  <!-- 8. الملف الرئيسي والتشغيلي (App) -->
+  <!-- 8. Main App Entry Point -->
   <script src="/js/app.js"></script>
 </body>
 </html>
