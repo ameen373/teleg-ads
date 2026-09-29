@@ -1,6 +1,11 @@
-// Telega.ads - Ad Campaigns & Delivery Module
+// public/js/modules/ads.js
+// Telega.ads - Ad Campaigns & Delivery Module (ES Module)
 
-window.AdsModule = {
+import API from './api.js';
+import i18n from './i18n.js';
+import UI from './ui.js';
+
+export const AdsModule = {
   /**
    * التبديل الديناميكي لحقول الإدخال بناءً على نوع الإعلان المحدد
    */
@@ -52,28 +57,26 @@ window.AdsModule = {
     const targetCategory = categorySelect ? categorySelect.value : 'all';
     const budget = parseFloat(budgetInput.value) || 0;
     const dailyBudget = dailyBudgetInput ? (parseFloat(dailyBudgetInput.value) || 0) : 0;
-    const lang = window.UI ? window.UI.currentLang : (window.currentLang || 'ar');
+    const lang = UI ? UI.currentLang : (window.currentLang || 'ar');
 
-    // جمع الأجهزة المحددة
     const devices = [];
     if (document.getElementById('device-android')?.checked) devices.push('Android');
     if (document.getElementById('device-ios')?.checked) devices.push('iOS');
     if (document.getElementById('device-desktop')?.checked) devices.push('Desktop');
 
-    // جمع الدول المحددة
     const countriesRaw = countriesInput ? countriesInput.value.trim() : '';
     const countries = countriesRaw ? countriesRaw.split(',').map(c => c.trim().toUpperCase()).filter(Boolean) : ['ALL'];
 
     if (!title) {
-      if (window.UI && typeof window.UI.showToast === 'function') {
-        window.UI.showToast(lang === 'ar' ? 'يرجى إدخال عنوان الإعلان' : 'Please enter ad title');
+      if (UI && typeof UI.showToast === 'function') {
+        UI.showToast(lang === 'ar' ? 'يرجى إدخال عنوان الإعلان' : 'Please enter ad title');
       }
       return;
     }
 
     if (!targetUrl) {
-      if (window.UI && typeof window.UI.showToast === 'function') {
-        window.UI.showToast(lang === 'ar' ? 'يرجى إدخال رابط التوجيه' : 'Please enter target URL');
+      if (UI && typeof UI.showToast === 'function') {
+        UI.showToast(lang === 'ar' ? 'يرجى إدخال رابط التوجيه' : 'Please enter target URL');
       }
       return;
     }
@@ -83,14 +86,14 @@ window.AdsModule = {
     }
 
     if (budget < 5) {
-      if (window.UI && typeof window.UI.showToast === 'function') {
-        window.UI.showToast(lang === 'ar' ? 'الحد الأدنى لميزانية الحملة هو $5' : 'Minimum campaign budget is $5');
+      if (UI && typeof UI.showToast === 'function') {
+        UI.showToast(lang === 'ar' ? 'الحد الأدنى لميزانية الحملة هو $5' : 'Minimum campaign budget is $5');
       }
       return;
     }
 
-    if (window.UI && typeof window.UI.setButtonLoading === 'function') {
-      window.UI.setButtonLoading('btn-create-ad', true);
+    if (UI && typeof UI.setButtonLoading === 'function') {
+      UI.setButtonLoading('btn-create-ad', true);
     }
 
     try {
@@ -110,11 +113,11 @@ window.AdsModule = {
         dailyBudget: dailyBudget
       };
 
-      const data = await window.API.createAdCampaign(payload);
+      const data = await API.createAdCampaign(payload);
 
       if (data && (data.success || data.ad)) {
-        if (window.UI && typeof window.UI.showToast === 'function') {
-          window.UI.showToast(lang === 'ar' ? 'تم إطلاق الحملة الإعلانية بنجاح!' : 'Ad campaign launched successfully!');
+        if (UI && typeof UI.showToast === 'function') {
+          UI.showToast(lang === 'ar' ? 'تم إطلاق الحملة الإعلانية بنجاح!' : 'Ad campaign launched successfully!');
         }
         titleInput.value = '';
         targetUrlInput.value = '';
@@ -130,17 +133,17 @@ window.AdsModule = {
         }
       } else {
         const errorMsg = data?.error || (lang === 'ar' ? 'فشل إنشاء الحملة الإعلانية' : 'Failed to create ad campaign');
-        if (window.UI && typeof window.UI.showToast === 'function') {
-          window.UI.showToast(errorMsg);
+        if (UI && typeof UI.showToast === 'function') {
+          UI.showToast(errorMsg);
         }
       }
     } catch (err) {
-      if (window.UI && typeof window.UI.showToast === 'function') {
-        window.UI.showToast(err.message || (lang === 'ar' ? 'خطأ أثناء إنشاء الحملة' : 'Error creating campaign'));
+      if (UI && typeof UI.showToast === 'function') {
+        UI.showToast(err.message || (lang === 'ar' ? 'خطأ أثناء إنشاء الحملة' : 'Error creating campaign'));
       }
     } finally {
-      if (window.UI && typeof window.UI.setButtonLoading === 'function') {
-        window.UI.setButtonLoading('btn-create-ad', false);
+      if (UI && typeof UI.setButtonLoading === 'function') {
+        UI.setButtonLoading('btn-create-ad', false);
       }
     }
   },
@@ -155,7 +158,7 @@ window.AdsModule = {
     }
 
     try {
-      const ads = await window.API.getUserAds();
+      const ads = await API.getUserAds();
       this.renderUserAds(ads);
       return ads;
     } catch (err) {
@@ -171,8 +174,8 @@ window.AdsModule = {
     const container = document.getElementById('ads-list');
     if (!container) return;
 
-    const lang = window.UI ? window.UI.currentLang : (window.currentLang || 'ar');
-    const escapeFn = window.UI ? window.UI.escapeHTML : (str => str);
+    const lang = UI ? UI.currentLang : (window.currentLang || 'ar');
+    const escapeFn = UI ? UI.escapeHTML : (str => str);
 
     if (!ads || ads.length === 0) {
       container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${lang === 'ar' ? 'لا توجد حملات إعلانية نشطة.' : 'No active ad campaigns.'}</p>`;
@@ -242,16 +245,16 @@ window.AdsModule = {
    */
   toggleAdStatus: async function(adId) {
     try {
-      const success = await window.API.toggleAdStatus(adId);
+      const success = await API.toggleAdStatus(adId);
       if (success) {
-        if (window.UI && typeof window.UI.showToast === 'function') {
-          window.UI.showToast('تم تغيير حالة الحملة بنجاح');
+        if (UI && typeof UI.showToast === 'function') {
+          UI.showToast('تم تغيير حالة الحملة بنجاح');
         }
         await this.fetchUserAds();
       }
     } catch (err) {
-      if (window.UI && typeof window.UI.showToast === 'function') {
-        window.UI.showToast('خطأ أثناء تغيير حالة الحملة');
+      if (UI && typeof UI.showToast === 'function') {
+        UI.showToast('خطأ أثناء تغيير حالة الحملة');
       }
     }
   },
@@ -262,10 +265,10 @@ window.AdsModule = {
   deleteAdCampaign: async function(adId) {
     if (!confirm('هل أنت تأكد من إيقاف وحذف الحملة؟ سيتم إرجاع الميزانية المتبقية إلى رصيدك المتاح فوراً.')) return;
     try {
-      const success = await window.API.deleteAd(adId);
+      const success = await API.deleteAd(adId);
       if (success) {
-        if (window.UI && typeof window.UI.showToast === 'function') {
-          window.UI.showToast('تم حذف الحملة واسترداد الميزانية المتبقية');
+        if (UI && typeof UI.showToast === 'function') {
+          UI.showToast('تم حذف الحملة واسترداد الميزانية المتبقية');
         }
         await this.fetchUserAds();
         if (window.WalletModule && typeof window.WalletModule.loadUserData === 'function') {
@@ -273,8 +276,8 @@ window.AdsModule = {
         }
       }
     } catch (err) {
-      if (window.UI && typeof window.UI.showToast === 'function') {
-        window.UI.showToast('خطأ أثناء حذف الحملة');
+      if (UI && typeof UI.showToast === 'function') {
+        UI.showToast('خطأ أثناء حذف الحملة');
       }
     }
   },
@@ -286,7 +289,6 @@ window.AdsModule = {
     const shortCode = window.currentShortCode;
     const token = window.bridgeToken;
 
-    // 1. استدعاء إعلانات AdsGram في حال كانت المكتبيّة مدمجة
     if (window.Adsgram && typeof window.Adsgram.init === 'function') {
       try {
         const blockId = window.ADSGRAM_BLOCK_ID || '1234';
@@ -302,11 +304,10 @@ window.AdsModule = {
       }
     }
 
-    // 2. طلب عرض إعلان داخلي في كتل الإعلانات المخصصة للـ Bridge
     try {
       const adContainer = document.getElementById('ad-banner-container') || document.getElementById('bridge-ad-box') || document.getElementById('ad-container');
       
-      const res = await window.API.safeFetch('/api/ads/serve', {
+      const res = await API.safeFetch('/api/ads/serve', {
         method: 'POST',
         body: {
           shortCode: shortCode,
@@ -320,7 +321,7 @@ window.AdsModule = {
         const adData = await res.json().catch(() => null);
         if (adData && adData.ad && adContainer) {
           const ad = adData.ad;
-          const escapeFn = window.UI ? window.UI.escapeHTML : (s => s);
+          const escapeFn = UI ? UI.escapeHTML : (s => s);
           const title = escapeFn(ad.title);
           const adType = ad.type || 'image';
 
@@ -333,14 +334,14 @@ window.AdsModule = {
             mediaHtml = `<iframe src="${ad.gameEmbedUrl}" style="width: 100%; height: 160px; border: none; border-radius: 8px; margin-bottom: 8px;"></iframe>`;
           }
 
-          let actionText = (window.UI ? window.UI.currentLang : 'ar') === 'ar' ? 'عرض الإعلان' : 'View Ad';
+          let actionText = (UI ? UI.currentLang : 'ar') === 'ar' ? 'عرض الإعلان' : 'View Ad';
           let actionUrl = ad.targetUrl;
 
           if (adType === 'app') {
-            actionText = (window.UI ? window.UI.currentLang : 'ar') === 'ar' ? '🚀 تحميل التطبيق' : '🚀 Download App';
+            actionText = (UI ? UI.currentLang : 'ar') === 'ar' ? '🚀 تحميل التطبيق' : '🚀 Download App';
             actionUrl = ad.appDownloadUrl || ad.targetUrl;
           } else if (adType === 'game') {
-            actionText = (window.UI ? window.UI.currentLang : 'ar') === 'ar' ? '🎮 العب الآن' : '🎮 Play Now';
+            actionText = (UI ? UI.currentLang : 'ar') === 'ar' ? '🎮 العب الآن' : '🎮 Play Now';
           }
 
           adContainer.innerHTML = `
@@ -358,7 +359,6 @@ window.AdsModule = {
       console.error("Background ad serving error:", err);
     }
 
-    // 3. إرسال طلب تسجيل الأرباح في الخلفية فوراً
     this.recordAdEarnings({ shortCode, token, triggerType, provider: 'internal' });
   },
 
@@ -367,7 +367,7 @@ window.AdsModule = {
    */
   recordAdEarnings: async function(payload) {
     try {
-      await window.API.safeFetch('/api/ads/record-impression', {
+      await API.safeFetch('/api/ads/record-impression', {
         method: 'POST',
         body: {
           shortCode: payload.shortCode || window.currentShortCode,
@@ -388,7 +388,7 @@ window.AdsModule = {
    */
   recordAdClick: async function(adId) {
     try {
-      await window.API.safeFetch('/api/ads/click', {
+      await API.safeFetch('/api/ads/click', {
         method: 'POST',
         body: {
           adId: adId,
@@ -402,13 +402,15 @@ window.AdsModule = {
   }
 };
 
-// Global standard helpers mapping for compatibility
-window.onAdTypeChange = window.AdsModule.onAdTypeChange.bind(window.AdsModule);
-window.createAdCampaign = window.AdsModule.createAdCampaign.bind(window.AdsModule);
-window.fetchUserAds = window.AdsModule.fetchUserAds.bind(window.AdsModule);
-window.renderUserAds = window.AdsModule.renderUserAds.bind(window.AdsModule);
-window.toggleAdStatus = window.AdsModule.toggleAdStatus.bind(window.AdsModule);
-window.deleteAdCampaign = window.AdsModule.deleteAdCampaign.bind(window.AdsModule);
-window.triggerBridgeAds = window.AdsModule.triggerBridgeAds.bind(window.AdsModule);
-window.recordAdEarnings = window.AdsModule.recordAdEarnings.bind(window.AdsModule);
-window.recordAdClick = window.AdsModule.recordAdClick.bind(window.AdsModule);
+window.AdsModule = AdsModule;
+window.onAdTypeChange = AdsModule.onAdTypeChange.bind(AdsModule);
+window.createAdCampaign = AdsModule.createAdCampaign.bind(AdsModule);
+window.fetchUserAds = AdsModule.fetchUserAds.bind(AdsModule);
+window.renderUserAds = AdsModule.renderUserAds.bind(AdsModule);
+window.toggleAdStatus = AdsModule.toggleAdStatus.bind(AdsModule);
+window.deleteAdCampaign = AdsModule.deleteAdCampaign.bind(AdsModule);
+window.triggerBridgeAds = AdsModule.triggerBridgeAds.bind(AdsModule);
+window.recordAdEarnings = AdsModule.recordAdEarnings.bind(AdsModule);
+window.recordAdClick = AdsModule.recordAdClick.bind(AdsModule);
+
+export default AdsModule;
