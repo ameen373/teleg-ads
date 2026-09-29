@@ -149,3 +149,9 @@ const en = {
   rejected: "Rejected",
   pending: "Pending"
 };
+
+if (typeof window !== 'undefined') {
+  window.en = en;
+}
+
+module.exports = en;
