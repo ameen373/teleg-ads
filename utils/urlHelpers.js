@@ -6,45 +6,23 @@ const CONFIG = require('../config/config');
 const SECRET_KEY = CONFIG.JWT_SECRET || CONFIG.SESSION_SECRET || 'telega_ads_bridge_secret_key_2026';
 
 /**
- * توليد كود عشوائي فريد باستخدام وحدة crypto المدمجة
- */
-function generateUniqueCode(length = 7) {
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  const bytes = crypto.randomBytes(length);
-  let result = '';
-  for (let i = 0; i < length; i++) {
-    result += characters[bytes[i] % characters.length];
-  }
-  return result;
-}
-
-/**
- * التحقق من صحة الرابط المدخل
- */
-function isValidUrl(url) {
-  if (!url || typeof url !== 'string') return false;
-  try {
-    const parsedUrl = new URL(url.trim());
-    return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
-  } catch (e) {
-    return false;
-  }
-}
-
-/**
  * دالة استخراج الـ IP الحقيقي للزائر بدقة عالية
+ * تراعي خوادم البروكسي ورؤوس Vercel و Cloudflare
  */
 function getRealIp(req) {
   if (!req) return '127.0.0.1';
 
   const headers = req.headers || {};
 
+  // Cloudflare
   const cfIp = headers['cf-connecting-ip'];
   if (cfIp) return cfIp.trim();
 
+  // Vercel
   const vercelIp = headers['x-vercel-forwarded-for'];
   if (vercelIp) return vercelIp.split(',')[0].trim();
 
+  // Standard proxies
   const xRealIp = headers['x-real-ip'];
   if (xRealIp) return xRealIp.trim();
 
@@ -56,6 +34,7 @@ function getRealIp(req) {
 
   let rawIp = req.ip || (req.socket && req.socket.remoteAddress) || '127.0.0.1';
   
+  // تنظيف عناوين IPv6 المحليّة
   if (rawIp === '::1' || rawIp === '::ffff:127.0.0.1') {
     rawIp = '127.0.0.1';
   } else if (rawIp.startsWith('::ffff:')) {
@@ -66,7 +45,7 @@ function getRealIp(req) {
 }
 
 /**
- * دالة فحص تحديد الدولة بناءً على رؤوس الطلب أو الـ IP
+ * دالة فحص تحديد الدولة (GeoIP) بناءً على رؤوس الطلب أو الـ IP
  */
 function getGeoLocation(req, ip) {
   if (!req) return 'ALL';
@@ -81,7 +60,7 @@ function getGeoLocation(req, ip) {
 }
 
 /**
- * دالة التعرف على نوع جهاز الزائر
+ * دالة التعرف على نوع جهاز الزائر (Android, iOS, Desktop)
  */
 function getDeviceType(userAgent) {
   if (!userAgent) return 'desktop';
@@ -127,19 +106,19 @@ function buildShortUrl(shortCode) {
 }
 
 /**
- * فحص أمان الرابط ومنع الروابط الضارة الخبيثة
+ * فحص أمان الرابط ومنع الروابط الضارة والخبيثة
  */
 function isPhishingOrMalicious(url) {
   const blacklistedKeywords = [
     'phish', 'login-verify', 'free-telegram-premium', 'grabber', 
     'stealer', 'iplogger', 'malware', 'hack', 'pirate-login'
   ];
-  const lowerUrl = String(url).toLowerCase();
+  const lowerUrl = url.toLowerCase();
   return blacklistedKeywords.some(keyword => lowerUrl.includes(keyword));
 }
 
 /**
- * استخراج النطاق الرئيسي الصافي
+ * استخراج النطاق الرئيسي الصافي (Domain Sanitization)
  */
 function sanitizeDomain(urlStr) {
   try {
@@ -151,7 +130,7 @@ function sanitizeDomain(urlStr) {
 }
 
 /**
- * توليد توكين مشفر أحادي الاستخدام
+ * توليد توكين مشفر أحادي الاستخدام (Nonce / CSRF Proof) مع تحديد فترة صلاحية قصيرة
  */
 function generateBridgeToken(shortCode, ip, ttlSeconds = 300) {
   const expiresAt = Date.now() + (ttlSeconds * 1000);
@@ -174,7 +153,7 @@ function generateBridgeToken(shortCode, ip, ttlSeconds = 300) {
 }
 
 /**
- * التحقق من صحة وصلاحية التوكين المشفر
+ * والتحقق من صحة وصلاحية التوكين المشفر
  */
 function verifyBridgeToken(token, expectedShortCode, expectedIp) {
   if (!token) return { valid: false, error: 'التوكين غير موجود' };
@@ -218,8 +197,6 @@ function verifyBridgeToken(token, expectedShortCode, expectedIp) {
 }
 
 module.exports = {
-  generateUniqueCode,
-  isValidUrl,
   getRealIp,
   getGeoLocation,
   getDeviceType,
