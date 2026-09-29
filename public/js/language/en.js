@@ -154,4 +154,6 @@ if (typeof window !== 'undefined') {
   window.en = en;
 }
 
-module.exports = en;
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = en;
+}
