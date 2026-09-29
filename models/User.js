@@ -146,23 +146,33 @@ userSchema.statics.findByTelegramIdIsolated = async function(telegramId, userDat
 
   if (!user) {
     try {
-      user = await this.create({
-        telegramId: tgStr,
-        username: userData.username || '',
-        firstName: userData.firstName || '',
-        lastName: userData.lastName || '',
-        language: userData.language || 'ar',
-        referredBy: isObjectId(userData.referredBy) ? userData.referredBy : null,
-        referredByTelegramId: cleanTelegramId(userData.referredByTelegramId),
-        ...userData
-      });
+      user = await this.findOneAndUpdate(
+        { telegramId: tgStr },
+        {
+          $setOnInsert: {
+            telegramId: tgStr,
+            username: userData.username || '',
+            firstName: userData.firstName || '',
+            lastName: userData.lastName || '',
+            language: userData.language || 'ar',
+            referredBy: isObjectId(userData.referredBy) ? userData.referredBy : null,
+            referredByTelegramId: cleanTelegramId(userData.referredByTelegramId),
+            ...userData
+          }
+        },
+        { new: true, upsert: true, setDefaultsOnInsert: true }
+      );
     } catch (err) {
-      user = await this.findOne({
-        $or: [
-          { telegramId: tgStr },
-          { telegram_id: tgStr }
-        ]
-      });
+      if (err.code === 11000 || (err.message && err.message.includes('E11000'))) {
+        user = await this.findOne({
+          $or: [
+            { telegramId: tgStr },
+            { telegram_id: tgStr }
+          ]
+        });
+      } else {
+        throw err;
+      }
     }
   }
   return user;
