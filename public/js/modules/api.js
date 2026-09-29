@@ -1,43 +1,51 @@
-// Telega.ads - API Management Module
-window.API_BASE = window.location.protocol.startsWith('file') 
-  ? 'http://localhost:3000' 
-  : window.location.origin;
+const API_BASE = (typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('file'))
+  ? 'http://localhost:3000'
+  : (typeof window !== 'undefined' && window.location ? window.location.origin : '');
 
-window.authToken = localStorage.getItem('authToken');
-window.currentUserTelegramId = localStorage.getItem('telegramId') || null;
-window.isUserAdmin = false;
+if (typeof window !== 'undefined') {
+  window.API_BASE = API_BASE;
+  window.authToken = localStorage.getItem('authToken');
+  window.currentUserTelegramId = localStorage.getItem('telegramId') || null;
+  window.isUserAdmin = false;
+}
 
-window.API = {
+const API = {
   safeFetch: async function(endpoint, options = {}) {
     options.headers = options.headers || {};
-    
-    const tg = window.Telegram?.WebApp;
-    if (!window.currentUserTelegramId && tg?.initDataUnsafe?.user?.id) {
-      window.currentUserTelegramId = String(tg.initDataUnsafe.user.id);
-      localStorage.setItem('telegramId', window.currentUserTelegramId);
+
+    const tg = (typeof window !== 'undefined') ? window.Telegram?.WebApp : null;
+    let currentTgId = typeof window !== 'undefined' ? window.currentUserTelegramId : null;
+    let currentAuthToken = typeof window !== 'undefined' ? window.authToken : null;
+
+    if (!currentTgId && tg?.initDataUnsafe?.user?.id) {
+      currentTgId = String(tg.initDataUnsafe.user.id);
+      if (typeof window !== 'undefined') {
+        window.currentUserTelegramId = currentTgId;
+        localStorage.setItem('telegramId', currentTgId);
+      }
     }
 
     const initDataStr = tg?.initData || '';
-    
+
     if (initDataStr) {
       options.headers['Authorization'] = `Bearer ${initDataStr}`;
       options.headers['x-telegram-init-data'] = initDataStr;
       options.headers['telegram-init-data'] = initDataStr;
-    } else if (window.authToken) {
-      options.headers['Authorization'] = `Bearer ${window.authToken}`;
+    } else if (currentAuthToken) {
+      options.headers['Authorization'] = `Bearer ${currentAuthToken}`;
     }
 
-    if (window.currentUserTelegramId) {
-      options.headers['x-telegram-id'] = window.currentUserTelegramId;
-      options.headers['telegram-id'] = window.currentUserTelegramId;
-      options.headers['x-user-id'] = window.currentUserTelegramId;
-      options.headers['user-id'] = window.currentUserTelegramId;
+    if (currentTgId) {
+      options.headers['x-telegram-id'] = currentTgId;
+      options.headers['telegram-id'] = currentTgId;
+      options.headers['x-user-id'] = currentTgId;
+      options.headers['user-id'] = currentTgId;
     }
 
     if (options.body && typeof options.body === 'object') {
-      if (window.currentUserTelegramId && !options.body.userId && !options.body.telegramId) {
-        options.body.userId = window.currentUserTelegramId;
-        options.body.telegramId = window.currentUserTelegramId;
+      if (currentTgId && !options.body.userId && !options.body.telegramId) {
+        options.body.userId = currentTgId;
+        options.body.telegramId = currentTgId;
       }
       if (initDataStr && !options.body.initData) {
         options.body.initData = initDataStr;
@@ -48,13 +56,13 @@ window.API = {
     if (options.body && !options.headers['Content-Type']) {
       options.headers['Content-Type'] = 'application/json; charset=utf-8';
     }
-    
-    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-    let targetUrl = endpoint.startsWith('http') ? endpoint : `${window.API_BASE}${cleanEndpoint}`;
 
-    if (window.currentUserTelegramId && !targetUrl.includes('telegramId=') && !targetUrl.includes('userId=')) {
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    let targetUrl = endpoint.startsWith('http') ? endpoint : `${API_BASE}${cleanEndpoint}`;
+
+    if (currentTgId && !targetUrl.includes('telegramId=') && !targetUrl.includes('userId=')) {
       const separator = targetUrl.includes('?') ? '&' : '?';
-      targetUrl = `${targetUrl}${separator}telegramId=${encodeURIComponent(window.currentUserTelegramId)}&userId=${encodeURIComponent(window.currentUserTelegramId)}`;
+      targetUrl = `${targetUrl}${separator}telegramId=${encodeURIComponent(currentTgId)}&userId=${encodeURIComponent(currentTgId)}`;
     }
 
     try {
@@ -66,27 +74,30 @@ window.API = {
       return response;
     } catch (err) {
       console.error("API Fetch Error:", err);
-      const lang = window.UI ? window.UI.currentLang : 'ar';
-      const msg = lang === 'ar' ? "خطأ في الاتصال بالسيرفر" : "Server connection error";
-      if (window.UI && typeof window.UI.showToast === 'function') {
-        window.UI.showToast(msg);
+      if (typeof window !== 'undefined') {
+        const lang = window.UI ? window.UI.currentLang : (localStorage.getItem('appLang') || 'ar');
+        const msg = lang === 'ar' ? "خطأ في الاتصال بالسيرفر" : "Server connection error";
+        if (window.UI && typeof window.UI.showToast === 'function') {
+          window.UI.showToast(msg);
+        }
       }
       return null;
     }
   },
 
   authLogin: async function() {
-    const tg = window.Telegram?.WebApp;
+    const tg = typeof window !== 'undefined' ? window.Telegram?.WebApp : null;
     const startParam = tg?.initDataUnsafe?.start_param || null;
     const u = tg?.initDataUnsafe?.user || {};
     const initDataStr = tg?.initData || '';
+    const currentTgId = typeof window !== 'undefined' ? window.currentUserTelegramId : null;
 
     try {
       const res = await this.safeFetch('/api/auth/login', {
         method: 'POST',
-        body: { 
-          userId: window.currentUserTelegramId,
-          telegramId: window.currentUserTelegramId,
+        body: {
+          userId: currentTgId,
+          telegramId: currentTgId,
           referrerId: startParam,
           firstName: u.first_name || '',
           lastName: u.last_name || '',
@@ -96,28 +107,28 @@ window.API = {
           initData: initDataStr
         }
       });
-      
+
       if (!res) return false;
       const data = await res.json().catch(() => ({}));
 
       if (data && (data.success || data.token)) {
-        if (data.token) {
+        if (data.token && typeof window !== 'undefined') {
           window.authToken = data.token;
           localStorage.setItem('authToken', window.authToken);
         }
 
-        if (data.user && data.user.telegramId) {
+        if (data.user && data.user.telegramId && typeof window !== 'undefined') {
           window.currentUserTelegramId = String(data.user.telegramId);
           localStorage.setItem('telegramId', window.currentUserTelegramId);
         }
 
-        if (data.isAdmin === true) {
+        if (data.isAdmin === true && typeof window !== 'undefined') {
           window.isUserAdmin = true;
           const adminBtn = document.getElementById('tab-btn-admin');
           if (adminBtn) adminBtn.style.display = 'flex';
         }
 
-        if (data.depositWallets) {
+        if (data.depositWallets && typeof document !== 'undefined') {
           if (data.depositWallets.trc20) {
             const el = document.getElementById('addr-trc20');
             if (el) el.innerText = data.depositWallets.trc20;
@@ -128,21 +139,23 @@ window.API = {
           }
         }
 
-        if (data.botUrl) {
-          const bLink = document.getElementById('official-bot-link');
-          if (bLink) bLink.href = data.botUrl;
-          const sBot = document.getElementById('support-bot-btn');
-          if (sBot) sBot.href = data.botUrl;
-        }
-        if (data.officialChannelUrl) {
-          const cLink = document.getElementById('official-channel-link');
-          if (cLink) cLink.href = data.officialChannelUrl;
-          const sChan = document.getElementById('support-channel-btn');
-          if (sChan) sChan.href = data.officialChannelUrl;
-        }
-        if (data.supportUrl) {
-          const sContact = document.getElementById('support-contact-btn');
-          if (sContact) sContact.href = data.supportUrl;
+        if (typeof document !== 'undefined') {
+          if (data.botUrl) {
+            const bLink = document.getElementById('official-bot-link');
+            if (bLink) bLink.href = data.botUrl;
+            const sBot = document.getElementById('support-bot-btn');
+            if (sBot) sBot.href = data.botUrl;
+          }
+          if (data.officialChannelUrl) {
+            const cLink = document.getElementById('official-channel-link');
+            if (cLink) cLink.href = data.officialChannelUrl;
+            const sChan = document.getElementById('support-channel-btn');
+            if (sChan) sChan.href = data.officialChannelUrl;
+          }
+          if (data.supportUrl) {
+            const sContact = document.getElementById('support-contact-btn');
+            if (sContact) sContact.href = data.supportUrl;
+          }
         }
 
         return true;
@@ -179,7 +192,7 @@ window.API = {
     const res = await this.safeFetch(`/api/links/${linkId}`, { method: 'DELETE' });
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-    return data.success;
+    return !!data.success;
   },
 
   requestDeposit: async function(network, amount, txHash) {
@@ -239,14 +252,14 @@ window.API = {
     });
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-    return data.success;
+    return !!data.success;
   },
 
   deleteAd: async function(adId) {
     const res = await this.safeFetch(`/api/ads/${adId}`, { method: 'DELETE' });
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-    return data.success;
+    return !!data.success;
   },
 
   getUserReferrals: async function() {
@@ -283,7 +296,7 @@ window.API = {
     });
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-    return data.success;
+    return !!data.success;
   },
 
   processAdminWithdraw: async function(withdrawId, action) {
@@ -293,10 +306,14 @@ window.API = {
     });
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-    return data.success;
+    return !!data.success;
   }
 };
 
-// Global standard helpers for backwards compatibility
-window.safeFetch = window.API.safeFetch.bind(window.API);
-window.authLogin = window.API.authLogin.bind(window.API);
+if (typeof window !== 'undefined') {
+  window.API = API;
+  window.safeFetch = API.safeFetch.bind(API);
+  window.authLogin = API.authLogin.bind(API);
+}
+
+module.exports = API;
