@@ -3,9 +3,6 @@ const axios = require('axios');
 const CONFIG = require('../config/config');
 const logger = require('../config/logger');
 
-/**
- * إرسال إشعار للمستخدم عبر التليجرام
- */
 async function sendTelegramNotification(telegramId, message) {
   if (!CONFIG.BOT_TOKEN || !telegramId) return;
   try {
@@ -20,9 +17,6 @@ async function sendTelegramNotification(telegramId, message) {
   }
 }
 
-/**
- * دالة توحيد وتنسيق كائن بيانات المستخدم بدون فقدان أي حقل
- */
 function formatUserData(userObj) {
   if (!userObj || typeof userObj !== 'object') return null;
 
@@ -37,7 +31,7 @@ function formatUserData(userObj) {
   const languageCode = userObj.language_code || userObj.languageCode || userObj.language || CONFIG.DEFAULT_LANGUAGE || 'ar';
 
   return {
-    ...userObj, // الاحتفاظ بجميع الحقول الإضافية (مثل photo_url, is_premium, allows_write_to_pm)
+    ...userObj,
     id: telegramId,
     telegramId: telegramId,
     username: username,
@@ -50,18 +44,13 @@ function formatUserData(userObj) {
   };
 }
 
-/**
- * فك وتوثيق بيانات initData القادمة من تطبيق تليجرام المصغر
- */
 function verifyTelegramData(initData) {
   if (!initData) return null;
 
-  // 1. التعامل مع الكائنات الجاهزة (Object)
   if (typeof initData === 'object' && initData !== null) {
     return formatUserData(initData);
   }
 
-  // 2. التعامل مع الأرقام أو المعرفات المباشرة (Number / ID String)
   if (typeof initData === 'number' || /^\d+$/.test(String(initData).trim())) {
     const idVal = Number(String(initData).trim());
     return formatUserData({ id: idVal });
@@ -81,7 +70,6 @@ function verifyTelegramData(initData) {
     } catch (e) {}
 
     for (const str of [cleanInitData, decodedInitData]) {
-      // أ. فك نصوص JSON المباشرة
       if (str.startsWith('{') && str.endsWith('}')) {
         try {
           const parsed = JSON.parse(str);
@@ -90,12 +78,10 @@ function verifyTelegramData(initData) {
         } catch (e) {}
       }
 
-      // ب. معرفات رقمية مباشرة
       if (/^\d+$/.test(str)) {
         return formatUserData({ id: Number(str) });
       }
 
-      // ج. فك سلسلة URL Query Parameters (سلسلة initData القياسية)
       let urlParams = null;
       try {
         urlParams = new URLSearchParams(str);
@@ -120,7 +106,6 @@ function verifyTelegramData(initData) {
           }
         }
 
-        // توثيق التوقيع الرقمي (HMAC Check) إذا كان BOT_TOKEN متوفراً و hash موجوداً
         if (CONFIG.BOT_TOKEN && hash) {
           try {
             const dataCheckArr = [];
@@ -135,22 +120,25 @@ function verifyTelegramData(initData) {
             const secretKey = crypto.createHmac('sha256', 'WebAppData').update(CONFIG.BOT_TOKEN).digest();
             const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
 
-            if (calculatedHash === hash && parsedUser) {
-              const formatted = formatUserData(parsedUser);
-              if (formatted) return formatted;
+            const calculatedBuffer = Buffer.from(calculatedHash, 'hex');
+            const hashBuffer = Buffer.from(hash, 'hex');
+
+            if (calculatedBuffer.length === hashBuffer.length && crypto.timingSafeEqual(calculatedBuffer, hashBuffer)) {
+              if (parsedUser) {
+                const formatted = formatUserData(parsedUser);
+                if (formatted) return formatted;
+              }
             }
           } catch (hErr) {
             logger.error(`⚠️ HMAC Verification error: ${hErr.message}`);
           }
         }
 
-        // استخراج البيانات في حالة عدم تفعيل التوثيق الصارم أو كبديل
         if (parsedUser) {
           const formatted = formatUserData(parsedUser);
           if (formatted) return formatted;
         }
 
-        // استخراج المعرفات المباشرة من Query Params
         const idParam = urlParams.get('id') || urlParams.get('telegram_id') || urlParams.get('telegramId') || urlParams.get('userId') || urlParams.get('user_id') || urlParams.get('tg_id');
         if (idParam && /^\d+$/.test(idParam)) {
           return formatUserData({
@@ -163,7 +151,6 @@ function verifyTelegramData(initData) {
         }
       }
 
-      // د. استخراج بالتعابير النمطية (Regex) كحل أخير
       const matchRegex = str.match(/%22id%22%3A(\d+)/) || 
                          str.match(/"id"\s*:\s*(\d+)/) || 
                          str.match(/id\s*[=:]\s*(\d+)/i) || 
