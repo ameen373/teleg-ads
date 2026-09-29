@@ -9,6 +9,7 @@ try {
     maxRetriesPerRequest: 1,
     enableReadyCheck: true,
     lazyConnect: true,
+    connectTimeout: 5000,
     retryStrategy: (times) => (times > 3 ? null : Math.min(times * 100, 1000))
   });
 
@@ -19,17 +20,11 @@ try {
   redisIsConnected = false;
 }
 
-/**
- * Safe Get Helper
- */
 async function safeRedisGet(key) {
   if (!redisIsConnected || !redis) return null;
   try { return await redis.get(key); } catch (e) { return null; }
 }
 
-/**
- * Safe Set Helper
- */
 async function safeRedisSet(key, value, mode, duration) {
   if (!redisIsConnected || !redis) return;
   try {
@@ -38,27 +33,15 @@ async function safeRedisSet(key, value, mode, duration) {
   } catch (e) {}
 }
 
-/**
- * Safe Del Helper
- */
 async function safeRedisDel(key) {
   if (!redisIsConnected || !redis) return;
   try { await redis.del(key); } catch (e) {}
 }
 
-/**
- * Get Connection Status
- */
 function getRedisStatus() {
   return redisIsConnected;
 }
 
-/**
- * Rate Limiting Check by IP
- * @param {string} ip - Target IP Address
- * @param {number} limit - Max allowed requests
- * @param {number} windowSec - Time window in seconds
- */
 async function checkRateLimit(ip, limit = 20, windowSec = 60) {
   if (!redisIsConnected || !redis) {
     return { allowed: true, current: 1, ttl: windowSec };
@@ -80,12 +63,6 @@ async function checkRateLimit(ip, limit = 20, windowSec = 60) {
   }
 }
 
-/**
- * Verify 24-Hour Uniqueness for IP & Device Fingerprint
- * @param {string} ip - IP Address
- * @param {string} fingerprint - Device Fingerprint Hash
- * @param {number} ttlSec - Expiration time in seconds (default 24h = 86400)
- */
 async function checkUniqueness(ip, fingerprint, ttlSec = 86400) {
   if (!redisIsConnected || !redis) {
     return { isUnique: true, ipUnique: true, fpUnique: true };
@@ -119,12 +96,6 @@ async function checkUniqueness(ip, fingerprint, ttlSec = 86400) {
   }
 }
 
-/**
- * Ban Suspicious IP Temporarily or Permanently
- * @param {string} ip - Target IP Address
- * @param {number} durationSec - Duration in seconds (0 = permanent/1 year)
- * @param {string} reason - Ban reason
- */
 async function banIp(ip, durationSec = 86400, reason = 'Suspicious traffic detected') {
   if (!redisIsConnected || !redis) return;
   try {
@@ -133,15 +104,11 @@ async function banIp(ip, durationSec = 86400, reason = 'Suspicious traffic detec
     if (durationSec > 0) {
       await redis.set(banKey, payload, 'EX', durationSec);
     } else {
-      await redis.set(banKey, payload, 'EX', 31536000); // 1 Year
+      await redis.set(banKey, payload, 'EX', 31536000);
     }
   } catch (e) {}
 }
 
-/**
- * Check if IP is banned
- * @param {string} ip - Target IP Address
- */
 async function isIpBanned(ip) {
   if (!redisIsConnected || !redis) return false;
   try {
