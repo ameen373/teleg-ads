@@ -154,4 +154,6 @@ if (typeof window !== 'undefined') {
   window.ar = ar;
 }
 
-module.exports = ar;
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = ar;
+}
