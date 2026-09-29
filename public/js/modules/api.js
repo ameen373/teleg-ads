@@ -1,6 +1,6 @@
-const API_BASE = (typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('file'))
-  ? 'http://localhost:3000'
-  : (typeof window !== 'undefined' && window.location ? window.location.origin : '');
+const API_BASE = (typeof window !== 'undefined' && window.location)
+  ? (window.location.protocol.startsWith('file') ? 'http://localhost:3000' : window.location.origin)
+  : 'http://localhost:3000';
 
 if (typeof window !== 'undefined') {
   window.API_BASE = API_BASE;
@@ -13,15 +13,15 @@ const API = {
   safeFetch: async function(endpoint, options = {}) {
     options.headers = options.headers || {};
 
-    const tg = (typeof window !== 'undefined') ? window.Telegram?.WebApp : null;
-    let currentTgId = typeof window !== 'undefined' ? window.currentUserTelegramId : null;
-    let currentAuthToken = typeof window !== 'undefined' ? window.authToken : null;
+    let currentUserTelegramId = (typeof window !== 'undefined') ? window.currentUserTelegramId : null;
+    let authToken = (typeof window !== 'undefined') ? window.authToken : null;
 
-    if (!currentTgId && tg?.initDataUnsafe?.user?.id) {
-      currentTgId = String(tg.initDataUnsafe.user.id);
+    const tg = (typeof window !== 'undefined' && window.Telegram) ? window.Telegram.WebApp : null;
+    if (!currentUserTelegramId && tg?.initDataUnsafe?.user?.id) {
+      currentUserTelegramId = String(tg.initDataUnsafe.user.id);
       if (typeof window !== 'undefined') {
-        window.currentUserTelegramId = currentTgId;
-        localStorage.setItem('telegramId', currentTgId);
+        window.currentUserTelegramId = currentUserTelegramId;
+        localStorage.setItem('telegramId', currentUserTelegramId);
       }
     }
 
@@ -31,21 +31,21 @@ const API = {
       options.headers['Authorization'] = `Bearer ${initDataStr}`;
       options.headers['x-telegram-init-data'] = initDataStr;
       options.headers['telegram-init-data'] = initDataStr;
-    } else if (currentAuthToken) {
-      options.headers['Authorization'] = `Bearer ${currentAuthToken}`;
+    } else if (authToken) {
+      options.headers['Authorization'] = `Bearer ${authToken}`;
     }
 
-    if (currentTgId) {
-      options.headers['x-telegram-id'] = currentTgId;
-      options.headers['telegram-id'] = currentTgId;
-      options.headers['x-user-id'] = currentTgId;
-      options.headers['user-id'] = currentTgId;
+    if (currentUserTelegramId) {
+      options.headers['x-telegram-id'] = currentUserTelegramId;
+      options.headers['telegram-id'] = currentUserTelegramId;
+      options.headers['x-user-id'] = currentUserTelegramId;
+      options.headers['user-id'] = currentUserTelegramId;
     }
 
     if (options.body && typeof options.body === 'object') {
-      if (currentTgId && !options.body.userId && !options.body.telegramId) {
-        options.body.userId = currentTgId;
-        options.body.telegramId = currentTgId;
+      if (currentUserTelegramId && !options.body.userId && !options.body.telegramId) {
+        options.body.userId = currentUserTelegramId;
+        options.body.telegramId = currentUserTelegramId;
       }
       if (initDataStr && !options.body.initData) {
         options.body.initData = initDataStr;
@@ -60,9 +60,9 @@ const API = {
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
     let targetUrl = endpoint.startsWith('http') ? endpoint : `${API_BASE}${cleanEndpoint}`;
 
-    if (currentTgId && !targetUrl.includes('telegramId=') && !targetUrl.includes('userId=')) {
+    if (currentUserTelegramId && !targetUrl.includes('telegramId=') && !targetUrl.includes('userId=')) {
       const separator = targetUrl.includes('?') ? '&' : '?';
-      targetUrl = `${targetUrl}${separator}telegramId=${encodeURIComponent(currentTgId)}&userId=${encodeURIComponent(currentTgId)}`;
+      targetUrl = `${targetUrl}${separator}telegramId=${encodeURIComponent(currentUserTelegramId)}&userId=${encodeURIComponent(currentUserTelegramId)}`;
     }
 
     try {
@@ -75,10 +75,18 @@ const API = {
     } catch (err) {
       console.error("API Fetch Error:", err);
       if (typeof window !== 'undefined') {
-        const lang = window.UI ? window.UI.currentLang : (localStorage.getItem('appLang') || 'ar');
-        const msg = lang === 'ar' ? "خطأ في الاتصال بالسيرفر" : "Server connection error";
+        const lang = (window.UI && window.UI.currentLang) 
+          ? window.UI.currentLang 
+          : (localStorage.getItem('appLang') || 'ar');
+        
+        const msg = (err.message && !err.message.includes('HTTP error')) 
+          ? err.message 
+          : (lang === 'ar' ? "تعذر الاتصال بالسيرفر، يرجى التحقق من الاتصال بالإنترنت" : "Server connection error, please check network");
+
         if (window.UI && typeof window.UI.showToast === 'function') {
           window.UI.showToast(msg);
+        } else {
+          console.warn("API Error Message:", msg);
         }
       }
       return null;
@@ -86,18 +94,18 @@ const API = {
   },
 
   authLogin: async function() {
-    const tg = typeof window !== 'undefined' ? window.Telegram?.WebApp : null;
+    const tg = (typeof window !== 'undefined' && window.Telegram) ? window.Telegram.WebApp : null;
     const startParam = tg?.initDataUnsafe?.start_param || null;
     const u = tg?.initDataUnsafe?.user || {};
     const initDataStr = tg?.initData || '';
-    const currentTgId = typeof window !== 'undefined' ? window.currentUserTelegramId : null;
 
     try {
+      const currentId = (typeof window !== 'undefined') ? window.currentUserTelegramId : null;
       const res = await this.safeFetch('/api/auth/login', {
         method: 'POST',
         body: {
-          userId: currentTgId,
-          telegramId: currentTgId,
+          userId: currentId,
+          telegramId: currentId,
           referrerId: startParam,
           firstName: u.first_name || '',
           lastName: u.last_name || '',
@@ -112,34 +120,34 @@ const API = {
       const data = await res.json().catch(() => ({}));
 
       if (data && (data.success || data.token)) {
-        if (data.token && typeof window !== 'undefined') {
-          window.authToken = data.token;
-          localStorage.setItem('authToken', window.authToken);
-        }
-
-        if (data.user && data.user.telegramId && typeof window !== 'undefined') {
-          window.currentUserTelegramId = String(data.user.telegramId);
-          localStorage.setItem('telegramId', window.currentUserTelegramId);
-        }
-
-        if (data.isAdmin === true && typeof window !== 'undefined') {
-          window.isUserAdmin = true;
-          const adminBtn = document.getElementById('tab-btn-admin');
-          if (adminBtn) adminBtn.style.display = 'flex';
-        }
-
-        if (data.depositWallets && typeof document !== 'undefined') {
-          if (data.depositWallets.trc20) {
-            const el = document.getElementById('addr-trc20');
-            if (el) el.innerText = data.depositWallets.trc20;
+        if (typeof window !== 'undefined') {
+          if (data.token) {
+            window.authToken = data.token;
+            localStorage.setItem('authToken', window.authToken);
           }
-          if (data.depositWallets.bep20) {
-            const el = document.getElementById('addr-bep20');
-            if (el) el.innerText = data.depositWallets.bep20;
-          }
-        }
 
-        if (typeof document !== 'undefined') {
+          if (data.user && data.user.telegramId) {
+            window.currentUserTelegramId = String(data.user.telegramId);
+            localStorage.setItem('telegramId', window.currentUserTelegramId);
+          }
+
+          if (data.isAdmin === true) {
+            window.isUserAdmin = true;
+            const adminBtn = document.getElementById('tab-btn-admin');
+            if (adminBtn) adminBtn.style.display = 'flex';
+          }
+
+          if (data.depositWallets) {
+            if (data.depositWallets.trc20) {
+              const el = document.getElementById('addr-trc20');
+              if (el) el.innerText = data.depositWallets.trc20;
+            }
+            if (data.depositWallets.bep20) {
+              const el = document.getElementById('addr-bep20');
+              if (el) el.innerText = data.depositWallets.bep20;
+            }
+          }
+
           if (data.botUrl) {
             const bLink = document.getElementById('official-bot-link');
             if (bLink) bLink.href = data.botUrl;
@@ -157,7 +165,6 @@ const API = {
             if (sContact) sContact.href = data.supportUrl;
           }
         }
-
         return true;
       }
     } catch (e) {
@@ -192,7 +199,7 @@ const API = {
     const res = await this.safeFetch(`/api/links/${linkId}`, { method: 'DELETE' });
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-    return !!data.success;
+    return data.success;
   },
 
   requestDeposit: async function(network, amount, txHash) {
@@ -252,14 +259,14 @@ const API = {
     });
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-    return !!data.success;
+    return data.success;
   },
 
   deleteAd: async function(adId) {
     const res = await this.safeFetch(`/api/ads/${adId}`, { method: 'DELETE' });
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-    return !!data.success;
+    return data.success;
   },
 
   getUserReferrals: async function() {
@@ -296,7 +303,7 @@ const API = {
     });
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-    return !!data.success;
+    return data.success;
   },
 
   processAdminWithdraw: async function(withdrawId, action) {
@@ -306,7 +313,7 @@ const API = {
     });
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-    return !!data.success;
+    return data.success;
   }
 };
 
@@ -316,4 +323,6 @@ if (typeof window !== 'undefined') {
   window.authLogin = API.authLogin.bind(API);
 }
 
-module.exports = API;
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = API;
+}
