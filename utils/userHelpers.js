@@ -1,8 +1,5 @@
 const { User } = require('../models');
 
-/**
- * استخراج معرّف التليجرام (telegramId) بأمان كنص نظيف
- */
 function getSafeTelegramId(input) {
   if (!input) return null;
   
@@ -18,9 +15,6 @@ function getSafeTelegramId(input) {
   return cleanId;
 }
 
-/**
- * استخراج اسم المستخدم (username) بأمان مع توفير اسم افتراضي عند عدم الوجود
- */
 function getSafeUsername(user, fallback = null) {
   if (!user) return fallback || 'المستخدم';
   
@@ -38,9 +32,6 @@ function getSafeUsername(user, fallback = null) {
   return fallback || 'مستخدم_غير_معروف';
 }
 
-/**
- * استخراج اسم العرض (DisplayName) المناسب (الاسم الأول واللقب، أو اسم المستخدم، أو رقم المعرف)
- */
 function getSafeDisplayName(user) {
   if (!user) return 'مستخدم غير معروف';
 
@@ -59,9 +50,6 @@ function getSafeDisplayName(user) {
   return tgId ? `مستخدم #${tgId.slice(-4)}` : 'مستخدم';
 }
 
-/**
- * تنسيق وتوحيد كائن بيانات المستخدم بالكامل لضمان توفر كافة الحقول الرئيسية بدون أخطاء
- */
 function formatUserProfile(user) {
   if (!user) return null;
   const userObj = typeof user.toObject === 'function' ? user.toObject() : user;
@@ -77,9 +65,6 @@ function formatUserProfile(user) {
   };
 }
 
-/**
- * البحث عن مستخدم أو إنشاؤه في قاعدة البيانات بأمان
- */
 async function findOrCreateUser(tgId, updateData = {}, setOnInsertData = {}) {
   const cleanId = getSafeTelegramId(tgId);
   if (!cleanId) return null;
