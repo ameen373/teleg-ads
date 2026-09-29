@@ -8,7 +8,6 @@ const {
 
 // دالة تنظيف وتأكيد عدم إرجاع null لمنع تعارض الفهرس الجزئي (Sparse Index)
 const cleanTelegramId = (val) => {
-  if (val === null || val === undefined) return undefined;
   const sanitized = sanitizeTelegramId ? sanitizeTelegramId(val) : val;
   if (!sanitized || sanitized === 'null' || sanitized === 'undefined') {
     return undefined; // إرجاع undefined يمنع Mongo من إضافة القيمة للفهرس
@@ -79,7 +78,7 @@ const userSchema = new mongoose.Schema({
   },
   referredByTelegramId: {
     type: String,
-    default: undefined,
+    default: null,
     index: true,
     trim: true,
     set: cleanTelegramId
@@ -137,66 +136,27 @@ userSchema.statics.findByTelegramIdIsolated = async function(telegramId, userDat
   const tgStr = cleanTelegramId(telegramId);
   if (!tgStr) return null;
   
-  let user = await this.findOne({
-    $or: [
-      { telegramId: tgStr },
-      { telegram_id: tgStr }
-    ]
-  });
-
+  let user = await this.findOne({ telegramId: tgStr });
   if (!user) {
     try {
-      user = await this.findOneAndUpdate(
-        { telegramId: tgStr },
-        {
-          $setOnInsert: {
-            telegramId: tgStr,
-            username: userData.username || '',
-            firstName: userData.firstName || '',
-            lastName: userData.lastName || '',
-            language: userData.language || 'ar',
-            referredBy: isObjectId(userData.referredBy) ? userData.referredBy : null,
-            referredByTelegramId: cleanTelegramId(userData.referredByTelegramId),
-            ...userData
-          }
-        },
-        { new: true, upsert: true, setDefaultsOnInsert: true }
-      );
+      user = await this.create({
+        telegramId: tgStr,
+        username: userData.username || '',
+        firstName: userData.firstName || '',
+        lastName: userData.lastName || '',
+        language: userData.language || 'ar',
+        referredBy: isObjectId(userData.referredBy) ? userData.referredBy : null,
+        referredByTelegramId: cleanTelegramId(userData.referredByTelegramId),
+        ...userData
+      });
     } catch (err) {
-      if (err.code === 11000 || (err.message && err.message.includes('E11000'))) {
-        user = await this.findOne({
-          $or: [
-            { telegramId: tgStr },
-            { telegram_id: tgStr }
-          ]
-        });
-      } else {
-        throw err;
-      }
+      user = await this.findOne({ telegramId: tgStr });
     }
   }
   return user;
 };
 
 const User = mongoose.models.User || mongoose.model('User', userSchema);
-
-// حذف الفهرس القديم telegram_id_1 إن وجد تلقائياً عند تشغيل السيرفر
-if (mongoose.connection) {
-  const dropLegacyIndexes = async () => {
-    try {
-      if (User.collection && User.collection.dropIndex) {
-        await User.collection.dropIndex('telegram_id_1').catch(() => {});
-      }
-    } catch (e) {
-      // Ignore
-    }
-  };
-  if (mongoose.connection.readyState === 1) {
-    dropLegacyIndexes();
-  } else {
-    mongoose.connection.once('connected', dropLegacyIndexes);
-  }
-}
 
 module.exports = User;
 module.exports.User = User;
