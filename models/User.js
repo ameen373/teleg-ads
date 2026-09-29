@@ -6,13 +6,23 @@ const {
   globalSchemaOptions 
 } = require('./helpers');
 
+// دالة تنظيف وتأكيد عدم إرجاع null لمنع تعارض الفهرس الجزئي (Sparse Index)
+const cleanTelegramId = (val) => {
+  const sanitized = sanitizeTelegramId ? sanitizeTelegramId(val) : val;
+  if (!sanitized || sanitized === 'null' || sanitized === 'undefined') {
+    return undefined; // إرجاع undefined يمنع Mongo من إضافة القيمة للفهرس
+  }
+  const str = String(sanitized).trim();
+  return str.length > 0 ? str : undefined;
+};
+
 const userSchema = new mongoose.Schema({
   telegramId: { 
     type: String, 
     unique: true, 
     sparse: true,
     trim: true,
-    set: sanitizeTelegramId
+    set: cleanTelegramId
   },
   username: { 
     type: String, 
@@ -71,7 +81,7 @@ const userSchema = new mongoose.Schema({
     default: null,
     index: true,
     trim: true,
-    set: sanitizeTelegramId
+    set: cleanTelegramId
   },
   referralEarnings: { 
     type: Number, 
@@ -123,8 +133,9 @@ userSchema.index({ telegramId: 1, isBanned: 1 }, { sparse: true });
 userSchema.index({ createdAt: -1 });
 
 userSchema.statics.findByTelegramIdIsolated = async function(telegramId, userData = {}) {
-  const tgStr = sanitizeTelegramId(telegramId);
+  const tgStr = cleanTelegramId(telegramId);
   if (!tgStr) return null;
+  
   let user = await this.findOne({ telegramId: tgStr });
   if (!user) {
     try {
@@ -135,7 +146,7 @@ userSchema.statics.findByTelegramIdIsolated = async function(telegramId, userDat
         lastName: userData.lastName || '',
         language: userData.language || 'ar',
         referredBy: isObjectId(userData.referredBy) ? userData.referredBy : null,
-        referredByTelegramId: sanitizeTelegramId(userData.referredByTelegramId),
+        referredByTelegramId: cleanTelegramId(userData.referredByTelegramId),
         ...userData
       });
     } catch (err) {
