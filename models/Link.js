@@ -79,7 +79,6 @@ const linkSchema = new mongoose.Schema({
     default: '',
     trim: true
   },
-  /* --------------------------------------------- */
 
   isActive: { 
     type: Boolean, 
