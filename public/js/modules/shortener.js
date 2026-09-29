@@ -1,4 +1,9 @@
-// Telega.ads - URL Shortener & Bridge Controller Module
+// public/js/modules/shortener.js
+// Telega.ads - URL Shortener & Bridge Controller Module (ES Module)
+
+import API from './api.js';
+import i18n from './i18n.js';
+import UI from './ui.js';
 
 window.rawUserLinksCache = window.rawUserLinksCache || [];
 window.bridgeDestinationUrl = null;
@@ -9,7 +14,7 @@ window.bridgeTimerInterval = null;
 window.humanInteractionScore = 0;
 window.visitorFingerprint = null;
 
-window.ShortenerModule = {
+export const ShortenerModule = {
   /**
    * جمع بصمة المتصفح الأساسية (Canvas Fingerprint + تفاصيل الشاشة)
    */
@@ -104,7 +109,7 @@ window.ShortenerModule = {
     }
 
     try {
-      const links = await window.API.getUserLinks();
+      const links = await API.getUserLinks();
       window.rawUserLinksCache = links;
       this.renderUserLinks(window.rawUserLinksCache);
       return window.rawUserLinksCache;
@@ -126,12 +131,11 @@ window.ShortenerModule = {
 
     const title = titleInput ? titleInput.value.trim() : '';
     let url = urlInput.value.trim();
-    const lang = window.UI ? window.UI.currentLang : (window.currentLang || 'ar');
-    const i18n = window.i18n || {};
+    const lang = UI ? UI.currentLang : (window.currentLang || 'ar');
 
     if (!url) {
-      if (window.UI && typeof window.UI.showToast === 'function') {
-        window.UI.showToast(lang === 'ar' ? 'يرجى إدخال الرابط الأصلي' : 'Please enter original URL');
+      if (UI && typeof UI.showToast === 'function') {
+        UI.showToast(lang === 'ar' ? 'يرجى إدخال الرابط الأصلي' : 'Please enter original URL');
       }
       return;
     }
@@ -140,16 +144,16 @@ window.ShortenerModule = {
       url = 'https://' + url;
     }
 
-    if (window.UI && typeof window.UI.setButtonLoading === 'function') {
-      window.UI.setButtonLoading('btn-create-link', true);
+    if (UI && typeof UI.setButtonLoading === 'function') {
+      UI.setButtonLoading('btn-create-link', true);
     }
 
     try {
-      const data = await window.API.createShortLink(title || 'رابط مختصر', url);
+      const data = await API.createShortLink(title || 'رابط مختصر', url);
 
       if (data && (data.success || data.link || data.shortCode)) {
-        if (window.UI && typeof window.UI.showToast === 'function') {
-          window.UI.showToast(i18n[lang]?.link_success_msg || (lang === 'ar' ? 'تم اختصار الرابط بنجاح!' : 'Link shortened successfully!'));
+        if (UI && typeof UI.showToast === 'function') {
+          UI.showToast(i18n[lang]?.link_success_msg || (lang === 'ar' ? 'تم اختصار الرابط بنجاح!' : 'Link shortened successfully!'));
         }
         if (titleInput) titleInput.value = '';
         urlInput.value = '';
@@ -186,18 +190,18 @@ window.ShortenerModule = {
         await this.fetchUserLinks();
       } else {
         const errorMsg = data?.error || data?.message || (lang === 'ar' ? 'فشل إنشاء الرابط المختصر' : 'Failed to create short link');
-        if (window.UI && typeof window.UI.showToast === 'function') {
-          window.UI.showToast(errorMsg);
+        if (UI && typeof UI.showToast === 'function') {
+          UI.showToast(errorMsg);
         }
       }
     } catch (err) {
       console.error("Shorten Link Error:", err);
-      if (window.UI && typeof window.UI.showToast === 'function') {
-        window.UI.showToast(err.message || (lang === 'ar' ? 'حدث خطأ أثناء اختصار الرابط' : 'An error occurred while shortening link'));
+      if (UI && typeof UI.showToast === 'function') {
+        UI.showToast(err.message || (lang === 'ar' ? 'حدث خطأ أثناء اختصار الرابط' : 'An error occurred while shortening link'));
       }
     } finally {
-      if (window.UI && typeof window.UI.setButtonLoading === 'function') {
-        window.UI.setButtonLoading('btn-create-link', false);
+      if (UI && typeof UI.setButtonLoading === 'function') {
+        UI.setButtonLoading('btn-create-link', false);
       }
     }
   },
@@ -209,9 +213,8 @@ window.ShortenerModule = {
     const container = document.getElementById('links-list');
     if (!container) return;
 
-    const lang = window.UI ? window.UI.currentLang : (window.currentLang || 'ar');
-    const i18n = window.i18n || {};
-    const escapeFn = window.UI ? window.UI.escapeHTML : (s => s);
+    const lang = UI ? UI.currentLang : (window.currentLang || 'ar');
+    const escapeFn = UI ? UI.escapeHTML : (s => s);
 
     if (!links || links.length === 0) {
       container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${lang === 'ar' ? 'لا توجد روابط مختصرة بعد.' : 'No shortened links found.'}</p>`;
@@ -274,27 +277,27 @@ window.ShortenerModule = {
    * حذف رابط
    */
   deleteLink: async function(linkId) {
-    const lang = window.UI ? window.UI.currentLang : (window.currentLang || 'ar');
+    const lang = UI ? UI.currentLang : (window.currentLang || 'ar');
     if (!confirm(lang === 'ar' ? 'هل أنت تأكد من حذف هذا الرابط؟' : 'Are you sure you want to delete this link?')) return;
 
     try {
-      const success = await window.API.deleteLink(linkId);
+      const success = await API.deleteLink(linkId);
       if (success) {
-        if (window.UI && typeof window.UI.showToast === 'function') {
-          window.UI.showToast(lang === 'ar' ? 'تم حذف الرابط بنجاح' : 'Link deleted successfully');
+        if (UI && typeof UI.showToast === 'function') {
+          UI.showToast(lang === 'ar' ? 'تم حذف الرابط بنجاح' : 'Link deleted successfully');
         }
         if (window.WalletModule && typeof window.WalletModule.loadUserData === 'function') {
           await window.WalletModule.loadUserData();
         }
         await this.fetchUserLinks();
       } else {
-        if (window.UI && typeof window.UI.showToast === 'function') {
-          window.UI.showToast(lang === 'ar' ? 'فشل حذف الرابط' : 'Failed to delete link');
+        if (UI && typeof UI.showToast === 'function') {
+          UI.showToast(lang === 'ar' ? 'فشل حذف الرابط' : 'Failed to delete link');
         }
       }
     } catch (err) {
-      if (window.UI && typeof window.UI.showToast === 'function') {
-        window.UI.showToast(err.message || (lang === 'ar' ? 'خطأ في الشبكة' : 'Network error'));
+      if (UI && typeof UI.showToast === 'function') {
+        UI.showToast(err.message || (lang === 'ar' ? 'خطأ في الشبكة' : 'Network error'));
       }
     }
   },
@@ -306,7 +309,7 @@ window.ShortenerModule = {
     const adContainer = document.getElementById('bridge-ad-space') || document.getElementById('ad-container');
     if (!adContainer || !ad) return;
 
-    const escapeFn = window.UI ? window.UI.escapeHTML : (s => s);
+    const escapeFn = UI ? UI.escapeHTML : (s => s);
     const title = escapeFn(ad.title || 'إعلان مميز');
     const desc = escapeFn(ad.description || '');
     const mediaUrl = ad.mediaUrl || '';
@@ -367,14 +370,14 @@ window.ShortenerModule = {
     if (bridgeView) bridgeView.classList.remove('hidden');
 
     const btn = document.getElementById('go-btn') || document.getElementById('btn-go');
-    const lang = window.UI ? window.UI.currentLang : (window.currentLang || 'ar');
+    const lang = UI ? UI.currentLang : (window.currentLang || 'ar');
     if (btn) {
       btn.disabled = true;
       btn.innerText = lang === 'ar' ? 'جاري تجهيز الرابط...' : 'Preparing link...';
     }
 
     try {
-      const data = await window.API.getBridgeLinkInfo(code);
+      const data = await API.getBridgeLinkInfo(code);
       if (data && (data.targetUrl || data.originalUrl)) {
         window.bridgeDestinationUrl = data.targetUrl || data.originalUrl || null;
         window.bridgeToken = data.token || null;
@@ -386,8 +389,8 @@ window.ShortenerModule = {
         const timerDuration = parseInt(data.timer || data.countdown || 5, 10);
         this.startBridgeTimer(isNaN(timerDuration) ? 5 : timerDuration);
       } else {
-        if (window.UI && typeof window.UI.showToast === 'function') {
-          window.UI.showToast(lang === 'ar' ? 'تعذر تحميل الرابط المطلوب' : 'Failed to load link');
+        if (UI && typeof UI.showToast === 'function') {
+          UI.showToast(lang === 'ar' ? 'تعذر تحميل الرابط المطلوب' : 'Failed to load link');
         }
         if (btn) btn.innerText = lang === 'ar' ? 'خطأ في تحميل الرابط' : 'Link Error';
       }
@@ -407,7 +410,7 @@ window.ShortenerModule = {
     let timeLeft = seconds;
     const timerElem = document.getElementById('timer') || document.getElementById('timer-count');
     const btn = document.getElementById('go-btn') || document.getElementById('btn-go');
-    const lang = window.UI ? window.UI.currentLang : (window.currentLang || 'ar');
+    const lang = UI ? UI.currentLang : (window.currentLang || 'ar');
 
     if (timerElem) timerElem.innerText = timeLeft;
     if (btn) {
@@ -444,15 +447,15 @@ window.ShortenerModule = {
    */
   completeImpression: async function() {
     const btn = document.getElementById('go-btn') || document.getElementById('btn-go');
-    const lang = window.UI ? window.UI.currentLang : (window.currentLang || 'ar');
+    const lang = UI ? UI.currentLang : (window.currentLang || 'ar');
 
     if (btn) {
       btn.disabled = true;
       btn.innerText = lang === 'ar' ? 'جاري التوجيه...' : 'Redirecting...';
     }
 
-    if (window.UI && typeof window.UI.setButtonLoading === 'function') {
-      window.UI.setButtonLoading(btn.id || 'go-btn', true);
+    if (UI && typeof UI.setButtonLoading === 'function') {
+      UI.setButtonLoading(btn.id || 'go-btn', true);
     }
 
     try {
@@ -466,7 +469,7 @@ window.ShortenerModule = {
         fingerprint: window.visitorFingerprint || this.generateBrowserFingerprint()
       };
 
-      const data = await window.API.recordBridgeImpression(payload.shortCode, payload.token);
+      const data = await API.recordBridgeImpression(payload.shortCode, payload.token);
       const finalTarget = data?.targetUrl || window.bridgeDestinationUrl;
 
       if (finalTarget) {
@@ -477,8 +480,8 @@ window.ShortenerModule = {
       if (window.bridgeDestinationUrl) {
         window.location.href = window.bridgeDestinationUrl;
       } else {
-        if (window.UI && typeof window.UI.showToast === 'function') {
-          window.UI.showToast(lang === 'ar' ? 'حدث خطأ أثناء التوجيه للرابط' : 'Redirection error');
+        if (UI && typeof UI.showToast === 'function') {
+          UI.showToast(lang === 'ar' ? 'حدث خطأ أثناء التوجيه للرابط' : 'Redirection error');
         }
       }
     } catch (e) {
@@ -490,16 +493,18 @@ window.ShortenerModule = {
   }
 };
 
-// Global standard helpers mapping for compatibility
-window.generateBrowserFingerprint = window.ShortenerModule.generateBrowserFingerprint.bind(window.ShortenerModule);
-window.initHumanInteractionTracker = window.ShortenerModule.initHumanInteractionTracker.bind(window.ShortenerModule);
-window.formatShortUrl = window.ShortenerModule.formatShortUrl.bind(window.ShortenerModule);
-window.fetchUserLinks = window.ShortenerModule.fetchUserLinks.bind(window.ShortenerModule);
-window.handleShortenClick = window.ShortenerModule.handleShortenClick.bind(window.ShortenerModule);
-window.renderUserLinks = window.ShortenerModule.renderUserLinks.bind(window.ShortenerModule);
-window.filterUserLinks = window.ShortenerModule.filterUserLinks.bind(window.ShortenerModule);
-window.deleteLink = window.ShortenerModule.deleteLink.bind(window.ShortenerModule);
-window.renderBridgeAd = window.ShortenerModule.renderBridgeAd.bind(window.ShortenerModule);
-window.initBridgeView = window.ShortenerModule.initBridgeView.bind(window.ShortenerModule);
-window.startBridgeTimer = window.ShortenerModule.startBridgeTimer.bind(window.ShortenerModule);
-window.completeImpression = window.ShortenerModule.completeImpression.bind(window.ShortenerModule);
+window.ShortenerModule = ShortenerModule;
+window.generateBrowserFingerprint = ShortenerModule.generateBrowserFingerprint.bind(ShortenerModule);
+window.initHumanInteractionTracker = ShortenerModule.initHumanInteractionTracker.bind(ShortenerModule);
+window.formatShortUrl = ShortenerModule.formatShortUrl.bind(ShortenerModule);
+window.fetchUserLinks = ShortenerModule.fetchUserLinks.bind(ShortenerModule);
+window.handleShortenClick = ShortenerModule.handleShortenClick.bind(ShortenerModule);
+window.renderUserLinks = ShortenerModule.renderUserLinks.bind(ShortenerModule);
+window.filterUserLinks = ShortenerModule.filterUserLinks.bind(ShortenerModule);
+window.deleteLink = ShortenerModule.deleteLink.bind(ShortenerModule);
+window.renderBridgeAd = ShortenerModule.renderBridgeAd.bind(ShortenerModule);
+window.initBridgeView = ShortenerModule.initBridgeView.bind(ShortenerModule);
+window.startBridgeTimer = ShortenerModule.startBridgeTimer.bind(ShortenerModule);
+window.completeImpression = ShortenerModule.completeImpression.bind(ShortenerModule);
+
+export default ShortenerModule;
