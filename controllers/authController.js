@@ -115,32 +115,41 @@ const handleLogin = async (req, res, next) => {
     const userLanguage = telegramUser?.languageCode || telegramUser?.language_code || req.body?.language || CONFIG.DEFAULT_LANGUAGE || 'ar';
 
     const updatePayload = {
+      telegramId: tId,
       username: currentUsername,
       ...(currentFirstName && { firstName: currentFirstName }),
       ...(currentLastName && { lastName: currentLastName }),
       ...(userLanguage && { language: userLanguage })
     };
 
-    // 1. البحث عن المستخدم بحساب telegramId
-    let user = await User.findOne({ telegramId: tId });
+    // 1. البحث عن المستخدم بدعم لكلا الحقلين telegramId و telegram_id
+    let user = await User.findOne({
+      $or: [
+        { telegramId: tId },
+        { telegram_id: tId }
+      ]
+    });
 
     if (user) {
       // 2. تحديث بيانات الحساب القائم
+      user.telegramId = tId;
+      if (currentUsername) user.username = currentUsername;
+      if (currentFirstName) user.firstName = currentFirstName;
+      if (currentLastName) user.lastName = currentLastName;
+      if (userLanguage) user.language = userLanguage;
+
       try {
-        Object.assign(user, updatePayload);
         await user.save();
       } catch (saveErr) {
-        // إذا كان هناك تعارض في اسم المستخدم بسبب فهرس فريد قديم في قاعدة البيانات
         if (saveErr.code === 11000 || (saveErr.message && saveErr.message.includes('E11000'))) {
-          delete updatePayload.username;
-          Object.assign(user, updatePayload);
+          user.username = `user_${tId}`;
           await user.save();
         } else {
           throw saveErr;
         }
       }
     } else {
-      // 3. إنشاء حساب جديد مع معالجة الاستثناءات المتزامنة
+      // 3. إنشاء أو تحديث مستخدم بطريقة ذرية (Atomic Upsert) لمنع تعارض E11000
       try {
         const createData = {
           telegramId: tId,
@@ -151,13 +160,25 @@ const handleLogin = async (req, res, next) => {
           createData.referredBy = referrerId;
         }
 
-        user = await User.create(createData);
+        user = await User.findOneAndUpdate(
+          { $or: [{ telegramId: tId }, { telegram_id: tId }] },
+          { $set: createData },
+          { new: true, upsert: true, setDefaultsOnInsert: true }
+        );
       } catch (createErr) {
         if (createErr.code === 11000 || (createErr.message && createErr.message.includes('E11000'))) {
-          user = await User.findOne({ telegramId: tId });
+          user = await User.findOne({
+            $or: [{ telegramId: tId }, { telegram_id: tId }]
+          });
+
           if (!user) {
-            delete updatePayload.username;
-            user = await User.create({ telegramId: tId, ...updatePayload });
+            const safeData = { 
+              telegramId: tId, 
+              firstName: currentFirstName, 
+              lastName: currentLastName, 
+              language: userLanguage 
+            };
+            user = await User.create(safeData);
           }
         } else {
           throw createErr;
