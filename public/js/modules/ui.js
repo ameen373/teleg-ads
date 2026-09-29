@@ -1,5 +1,9 @@
-// Telega.ads - UI Management Module
-window.UI = {
+// public/js/modules/ui.js
+// Telega.ads - UI Management Module (ES Module)
+
+import i18n from './i18n.js';
+
+export const UI = {
   currentLang: localStorage.getItem('appLang') || 'ar',
 
   escapeHTML: function(str) {
@@ -18,7 +22,9 @@ window.UI = {
       if (tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.1') && tg.HapticFeedback) {
         tg.HapticFeedback.impactOccurred(style);
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('Haptic feedback error:', e);
+    }
   },
 
   showToast: function(msg) {
@@ -67,12 +73,12 @@ window.UI = {
       if (btn) btn.classList.toggle('active', t === tabName);
     });
 
-    if (tabName === 'admin' && window.isUserAdmin && typeof window.loadAdminData === 'function') {
-      window.loadAdminData();
-    } else if (tabName === 'ads' && typeof window.fetchUserAds === 'function') {
-      window.fetchUserAds();
-    } else if (tabName === 'referral' && typeof window.fetchUserReferrals === 'function') {
-      window.fetchUserReferrals();
+    if (tabName === 'admin' && window.isUserAdmin && typeof window.AdminModule?.loadAdminData === 'function') {
+      window.AdminModule.loadAdminData();
+    } else if (tabName === 'ads' && typeof window.AdsModule?.fetchUserAds === 'function') {
+      window.AdsModule.fetchUserAds();
+    } else if (tabName === 'referral' && typeof window.WalletModule?.fetchUserReferrals === 'function') {
+      window.WalletModule.fetchUserReferrals();
     }
   },
 
@@ -258,65 +264,24 @@ window.UI = {
       if (gMode) gMode.classList.remove('hidden');
       if (goBtnText) goBtnText.innerText = 'الانتقال إلى الرابط الأصلي';
     }
-  },
-
-  onAdTypeChange: function() {
-    const typeSelect = document.getElementById('ad-type');
-    const mediaContainer = document.getElementById('container-media-url');
-    const appContainer = document.getElementById('container-app-url');
-    const gameContainer = document.getElementById('container-game-url');
-
-    if (!typeSelect) return;
-    const val = typeSelect.value;
-
-    if (mediaContainer) mediaContainer.classList.toggle('hidden', val === 'app' || val === 'game');
-    if (appContainer) appContainer.classList.toggle('hidden', val !== 'app');
-    if (gameContainer) gameContainer.classList.toggle('hidden', val !== 'game');
-  },
-
-  renderLinksList: function(links) {
-    const container = document.getElementById('links-list');
-    if (!container) return;
-
-    if (!links || links.length === 0) {
-      container.innerHTML = `<p style="text-align:center; padding: 10px; color: var(--text-muted);">${this.currentLang === 'ar' ? 'لا توجد روابط حالياً' : 'No links found'}</p>`;
-      return;
-    }
-
-    let html = '';
-    links.forEach(link => {
-      const shortUrl = `${window.API_BASE}/r/${link.code}`;
-      html += `
-        <div class="link-card" style="background: rgba(15,23,42,0.6); padding: 10px; border-radius: 10px; margin-bottom: 8px; border: 1px solid var(--card-border);">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <strong style="color:#fff; font-size:13px;">${this.escapeHTML(link.title || link.code)}</strong>
-            <span style="font-size:10px; color:var(--text-muted);">👁️ ${link.clicks || 0}</span>
-          </div>
-          <div style="display:flex; gap:6px; align-items:center; margin-top:6px;">
-            <input type="text" value="${shortUrl}" readonly style="margin:0; font-size:11px; padding:4px 8px;">
-            <button class="btn-small" onclick="window.UI.copyToClipboard('${shortUrl}')">${this.currentLang === 'ar' ? 'نسخ' : 'Copy'}</button>
-            <button class="btn-small btn-danger" onclick="window.App.deleteLink('${link._id || link.code}')">✕</button>
-          </div>
-        </div>
-      `;
-    });
-    container.innerHTML = html;
   }
 };
 
-// Global standard helpers for backwards compatibility
-window.escapeHTML = window.UI.escapeHTML.bind(window.UI);
-window.triggerHaptic = window.UI.triggerHaptic.bind(window.UI);
-window.showToast = window.UI.showToast.bind(window.UI);
-window.copyToClipboard = window.UI.copyToClipboard.bind(window.UI);
-window.setButtonLoading = window.UI.setButtonLoading.bind(window.UI);
-window.switchTab = window.UI.switchTab.bind(window.UI);
-window.handleNetworkChange = window.UI.handleNetworkChange.bind(window.UI);
-window.switchWalletView = window.UI.switchWalletView.bind(window.UI);
-window.toggleInstructionsModal = window.UI.toggleInstructionsModal.bind(window.UI);
-window.updateWithdrawCalculations = window.UI.updateWithdrawCalculations.bind(window.UI);
-window.renderTelegramUser = window.UI.renderTelegramUser.bind(window.UI);
-window.shareReferralLink = window.UI.shareReferralLink.bind(window.UI);
-window.toggleWalletEdit = window.UI.toggleWalletEdit.bind(window.UI);
-window.closeVideoAd = window.UI.closeVideoAd.bind(window.UI);
-window.adaptBridgeUI = window.UI.adaptBridgeUI.bind(window.UI);
+window.UI = UI;
+window.escapeHTML = UI.escapeHTML.bind(UI);
+window.triggerHaptic = UI.triggerHaptic.bind(UI);
+window.showToast = UI.showToast.bind(UI);
+window.copyToClipboard = UI.copyToClipboard.bind(UI);
+window.setButtonLoading = UI.setButtonLoading.bind(UI);
+window.switchTab = UI.switchTab.bind(UI);
+window.handleNetworkChange = UI.handleNetworkChange.bind(UI);
+window.switchWalletView = UI.switchWalletView.bind(UI);
+window.toggleInstructionsModal = UI.toggleInstructionsModal.bind(UI);
+window.updateWithdrawCalculations = UI.updateWithdrawCalculations.bind(UI);
+window.renderTelegramUser = UI.renderTelegramUser.bind(UI);
+window.shareReferralLink = UI.shareReferralLink.bind(UI);
+window.toggleWalletEdit = UI.toggleWalletEdit.bind(UI);
+window.closeVideoAd = UI.closeVideoAd.bind(UI);
+window.adaptBridgeUI = UI.adaptBridgeUI.bind(UI);
+
+export default UI;
