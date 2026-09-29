@@ -146,22 +146,16 @@ userSchema.statics.findByTelegramIdIsolated = async function(telegramId, userDat
 
   if (!user) {
     try {
-      user = await this.findOneAndUpdate(
-        { $or: [{ telegramId: tgStr }, { telegram_id: tgStr }] },
-        { 
-          $set: {
-            telegramId: tgStr,
-            username: userData.username || '',
-            firstName: userData.firstName || '',
-            lastName: userData.lastName || '',
-            language: userData.language || 'ar',
-            referredBy: isObjectId(userData.referredBy) ? userData.referredBy : null,
-            referredByTelegramId: cleanTelegramId(userData.referredByTelegramId),
-            ...userData
-          } 
-        },
-        { new: true, upsert: true, setDefaultsOnInsert: true }
-      );
+      user = await this.create({
+        telegramId: tgStr,
+        username: userData.username || '',
+        firstName: userData.firstName || '',
+        lastName: userData.lastName || '',
+        language: userData.language || 'ar',
+        referredBy: isObjectId(userData.referredBy) ? userData.referredBy : null,
+        referredByTelegramId: cleanTelegramId(userData.referredByTelegramId),
+        ...userData
+      });
     } catch (err) {
       user = await this.findOne({
         $or: [
@@ -176,21 +170,21 @@ userSchema.statics.findByTelegramIdIsolated = async function(telegramId, userDat
 
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 
-// تنظيف الفهارس القديمة المتعارضة مثل telegram_id_1 تلقائياً
+// حذف الفهرس القديم telegram_id_1 إن وجد تلقائياً عند تشغيل السيرفر
 if (mongoose.connection) {
-  const cleanupIndexes = async () => {
+  const dropLegacyIndexes = async () => {
     try {
       if (User.collection && User.collection.dropIndex) {
         await User.collection.dropIndex('telegram_id_1').catch(() => {});
       }
     } catch (e) {
-      // Ignored
+      // Ignore
     }
   };
   if (mongoose.connection.readyState === 1) {
-    cleanupIndexes();
+    dropLegacyIndexes();
   } else {
-    mongoose.connection.once('connected', cleanupIndexes);
+    mongoose.connection.once('connected', dropLegacyIndexes);
   }
 }
 
