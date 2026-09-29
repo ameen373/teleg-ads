@@ -6,6 +6,7 @@ const mongoose = require('mongoose');
 const crypto = require('crypto');
 
 const CONFIG = require('../config/config');
+const logger = require('../config/logger');
 const connectDB = require('../config/db');
 const { 
   safeRedisGet, 
@@ -88,6 +89,9 @@ const handleInitClick = async (req, res, next) => {
       }
     });
   } catch (err) {
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleInitClick:', err);
+    }
     next(err);
   }
 };
@@ -228,6 +232,9 @@ const handleImpression = async (req, res, next) => {
     });
   } catch (err) {
     await sessionDb.abortTransaction();
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleImpression:', err);
+    }
     next(err);
   } finally {
     sessionDb.endSession();
