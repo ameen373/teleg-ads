@@ -37,10 +37,21 @@ const handleCheckAdmin = async (req, res, next) => {
       }
     }
 
-    const rawId = telegramUser?.id || telegramUser?.telegramId || req.body?.telegramId || req.body?.userId;
-    const telegramIdToCheck = rawId ? Number(rawId) : null;
+    const rawId = telegramUser?.id || 
+                  telegramUser?.telegramId || 
+                  req.body?.telegramId || 
+                  req.body?.userId || 
+                  req.query?.telegramId || 
+                  req.query?.userId;
 
-    const isAdmin = Boolean(CONFIG.ADMIN_ID && telegramIdToCheck && String(telegramIdToCheck) === String(CONFIG.ADMIN_ID));
+    const telegramIdToCheck = rawId ? String(rawId).trim() : null;
+
+    const isAdmin = Boolean(
+      CONFIG.ADMIN_ID && 
+      telegramIdToCheck && 
+      String(telegramIdToCheck) === String(CONFIG.ADMIN_ID)
+    );
+
     return res.json({ success: true, message: "تمت مراجعة حالة المدير", isAdmin });
   } catch (err) {
     if (logger && typeof logger.error === 'function') {
@@ -74,14 +85,22 @@ const handleLogin = async (req, res, next) => {
       }
     }
 
-    const rawInputId = req.body?.telegramId || req.body?.userId || req.body?.telegram_id || req.body?.id || req.body?.tg_id ||
-                       telegramUser?.id || telegramUser?.telegramId ||
-                       req.query?.telegramId || req.query?.userId || req.query?.telegram_id ||
-                       req.headers['x-user-id'] || req.headers['user-id'];
+    const rawInputId = req.body?.telegramId || 
+                       req.body?.userId || 
+                       req.body?.telegram_id || 
+                       req.body?.id || 
+                       req.body?.tg_id ||
+                       telegramUser?.id || 
+                       telegramUser?.telegramId ||
+                       req.query?.telegramId || 
+                       req.query?.userId || 
+                       req.query?.telegram_id ||
+                       req.headers?.['x-user-id'] || 
+                       req.headers?.['user-id'];
 
-    const tId = Number(req.body.telegramId || req.body.userId || rawInputId);
+    const tId = rawInputId ? String(rawInputId).trim() : null;
 
-    if (!tId || isNaN(tId) || tId <= 0) {
+    if (!tId || tId === 'null' || tId === 'undefined' || !/^\d+$/.test(tId)) {
       return res.status(400).json({
         success: false,
         message: 'بيانات غير مكتملة: يُرجى إرسال telegramId أو userId بشكل صحيح'
@@ -90,7 +109,7 @@ const handleLogin = async (req, res, next) => {
 
     const { referrerId } = req.body || {};
 
-    const currentUsername = telegramUser?.username || req.body?.username || `User_${String(tId).slice(-4)}`;
+    const currentUsername = telegramUser?.username || req.body?.username || `User_${tId.slice(-4)}`;
     const currentFirstName = telegramUser?.firstName || telegramUser?.first_name || req.body?.firstName || '';
     const currentLastName = telegramUser?.lastName || telegramUser?.last_name || req.body?.lastName || '';
     const userLanguage = telegramUser?.languageCode || telegramUser?.language_code || req.body?.language || CONFIG.DEFAULT_LANGUAGE || 'ar';
