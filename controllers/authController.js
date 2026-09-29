@@ -121,51 +121,35 @@ const handleLogin = async (req, res, next) => {
       ...(userLanguage && { language: userLanguage })
     };
 
-    const setOnInsertPayload = {
-      telegramId: tId
-    };
+    // 1. البحث عن المستخدم أولاً
+    let user = await User.findOne({ telegramId: tId });
 
-    if (referrerId && mongoose.Types.ObjectId.isValid(referrerId)) {
-      setOnInsertPayload.referredBy = referrerId;
-    }
+    if (user) {
+      // 2. تحديث الحساب الموجود
+      Object.assign(user, updatePayload);
+      await user.save();
+    } else {
+      // 3. إنشاء حساب جديد دون استخدام upsert
+      try {
+        const createData = {
+          telegramId: tId,
+          ...updatePayload
+        };
 
-    const updateOps = {
-      $set: updatePayload,$setOnInsert: setOnInsertPayload
-    };
-
-    let user;
-    try {
-      user = await User.findOneAndUpdate(
-        { telegramId: tId },
-        updateOps,
-        { new: true, upsert: true, setDefaultsOnInsert: true }
-      );
-    } catch (dbError) {
-      // معالجة تعارض المفتاح المكرر (E11000) عند حدوث طلبات متزامنة في نفس اللحظة
-      if (dbError.code === 11000 || (dbError.message && dbError.message.includes('E11000'))) {
-        if (logger && typeof logger.warn === 'function') {
-          logger.warn('Duplicate key error during upsert, falling back to update without upsert');
+        if (referrerId && mongoose.Types.ObjectId.isValid(referrerId)) {
+          createData.referredBy = referrerId;
         }
-        user = await User.findOneAndUpdate(
-          { telegramId: tId },
-          { $set: updatePayload },
-          { new: true }
-        );
-        
-        if (!user) {
-          user = await User.findOne({ telegramId: tId });
-        }
-      } else {
-        if (logger && typeof logger.error === 'function') {
-          logger.error('Database Error in authController login:', dbError);
+
+        user = await User.create(createData);
+      } catch (createErr) {
+        // معالجة حالة السباق عند محاولة إنشاء نفس المستخدم في نفس اللحظة
+        user = await User.findOne({ telegramId: tId });
+        if (user) {
+          Object.assign(user, updatePayload);
+          await user.save();
         } else {
-          console.error('Database Error in authController login:', dbError);
+          throw createErr;
         }
-
-        return res.status(500).json({
-          success: false,
-          message: 'حدث خطأ في قاعدة البيانات أثناء تسجيل الدخول'
-        });
       }
     }
 
