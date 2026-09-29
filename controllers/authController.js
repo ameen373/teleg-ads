@@ -115,18 +115,23 @@ const handleLogin = async (req, res, next) => {
     const userLanguage = telegramUser?.languageCode || telegramUser?.language_code || req.body?.language || CONFIG.DEFAULT_LANGUAGE || 'ar';
 
     const updatePayload = {
-      telegramId: tId,
       username: currentUsername,
       ...(currentFirstName && { firstName: currentFirstName }),
       ...(currentLastName && { lastName: currentLastName }),
       ...(userLanguage && { language: userLanguage })
     };
 
-    const updateOps = { $set: updatePayload };
+    const setOnInsertPayload = {
+      telegramId: tId
+    };
 
     if (referrerId && mongoose.Types.ObjectId.isValid(referrerId)) {
-      updateOps.$setOnInsert = { referredBy: referrerId };
+      setOnInsertPayload.referredBy = referrerId;
     }
+
+    const updateOps = {
+      $set: updatePayload,$setOnInsert: setOnInsertPayload
+    };
 
     let user;
     try {
@@ -136,16 +141,32 @@ const handleLogin = async (req, res, next) => {
         { new: true, upsert: true, setDefaultsOnInsert: true }
       );
     } catch (dbError) {
-      if (logger && typeof logger.error === 'function') {
-        logger.error('Database Error in authController login:', dbError);
+      // معالجة تعارض المفتاح المكرر (E11000) عند حدوث طلبات متزامنة في نفس اللحظة
+      if (dbError.code === 11000 || (dbError.message && dbError.message.includes('E11000'))) {
+        if (logger && typeof logger.warn === 'function') {
+          logger.warn('Duplicate key error during upsert, falling back to update without upsert');
+        }
+        user = await User.findOneAndUpdate(
+          { telegramId: tId },
+          { $set: updatePayload },
+          { new: true }
+        );
+        
+        if (!user) {
+          user = await User.findOne({ telegramId: tId });
+        }
       } else {
-        console.error('Database Error in authController login:', dbError);
-      }
+        if (logger && typeof logger.error === 'function') {
+          logger.error('Database Error in authController login:', dbError);
+        } else {
+          console.error('Database Error in authController login:', dbError);
+        }
 
-      return res.status(500).json({
-        success: false,
-        message: 'حدث خطأ في قاعدة البيانات أثناء تسجيل الدخول'
-      });
+        return res.status(500).json({
+          success: false,
+          message: 'حدث خطأ في قاعدة البيانات أثناء تسجيل الدخول'
+        });
+      }
     }
 
     if (!user) {
