@@ -1,43 +1,72 @@
-const ar = typeof window !== 'undefined' && window.ar ? window.ar : require('./ar');
-const en = typeof window !== 'undefined' && window.en ? window.en : require('./en');
-
-const i18nDictionary = {
-  ar: ar || {},
-  en: en || {}
-};
+const arDict = typeof require !== 'undefined' ? (function() { try { return require('./ar.js'); } catch(e) { return null; } })() : null;
+const enDict = typeof require !== 'undefined' ? (function() { try { return require('./en.js'); } catch(e) { return null; } })() : null;
 
 if (typeof window !== 'undefined') {
-  window.i18n = i18nDictionary;
+  window.i18n = {
+    ar: (window.ar || arDict || {}),
+    en: (window.en || enDict || {})
+  };
 }
 
-let currentLang = (typeof localStorage !== 'undefined' && localStorage.getItem('appLang')) || 'ar';
-
-function changeAppLanguage(lang) {
-  try {
-    currentLang = i18nDictionary[lang] ? lang : 'ar';
+const i18nManager = {
+  getCurrentLang: function() {
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('appLang', currentLang);
+      return localStorage.getItem('appLang') || 'ar';
+    }
+    return 'ar';
+  },
+
+  setCurrentLang: function(lang) {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('appLang', lang);
+    }
+  },
+
+  getTranslations: function(lang) {
+    const activeLang = lang || this.getCurrentLang();
+    let dictionary = { ar: {}, en: {} };
+
+    if (typeof window !== 'undefined' && window.i18n) {
+      dictionary = window.i18n;
+    } else {
+      dictionary = { ar: arDict || {}, en: enDict || {} };
     }
 
-    if (typeof window !== 'undefined' && window.state) {
-      window.state.currentLang = currentLang;
+    return dictionary[activeLang] || dictionary.ar || {};
+  },
+
+  t: function(key, lang) {
+    const translations = this.getTranslations(lang);
+    return translations[key] || key;
+  },
+
+  changeAppLanguage: function(lang) {
+    const activeLang = (lang === 'en' || lang === 'ar') ? lang : 'ar';
+    this.setCurrentLang(activeLang);
+
+    if (typeof window !== 'undefined') {
+      if (window.state) {
+        window.state.currentLang = activeLang;
+      }
+      if (window.UI) {
+        window.UI.currentLang = activeLang;
+      }
+
+      this.applyLanguage(activeLang);
+
+      if (typeof window.loadUserData === 'function') {
+        window.loadUserData();
+      }
     }
+    return activeLang;
+  },
 
-    applyLanguage(currentLang);
-
-    if (typeof window !== 'undefined' && typeof window.loadUserData === 'function') {
-      window.loadUserData();
-    }
-  } catch (err) {
-    console.error("i18n changeAppLanguage Error:", err);
-  }
-}
-
-function applyLanguage(lang) {
-  try {
+  applyLanguage: function(lang) {
     if (typeof document === 'undefined') return;
 
-    const activeLang = i18nDictionary[lang] ? lang : 'ar';
+    const activeLang = (lang === 'en' || lang === 'ar') ? lang : this.getCurrentLang();
+    const translations = this.getTranslations(activeLang);
+
     document.documentElement.lang = activeLang;
     document.documentElement.dir = activeLang === 'ar' ? 'rtl' : 'ltr';
 
@@ -46,44 +75,60 @@ function applyLanguage(lang) {
     }
 
     const langSelect = document.getElementById('language-select');
-    if (langSelect) {
-      langSelect.value = activeLang;
-    }
+    if (langSelect) langSelect.value = activeLang;
 
+    // تحديث النصوص
     document.querySelectorAll('[data-i18n]').forEach(el => {
       const key = el.getAttribute('data-i18n');
-      if (i18nDictionary[activeLang] && i18nDictionary[activeLang][key] !== undefined) {
-        el.innerText = i18nDictionary[activeLang][key];
+      if (translations[key] !== undefined) {
+        el.innerText = translations[key];
       }
     });
 
+    // تحديث خانات الإدخال Placeholder
     document.querySelectorAll('[data-i18n-ph]').forEach(el => {
       const key = el.getAttribute('data-i18n-ph');
-      if (i18nDictionary[activeLang] && i18nDictionary[activeLang][key] !== undefined) {
-        el.placeholder = i18nDictionary[activeLang][key];
+      if (translations[key] !== undefined) {
+        el.placeholder = translations[key];
       }
     });
-  } catch (err) {
-    console.error("i18n applyLanguage Error:", err);
+
+    // تحديث العناوين التوضيحية Title
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+      const key = el.getAttribute('data-i18n-title');
+      if (translations[key] !== undefined) {
+        el.title = translations[key];
+      }
+    });
+
+    // تحديث قيم الأزرار Value
+    document.querySelectorAll('[data-i18n-val]').forEach(el => {
+      const key = el.getAttribute('data-i18n-val');
+      if (translations[key] !== undefined) {
+        el.value = translations[key];
+      }
+    });
   }
-}
+};
 
 if (typeof window !== 'undefined') {
-  window.changeAppLanguage = changeAppLanguage;
-  window.applyLanguage = applyLanguage;
+  window.changeAppLanguage = function(lang) {
+    return i18nManager.changeAppLanguage(lang);
+  };
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      applyLanguage(currentLang);
-    });
-  } else {
-    applyLanguage(currentLang);
-  }
+  window.applyLanguage = function(lang) {
+    return i18nManager.applyLanguage(lang);
+  };
+
+  window.t = function(key, lang) {
+    return i18nManager.t(key, lang);
+  };
+
+  document.addEventListener('DOMContentLoaded', () => {
+    i18nManager.applyLanguage(i18nManager.getCurrentLang());
+  });
 }
 
-module.exports = {
-  i18n: i18nDictionary,
-  getCurrentLang: () => currentLang,
-  changeAppLanguage,
-  applyLanguage
-};
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = i18nManager;
+}
