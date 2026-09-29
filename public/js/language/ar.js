@@ -149,3 +149,9 @@ const ar = {
   rejected: "مرفوض",
   pending: "قيد المراجعة"
 };
+
+if (typeof window !== 'undefined') {
+  window.ar = ar;
+}
+
+module.exports = ar;
