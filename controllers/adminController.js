@@ -3,6 +3,7 @@
  */
 
 const connectDB = require('../config/db');
+const logger = require('../config/logger');
 const { User, Ad, Withdraw, Deposit, Link } = require('../models');
 
 /**
@@ -47,6 +48,9 @@ const handleGetDashboardData = async (req, res, next) => {
       ads
     });
   } catch (err) {
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleGetDashboardData:', err);
+    }
     next(err);
   }
 };
@@ -84,6 +88,9 @@ const handleDepositAction = async (req, res, next) => {
       return res.json({ success: true, message: "تم رفض طلب الإيداع" });
     }
   } catch (err) {
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleDepositAction:', err);
+    }
     next(err);
   }
 };
@@ -121,6 +128,9 @@ const handleWithdrawAction = async (req, res, next) => {
       return res.json({ success: true, message: "تم رفض طلب السحب وإعادة الرصيد للمستخدم" });
     }
   } catch (err) {
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleWithdrawAction:', err);
+    }
     next(err);
   }
 };
@@ -138,6 +148,9 @@ const handleGenericAdminAction = async (req, res, next) => {
     }
     return res.json({ success: true, message: `تم تنفيذ الإجراء ${action} على ${type}` });
   } catch (err) {
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleGenericAdminAction:', err);
+    }
     next(err);
   }
 };
