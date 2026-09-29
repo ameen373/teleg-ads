@@ -3,8 +3,9 @@
  */
 
 const mongoose = require('mongoose');
-
 const connectDB = require('../config/db');
+const logger = require('../config/logger');
+const { safeRedisGet, safeRedisSet, safeRedisDel } = require('../config/redis');
 const { normalizeAndValidateUrl } = require('../utils/urlHelpers');
 const { User, Ad, Link, Impression } = require('../models');
 
@@ -132,9 +133,14 @@ const handleCreateAd = async (req, res, next) => {
     }], { session });
 
     await session.commitTransaction();
+    await safeRedisDel('active_ads_list');
+
     return res.json({ success: true, message: "تم إنشاء الحملة بنجاح", ad: ad[0] });
   } catch (err) {
     await session.abortTransaction();
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleCreateAd:', err);
+    }
     next(err);
   } finally {
     session.endSession();
@@ -150,6 +156,9 @@ const handleGetUserAds = async (req, res, next) => {
     const ads = await Ad.find({ userId: req.userId }).sort({ createdAt: -1 }).lean();
     return res.json({ success: true, message: "تم جلب الحملات بنجاح", ads });
   } catch (err) {
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleGetUserAds:', err);
+    }
     next(err);
   }
 };
@@ -172,9 +181,13 @@ const handleToggleAd = async (req, res, next) => {
 
     ad.status = ad.status === 'active' ? 'paused' : 'active';
     await ad.save();
+    await safeRedisDel('active_ads_list');
 
     return res.json({ success: true, message: "تم تغيير حالة الحملة بنجاح", status: ad.status });
   } catch (err) {
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleToggleAd:', err);
+    }
     next(err);
   }
 };
@@ -209,10 +222,14 @@ const handleDeleteAd = async (req, res, next) => {
 
     await Ad.deleteOne({ _id: adId, userId: req.userId }).session(session);
     await session.commitTransaction();
+    await safeRedisDel('active_ads_list');
 
     return res.json({ success: true, message: 'تم إيقاف وحذف الحملة وإعادة الميزانية المتبقية لحسابك' });
   } catch (err) {
     await session.abortTransaction();
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleDeleteAd:', err);
+    }
     next(err);
   } finally {
     session.endSession();
@@ -231,9 +248,21 @@ const handleGetMatchingAd = async (req, res, next) => {
     let link = null;
 
     if (linkId && mongoose.Types.ObjectId.isValid(linkId)) {
-      link = await Link.findById(linkId);
+      const cachedLink = await safeRedisGet(`link:data:${linkId}`);
+      if (cachedLink) {
+        link = JSON.parse(cachedLink);
+      } else {
+        link = await Link.findById(linkId).lean();
+        if (link) await safeRedisSet(`link:data:${linkId}`, JSON.stringify(link), 'EX', 300);
+      }
     } else if (shortCode) {
-      link = await Link.findOne({ shortCode, isActive: true });
+      const cachedLink = await safeRedisGet(`link:data:${shortCode}`);
+      if (cachedLink) {
+        link = JSON.parse(cachedLink);
+      } else {
+        link = await Link.findOne({ shortCode, isActive: true }).lean();
+        if (link) await safeRedisSet(`link:data:${shortCode}`, JSON.stringify(link), 'EX', 300);
+      }
     }
 
     if (link) {
@@ -252,13 +281,13 @@ const handleGetMatchingAd = async (req, res, next) => {
     let ad = await Ad.findOne({
       ...queryFilter,
       targetCategory: linkCategory
-    });
+    }).lean();
 
     if (!ad) {
       ad = await Ad.findOne({
         ...queryFilter,
         targetCategory: 'all'
-      });
+      }).lean();
     }
 
     if (!ad) {
@@ -287,6 +316,9 @@ const handleGetMatchingAd = async (req, res, next) => {
       }
     });
   } catch (err) {
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleGetMatchingAd:', err);
+    }
     next(err);
   }
 };
@@ -303,6 +335,9 @@ const handleRecordClick = async (req, res, next) => {
     }
     return res.json({ success: true, message: "تم تسجيل النقرة بنجاح" });
   } catch (err) {
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleRecordClick:', err);
+    }
     next(err);
   }
 };
@@ -313,9 +348,11 @@ const handleRecordClick = async (req, res, next) => {
 const handleRecordImpression = async (req, res, next) => {
   try {
     await connectDB();
-    const { shortCode, token } = req.body;
     return res.json({ success: true, message: "تم تسجيل المشاهدة بنجاح" });
   } catch (err) {
+    if (logger && typeof logger.error === 'function') {
+      logger.error('Error in handleRecordImpression:', err);
+    }
     next(err);
   }
 };
