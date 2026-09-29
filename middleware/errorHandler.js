@@ -1,8 +1,3 @@
-/**
- * Centralized Error Handling Middleware
- * Intercepts uncaught application errors and delivers structured HTTP JSON responses
- */
-
 const logger = require('../config/logger');
 
 const errorHandler = (err, req, res, next) => {
@@ -14,7 +9,6 @@ const errorHandler = (err, req, res, next) => {
     ip: req.ip
   });
 
-  // Handle Mongoose Duplicate Key Error (11000)
   if (err.code === 11000) {
     const field = Object.keys(err.keyValue || {})[0] || 'البيانات';
     return res.status(400).json({
@@ -23,7 +17,6 @@ const errorHandler = (err, req, res, next) => {
     });
   }
 
-  // Handle Mongoose Validation Errors
   if (err.name === 'ValidationError') {
     const messages = Object.values(err.errors).map(val => val.message);
     return res.status(400).json({
@@ -32,7 +25,6 @@ const errorHandler = (err, req, res, next) => {
     });
   }
 
-  // Handle JWT Authentication Errors
   if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
     return res.status(401).json({
       success: false,
@@ -40,7 +32,6 @@ const errorHandler = (err, req, res, next) => {
     });
   }
 
-  // Standard Fallback Server Error
   const statusCode = err.statusCode || (res.statusCode === 200 ? 500 : res.statusCode);
   return res.status(statusCode).json({
     success: false,
