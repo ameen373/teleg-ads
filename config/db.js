@@ -16,16 +16,19 @@ async function connectDB() {
   if (!cached.promise) {
     const opts = {
       maxPoolSize: 10,
+      minPoolSize: 1,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
-      bufferCommands: true
+      bufferCommands: false,
+      autoIndex: process.env.NODE_ENV !== 'production'
     };
 
     cached.promise = mongoose.connect(CONFIG.MONGO_URI, opts).then((m) => {
-      logger.info('✅ Enterprise MongoDB Pipeline Connected');
+      logger.info('✅ Enterprise MongoDB Pipeline Connected (Vercel Pool Ready)');
       return m;
     }).catch((err) => {
       cached.promise = null;
+      logger.error('❌ MongoDB Connection Initial Failure:', err);
       throw err;
     });
   }
@@ -34,7 +37,7 @@ async function connectDB() {
     cached.conn = await cached.promise;
   } catch (err) {
     cached.promise = null;
-    logger.error('❌ MongoDB Connection Failure:', err);
+    logger.error('❌ MongoDB Async Resolution Error:', err);
     throw err;
   }
 
