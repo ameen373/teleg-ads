@@ -12,7 +12,7 @@ const User = require('../models/User');
 
 let logger;
 try {
-  logger = require('../utils/logger');
+  logger = require('../config/logger');
 } catch (e) {
   logger = console;
 }
@@ -33,7 +33,7 @@ const handleCheckAdmin = async (req, res, next) => {
       try {
         telegramUser = verifyTelegramData(initData);
       } catch (e) {
-        // Ignored
+        // Ignored fallback
       }
     }
 
