@@ -1,11 +1,9 @@
-// public/js/modules/wallet.js
-// Telega.ads - Wallet & Transactions Module (ES Module)
+// public/js/modules/wallet.js - Wallet & Transactions Module
 
-import API from './api.js';
-import i18n from './i18n.js';
-import UI from './ui.js';
+const API = typeof require !== 'undefined' ? require('./api.js') : (window.API || {});
+const i18n = typeof require !== 'undefined' ? require('./i18n.js') : (window.i18n || {});
 
-export const WalletModule = {
+const WalletModule = {
   /**
    * تقديم طلب إيداع جديد
    */
@@ -19,58 +17,59 @@ export const WalletModule = {
     const network = networkInput.value;
     const amountVal = amountInput.value;
     const txHashVal = txHashInput.value.trim();
-    const lang = UI ? UI.currentLang : (window.currentLang || 'ar');
+    const lang = window.UI ? window.UI.currentLang : (window.currentLang || 'ar');
 
     if (!network) {
-      if (UI && typeof UI.showToast === 'function') {
-        UI.showToast(lang === 'ar' ? 'يرجى اختيار شبكة الدفع' : 'Please select payment network');
+      if (window.UI && typeof window.UI.showToast === 'function') {
+        window.UI.showToast(lang === 'ar' ? 'يرجى اختيار شبكة الدفع' : 'Please select payment network');
       }
       return;
     }
 
     const amount = parseFloat(amountVal);
     if (!amount || amount < 1) {
-      if (UI && typeof UI.showToast === 'function') {
-        UI.showToast(lang === 'ar' ? 'الحد الأدنى للإيداع هو $1' : 'Minimum deposit amount is $1');
+      if (window.UI && typeof window.UI.showToast === 'function') {
+        window.UI.showToast(lang === 'ar' ? 'الحد الأدنى للإيداع هو $1' : 'Minimum deposit amount is $1');
       }
       return;
     }
 
     if (!txHashVal || txHashVal.length < 5) {
-      if (UI && typeof UI.showToast === 'function') {
-        UI.showToast(lang === 'ar' ? 'يرجى إدخال رمز المعاملة (TxID)' : 'Please enter transaction TxID / Hash');
+      if (window.UI && typeof window.UI.showToast === 'function') {
+        window.UI.showToast(lang === 'ar' ? 'يرجى إدخال رمز المعاملة (TxID)' : 'Please enter transaction TxID / Hash');
       }
       return;
     }
 
-    if (UI && typeof UI.setButtonLoading === 'function') {
-      UI.setButtonLoading('btn-request-deposit', true);
+    if (window.UI && typeof window.UI.setButtonLoading === 'function') {
+      window.UI.setButtonLoading('btn-request-deposit', true);
     }
 
     try {
-      const data = await API.requestDeposit(network, amount, txHashVal);
+      const apiInstance = window.API || API;
+      const data = await apiInstance.requestDeposit(network, amount, txHashVal);
 
       if (data && (data.success || data.deposit)) {
-        if (UI && typeof UI.showToast === 'function') {
-          UI.showToast(lang === 'ar' ? 'تم تقديم طلب الشحن بنجاح! سيتم مراجعته قريباً.' : 'Deposit request submitted successfully!');
+        if (window.UI && typeof window.UI.showToast === 'function') {
+          window.UI.showToast(lang === 'ar' ? 'تم تقديم طلب الشحن بنجاح! سيتم مراجعته قريباً.' : 'Deposit request submitted successfully!');
         }
         amountInput.value = '';
         txHashInput.value = '';
         await this.loadUserData();
       } else {
         const errorMsg = data?.error || data?.message || (lang === 'ar' ? 'فشل تقديم طلب الشحن' : 'Failed to submit deposit request');
-        if (UI && typeof UI.showToast === 'function') {
-          UI.showToast(errorMsg);
+        if (window.UI && typeof window.UI.showToast === 'function') {
+          window.UI.showToast(errorMsg);
         }
       }
     } catch (err) {
       console.error("Deposit request error:", err);
-      if (UI && typeof UI.showToast === 'function') {
-        UI.showToast(err.message || (lang === 'ar' ? 'خطأ أثناء تقديم الطلب' : 'Error submitting request'));
+      if (window.UI && typeof window.UI.showToast === 'function') {
+        window.UI.showToast(err.message || (lang === 'ar' ? 'خطأ أثناء تقديم الطلب' : 'Error submitting request'));
       }
     } finally {
-      if (UI && typeof UI.setButtonLoading === 'function') {
-        UI.setButtonLoading('btn-request-deposit', false);
+      if (window.UI && typeof window.UI.setButtonLoading === 'function') {
+        window.UI.setButtonLoading('btn-request-deposit', false);
       }
     }
   },
@@ -82,43 +81,44 @@ export const WalletModule = {
     const walletInput = document.getElementById('default-wallet');
     if (!walletInput) return;
     const walletAddr = walletInput.value.trim();
-    const lang = UI ? UI.currentLang : (window.currentLang || 'ar');
+    const lang = window.UI ? window.UI.currentLang : (window.currentLang || 'ar');
 
     if (!walletAddr) {
-      if (UI && typeof UI.showToast === 'function') {
-        UI.showToast(lang === 'ar' ? 'يرجى إدخال عنوان المحفظة' : 'Please enter wallet address');
+      if (window.UI && typeof window.UI.showToast === 'function') {
+        window.UI.showToast(lang === 'ar' ? 'يرجى إدخال عنوان المحفظة' : 'Please enter wallet address');
       }
       return;
     }
 
-    if (UI && typeof UI.setButtonLoading === 'function') {
-      UI.setButtonLoading('save-wallet-btn', true);
+    if (window.UI && typeof window.UI.setButtonLoading === 'function') {
+      window.UI.setButtonLoading('save-wallet-btn', true);
     }
 
     try {
-      const data = await API.updateWalletAddress(walletAddr);
+      const apiInstance = window.API || API;
+      const data = await apiInstance.updateWalletAddress(walletAddr);
 
       if (data && (data.success || data.user)) {
-        if (UI && typeof UI.showToast === 'function') {
-          UI.showToast(lang === 'ar' ? 'تم حفظ العنوان بنجاح' : 'Wallet address saved');
+        if (window.UI && typeof window.UI.showToast === 'function') {
+          window.UI.showToast(lang === 'ar' ? 'تم حفظ العنوان بنجاح' : 'Wallet address saved');
         }
-        if (UI && typeof UI.toggleWalletEdit === 'function') {
-          UI.toggleWalletEdit();
+        if (window.UI && typeof window.UI.toggleWalletEdit === 'function') {
+          window.UI.toggleWalletEdit();
         }
         await this.loadUserData();
       } else {
         const errorMsg = data?.error || (lang === 'ar' ? 'فشل حفظ العنوان' : 'Failed to save address');
-        if (UI && typeof UI.showToast === 'function') {
-          UI.showToast(errorMsg);
+        if (window.UI && typeof window.UI.showToast === 'function') {
+          window.UI.showToast(errorMsg);
         }
       }
     } catch (err) {
-      if (UI && typeof UI.showToast === 'function') {
-        UI.showToast(err.message || (lang === 'ar' ? 'خطأ أثناء الحفظ' : 'Error saving settings'));
+      if (window.UI && typeof window.UI.showToast === 'function') {
+        window.UI.showToast(err.message || (lang === 'ar' ? 'خطأ أثناء الحفظ' : 'Error saving settings'));
       }
     } finally {
-      if (UI && typeof UI.setButtonLoading === 'function') {
-        UI.setButtonLoading('save-wallet-btn', false);
+      if (window.UI && typeof window.UI.setButtonLoading === 'function') {
+        window.UI.setButtonLoading('save-wallet-btn', false);
       }
     }
   },
@@ -131,51 +131,52 @@ export const WalletModule = {
     const amountInput = document.getElementById('withdraw-amount');
     const walletAddr = walletInput ? walletInput.value.trim() : '';
     const amountVal = amountInput ? parseFloat(amountInput.value) || 0 : 0;
-    const lang = UI ? UI.currentLang : (window.currentLang || 'ar');
+    const lang = window.UI ? window.UI.currentLang : (window.currentLang || 'ar');
 
     if (!walletAddr) {
-      if (UI && typeof UI.showToast === 'function') {
-        UI.showToast(lang === 'ar' ? 'يرجى إدخال وتحديد عنوان محفظة السحب أولاً' : 'Please define withdrawal wallet address first');
+      if (window.UI && typeof window.UI.showToast === 'function') {
+        window.UI.showToast(lang === 'ar' ? 'يرجى إدخال وتحديد عنوان محفظة السحب أولاً' : 'Please define withdrawal wallet address first');
       }
       return;
     }
 
     if (amountVal < 30) {
-      if (UI && typeof UI.showToast === 'function') {
-        UI.showToast(lang === 'ar' ? 'الحد الأدنى للسحب هو 30$' : 'Minimum withdrawal is $30');
+      if (window.UI && typeof window.UI.showToast === 'function') {
+        window.UI.showToast(lang === 'ar' ? 'الحد الأدنى للسحب هو 30$' : 'Minimum withdrawal is $30');
       }
       return;
     }
 
-    if (UI && typeof UI.setButtonLoading === 'function') {
-      UI.setButtonLoading('btn-request-withdraw', true);
+    if (window.UI && typeof window.UI.setButtonLoading === 'function') {
+      window.UI.setButtonLoading('btn-request-withdraw', true);
     }
 
     try {
-      const data = await API.requestWithdrawal(amountVal, walletAddr);
+      const apiInstance = window.API || API;
+      const data = await apiInstance.requestWithdrawal(amountVal, walletAddr);
 
       if (data && (data.success || data.withdraw)) {
-        if (UI && typeof UI.showToast === 'function') {
-          UI.showToast(lang === 'ar' ? 'تم تقديم طلب السحب بنجاح' : 'Withdrawal requested successfully');
+        if (window.UI && typeof window.UI.showToast === 'function') {
+          window.UI.showToast(lang === 'ar' ? 'تم تقديم طلب السحب بنجاح' : 'Withdrawal requested successfully');
         }
         if (amountInput) amountInput.value = '';
-        if (UI && typeof UI.updateWithdrawCalculations === 'function') {
-          UI.updateWithdrawCalculations();
+        if (window.UI && typeof window.UI.updateWithdrawCalculations === 'function') {
+          window.UI.updateWithdrawCalculations();
         }
         await this.loadUserData();
       } else {
         const errorMsg = data?.error || data?.message || (lang === 'ar' ? 'فشل تقديم طلب السحب' : 'Failed to request withdrawal');
-        if (UI && typeof UI.showToast === 'function') {
-          UI.showToast(errorMsg);
+        if (window.UI && typeof window.UI.showToast === 'function') {
+          window.UI.showToast(errorMsg);
         }
       }
     } catch (err) {
-      if (UI && typeof UI.showToast === 'function') {
-        UI.showToast(err.message || (lang === 'ar' ? 'خطأ في عملية السحب' : 'Error processing withdrawal'));
+      if (window.UI && typeof window.UI.showToast === 'function') {
+        window.UI.showToast(err.message || (lang === 'ar' ? 'خطأ في عملية السحب' : 'Error processing withdrawal'));
       }
     } finally {
-      if (UI && typeof UI.setButtonLoading === 'function') {
-        UI.setButtonLoading('btn-request-withdraw', false);
+      if (window.UI && typeof window.UI.setButtonLoading === 'function') {
+        window.UI.setButtonLoading('btn-request-withdraw', false);
       }
     }
   },
@@ -187,7 +188,7 @@ export const WalletModule = {
     const container = document.getElementById('withdraws-list');
     if (!container) return;
 
-    const lang = UI ? UI.currentLang : (window.currentLang || 'ar');
+    const lang = window.UI ? window.UI.currentLang : (window.currentLang || 'ar');
 
     if (!withdraws || withdraws.length === 0) {
       container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 10px 0;">${lang === 'ar' ? 'لا توجد طلبات سحب سابقة.' : 'No withdrawal history found.'}</p>`;
@@ -221,7 +222,8 @@ export const WalletModule = {
     }
 
     try {
-      const data = await API.getUserReferrals();
+      const apiInstance = window.API || API;
+      const data = await apiInstance.getUserReferrals();
       if (data) {
         const referrals = Array.isArray(data) ? data : (data.referrals || data.data || []);
         this.renderUserReferrals(referrals);
@@ -238,7 +240,7 @@ export const WalletModule = {
     const container = document.getElementById('ref-list');
     if (!container) return;
 
-    const lang = UI ? UI.currentLang : (window.currentLang || 'ar');
+    const lang = window.UI ? window.UI.currentLang : (window.currentLang || 'ar');
 
     if (!referrals || referrals.length === 0) {
       container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${lang === 'ar' ? 'لم تنضم أي إحالات عبر رابطك بعد.' : 'No referrals registered yet.'}</p>`;
@@ -246,7 +248,7 @@ export const WalletModule = {
     }
 
     container.innerHTML = referrals.map(ref => {
-      const escapeFn = UI ? UI.escapeHTML : (str => str);
+      const escapeFn = window.UI ? window.UI.escapeHTML : (str => str);
       const name = escapeFn(ref.firstName || ref.username || 'User');
       const earnings = (ref.earnedAmount || ref.contribution || 0).toFixed(2);
       const dateStr = new Date(ref.createdAt || Date.now()).toLocaleDateString();
@@ -268,7 +270,8 @@ export const WalletModule = {
    */
   loadUserData: async function() {
     try {
-      const data = await API.getDashboardData();
+      const apiInstance = window.API || API;
+      const data = await apiInstance.getDashboardData();
       if (data) {
         const u = data.user || data;
 
@@ -335,13 +338,18 @@ export const WalletModule = {
   }
 };
 
-window.WalletModule = WalletModule;
-window.requestDeposit = WalletModule.requestDeposit.bind(WalletModule);
-window.saveSettings = WalletModule.saveSettings.bind(WalletModule);
-window.requestWithdrawal = WalletModule.requestWithdrawal.bind(WalletModule);
-window.renderWithdrawalsHistory = WalletModule.renderWithdrawalsHistory.bind(WalletModule);
-window.fetchUserReferrals = WalletModule.fetchUserReferrals.bind(WalletModule);
-window.renderUserReferrals = WalletModule.renderUserReferrals.bind(WalletModule);
-window.loadUserData = WalletModule.loadUserData.bind(WalletModule);
+// Global standard helpers mapping for compatibility
+if (typeof window !== 'undefined') {
+  window.WalletModule = WalletModule;
+  window.requestDeposit = WalletModule.requestDeposit.bind(WalletModule);
+  window.saveSettings = WalletModule.saveSettings.bind(WalletModule);
+  window.requestWithdrawal = WalletModule.requestWithdrawal.bind(WalletModule);
+  window.renderWithdrawalsHistory = WalletModule.renderWithdrawalsHistory.bind(WalletModule);
+  window.fetchUserReferrals = WalletModule.fetchUserReferrals.bind(WalletModule);
+  window.renderUserReferrals = WalletModule.renderUserReferrals.bind(WalletModule);
+  window.loadUserData = WalletModule.loadUserData.bind(WalletModule);
+}
 
-export default WalletModule;
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = WalletModule;
+}
