@@ -1,9 +1,6 @@
 const rateLimit = require('express-rate-limit');
 const { isIpBanned, checkRateLimit, banIp } = require('../config/redis');
 
-/**
- * Extract Client Real IP
- */
 const getRealIp = (req) => {
   const cfIp = req.headers['cf-connecting-ip'];
   const vercelIp = req.headers['x-vercel-forwarded-for'];
@@ -17,9 +14,6 @@ const getRealIp = (req) => {
   return req.ip || req.connection?.remoteAddress || '0.0.0.0';
 };
 
-/**
- * Express Rate Limiters
- */
 const linkCreationLimiter = rateLimit({
   windowMs: 24 * 60 * 60 * 1000,
   max: 100,
@@ -37,9 +31,6 @@ const clickLimiter = rateLimit({
   message: { success: false, error: 'طلبات كثيرة جداً. يرجى الانتظار.' }
 });
 
-/**
- * Advanced Anti-Fraud Traffic Validator Middleware
- */
 const validateTraffic = async (req, res, next) => {
   try {
     const realIp = getRealIp(req);
@@ -47,7 +38,6 @@ const validateTraffic = async (req, res, next) => {
     const deviceFingerprint = req.headers['x-device-fingerprint'] || req.body?.deviceFingerprint || null;
     const country = req.headers['cf-ipcountry'] || req.headers['x-vercel-ip-country'] || 'XX';
 
-    // 1. IP Ban Verification
     const banned = await isIpBanned(realIp);
     if (banned) {
       return res.status(403).json({
@@ -56,7 +46,6 @@ const validateTraffic = async (req, res, next) => {
       });
     }
 
-    // 2. High-Speed Fast Redis Rate Limiting
     const rateCheck = await checkRateLimit(realIp, 30, 60);
     if (!rateCheck.allowed) {
       if (rateCheck.current > 60) {
@@ -68,7 +57,6 @@ const validateTraffic = async (req, res, next) => {
       });
     }
 
-    // 3. Bot & Crawler Detection
     const botPattern = /bot|crawler|spider|datacenter|proxy|httpclient|curl|python|axios|node-fetch|headless|selenium|puppeteer|phantomjs|scrape|wget|go-http-client|java/i;
     const isBot = botPattern.test(userAgent);
 
@@ -79,7 +67,6 @@ const validateTraffic = async (req, res, next) => {
       });
     }
 
-    // 4. Proxy & Anonymizer Header Detection
     const proxyHeaders = [
       'via',
       'x-forwarded-host',
@@ -96,7 +83,6 @@ const validateTraffic = async (req, res, next) => {
       }
     }
 
-    // Attach processed traffic data to request
     req.trafficData = {
       realIp,
       userAgent,
