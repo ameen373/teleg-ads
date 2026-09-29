@@ -7,16 +7,9 @@ const {
 } = require('./helpers');
 
 const linkSchema = new mongoose.Schema({
-  // حقل الكود الموحد والمطلوب والفريد
-  code: {
-    type: String,
-    required: [true, 'Link code is required'],
-    unique: true,
-    index: true,
-    trim: true
-  },
   shortCode: { 
     type: String, 
+    required: [true, 'Short code is required'], 
     unique: true, 
     sparse: true,
     index: true,
@@ -36,11 +29,10 @@ const linkSchema = new mongoose.Schema({
     type: String, 
     trim: true 
   },
-  // ربط المستخدم إجبارياً بحقل userId لمنع تداخل البيانات
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User',
-    required: [true, 'User ID is required'],
+    default: null,
     index: true
   },
   telegramId: {
@@ -64,7 +56,7 @@ const linkSchema = new mongoose.Schema({
     maxlength: 150 
   },
 
-  /* --- حقول التصنيف والميتا داتا --- */
+  /* --- حقول التصنيف الذكي والميتا داتا المُضافة --- */
   category: {
     type: String,
     enum: ['video', 'image', 'app_game', 'file', 'general'],
@@ -87,22 +79,22 @@ const linkSchema = new mongoose.Schema({
     default: '',
     trim: true
   },
+  /* --------------------------------------------- */
 
-  /* --- حقول التتبع والتفاعل --- */
   isActive: { 
     type: Boolean, 
     default: true, 
     index: true 
   },
-  clicks: {
-    type: Number,
-    default: 0,
-    min: [0, 'Clicks count cannot be negative']
-  },
   views: { 
     type: Number, 
     default: 0, 
     min: [0, 'Views count cannot be negative'] 
+  },
+  clicks: {
+    type: Number,
+    default: 0,
+    min: [0, 'Clicks count cannot be negative']
   },
   validImpressions: { 
     type: Number, 
@@ -122,14 +114,7 @@ const linkSchema = new mongoose.Schema({
   }
 }, globalSchemaOptions);
 
-// مزامنة الكود والروابط قبل الفحص
 linkSchema.pre('validate', function(next) {
-  if (this.code && !this.shortCode) {
-    this.shortCode = this.code;
-  } else if (this.shortCode && !this.code) {
-    this.code = this.shortCode;
-  }
-
   if (this.originalUrl && !this.targetUrl) this.targetUrl = this.originalUrl;
   if (this.targetUrl && !this.originalUrl) this.originalUrl = this.targetUrl;
 
@@ -144,7 +129,6 @@ linkSchema.pre('validate', function(next) {
 
 linkSchema.index({ userId: 1, createdAt: -1 });
 linkSchema.index({ telegramId: 1, createdAt: -1 });
-linkSchema.index({ code: 1, isActive: 1 });
 linkSchema.index({ shortCode: 1, isActive: 1 });
 linkSchema.index({ category: 1, createdAt: -1 });
 
@@ -169,10 +153,9 @@ linkSchema.statics.getUserIsolatedLinks = function(identifier, query = {}, optio
   return this.find(safeQuery, null, options).sort({ createdAt: -1 });
 };
 
-linkSchema.statics.findOneIsolated = function(code, identifier) {
-  if (!code || !identifier) return this.findOne({ _id: null });
+linkSchema.statics.findOneIsolated = function(shortCode, identifier) {
+  if (!shortCode || !identifier) return this.findOne({ _id: null });
   
-  const searchCode = String(code).trim();
   const conditions = [];
   if (isObjectId(identifier)) {
     conditions.push({ userId: identifier });
@@ -185,20 +168,14 @@ linkSchema.statics.findOneIsolated = function(code, identifier) {
   if (conditions.length === 0) return this.findOne({ _id: null });
 
   return this.findOne({ 
-    $and: [
-      { $or: [{ code: searchCode }, { shortCode: searchCode }] },
-      { $or: conditions }
-    ]
+    shortCode: String(shortCode).trim(), 
+    $or: conditions 
   });
 };
 
-linkSchema.statics.findByShortCode = function(code) {
-  if (!code) return this.findOne({ _id: null });
-  const searchCode = String(code).trim();
-  return this.findOne({ 
-    $or: [{ code: searchCode }, { shortCode: searchCode }],
-    isActive: true 
-  });
+linkSchema.statics.findByShortCode = function(shortCode) {
+  if (!shortCode) return this.findOne({ _id: null });
+  return this.findOne({ shortCode: String(shortCode).trim(), isActive: true });
 };
 
 const Link = mongoose.models.Link || mongoose.model('Link', linkSchema, 'links');
@@ -208,3 +185,5 @@ module.exports = {
   Link,
   ShortLink
 };
+module.exports.Link = Link;
+module.exports.ShortLink = ShortLink;
