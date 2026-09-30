@@ -4,58 +4,20 @@ const API_BASE = (typeof window !== 'undefined' && window.location)
 
 if (typeof window !== 'undefined') {
   window.API_BASE = API_BASE;
-  window.authToken = localStorage.getItem('authToken') || null;
+  window.authToken = localStorage.getItem('authToken');
   window.currentUserTelegramId = localStorage.getItem('telegramId') || null;
-  window.isUserAdmin = localStorage.getItem('isUserAdmin') === 'true';
+  window.isUserAdmin = false;
 }
 
 const API = {
-  updateAdminVisibility: function(isAdmin) {
-    if (typeof document === 'undefined') return;
-
-    const adminElementIds = [
-      'tab-btn-admin',
-      'admin-tab',
-      'nav-admin',
-      'admin-nav-btn',
-      'tab-admin',
-      'admin-section-btn',
-      'admin-link'
-    ];
-
-    adminElementIds.forEach(id => {
-      const el = document.getElementById(id);
-      if (el) {
-        if (isAdmin) {
-          el.style.display = '';
-          el.classList.remove('hidden');
-          el.classList.remove('d-none');
-          el.removeAttribute('hidden');
-        } else {
-          el.style.display = 'none';
-          el.classList.add('hidden');
-        }
-      }
-    });
-
-    if (window.UI && typeof window.UI.toggleAdminTab === 'function') {
-      window.UI.toggleAdminTab(isAdmin);
-    }
-  },
-
   safeFetch: async function(endpoint, options = {}) {
     options.headers = options.headers || {};
 
-    let currentUserTelegramId = (typeof window !== 'undefined') 
-      ? (window.currentUserTelegramId || localStorage.getItem('telegramId') || null) 
-      : null;
-
-    let authToken = (typeof window !== 'undefined') 
-      ? (window.authToken || localStorage.getItem('authToken') || null) 
-      : null;
+    let currentUserTelegramId = (typeof window !== 'undefined') ? window.currentUserTelegramId : null;
+    let authToken = (typeof window !== 'undefined') ? window.authToken : null;
 
     const tg = (typeof window !== 'undefined' && window.Telegram) ? window.Telegram.WebApp : null;
-    if ((!currentUserTelegramId || currentUserTelegramId === 'null') && tg?.initDataUnsafe?.user?.id) {
+    if (!currentUserTelegramId && tg?.initDataUnsafe?.user?.id) {
       currentUserTelegramId = String(tg.initDataUnsafe.user.id);
       if (typeof window !== 'undefined') {
         window.currentUserTelegramId = currentUserTelegramId;
@@ -73,15 +35,15 @@ const API = {
       options.headers['Authorization'] = `Bearer ${authToken}`;
     }
 
-    if (currentUserTelegramId && currentUserTelegramId !== 'null' && currentUserTelegramId !== 'undefined') {
+    if (currentUserTelegramId) {
       options.headers['x-telegram-id'] = currentUserTelegramId;
       options.headers['telegram-id'] = currentUserTelegramId;
       options.headers['x-user-id'] = currentUserTelegramId;
       options.headers['user-id'] = currentUserTelegramId;
     }
 
-    if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
-      if (currentUserTelegramId && currentUserTelegramId !== 'null' && !options.body.userId && !options.body.telegramId) {
+    if (options.body && typeof options.body === 'object') {
+      if (currentUserTelegramId && !options.body.userId && !options.body.telegramId) {
         options.body.userId = currentUserTelegramId;
         options.body.telegramId = currentUserTelegramId;
       }
@@ -91,14 +53,14 @@ const API = {
       options.body = JSON.stringify(options.body);
     }
 
-    if (options.body && typeof options.body === 'string' && !options.headers['Content-Type']) {
+    if (options.body && !options.headers['Content-Type']) {
       options.headers['Content-Type'] = 'application/json; charset=utf-8';
     }
 
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
     let targetUrl = endpoint.startsWith('http') ? endpoint : `${API_BASE}${cleanEndpoint}`;
 
-    if (currentUserTelegramId && currentUserTelegramId !== 'null' && currentUserTelegramId !== 'undefined' && !targetUrl.includes('telegramId=') && !targetUrl.includes('userId=')) {
+    if (currentUserTelegramId && !targetUrl.includes('telegramId=') && !targetUrl.includes('userId=')) {
       const separator = targetUrl.includes('?') ? '&' : '?';
       targetUrl = `${targetUrl}${separator}telegramId=${encodeURIComponent(currentUserTelegramId)}&userId=${encodeURIComponent(currentUserTelegramId)}`;
     }
@@ -107,14 +69,7 @@ const API = {
       const response = await fetch(targetUrl, options);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        
-        if ((response.status === 401 || response.status === 403) && cleanEndpoint.includes('/admin/')) {
-          window.isUserAdmin = false;
-          localStorage.setItem('isUserAdmin', 'false');
-          this.updateAdminVisibility(false);
-        }
-
-        throw new Error(errorData.message || errorData.error || `HTTP error! status: ${response.status}`);
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
       }
       return response;
     } catch (err) {
@@ -124,7 +79,7 @@ const API = {
           ? window.UI.currentLang 
           : (localStorage.getItem('appLang') || 'ar');
         
-        const msg = (err.message && !err.message.includes('HTTP error') && !err.message.includes('Failed to fetch')) 
+        const msg = (err.message && !err.message.includes('HTTP error')) 
           ? err.message 
           : (lang === 'ar' ? "تعذر الاتصال بالسيرفر، يرجى التحقق من الاتصال بالإنترنت" : "Server connection error, please check network");
 
@@ -145,15 +100,7 @@ const API = {
     const initDataStr = tg?.initData || '';
 
     try {
-      let currentId = (typeof window !== 'undefined') ? (window.currentUserTelegramId || localStorage.getItem('telegramId') || null) : null;
-      if ((!currentId || currentId === 'null') && u.id) {
-        currentId = String(u.id);
-        if (typeof window !== 'undefined') {
-          window.currentUserTelegramId = currentId;
-          localStorage.setItem('telegramId', currentId);
-        }
-      }
-
+      const currentId = (typeof window !== 'undefined') ? window.currentUserTelegramId : null;
       const res = await this.safeFetch('/api/auth/login', {
         method: 'POST',
         body: {
@@ -172,28 +119,23 @@ const API = {
       if (!res) return false;
       const data = await res.json().catch(() => ({}));
 
-      if (data && (data.success || data.token || data.user)) {
+      if (data && (data.success || data.token)) {
         if (typeof window !== 'undefined') {
           if (data.token) {
             window.authToken = data.token;
             localStorage.setItem('authToken', window.authToken);
           }
 
-          if (data.user && (data.user.telegramId || data.user.id)) {
-            window.currentUserTelegramId = String(data.user.telegramId || data.user.id);
+          if (data.user && data.user.telegramId) {
+            window.currentUserTelegramId = String(data.user.telegramId);
             localStorage.setItem('telegramId', window.currentUserTelegramId);
           }
 
-          const isAdmin = Boolean(
-            data.isAdmin === true || 
-            data.user?.isAdmin === true || 
-            data.user?.role === 'admin' ||
-            data.role === 'admin'
-          );
-
-          window.isUserAdmin = isAdmin;
-          localStorage.setItem('isUserAdmin', isAdmin ? 'true' : 'false');
-          this.updateAdminVisibility(isAdmin);
+          if (data.isAdmin === true) {
+            window.isUserAdmin = true;
+            const adminBtn = document.getElementById('tab-btn-admin');
+            if (adminBtn) adminBtn.style.display = 'flex';
+          }
 
           if (data.depositWallets) {
             if (data.depositWallets.trc20) {
@@ -231,23 +173,8 @@ const API = {
     return false;
   },
 
-  checkAdminStatus: async function() {
-    const res = await this.safeFetch('/api/admin/dashboard', { method: 'GET' });
-    const isAdmin = res !== null;
-    window.isUserAdmin = isAdmin;
-    localStorage.setItem('isUserAdmin', isAdmin ? 'true' : 'false');
-    this.updateAdminVisibility(isAdmin);
-    return isAdmin;
-  },
-
   getDashboardData: async function() {
     const res = await this.safeFetch('/api/user/dashboard', { method: 'GET' });
-    if (!res) return null;
-    return await res.json().catch(() => null);
-  },
-
-  getUserProfile: async function() {
-    const res = await this.safeFetch('/api/user/profile', { method: 'GET' });
     if (!res) return null;
     return await res.json().catch(() => null);
   },
@@ -272,7 +199,7 @@ const API = {
     const res = await this.safeFetch(`/api/links/${linkId}`, { method: 'DELETE' });
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-    return !!data.success;
+    return data.success;
   },
 
   requestDeposit: async function(network, amount, txHash) {
@@ -282,13 +209,6 @@ const API = {
     });
     if (!res) return null;
     return await res.json().catch(() => null);
-  },
-
-  getDepositsHistory: async function() {
-    const res = await this.safeFetch('/api/wallet/deposits', { method: 'GET' });
-    if (!res) return [];
-    const data = await res.json().catch(() => []);
-    return Array.isArray(data) ? data : (data.deposits || []);
   },
 
   requestWithdrawal: async function(amount, walletAddress) {
@@ -339,14 +259,14 @@ const API = {
     });
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-    return !!data.success;
+    return data.success;
   },
 
   deleteAd: async function(adId) {
     const res = await this.safeFetch(`/api/ads/${adId}`, { method: 'DELETE' });
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-    return !!data.success;
+    return data.success;
   },
 
   getUserReferrals: async function() {
@@ -376,144 +296,24 @@ const API = {
     return await res.json().catch(() => null);
   },
 
-  getAdminStats: async function() {
-    const res = await this.safeFetch('/api/admin/stats', { method: 'GET' });
-    if (!res) return null;
-    return await res.json().catch(() => null);
-  },
-
-  getAdminUsers: async function(search = '', page = 1) {
-    const res = await this.safeFetch(`/api/admin/users?search=${encodeURIComponent(search)}&page=${page}`, { method: 'GET' });
-    if (!res) return [];
-    const data = await res.json().catch(() => []);
-    return Array.isArray(data) ? data : (data.users || []);
-  },
-
-  getAdminDeposits: async function() {
-    const res = await this.safeFetch('/api/admin/deposits', { method: 'GET' });
-    if (!res) return [];
-    const data = await res.json().catch(() => []);
-    return Array.isArray(data) ? data : (data.deposits || []);
-  },
-
-  processAdminDeposit: async function(depositId, action, notes = '') {
+  processAdminDeposit: async function(depositId, action) {
     const res = await this.safeFetch('/api/admin/deposits/action', {
       method: 'POST',
-      body: { depositId, action, notes }
+      body: { depositId, action }
     });
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-    return !!data.success;
+    return data.success;
   },
 
-  getAdminWithdrawals: async function() {
-    const res = await this.safeFetch('/api/admin/withdrawals', { method: 'GET' });
-    if (!res) return [];
-    const data = await res.json().catch(() => []);
-    return Array.isArray(data) ? data : (data.withdrawals || []);
-  },
-
-  processAdminWithdraw: async function(withdrawId, action, notes = '') {
+  processAdminWithdraw: async function(withdrawId, action) {
     const res = await this.safeFetch('/api/admin/withdrawals/action', {
       method: 'POST',
-      body: { withdrawId, action, notes }
+      body: { withdrawId, action }
     });
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-    return !!data.success;
-  },
-
-  getAdminAds: async function() {
-    const res = await this.safeFetch('/api/admin/ads', { method: 'GET' });
-    if (!res) return [];
-    const data = await res.json().catch(() => []);
-    return Array.isArray(data) ? data : (data.ads || []);
-  },
-
-  approveAdminAd: async function(adId) {
-    const res = await this.safeFetch(`/api/admin/ads/approve`, {
-      method: 'POST',
-      body: { adId }
-    });
-    if (!res) return false;
-    const data = await res.json().catch(() => ({}));
-    return !!data.success;
-  },
-
-  rejectAdminAd: async function(adId, reason = '') {
-    const res = await this.safeFetch(`/api/admin/ads/reject`, {
-      method: 'POST',
-      body: { adId, reason }
-    });
-    if (!res) return false;
-    const data = await res.json().catch(() => ({}));
-    return !!data.success;
-  },
-
-  deleteAdminAd: async function(adId) {
-    const res = await this.safeFetch(`/api/admin/ads/${adId}`, { method: 'DELETE' });
-    if (!res) return false;
-    const data = await res.json().catch(() => ({}));
-    return !!data.success;
-  },
-
-  getAdminLinks: async function() {
-    const res = await this.safeFetch('/api/admin/links', { method: 'GET' });
-    if (!res) return [];
-    const data = await res.json().catch(() => []);
-    return Array.isArray(data) ? data : (data.links || []);
-  },
-
-  deleteAdminLink: async function(linkId) {
-    const res = await this.safeFetch(`/api/admin/links/${linkId}`, { method: 'DELETE' });
-    if (!res) return false;
-    const data = await res.json().catch(() => ({}));
-    return !!data.success;
-  },
-
-  getAdminSettings: async function() {
-    const res = await this.safeFetch('/api/admin/settings', { method: 'GET' });
-    if (!res) return null;
-    return await res.json().catch(() => null);
-  },
-
-  updateAdminSettings: async function(settingsData) {
-    const res = await this.safeFetch('/api/admin/settings', {
-      method: 'POST',
-      body: settingsData
-    });
-    if (!res) return null;
-    return await res.json().catch(() => null);
-  },
-
-  updateUserBalance: async function(userId, amount, type = 'add', reason = '') {
-    const res = await this.safeFetch('/api/admin/users/balance', {
-      method: 'POST',
-      body: { userId, amount, type, reason }
-    });
-    if (!res) return false;
-    const data = await res.json().catch(() => ({}));
-    return !!data.success;
-  },
-
-  toggleUserBlock: async function(userId, isBlocked) {
-    const res = await this.safeFetch('/api/admin/users/block', {
-      method: 'POST',
-      body: { userId, isBlocked }
-    });
-    if (!res) return false;
-    const data = await res.json().catch(() => ({}));
-    return !!data.success;
-  },
-
-  sendAdminBroadcast: async function(message, target = 'all') {
-    const res = await this.safeFetch('/api/admin/announcement/send', {
-      method: 'POST',
-      body: { message, target }
-    });
-    if (!res) return false;
-    const data = await res.json().catch(() => ({}));
-    return !!data.success;
+    return data.success;
   }
 };
 
@@ -521,18 +321,6 @@ if (typeof window !== 'undefined') {
   window.API = API;
   window.safeFetch = API.safeFetch.bind(API);
   window.authLogin = API.authLogin.bind(API);
-
-  const applyInitialAdminState = () => {
-    if (API && typeof API.updateAdminVisibility === 'function') {
-      API.updateAdminVisibility(window.isUserAdmin);
-    }
-  };
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', applyInitialAdminState);
-  } else {
-    applyInitialAdminState();
-  }
 }
 
 if (typeof module !== 'undefined' && module.exports) {
