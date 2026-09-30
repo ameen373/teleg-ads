@@ -1,9 +1,9 @@
-// public/js/modules/ui.js - UI Management & Helpers Module
+// public/js/modules/ui.js - UI Management Module
 
 const UI = {
-  currentLang: (typeof localStorage !== 'undefined' && localStorage.getItem('appLang')) || 'ar',
+  currentLang: (typeof localStorage !== 'undefined' ? localStorage.getItem('appLang') : null) || 'ar',
 
-  // Escape HTML string safely
+  // --- 1. HTML Escaping & Haptics ---
   escapeHTML: function(str) {
     if (!str) return '';
     return String(str)
@@ -14,7 +14,6 @@ const UI = {
       .replace(/'/g, '&#039;');
   },
 
-  // Telegram Haptic Feedback trigger
   triggerHaptic: function(style = 'light') {
     try {
       const tg = window.Telegram?.WebApp;
@@ -24,105 +23,111 @@ const UI = {
     } catch (e) {}
   },
 
-  // Toast Notifications System
-  showToast: function(msg, duration = 3200) {
-    this.triggerHaptic('medium');
-    let toast = document.getElementById("toast");
+  // --- 2. Toast Notifications & Clipboard ---
+  showToast: function(msg, type = 'info') {
+    this.triggerHaptic(type === 'error' ? 'error' : 'medium');
+    const toast = document.getElementById("toast");
     if (!toast) {
-      toast = document.createElement("div");
-      toast.id = "toast";
-      toast.className = "toast";
-      document.body.appendChild(toast);
+      console.log(`[Toast ${type}]: ${msg}`);
+      return;
     }
     toast.innerText = msg;
-    toast.classList.add("show");
-    setTimeout(() => { toast.classList.remove("show"); }, duration);
+    toast.className = `toast show ${type}`;
+    setTimeout(() => { 
+      toast.classList.remove("show"); 
+    }, 3200);
   },
 
-  // Native & Custom Alerts
-  showAlert: function(msg, title = '') {
-    this.triggerHaptic('warning');
-    const tg = window.Telegram?.WebApp;
-    if (tg && typeof tg.showAlert === 'function') {
-      tg.showAlert(msg);
-    } else {
-      alert((title ? title + '\n\n' : '') + msg);
+  copyToClipboard: function(text) {
+    if (!text) return;
+    const lang = this.currentLang;
+    navigator.clipboard.writeText(text).then(() => {
+      this.showToast(lang === 'ar' ? "تم النسخ بنجاح!" : "Copied successfully!");
+    }).catch(() => {
+      this.showToast(lang === 'ar' ? "فشل النسخ تلقائياً" : "Failed to copy", 'error');
+    });
+  },
+
+  // --- 3. Loaders, Skeletons & Button States ---
+  showLoading: function(containerId) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    el.dataset.oldHtml = el.innerHTML;
+    el.innerHTML = `
+      <div class="loader-container" style="display:flex; justify-content:center; align-items:center; padding:20px;">
+        <div class="spinner" style="border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid var(--primary-color, #3b82f6); border-radius: 50%; width: 24px; height: 24px; animation: spin 0.8s linear infinite;"></div>
+      </div>
+    `;
+  },
+
+  hideLoading: function(containerId) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    if (el.dataset.oldHtml !== undefined) {
+      el.innerHTML = el.dataset.oldHtml;
+      delete el.dataset.oldHtml;
     }
   },
 
-  // Modal Windows Management
+  showSkeleton: function(containerId, count = 3) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    let skeletonHTML = '';
+    for (let i = 0; i < count; i++) {
+      skeletonHTML += `
+        <div class="skeleton-card" style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 8px; margin-bottom: 8px; animation: pulse 1.5s infinite ease-in-out;">
+          <div style="height: 14px; background: rgba(255,255,255,0.1); border-radius: 4px; width: 60%; margin-bottom: 8px;"></div>
+          <div style="height: 10px; background: rgba(255,255,255,0.08); border-radius: 4px; width: 90%;"></div>
+        </div>
+      `;
+    }
+    container.innerHTML = skeletonHTML;
+  },
+
+  setButtonLoading: function(btnId, isLoading, originalText) {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    if (isLoading) {
+      btn.disabled = true;
+      btn.dataset.oldContent = btn.innerHTML;
+      btn.innerHTML = `<div class="spinner" style="display:inline-block; border: 2px solid rgba(255,255,255,0.2); border-top: 2px solid #fff; border-radius: 50%; width: 14px; height: 14px; animation: spin 0.8s linear infinite;"></div>`;
+    } else {
+      btn.disabled = false;
+      btn.innerHTML = originalText || btn.dataset.oldContent || '';
+    }
+  },
+
+  // --- 4. Modal Management ---
   showModal: function(modalId) {
     this.triggerHaptic('medium');
-    const modal = typeof modalId === 'string' ? document.getElementById(modalId) : modalId;
+    const modal = document.getElementById(modalId);
     if (modal) {
       modal.classList.remove('hidden');
-      modal.classList.add('show', 'active');
       modal.style.display = 'flex';
     }
   },
 
   closeModal: function(modalId) {
     this.triggerHaptic('light');
-    const modal = typeof modalId === 'string' ? document.getElementById(modalId) : modalId;
+    const modal = document.getElementById(modalId);
     if (modal) {
       modal.classList.add('hidden');
-      modal.classList.remove('show', 'active');
       modal.style.display = 'none';
     }
   },
 
-  // Loaders & Skeletons Management
-  showLoader: function(elementOrId = 'global-loader') {
-    const el = typeof elementOrId === 'string' ? document.getElementById(elementOrId) : elementOrId;
-    if (el) {
-      el.classList.remove('hidden');
-      el.style.display = 'flex';
-    }
-  },
-
-  hideLoader: function(elementOrId = 'global-loader') {
-    const el = typeof elementOrId === 'string' ? document.getElementById(elementOrId) : elementOrId;
-    if (el) {
-      el.classList.add('hidden');
-      el.style.display = 'none';
-    }
-  },
-
-  showSkeleton: function(containerId) {
-    const container = typeof containerId === 'string' ? document.getElementById(containerId) : containerId;
-    if (container) {
-      container.classList.add('skeleton-loading');
-      container.setAttribute('aria-busy', 'true');
-    }
-  },
-
-  hideSkeleton: function(containerId) {
-    const container = typeof containerId === 'string' ? document.getElementById(containerId) : containerId;
-    if (container) {
-      container.classList.remove('skeleton-loading');
-      container.removeAttribute('aria-busy');
-    }
-  },
-
-  setButtonLoading: function(btnId, isLoading, originalText) {
-    const btn = typeof btnId === 'string' ? document.getElementById(btnId) : btnId;
-    if (!btn) return;
-    if (isLoading) {
-      btn.disabled = true;
-      if (!btn.dataset.oldContent) {
-        btn.dataset.oldContent = btn.innerHTML;
-      }
-      btn.innerHTML = `<div class="spinner"></div>`;
+  toggleInstructionsModal: function(show) {
+    if (show) {
+      this.showModal('instructions-modal');
     } else {
-      btn.disabled = false;
-      btn.innerHTML = originalText || btn.dataset.oldContent || btn.innerHTML;
+      this.closeModal('instructions-modal');
     }
   },
 
-  // Tab & View Switching Logic
+  // --- 5. Navigation & View Handlers ---
   switchTab: function(tabName) {
     if (tabName === 'admin' && !window.isUserAdmin) {
-      this.showToast(this.currentLang === 'ar' ? "غير مصرح لك بالوصول للوحة التحكم" : "Access denied");
+      this.showToast(this.currentLang === 'ar' ? "غير مصرح لك بالوصول للوحة التحكم" : "Access denied", 'error');
       return;
     }
     this.triggerHaptic('light');
@@ -172,14 +177,6 @@ const UI = {
     if (viewWith) viewWith.classList.toggle('hidden', view !== 'withdraw');
   },
 
-  toggleInstructionsModal: function(show) {
-    if (show) {
-      this.showModal('instructions-modal');
-    } else {
-      this.closeModal('instructions-modal');
-    }
-  },
-
   updateWithdrawCalculations: function() {
     const amtInput = document.getElementById('withdraw-amount');
     const feeBox = document.getElementById('withdraw-fee-box');
@@ -203,6 +200,7 @@ const UI = {
     }
   },
 
+  // --- 6. Telegram User Integration ---
   renderTelegramUser: function() {
     const tg = window.Telegram?.WebApp;
     const u = tg?.initDataUnsafe?.user;
@@ -269,16 +267,6 @@ const UI = {
     } else {
       window.open(url, '_blank');
     }
-  },
-
-  copyToClipboard: function(text) {
-    if (!text) return;
-    const lang = this.currentLang;
-    navigator.clipboard.writeText(text).then(() => {
-      this.showToast(lang === 'ar' ? "تم النسخ بنجاح!" : "Copied successfully!");
-    }).catch(() => {
-      this.showToast(lang === 'ar' ? "فشل النسخ تلقائياً" : "Failed to copy");
-    });
   },
 
   toggleWalletEdit: function() {
@@ -348,7 +336,7 @@ const UI = {
       return;
     }
 
-    const apiBase = window.API_BASE || (window.API && window.API.API_BASE) || '';
+    const apiBase = window.API_BASE || (window.API ? window.API.API_BASE : '');
     let html = '';
     links.forEach(link => {
       const shortUrl = `${apiBase}/r/${link.code || link.shortCode}`;
@@ -370,21 +358,19 @@ const UI = {
   }
 };
 
-// Bind Module & Global Standard Helpers to Window
+// ربط الدوارات العالمية في نطاق window للأمان والتوافقية
 if (typeof window !== 'undefined') {
   window.UI = UI;
   window.escapeHTML = UI.escapeHTML.bind(UI);
   window.triggerHaptic = UI.triggerHaptic.bind(UI);
   window.showToast = UI.showToast.bind(UI);
-  window.showAlert = UI.showAlert.bind(UI);
+  window.copyToClipboard = UI.copyToClipboard.bind(UI);
+  window.showLoading = UI.showLoading.bind(UI);
+  window.hideLoading = UI.hideLoading.bind(UI);
+  window.showSkeleton = UI.showSkeleton.bind(UI);
+  window.setButtonLoading = UI.setButtonLoading.bind(UI);
   window.showModal = UI.showModal.bind(UI);
   window.closeModal = UI.closeModal.bind(UI);
-  window.showLoader = UI.showLoader.bind(UI);
-  window.hideLoader = UI.hideLoader.bind(UI);
-  window.showSkeleton = UI.showSkeleton.bind(UI);
-  window.hideSkeleton = UI.hideSkeleton.bind(UI);
-  window.copyToClipboard = UI.copyToClipboard.bind(UI);
-  window.setButtonLoading = UI.setButtonLoading.bind(UI);
   window.switchTab = UI.switchTab.bind(UI);
   window.handleNetworkChange = UI.handleNetworkChange.bind(UI);
   window.switchWalletView = UI.switchWalletView.bind(UI);
