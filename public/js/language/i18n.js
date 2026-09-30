@@ -1,134 +1,166 @@
-const arDict = typeof require !== 'undefined' ? (function() { try { return require('./ar.js'); } catch(e) { return null; } })() : null;
-const enDict = typeof require !== 'undefined' ? (function() { try { return require('./en.js'); } catch(e) { return null; } })() : null;
+// public/js/language/i18n.js
+(function () {
+  const i18n = {
+    currentLang: "ar",
 
-if (typeof window !== 'undefined') {
-  window.i18n = {
-    ar: (window.ar || arDict || {}),
-    en: (window.en || enDict || {})
+    /**
+     * التهيئة الأولية واكتشاف لغة المستخدم
+     */
+    init: function () {
+      let savedLang = null;
+
+      // 1. محاولة قراءة اللغة المحفوظة سابقتً في localStorage
+      try {
+        savedLang = localStorage.getItem("appLang");
+      } catch (e) {
+        console.warn("localStorage is inaccessible:", e);
+      }
+
+      if (savedLang === "ar" || savedLang === "en") {
+        this.currentLang = savedLang;
+      } else {
+        // 2. الفحص من بيانات Telegram WebApp إذا توفرت
+        const tgLang = window.Telegram?.WebApp?.initDataUnsafe?.user?.language_code;
+        if (tgLang && typeof tgLang === "string") {
+          this.currentLang = tgLang.toLowerCase().startsWith("ar") ? "ar" : "en";
+        } else {
+          // 3. اللغة الافتراضية للمنصة
+          this.currentLang = "ar";
+        }
+      }
+
+      // تطبيق اللغة وتحديث الاتجاه والعناصر
+      this.applyLanguage(this.currentLang);
+    },
+
+    /**
+     * دالة الترجمة البرمجية للحصول على النص بواسطة المفتاح
+     * @param {string} key - مفتاح النص
+     * @param {string} [fallback] - النص البديل في حال عدم وجود المفتاح
+     */
+    t: function (key, fallback) {
+      const activeDict = this.currentLang === "en" ? window.en : window.ar;
+      if (activeDict && activeDict[key] !== undefined) {
+        return activeDict[key];
+      }
+
+      // البحث في قاموس اللغة الأخرى كخيار احتياطي
+      const altDict = this.currentLang === "en" ? window.ar : window.en;
+      if (altDict && altDict[key] !== undefined) {
+        return altDict[key];
+      }
+
+      return fallback !== undefined ? fallback : key;
+    },
+
+    /**
+     * تغيير لغة التطبيق وحفظها
+     * @param {string} lang - 'ar' أو 'en'
+     */
+    setLanguage: function (lang) {
+      if (lang !== "ar" && lang !== "en") return;
+      this.currentLang = lang;
+
+      try {
+        localStorage.setItem("appLang", lang);
+      } catch (e) {
+        console.warn("Failed to save language to localStorage:", e);
+      }
+
+      this.applyLanguage(lang);
+    },
+
+    /**
+     * تحديث عناصر DOM بالترجمات وضبط اتجاه الصفحة (RTL/LTR)
+     */
+    updateDOM: function () {
+      const lang = this.currentLang;
+
+      // تحديث خصائص lang و dir للغة والاتجاه تلقائياً
+      document.documentElement.lang = lang;
+      document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
+
+      if (document.body) {
+        document.body.dir = lang === "ar" ? "rtl" : "ltr";
+      }
+
+      // 1. تحديث النصوص الداخلية للعناصر التي تحتوي على data-i18n
+      document.querySelectorAll("[data-i18n]").forEach((el) => {
+        const key = el.getAttribute("data-i18n");
+        const translated = this.t(key);
+        if (translated) {
+          el.innerText = translated;
+        }
+      });
+
+      // 2. تحديث خانات الإدخال (Placeholder) لـ data-i18n-placeholder أو data-i18n-ph
+      document.querySelectorAll("[data-i18n-placeholder], [data-i18n-ph]").forEach((el) => {
+        const key = el.getAttribute("data-i18n-placeholder") || el.getAttribute("data-i18n-ph");
+        const translated = this.t(key);
+        if (translated) {
+          el.placeholder = translated;
+        }
+      });
+
+      // 3. تحديث العناوين التوضيحية (Title) لـ data-i18n-title
+      document.querySelectorAll("[data-i18n-title]").forEach((el) => {
+        const key = el.getAttribute("data-i18n-title");
+        const translated = this.t(key);
+        if (translated) {
+          el.title = translated;
+        }
+      });
+
+      // 4. تحديث قيم الأزرار والإدخالات (Value) لـ data-i18n-val
+      document.querySelectorAll("[data-i18n-val]").forEach((el) => {
+        const key = el.getAttribute("data-i18n-val");
+        const translated = this.t(key);
+        if (translated) {
+          el.value = translated;
+        }
+      });
+
+      // 5. تحديث قائمة اختيار اللغة إن وجدت
+      const langSelect = document.getElementById("language-select");
+      if (langSelect) {
+        langSelect.value = lang;
+      }
+    },
+
+    /**
+     * تطبيق اللغة وتحديث الاتجاه والعناصر
+     */
+    applyLanguage: function (lang) {
+      if (lang) this.currentLang = lang;
+      this.updateDOM();
+    }
   };
-}
 
-const i18nManager = {
-  getCurrentLang: function() {
-    if (typeof localStorage !== 'undefined') {
-      return localStorage.getItem('appLang') || 'ar';
-    }
-    return 'ar';
-  },
+  // إتاحة الكائن والدوال العامة على نطاق window
+  window.i18n = i18n;
 
-  setCurrentLang: function(lang) {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('appLang', lang);
-    }
-  },
+  window.t = function (key, fallback) {
+    return i18n.t(key, fallback);
+  };
 
-  getTranslations: function(lang) {
-    const activeLang = lang || this.getCurrentLang();
-    let dictionary = { ar: {}, en: {} };
+  window.updateDOM = function () {
+    i18n.updateDOM();
+  };
 
-    if (typeof window !== 'undefined' && window.i18n) {
-      dictionary = window.i18n;
-    } else {
-      dictionary = { ar: arDict || {}, en: enDict || {} };
-    }
+  window.changeAppLanguage = function (lang) {
+    i18n.setLanguage(lang);
+  };
 
-    return dictionary[activeLang] || dictionary.ar || {};
-  },
+  window.applyLanguage = function (lang) {
+    i18n.applyLanguage(lang);
+  };
 
-  t: function(key, lang) {
-    const translations = this.getTranslations(lang);
-    return translations[key] || key;
-  },
-
-  changeAppLanguage: function(lang) {
-    const activeLang = (lang === 'en' || lang === 'ar') ? lang : 'ar';
-    this.setCurrentLang(activeLang);
-
-    if (typeof window !== 'undefined') {
-      if (window.state) {
-        window.state.currentLang = activeLang;
-      }
-      if (window.UI) {
-        window.UI.currentLang = activeLang;
-      }
-
-      this.applyLanguage(activeLang);
-
-      if (typeof window.loadUserData === 'function') {
-        window.loadUserData();
-      }
-    }
-    return activeLang;
-  },
-
-  applyLanguage: function(lang) {
-    if (typeof document === 'undefined') return;
-
-    const activeLang = (lang === 'en' || lang === 'ar') ? lang : this.getCurrentLang();
-    const translations = this.getTranslations(activeLang);
-
-    document.documentElement.lang = activeLang;
-    document.documentElement.dir = activeLang === 'ar' ? 'rtl' : 'ltr';
-
-    if (document.body) {
-      document.body.style.direction = activeLang === 'ar' ? 'rtl' : 'ltr';
-    }
-
-    const langSelect = document.getElementById('language-select');
-    if (langSelect) langSelect.value = activeLang;
-
-    // تحديث النصوص
-    document.querySelectorAll('[data-i18n]').forEach(el => {
-      const key = el.getAttribute('data-i18n');
-      if (translations[key] !== undefined) {
-        el.innerText = translations[key];
-      }
+  // التشغيل التلقائي فور اكتمال تحميل عناصر الصفحة DOM
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function () {
+      i18n.init();
     });
-
-    // تحديث خانات الإدخال Placeholder
-    document.querySelectorAll('[data-i18n-ph]').forEach(el => {
-      const key = el.getAttribute('data-i18n-ph');
-      if (translations[key] !== undefined) {
-        el.placeholder = translations[key];
-      }
-    });
-
-    // تحديث العناوين التوضيحية Title
-    document.querySelectorAll('[data-i18n-title]').forEach(el => {
-      const key = el.getAttribute('data-i18n-title');
-      if (translations[key] !== undefined) {
-        el.title = translations[key];
-      }
-    });
-
-    // تحديث قيم الأزرار Value
-    document.querySelectorAll('[data-i18n-val]').forEach(el => {
-      const key = el.getAttribute('data-i18n-val');
-      if (translations[key] !== undefined) {
-        el.value = translations[key];
-      }
-    });
+  } else {
+    i18n.init();
   }
-};
-
-if (typeof window !== 'undefined') {
-  window.changeAppLanguage = function(lang) {
-    return i18nManager.changeAppLanguage(lang);
-  };
-
-  window.applyLanguage = function(lang) {
-    return i18nManager.applyLanguage(lang);
-  };
-
-  window.t = function(key, lang) {
-    return i18nManager.t(key, lang);
-  };
-
-  document.addEventListener('DOMContentLoaded', () => {
-    i18nManager.applyLanguage(i18nManager.getCurrentLang());
-  });
-}
-
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = i18nManager;
-}
+})();
