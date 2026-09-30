@@ -1,13 +1,11 @@
-// public/js/language/en.js
 window.en = {
-  // Navigation
+  // Navigation & Tabs
   nav_home: "Home",
   nav_wallet: "Wallet",
   nav_ads: "Ads",
   nav_referral: "Referrals",
   nav_settings: "Settings",
   nav_admin: "Admin",
-  nav_notifications: "Notifications",
 
   // Stats & Dashboard
   pending_bal: "Pending Balance",
@@ -94,15 +92,6 @@ window.en = {
   no_referrals: "No referrals registered yet.",
   share_text: "Join me on the best url shortener platform & earn money! 🚀",
 
-  // Notifications
-  notif_title: "Notifications & Alerts",
-  notif_empty: "No new notifications currently.",
-  notif_mark_read: "Mark all as read",
-  notif_deposit_approved: "Your deposit request has been approved successfully.",
-  notif_deposit_rejected: "Your deposit request was rejected. Please check details.",
-  notif_withdraw_approved: "Withdrawal amount has been transferred to your wallet.",
-  notif_withdraw_rejected: "Withdrawal request rejected. Funds returned to balance.",
-
   // Settings, FAQ & Support
   lang_settings_title: "Language / تغيير اللغة",
   faq_title: "FAQ & Support",
@@ -149,22 +138,15 @@ window.en = {
   admin_ads_mgmt: "Platform Ads Management",
   access_denied: "Access denied",
 
-  // Errors & Validation
-  err_invalid_url: "Please enter a valid URL starting with http:// or https://",
-  err_insufficient_funds: "Your balance is insufficient for this operation.",
-  err_unauthorized: "Access denied. Please log in first.",
-  err_server_error: "An unexpected server error occurred. Please try again later.",
-  err_network: "Network connection error. Please check your internet connection.",
-  err_required_field: "This field is required and cannot be left blank.",
-  err_min_amount: "Entered amount is below the minimum allowed limit.",
-
-  // General & Status
+  // General & Notifications & Statuses
   loading: "Loading...",
   copied: "Copied successfully!",
   cancel: "Cancel",
   close: "Close",
+  network_error: "Network connection error. Please check your internet connection.",
   btn_delete: "Delete",
   approved: "Approved",
   rejected: "Rejected",
-  pending: "Pending"
+  pending: "Pending",
+  error_generic: "An unexpected error occurred. Please try again later."
 };
