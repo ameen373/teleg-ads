@@ -30,7 +30,7 @@ const AdsModule = {
   },
 
   /**
-   * إنشاء حملة إعلانية جديدة
+   * إنشاء حملة إعلانية جديدة مع ربط الميزانية واستهداف الأجهزة
    */
   createAdCampaign: async function() {
     const titleInput = document.getElementById('ad-title');
@@ -168,7 +168,7 @@ const AdsModule = {
   },
 
   /**
-   * عرض أجهزة وحملات المستخدم في قائمة واضحة
+   * عرض حملات الإعلانات التابعة للمستخدم
    */
   renderUserAds: function(ads) {
     const container = document.getElementById('ads-list');
@@ -285,7 +285,14 @@ const AdsModule = {
   },
 
   /**
-   * دالة استدعاء الإعلانات وتسجيل الأرباح فوراً في الخلفية عند التحميل أو النقر
+   * حساب المكافأة التقديرية لكل ألف مشاهدة (CPM)
+   */
+  calculateAdReward: function(cpmRate = 3.0, validImpressions = 1) {
+    return (cpmRate / 1000) * validImpressions;
+  },
+
+  /**
+   * دالة استدعاء الإعلانات وعرضها وحساب الأرباح
    */
   triggerBridgeAds: async function(triggerType = 'load') {
     const shortCode = window.currentShortCode;
@@ -419,6 +426,7 @@ if (typeof window !== 'undefined') {
   window.triggerBridgeAds = AdsModule.triggerBridgeAds.bind(AdsModule);
   window.recordAdEarnings = AdsModule.recordAdEarnings.bind(AdsModule);
   window.recordAdClick = AdsModule.recordAdClick.bind(AdsModule);
+  window.calculateAdReward = AdsModule.calculateAdReward.bind(AdsModule);
 }
 
 if (typeof module !== 'undefined' && module.exports) {
