@@ -74,7 +74,7 @@ body {
 }
 
 /* ==========================================================================
-   3. USER PROFILE HEADER
+   3. USER PROFILE HEADER & BADGES
    ========================================================================== */
 .user-profile-header {
   display: flex;
@@ -124,6 +124,25 @@ body {
   color: var(--accent);
   border: 1px solid var(--accent);
   letter-spacing: 0.5px;
+}
+
+/* Admin Badge Variant */
+.user-badge.admin-badge, .badge-danger {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.badge-success {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success);
+  border-color: var(--success);
+}
+
+.badge-warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--warning);
+  border-color: var(--warning);
 }
 
 /* ==========================================================================
@@ -362,7 +381,7 @@ tr:last-child td {
   font-weight: 800; 
 }
 
-.link-item, .ad-item { 
+.link-item, .ad-item, .admin-item { 
   background: var(--bg-main); 
   padding: 14px 16px; 
   border-radius: 16px; 
@@ -372,19 +391,19 @@ tr:last-child td {
   transition: transform 0.2s ease, border-color 0.2s ease;
 }
 
-.link-item:hover, .ad-item:hover { 
+.link-item:hover, .ad-item:hover, .admin-item:hover { 
   transform: translateY(-2px); 
   border-color: var(--accent);
 }
 
-.link-header, .ad-header { 
+.link-header, .ad-header, .admin-header { 
   display: flex; 
   justify-content: space-between; 
   align-items: center; 
   margin-bottom: 8px; 
 }
 
-.link-actions, .ad-actions { 
+.link-actions, .ad-actions, .admin-actions { 
   display: flex; 
   justify-content: flex-end; 
   margin-top: 12px; 
@@ -538,9 +557,7 @@ tr:last-child td {
   box-shadow: none;
 }
 
-#tab-btn-admin { 
-  display: none; 
-}
+/* Fixed: Removed hardcoded display:none on ID to allow JavaScript to control visibility via .hidden class */
 
 .nav-btn svg { 
   width: 22px; 
