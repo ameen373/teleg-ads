@@ -1,11 +1,19 @@
 // public/js/modules/ui.js - UI Management Module
 
-const API = typeof require !== 'undefined' ? require('./api.js') : (window.API || {});
-const i18n = typeof require !== 'undefined' ? require('./i18n.js') : (window.i18n || {});
+const API = typeof require !== 'undefined' ? require('./api.js') : (typeof window !== 'undefined' ? (window.API || {}) : {});
 
 const UI = {
-  currentLang: localStorage.getItem('appLang') || 'ar',
+  currentLang: (function() {
+    try {
+      return (typeof localStorage !== 'undefined' && localStorage.getItem('appLang')) || 'ar';
+    } catch (e) {
+      return 'ar';
+    }
+  })(),
 
+  toastTimeout: null,
+
+  // --- 1. HTML Escaping & Haptics ---
   escapeHTML: function(str) {
     if (!str) return '';
     return String(str)
@@ -18,51 +26,179 @@ const UI = {
 
   triggerHaptic: function(style = 'light') {
     try {
+      if (typeof window === 'undefined') return;
       const tg = window.Telegram?.WebApp;
       if (tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.1') && tg.HapticFeedback) {
-        tg.HapticFeedback.impactOccurred(style);
+        if (style === 'error' || style === 'warning') {
+          tg.HapticFeedback.notificationOccurred(style);
+        } else {
+          tg.HapticFeedback.impactOccurred(style);
+        }
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('[Haptic Error]:', e);
+    }
   },
 
-  showToast: function(msg) {
-    this.triggerHaptic('medium');
+  // --- 2. Toast Notifications & Clipboard ---
+  showToast: function(msg, type = 'info') {
+    this.triggerHaptic(type === 'error' ? 'error' : 'medium');
+    if (typeof document === 'undefined') return;
+
     const toast = document.getElementById("toast");
-    if (!toast) return;
+    if (!toast) {
+      console.log(`[Toast ${type}]: ${msg}`);
+      return;
+    }
+
     toast.innerText = msg;
-    toast.classList.add("show");
-    setTimeout(() => { toast.classList.remove("show"); }, 3200);
+    toast.className = `toast show ${type}`;
+
+    if (this.toastTimeout) {
+      clearTimeout(this.toastTimeout);
+    }
+
+    this.toastTimeout = setTimeout(() => { 
+      toast.classList.remove("show"); 
+    }, 3200);
   },
 
   copyToClipboard: function(text) {
     if (!text) return;
     const lang = this.currentLang;
-    navigator.clipboard.writeText(text).then(() => {
-      this.showToast(lang === 'ar' ? "تم النسخ بنجاح!" : "Copied successfully!");
-    }).catch(() => {
-      this.showToast(lang === 'ar' ? "فشل النسخ تلقائياً" : "Failed to copy");
-    });
+    const successMsg = lang === 'ar' ? "تم النسخ بنجاح!" : "Copied successfully!";
+    const errorMsg = lang === 'ar' ? "فشل النسخ تلقائياً" : "Failed to copy";
+
+    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        this.showToast(successMsg, 'success');
+      }).catch(() => {
+        this.fallbackCopyText(text, successMsg, errorMsg);
+      });
+    } else {
+      this.fallbackCopyText(text, successMsg, errorMsg);
+    }
+  },
+
+  fallbackCopyText: function(text, successMsg, errorMsg) {
+    try {
+      if (typeof document === 'undefined') return;
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-999999px";
+      textArea.style.top = "-999999px";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      if (successful) {
+        this.showToast(successMsg, 'success');
+      } else {
+        this.showToast(errorMsg, 'error');
+      }
+    } catch (err) {
+      this.showToast(errorMsg, 'error');
+    }
+  },
+
+  // --- 3. Loaders, Skeletons & Button States ---
+  showLoading: function(containerId) {
+    if (typeof document === 'undefined') return;
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    if (!el.dataset.oldHtml) {
+      el.dataset.oldHtml = el.innerHTML;
+    }
+    el.innerHTML = `
+      <div class="loader-container" style="display:flex; justify-content:center; align-items:center; padding:20px;">
+        <div class="spinner" style="border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid var(--primary-color, #3b82f6); border-radius: 50%; width: 24px; height: 24px; animation: spin 0.8s linear infinite;"></div>
+      </div>
+    `;
+  },
+
+  hideLoading: function(containerId) {
+    if (typeof document === 'undefined') return;
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    if (el.dataset.oldHtml !== undefined) {
+      el.innerHTML = el.dataset.oldHtml;
+      delete el.dataset.oldHtml;
+    }
+  },
+
+  showSkeleton: function(containerId, count = 3) {
+    if (typeof document === 'undefined') return;
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    let skeletonHTML = '';
+    for (let i = 0; i < count; i++) {
+      skeletonHTML += `
+        <div class="skeleton-card" style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 8px; margin-bottom: 8px; animation: pulse 1.5s infinite ease-in-out;">
+          <div style="height: 14px; background: rgba(255,255,255,0.1); border-radius: 4px; width: 60%; margin-bottom: 8px;"></div>
+          <div style="height: 10px; background: rgba(255,255,255,0.08); border-radius: 4px; width: 90%;"></div>
+        </div>
+      `;
+    }
+    container.innerHTML = skeletonHTML;
   },
 
   setButtonLoading: function(btnId, isLoading, originalText) {
+    if (typeof document === 'undefined') return;
     const btn = document.getElementById(btnId);
     if (!btn) return;
     if (isLoading) {
       btn.disabled = true;
-      btn.dataset.oldContent = btn.innerHTML;
-      btn.innerHTML = `<div class="spinner"></div>`;
+      if (!btn.dataset.oldContent) {
+        btn.dataset.oldContent = btn.innerHTML;
+      }
+      btn.innerHTML = `<div class="spinner" style="display:inline-block; border: 2px solid rgba(255,255,255,0.2); border-top: 2px solid #fff; border-radius: 50%; width: 14px; height: 14px; animation: spin 0.8s linear infinite;"></div>`;
     } else {
       btn.disabled = false;
       btn.innerHTML = originalText || btn.dataset.oldContent || '';
+      delete btn.dataset.oldContent;
     }
   },
 
+  // --- 4. Modal Management ---
+  showModal: function(modalId) {
+    this.triggerHaptic('medium');
+    if (typeof document === 'undefined') return;
+    const modal = document.getElementById(modalId);
+    if (modal) {
+      modal.classList.remove('hidden');
+      modal.style.display = 'flex';
+    }
+  },
+
+  closeModal: function(modalId) {
+    this.triggerHaptic('light');
+    if (typeof document === 'undefined') return;
+    const modal = document.getElementById(modalId);
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.style.display = 'none';
+    }
+  },
+
+  toggleInstructionsModal: function(show) {
+    if (show) {
+      this.showModal('instructions-modal');
+    } else {
+      this.closeModal('instructions-modal');
+    }
+  },
+
+  // --- 5. Navigation & View Handlers ---
   switchTab: function(tabName) {
-    if (tabName === 'admin' && !window.isUserAdmin) {
-      this.showToast(this.currentLang === 'ar' ? "غير مصرح لك بالوصول للوحة التحكم" : "Access denied");
+    if (tabName === 'admin' && typeof window !== 'undefined' && !window.isUserAdmin) {
+      this.showToast(this.currentLang === 'ar' ? "غير مصرح لك بالوصول للوحة التحكم" : "Access denied", 'error');
       return;
     }
     this.triggerHaptic('light');
+    if (typeof document === 'undefined') return;
+
     const tabs = ['dashboard', 'wallet', 'ads', 'referral', 'settings', 'admin'];
     tabs.forEach(t => {
       const content = document.getElementById(`tab-content-${t}`);
@@ -71,17 +207,21 @@ const UI = {
       if (btn) btn.classList.toggle('active', t === tabName);
     });
 
-    if (tabName === 'admin' && window.isUserAdmin && typeof window.loadAdminData === 'function') {
-      window.loadAdminData();
-    } else if (tabName === 'ads' && typeof window.fetchUserAds === 'function') {
-      window.fetchUserAds();
-    } else if (tabName === 'referral' && typeof window.fetchUserReferrals === 'function') {
-      window.fetchUserReferrals();
+    if (typeof window !== 'undefined') {
+      if (tabName === 'admin' && window.isUserAdmin && typeof window.loadAdminData === 'function') {
+        window.loadAdminData();
+      } else if (tabName === 'ads' && typeof window.fetchUserAds === 'function') {
+        window.fetchUserAds();
+      } else if (tabName === 'referral' && typeof window.fetchUserReferrals === 'function') {
+        window.fetchUserReferrals();
+      }
     }
   },
 
   handleNetworkChange: function(networkVal) {
     this.triggerHaptic('light');
+    if (typeof document === 'undefined') return;
+
     const trcCard = document.getElementById('card-addr-trc20');
     const bepCard = document.getElementById('card-addr-bep20');
 
@@ -97,6 +237,8 @@ const UI = {
 
   switchWalletView: function(view) {
     this.triggerHaptic('light');
+    if (typeof document === 'undefined') return;
+
     const navDep = document.getElementById('wallet-nav-deposit');
     const navWith = document.getElementById('wallet-nav-withdraw');
     const viewDep = document.getElementById('wallet-view-deposit');
@@ -109,16 +251,12 @@ const UI = {
     if (viewWith) viewWith.classList.toggle('hidden', view !== 'withdraw');
   },
 
-  toggleInstructionsModal: function(show) {
-    this.triggerHaptic('medium');
-    const modal = document.getElementById('instructions-modal');
-    if (modal) modal.classList.toggle('hidden', !show);
-  },
-
   updateWithdrawCalculations: function() {
+    if (typeof document === 'undefined') return;
     const amtInput = document.getElementById('withdraw-amount');
     const feeBox = document.getElementById('withdraw-fee-box');
     if (!amtInput) return;
+
     const val = parseFloat(amtInput.value) || 0;
 
     if (val > 0) {
@@ -138,7 +276,10 @@ const UI = {
     }
   },
 
+  // --- 6. Telegram User Integration ---
   renderTelegramUser: function() {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
     const tg = window.Telegram?.WebApp;
     const u = tg?.initDataUnsafe?.user;
     const avatarContainer = document.getElementById('user-avatar-container');
@@ -149,7 +290,10 @@ const UI = {
 
     if (u && u.id) {
       window.currentUserTelegramId = String(u.id);
-      localStorage.setItem('telegramId', window.currentUserTelegramId);
+      try {
+        localStorage.setItem('telegramId', window.currentUserTelegramId);
+      } catch (e) {}
+
       const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || 'Telegram User';
       if (nameElem) nameElem.innerText = fullName;
       if (handleElem) handleElem.innerText = u.username ? `@${u.username}` : '@no_username';
@@ -168,7 +312,11 @@ const UI = {
         }
       }
 
-      const savedLang = localStorage.getItem('appLang');
+      let savedLang = null;
+      try {
+        savedLang = localStorage.getItem('appLang');
+      } catch (e) {}
+
       if (savedLang) {
         this.currentLang = savedLang;
       } else if (u.language_code) {
@@ -176,7 +324,11 @@ const UI = {
       }
     } else {
       if (!window.currentUserTelegramId) {
-        window.currentUserTelegramId = localStorage.getItem('telegramId') || '123456789';
+        let storedId = null;
+        try {
+          storedId = localStorage.getItem('telegramId');
+        } catch (e) {}
+        window.currentUserTelegramId = storedId || '123456789';
       }
       if (nameElem) nameElem.innerText = 'Telegram User';
       if (handleElem) handleElem.innerText = '@user';
@@ -190,24 +342,32 @@ const UI = {
   },
 
   shareReferralLink: function() {
+    if (typeof document === 'undefined') return;
     const refInput = document.getElementById('ref-link');
     if (!refInput) return;
     const refUrl = refInput.value;
     if (!refUrl) return;
+
     this.triggerHaptic('medium');
-    const tg = window.Telegram?.WebApp;
-    const shareText = encodeURIComponent(this.currentLang === 'ar' ? "انضم إليّ في أفضل منصة لاختصار الروابط واكسب الأرباح بسهولة! 🚀" : "Join me on the best url shortener platform & earn money! 🚀");
+    const tg = typeof window !== 'undefined' ? window.Telegram?.WebApp : null;
+    const shareText = encodeURIComponent(
+      this.currentLang === 'ar'
+        ? "انضم إليّ في أفضل منصة لاختصار الروابط واكسب الأرباح بسهولة! 🚀"
+        : "Join me on the best url shortener platform & earn money! 🚀"
+    );
     const url = `https://t.me/share/url?url=${encodeURIComponent(refUrl)}&text=${shareText}`;
-    
+
     if (tg && tg.openTelegramLink) {
       tg.openTelegramLink(url);
-    } else {
+    } else if (typeof window !== 'undefined') {
       window.open(url, '_blank');
     }
   },
 
   toggleWalletEdit: function() {
     this.triggerHaptic('light');
+    if (typeof document === 'undefined') return;
+
     const walletInput = document.getElementById('default-wallet');
     const editBtn = document.getElementById('edit-wallet-btn');
     const saveBtn = document.getElementById('save-wallet-btn');
@@ -228,11 +388,14 @@ const UI = {
   },
 
   closeVideoAd: function() {
+    if (typeof document === 'undefined') return;
     const vAd = document.getElementById('video-popup-ad');
     if (vAd) vAd.classList.add('hidden');
   },
 
   adaptBridgeUI: function(targetUrl, linkTitle) {
+    if (typeof document === 'undefined') return;
+
     const vMode = document.getElementById('bridge-video-mode');
     const aMode = document.getElementById('bridge-app-mode');
     const gMode = document.getElementById('bridge-general-mode');
@@ -265,6 +428,7 @@ const UI = {
   },
 
   renderLinksList: function(links) {
+    if (typeof document === 'undefined') return;
     const container = document.getElementById('links-list');
     if (!container) return;
 
@@ -273,8 +437,9 @@ const UI = {
       return;
     }
 
-    const apiBase = window.API_BASE || API.API_BASE || '';
+    const apiBase = (typeof window !== 'undefined' && window.API_BASE) || API.API_BASE || '';
     let html = '';
+
     links.forEach(link => {
       const shortUrl = `${apiBase}/r/${link.code || link.shortCode}`;
       html += `
@@ -291,18 +456,24 @@ const UI = {
         </div>
       `;
     });
+
     container.innerHTML = html;
   }
 };
 
-// Global standard helpers for backwards compatibility
+// ربط جميع الدوال بالنطاق العالمي (window) للأمان والتوافقية
 if (typeof window !== 'undefined') {
   window.UI = UI;
   window.escapeHTML = UI.escapeHTML.bind(UI);
   window.triggerHaptic = UI.triggerHaptic.bind(UI);
   window.showToast = UI.showToast.bind(UI);
   window.copyToClipboard = UI.copyToClipboard.bind(UI);
+  window.showLoading = UI.showLoading.bind(UI);
+  window.hideLoading = UI.hideLoading.bind(UI);
+  window.showSkeleton = UI.showSkeleton.bind(UI);
   window.setButtonLoading = UI.setButtonLoading.bind(UI);
+  window.showModal = UI.showModal.bind(UI);
+  window.closeModal = UI.closeModal.bind(UI);
   window.switchTab = UI.switchTab.bind(UI);
   window.handleNetworkChange = UI.handleNetworkChange.bind(UI);
   window.switchWalletView = UI.switchWalletView.bind(UI);
@@ -316,6 +487,7 @@ if (typeof window !== 'undefined') {
   window.renderLinksList = UI.renderLinksList.bind(UI);
 }
 
+// التصدير بنظام CommonJS
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = UI;
 }
