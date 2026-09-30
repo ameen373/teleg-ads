@@ -1,591 +1,629 @@
-// Telega.ads - Main Application Controller (public/js/app.js)
+/* ==========================================================================
+   1. TELEGRAM THEME VARIABLES & ROOT CONFIG
+   ========================================================================== */
+:root {
+  /* Telegram Theme Bridge with Fallbacks */
+  --bg-main: var(--tg-theme-bg-color, #0b0f19);
+  --bg-secondary: var(--tg-theme-secondary-bg-color, #151d30);
+  --card-bg: var(--tg-theme-secondary-bg-color, #151d30);
+  --card-border: rgba(255, 255, 255, 0.08);
+  
+  --accent: var(--tg-theme-button-color, #3b82f6);
+  --accent-hover: #2563eb;
+  --accent-glow: rgba(59, 130, 246, 0.35);
+  --accent-text: var(--tg-theme-button-text-color, #ffffff);
+  
+  --danger: var(--tg-theme-destructive-text-color, #ef4444);
+  --danger-hover: #dc2626;
+  --success: #10b981;
+  --success-hover: #059669;
+  --warning: #f59e0b;
+  --warning-hover: #d97706;
+  
+  --text: var(--tg-theme-text-color, #f8fafc);
+  --text-muted: var(--tg-theme-hint-color, #94a3b8);
+  --text-link: var(--tg-theme-link-color, #3b82f6);
+  
+  --nav-bg: var(--tg-theme-secondary-bg-color, rgba(11, 15, 25, 0.88));
+  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+}
 
-// استيراد الوحدات باستخدام نظام CommonJS لحالات بيئات البناء والتجميع (Bundlers)
-if (typeof require !== 'undefined') {
-  try {
-    var i18nModule = require('./i18n.js');
-    var uiModule = require('./ui.js');
-    var apiModule = require('./api.js');
-    var shortenerModule = require('./shortener.js');
-    var adsModule = require('./ads.js');
-    var walletModule = require('./wallet.js');
-    var adminModule = require('./admin.js');
-  } catch (e) {
-    // التجاوز في حالة التشغيل المباشر عبر المتصفح
+/* Light Theme Enhancements for Telegram Light Mode */
+@media (prefers-color-scheme: light) {
+  :root {
+    --card-border: rgba(0, 0, 0, 0.08);
+    --accent-glow: rgba(59, 130, 246, 0.15);
   }
 }
 
-window.App = {
-  // دالة الاستجابة اللمسية (Haptic Feedback) عبر التليجرام
-  triggerHaptic: function(type = 'impact', style = 'light') {
-    try {
-      const tg = window.Telegram?.WebApp;
-      if (!tg || !tg.HapticFeedback) return;
-
-      if (type === 'impact') {
-        tg.HapticFeedback.impactOccurred(style);
-      } else if (type === 'notification') {
-        tg.HapticFeedback.notificationOccurred(style);
-      } else if (type === 'selection') {
-        tg.HapticFeedback.selectionChanged();
-      }
-    } catch (err) {
-      console.error('Haptic Feedback Error:', err);
-    }
-  },
-
-  // تهيئة واجهة الجسر للروابط المقتطعة (/r/:code)
-  initBridgeLogic: async function(code) {
-    try {
-      const appView = document.getElementById('app-view');
-      const bridgeView = document.getElementById('bridge-view');
-
-      if (appView) appView.classList.add('hidden');
-      if (bridgeView) bridgeView.classList.remove('hidden');
-
-      const linkInfo = await window.API?.getBridgeLinkInfo(code);
-      if (!linkInfo || !linkInfo.targetUrl) {
-        const msg = (window.UI?.currentLang === 'ar') ? "الرابط غير صالح أو غير موجود" : "Invalid link";
-        window.UI?.showToast(msg);
-        return;
-      }
-
-      window.UI?.adaptBridgeUI(linkInfo.targetUrl, linkInfo.title);
-
-      let timeLeft = 5;
-      const timerElem = document.getElementById('timer');
-      const progressBar = document.getElementById('timer-progress-bar');
-      const goBtn = document.getElementById('go-btn');
-
-      const interval = setInterval(() => {
-        timeLeft--;
-        if (timerElem) timerElem.innerText = timeLeft;
-        if (progressBar) progressBar.style.width = `${((5 - timeLeft) / 5) * 100}%`;
-
-        if (timeLeft <= 0) {
-          clearInterval(interval);
-          if (goBtn) {
-            goBtn.disabled = false;
-            goBtn.onclick = async () => {
-              this.triggerHaptic('impact', 'medium');
-              window.UI?.setButtonLoading('go-btn', true);
-              await window.API?.recordBridgeImpression(code, linkInfo.impressionToken);
-              window.location.href = linkInfo.targetUrl;
-            };
-          }
-        }
-      }, 1000);
-    } catch (error) {
-      console.error('Bridge logic error:', error);
-    }
-  },
-
-  // حذف رابط مقتطع
-  deleteLink: async function(linkId) {
-    try {
-      this.triggerHaptic('impact', 'medium');
-      const confirmMsg = (window.UI?.currentLang === 'ar') ? "هل أنت تأكد من حذف هذا الرابط؟" : "Delete this link?";
-      if (!confirm(confirmMsg)) return;
-
-      const success = await window.API?.deleteLink(linkId);
-      if (success) {
-        this.triggerHaptic('notification', 'success');
-        const toastMsg = (window.UI?.currentLang === 'ar') ? "تم حذف الرابط بنجاح" : "Link deleted";
-        window.UI?.showToast(toastMsg);
-        this.loadUserLinks();
-      }
-    } catch (error) {
-      console.error('Delete link error:', error);
-    }
-  },
-
-  // تحميل قائمة روابط المستخدم
-  loadUserLinks: async function(search = '') {
-    try {
-      if (window.Shortener && typeof window.Shortener.loadLinks === 'function') {
-        await window.Shortener.loadLinks(search);
-      } else if (window.API && typeof window.API.getUserLinks === 'function') {
-        const links = await window.API.getUserLinks(search);
-        window.UI?.renderLinksList(links);
-      }
-    } catch (error) {
-      console.error('Load user links error:', error);
-    }
-  },
-
-  // تحميل بيانات لوحة التحكم الرئيسية وفحص صلاحيات الأدمن
-  loadDashboard: async function() {
-    try {
-      if (!window.API || typeof window.API.getDashboardData !== 'function') return;
-
-      const data = await window.API.getDashboardData();
-      if (!data) return;
-
-      const pendingBal = document.getElementById('pending-bal');
-      const availBal = document.getElementById('avail-bal');
-      const refCount = document.getElementById('ref-count');
-      const refEarnings = document.getElementById('ref-earnings');
-      const refLinkInput = document.getElementById('ref-link');
-      const defaultWallet = document.getElementById('default-wallet');
-
-      if (pendingBal && data.pendingBalance !== undefined) pendingBal.innerText = `$${data.pendingBalance.toFixed(2)}`;
-      if (availBal && data.availableBalance !== undefined) availBal.innerText = `$${data.availableBalance.toFixed(2)}`;
-      if (refCount && data.referralCount !== undefined) refCount.innerText = data.referralCount;
-      if (refEarnings && data.referralEarnings !== undefined) refEarnings.innerText = `$${data.referralEarnings.toFixed(2)}`;
-      if (refLinkInput && data.referralCode) refLinkInput.value = `https://t.me/Ads_telegabot?start=${data.referralCode}`;
-      if (defaultWallet && data.walletAddress) defaultWallet.value = data.walletAddress;
-
-      if (data.announcement) {
-        const ancBox = document.getElementById('announcement-box');
-        const ancTitle = document.getElementById('anc-title');
-        const ancContent = document.getElementById('anc-content');
-        if (ancBox && ancTitle && ancContent) {
-          ancTitle.innerText = data.announcement.title || '';
-          ancContent.innerText = data.announcement.content || '';
-          ancBox.classList.remove('hidden');
-        }
-      }
-
-      // تمرير البيانات للوحدات المخصصة
-      if (window.Wallet && typeof window.Wallet.updateBalances === 'function') {
-        window.Wallet.updateBalances(data);
-      }
-
-      // فحص شامل لصلاحيات الأدمن وإظهار التبويب الخاص بها
-      const isAdmin = !!(data.isAdmin || data.role === 'admin' || (data.user && (data.user.isAdmin || data.user.role === 'admin')));
-      
-      if (isAdmin) {
-        // 1. إظهار زر التبويب في شريط التنقل الرئيسي
-        const adminTabBtn = document.getElementById('tab-btn-admin');
-        if (adminTabBtn) {
-          adminTabBtn.classList.remove('hidden');
-          adminTabBtn.style.display = '';
-        }
-
-        // 2. استدعاء دالة عرض الأدمن من الوحدة المخصصة
-        if (window.Admin && typeof window.Admin.showAdminTab === 'function') {
-          window.Admin.showAdminTab();
-        } else if (window.UI && typeof window.UI.showAdminTab === 'function') {
-          window.UI.showAdminTab();
-        }
-
-        // 3. تهيئة وحدة الإدارة إن وجدت
-        if (window.Admin && typeof window.Admin.init === 'function') {
-          window.Admin.init();
-        }
-      }
-    } catch (error) {
-      console.error('Load dashboard error:', error);
-    }
-  },
-
-  // ربط جميع أحداث العناصر والأزرار
-  bindEventListeners: function() {
-    // 1. إنشاء رابط مقتطع
-    const btnCreateLink = document.getElementById('btn-create-link');
-    if (btnCreateLink) {
-      btnCreateLink.addEventListener('click', async (e) => {
-        e.preventDefault();
-        this.triggerHaptic('impact', 'medium');
-        const titleInput = document.getElementById('link-title');
-        const urlInput = document.getElementById('link-url');
-
-        if (!urlInput || !urlInput.value) {
-          const msg = (window.UI?.currentLang === 'ar') ? "يرجى إدخال الرابط الأصلي" : "Please enter original URL";
-          window.UI?.showToast(msg);
-          return;
-        }
-
-        window.UI?.setButtonLoading('btn-create-link', true);
-        const titleVal = titleInput ? titleInput.value : '';
-        const res = await window.API?.createShortLink(titleVal, urlInput.value);
-        window.UI?.setButtonLoading('btn-create-link', false);
-
-        if (res) {
-          this.triggerHaptic('notification', 'success');
-          const msg = (window.UI?.currentLang === 'ar') ? "تم اختصار الرابط بنجاح!" : "Link shortened!";
-          window.UI?.showToast(msg);
-          if (titleInput) titleInput.value = '';
-          urlInput.value = '';
-          this.loadUserLinks();
-        }
-      });
-    }
-
-    // 2. البحث في الروابط
-    const searchLinksInput = document.getElementById('search-links-input');
-    if (searchLinksInput) {
-      searchLinksInput.addEventListener('input', (e) => {
-        this.loadUserLinks(e.target.value);
-      });
-    }
-
-    // 3. تعليمات وطريقة الإيداع
-    const btnDepositGuide = document.getElementById('btn-deposit-guide');
-    if (btnDepositGuide) {
-      btnDepositGuide.addEventListener('click', () => {
-        this.triggerHaptic('selection');
-        window.UI?.toggleInstructionsModal(true);
-      });
-    }
-
-    const btnCloseInstructionsModal = document.getElementById('btn-close-instructions-modal');
-    if (btnCloseInstructionsModal) {
-      btnCloseInstructionsModal.addEventListener('click', () => {
-        this.triggerHaptic('selection');
-        window.UI?.toggleInstructionsModal(false);
-      });
-    }
-
-    // 4. تغيير شبكة الإيداع ونسخ العنوان
-    const depositNetwork = document.getElementById('deposit-network');
-    if (depositNetwork) {
-      depositNetwork.addEventListener('change', (e) => {
-        this.triggerHaptic('selection');
-        window.UI?.handleNetworkChange(e.target.value);
-      });
-    }
-
-    const btnCopyTrc20 = document.getElementById('btn-copy-trc20');
-    if (btnCopyTrc20) {
-      btnCopyTrc20.addEventListener('click', () => {
-        this.triggerHaptic('impact', 'light');
-        const addr = document.getElementById('addr-trc20')?.innerText;
-        window.UI?.copyToClipboard(addr);
-      });
-    }
-
-    const btnCopyBep20 = document.getElementById('btn-copy-bep20');
-    if (btnCopyBep20) {
-      btnCopyBep20.addEventListener('click', () => {
-        this.triggerHaptic('impact', 'light');
-        const addr = document.getElementById('addr-bep20')?.innerText;
-        window.UI?.copyToClipboard(addr);
-      });
-    }
-
-    // 5. إرسال طلب إيداع
-    const btnRequestDeposit = document.getElementById('btn-request-deposit');
-    if (btnRequestDeposit) {
-      btnRequestDeposit.addEventListener('click', async () => {
-        this.triggerHaptic('impact', 'medium');
-        const network = document.getElementById('deposit-network')?.value;
-        const amountInput = document.getElementById('deposit-amount');
-        const txhashInput = document.getElementById('deposit-txhash');
-        const amount = amountInput?.value;
-        const txhash = txhashInput?.value;
-
-        if (!network || !amount || !txhash) {
-          const msg = (window.UI?.currentLang === 'ar') ? "يرجى ملء جميع حقول الإيداع" : "Please fill all deposit fields";
-          window.UI?.showToast(msg);
-          return;
-        }
-
-        window.UI?.setButtonLoading('btn-request-deposit', true);
-        const res = await window.API?.requestDeposit(network, amount, txhash);
-        window.UI?.setButtonLoading('btn-request-deposit', false);
-
-        if (res && res.success) {
-          this.triggerHaptic('notification', 'success');
-          const msg = (window.UI?.currentLang === 'ar') ? "تم تقديم طلب الإيداع بنجاح!" : "Deposit submitted!";
-          window.UI?.showToast(msg);
-          if (amountInput) amountInput.value = '';
-          if (txhashInput) txhashInput.value = '';
-        }
-      });
-    }
-
-    // 6. التنقل داخل وحدة المحفظة (إيداع / سحب)
-    const walletNavDeposit = document.getElementById('wallet-nav-deposit');
-    if (walletNavDeposit) {
-      walletNavDeposit.addEventListener('click', () => {
-        this.triggerHaptic('selection');
-        window.UI?.switchWalletView('deposit');
-      });
-    }
-
-    const walletNavWithdraw = document.getElementById('wallet-nav-withdraw');
-    if (walletNavWithdraw) {
-      walletNavWithdraw.addEventListener('click', () => {
-        this.triggerHaptic('selection');
-        window.UI?.switchWalletView('withdraw');
-      });
-    }
-
-    // 7. تعديل وحفظ عنوان المحفظة
-    const editWalletBtn = document.getElementById('edit-wallet-btn');
-    if (editWalletBtn) {
-      editWalletBtn.addEventListener('click', () => {
-        this.triggerHaptic('selection');
-        window.UI?.toggleWalletEdit();
-      });
-    }
-
-    const saveWalletBtn = document.getElementById('save-wallet-btn');
-    if (saveWalletBtn) {
-      saveWalletBtn.addEventListener('click', async () => {
-        this.triggerHaptic('impact', 'medium');
-        const addrInput = document.getElementById('default-wallet');
-        if (!addrInput || !addrInput.value) return;
-
-        window.UI?.setButtonLoading('save-wallet-btn', true);
-        const res = await window.API?.updateWalletAddress(addrInput.value);
-        window.UI?.setButtonLoading('save-wallet-btn', false);
-
-        if (res && res.success) {
-          this.triggerHaptic('notification', 'success');
-          const msg = (window.UI?.currentLang === 'ar') ? "تم حفظ عنوان المحفظة!" : "Wallet saved!";
-          window.UI?.showToast(msg);
-          window.UI?.toggleWalletEdit();
-        }
-      });
-    }
-
-    // 8. حسابات طلب السحب وإرساله
-    const withdrawAmount = document.getElementById('withdraw-amount');
-    if (withdrawAmount) {
-      withdrawAmount.addEventListener('input', () => {
-        if (window.Wallet && typeof window.Wallet.updateCalculations === 'function') {
-          window.Wallet.updateCalculations();
-        } else {
-          window.UI?.updateWithdrawCalculations();
-        }
-      });
-    }
-
-    const btnRequestWithdraw = document.getElementById('btn-request-withdraw');
-    if (btnRequestWithdraw) {
-      btnRequestWithdraw.addEventListener('click', async () => {
-        this.triggerHaptic('impact', 'medium');
-        const withdrawAmountElem = document.getElementById('withdraw-amount');
-        const amount = withdrawAmountElem?.value;
-        const wallet = document.getElementById('default-wallet')?.value;
-
-        if (!amount || amount < 30 || !wallet) {
-          const msg = (window.UI?.currentLang === 'ar') ? "الحد الأدنى للسحب 30$ مع وجود محفظة" : "Min withdrawal is $30";
-          window.UI?.showToast(msg);
-          return;
-        }
-
-        window.UI?.setButtonLoading('btn-request-withdraw', true);
-        const res = await window.API?.requestWithdrawal(amount, wallet);
-        window.UI?.setButtonLoading('btn-request-withdraw', false);
-
-        if (res && res.success) {
-          this.triggerHaptic('notification', 'success');
-          const msg = (window.UI?.currentLang === 'ar') ? "تم إرسال طلب السحب بنجاح!" : "Withdrawal submitted!";
-          window.UI?.showToast(msg);
-          if (withdrawAmountElem) withdrawAmountElem.value = '';
-          if (window.UI?.updateWithdrawCalculations) window.UI.updateWithdrawCalculations();
-          this.loadDashboard();
-        }
-      });
-    }
-
-    // 9. اختيارات نوع الإعلان
-    const adType = document.getElementById('ad-type');
-    if (adType) {
-      adType.addEventListener('change', () => {
-        this.triggerHaptic('selection');
-        if (window.Ads && typeof window.Ads.onTypeChange === 'function') {
-          window.Ads.onTypeChange();
-        } else {
-          window.UI?.onAdTypeChange();
-        }
-      });
-    }
-
-    // 10. إنشاء حملة إعلانية
-    const btnCreateAd = document.getElementById('btn-create-ad');
-    if (btnCreateAd) {
-      btnCreateAd.addEventListener('click', async () => {
-        this.triggerHaptic('impact', 'heavy');
-        const type = document.getElementById('ad-type')?.value;
-        const title = document.getElementById('ad-title')?.value;
-        const targetUrl = document.getElementById('ad-target-url')?.value;
-        const mediaUrl = document.getElementById('ad-media-url')?.value;
-        const appUrl = document.getElementById('ad-app-download-url')?.value;
-        const gameUrl = document.getElementById('ad-game-embed-url')?.value;
-        const category = document.getElementById('ad-category')?.value;
-        const budget = document.getElementById('ad-budget')?.value;
-        const dailyBudget = document.getElementById('ad-daily-budget')?.value;
-
-        if (!title || !targetUrl || !budget) {
-          const msg = (window.UI?.currentLang === 'ar') ? "يرجى إكمال الحقول الرئيسية للإعلان" : "Please complete ad fields";
-          window.UI?.showToast(msg);
-          return;
-        }
-
-        const adData = {
-          type, title, targetUrl, mediaUrl, appUrl, gameUrl, category, budget, dailyBudget,
-          devices: {
-            android: !!document.getElementById('device-android')?.checked,
-            ios: !!document.getElementById('device-ios')?.checked,
-            desktop: !!document.getElementById('device-desktop')?.checked
-          },
-          countries: document.getElementById('ad-countries')?.value || 'ALL'
-        };
-
-        window.UI?.setButtonLoading('btn-create-ad', true);
-        const res = await window.API?.createAdCampaign(adData);
-        window.UI?.setButtonLoading('btn-create-ad', false);
-
-        if (res && res.success) {
-          this.triggerHaptic('notification', 'success');
-          const msg = (window.UI?.currentLang === 'ar') ? "تم إنشاء الحملة الإعلانية بنجاح!" : "Campaign created!";
-          window.UI?.showToast(msg);
-        }
-      });
-    }
-
-    // 11. مشاركة رابط الإحالة
-    const btnShareRef = document.getElementById('btn-share-ref');
-    if (btnShareRef) {
-      btnShareRef.addEventListener('click', () => {
-        this.triggerHaptic('impact', 'light');
-        if (window.UI?.shareReferralLink) {
-          window.UI.shareReferralLink();
-        } else {
-          const refInput = document.getElementById('ref-link');
-          if (refInput && refInput.value) {
-            window.Telegram?.WebApp?.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(refInput.value)}`);
-          }
-        }
-      });
-    }
-
-    // 12. اختيار اللغة
-    const languageSelect = document.getElementById('language-select');
-    if (languageSelect) {
-      languageSelect.addEventListener('change', (e) => {
-        this.triggerHaptic('selection');
-        const selectedLang = e.target.value;
-        if (window.i18n && typeof window.i18n.setLanguage === 'function') {
-          window.i18n.setLanguage(selectedLang);
-        } else if (typeof window.changeAppLanguage === 'function') {
-          window.changeAppLanguage(selectedLang);
-        }
-      });
-    }
-
-    // 13. إغلاق إعلان الفيديو Overlay
-    const btnCloseVideoAd = document.getElementById('btn-close-video-ad');
-    if (btnCloseVideoAd) {
-      btnCloseVideoAd.addEventListener('click', () => {
-        this.triggerHaptic('selection');
-        if (window.Ads && typeof window.Ads.closeVideo === 'function') {
-          window.Ads.closeVideo();
-        } else {
-          window.UI?.closeVideoAd();
-        }
-      });
-    }
-
-    // 14. التنقل عبر الشريط السفلي (Navigation Dock Buttons)
-    const navDockTabs = ['dashboard', 'wallet', 'ads', 'referral', 'settings', 'admin'];
-    navDockTabs.forEach(tab => {
-      const btn = document.getElementById(`tab-btn-${tab}`);
-      if (btn) {
-        btn.addEventListener('click', () => {
-          this.triggerHaptic('selection');
-          if (window.UI && typeof window.UI.switchTab === 'function') {
-            window.UI.switchTab(tab);
-          }
-          if (tab === 'admin') {
-            if (window.Admin && typeof window.Admin.loadOverview === 'function') {
-              window.Admin.loadOverview();
-            } else if (window.Admin && typeof window.Admin.init === 'function') {
-              window.Admin.init();
-            }
-          }
-        });
-      }
-    });
-
-    // 15. ربط أحداث وحدة لوحة الإدارة (Admin Module Events)
-    const btnAdminSave = document.getElementById('btn-admin-save-settings');
-    if (btnAdminSave) {
-      btnAdminSave.addEventListener('click', async () => {
-        this.triggerHaptic('impact', 'medium');
-        if (window.Admin && typeof window.Admin.saveSettings === 'function') {
-          await window.Admin.saveSettings();
-        }
-      });
-    }
-
-    // ربط أي أحداث إضافية معلقة في وحدة الإدارة إذا توفرت
-    if (window.Admin && typeof window.Admin.bindEvents === 'function') {
-      window.Admin.bindEvents();
-    }
-  },
-
-  // تهيئة تطبيق تليجرام المدمج (Telegram WebApp)
-  initTelegramWebApp: function() {
-    try {
-      const tg = window.Telegram?.WebApp;
-      if (tg) {
-        tg.ready();
-        tg.expand();
-
-        if (tg.setHeaderColor) tg.setHeaderColor('secondary');
-        if (tg.setBackgroundColor) tg.setBackgroundColor('bg_color');
-        if (tg.enableClosingConfirmation) tg.enableClosingConfirmation();
-      }
-    } catch (error) {
-      console.error('Telegram WebApp initialization error:', error);
-    }
-  },
-
-  // نقطة الانطلاق الشاملة للواجهة للتطبيق
-  init: async function() {
-    try {
-      // 1. تهيئة تليجرام WebApp
-      this.initTelegramWebApp();
-
-      // 2. عرض بيانات المستخدم الأولية في الواجهة
-      if (window.UI && typeof window.UI.renderTelegramUser === 'function') {
-        window.UI.renderTelegramUser();
-      }
-
-      // 3. تهيئة وحدات اللغات
-      if (window.i18n && typeof window.i18n.init === 'function') {
-        window.i18n.init();
-      }
-
-      // 4. مصادقة المستخدم وتأكيد الجلسة مع api.js
-      if (window.API && typeof window.API.authLogin === 'function') {
-        const initData = window.Telegram?.WebApp?.initData || '';
-        await window.API.authLogin(initData);
-      }
-
-      // 5. التحقق من مسار رابط الجسر (/r/:code)
-      const pathParts = window.location.pathname.split('/');
-      if (pathParts.length >= 3 && pathParts[1] === 'r') {
-        const code = pathParts[2];
-        if (code) {
-          await this.initBridgeLogic(code);
-          return;
-        }
-      }
-
-      // 6. ربط الأحداث لجميع المكونات والأزرار
-      this.bindEventListeners();
-
-      // 7. تحميل البيانات الأساسية دائماً
-      await this.loadDashboard();
-      await this.loadUserLinks();
-    } catch (error) {
-      console.error('App initialization error:', error);
-    }
-  }
-};
-
-// تشغيل التطبيق فور اكتمال تحميل مستند HTML
-document.addEventListener('DOMContentLoaded', () => {
-  window.App.init();
-});
-
-// تصدير الكود بنظام CommonJS
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = window.App;
+/* ==========================================================================
+   2. GLOBAL RESET & BASE STYLES
+   ========================================================================== */
+* { 
+  box-sizing: border-box; 
+  -webkit-tap-highlight-color: transparent; 
+  outline: none; 
+}
+
+html, body {
+  width: 100%;
+  min-height: 100vh;
+}
+
+body { 
+  font-family: var(--font-family); 
+  background: var(--bg-main); 
+  color: var(--text); 
+  margin: 0; 
+  padding: 12px; 
+  padding-bottom: calc(90px + var(--safe-area-bottom));
+  direction: rtl;
+  user-select: none;
+  -webkit-user-select: none;
+  overflow-x: hidden;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container { 
+  max-width: 520px; 
+  margin: 0 auto; 
+  width: 100%;
+}
+
+/* ==========================================================================
+   3. USER PROFILE HEADER
+   ========================================================================== */
+.user-profile-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  background: var(--bg-secondary);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 20px;
+  margin-bottom: 16px;
+  border: 1px solid var(--card-border);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.user-avatar-img {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+.user-avatar-placeholder {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #1d4ed8);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 22px;
+  box-shadow: 0 4px 16px var(--accent-glow);
+  flex-shrink: 0;
+}
+
+.user-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  font-size: 10px;
+  font-weight: 800;
+  border-radius: 12px;
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  letter-spacing: 0.5px;
+}
+
+/* ==========================================================================
+   4. CARDS & CONTAINERS
+   ========================================================================== */
+.card { 
+  background: var(--card-bg); 
+  border-radius: 20px; 
+  padding: 20px; 
+  margin-bottom: 16px; 
+  border: 1px solid var(--card-border); 
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2); 
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease;
+}
+
+.card-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin-top: 0;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ==========================================================================
+   5. FORM CONTROLS (INPUTS, SELECTS, TEXTAREAS)
+   ========================================================================== */
+.form-group {
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+input, select, textarea { 
+  width: 100%; 
+  padding: 13px 16px; 
+  border-radius: 14px; 
+  border: 1px solid var(--card-border); 
+  background: var(--bg-main); 
+  color: var(--text); 
+  font-size: 14px; 
+  font-family: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 90px;
+}
+
+input:focus, select:focus, textarea:focus { 
+  border-color: var(--accent); 
+  box-shadow: 0 0 0 3px var(--accent-glow); 
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+input:disabled, select:disabled, textarea:disabled, input:read-only { 
+  background: rgba(0, 0, 0, 0.2); 
+  color: var(--text-muted); 
+  cursor: not-allowed; 
+  opacity: 0.7;
+}
+
+/* ==========================================================================
+   6. BUTTONS & ACTIONS
+   ========================================================================== */
+button, .btn { 
+  width: 100%;
+  padding: 13px 16px;
+  margin-top: 10px;
+  border-radius: 14px;
+  background: var(--accent); 
+  font-weight: 700; 
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer; 
+  border: none; 
+  transition: background-color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease; 
+  color: var(--accent-text); 
+  display: inline-flex; 
+  align-items: center; 
+  justify-content: center; 
+  gap: 8px; 
+  box-shadow: 0 4px 14px var(--accent-glow);
+  position: relative;
+}
+
+button:hover, .btn:hover { 
+  background: var(--accent-hover); 
+}
+
+button:active, .btn:active { 
+  transform: scale(0.97); 
+}
+
+button:disabled, .btn:disabled { 
+  background: rgba(255, 255, 255, 0.08) !important; 
+  color: var(--text-muted) !important;
+  cursor: not-allowed; 
+  opacity: 0.5; 
+  box-shadow: none !important; 
+  transform: none !important;
+}
+
+/* Button Variants */
+.btn-danger { 
+  background: var(--danger); 
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.3); 
+}
+.btn-danger:hover { background: var(--danger-hover); }
+
+.btn-warning { 
+  background: var(--warning); 
+  color: #000; 
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.3); 
+}
+.btn-warning:hover { background: var(--warning-hover); }
+
+.btn-success { 
+  background: var(--success); 
+  color: #fff; 
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3); 
+}
+.btn-success:hover { background: var(--success-hover); }
+
+.btn-small { 
+  padding: 8px 14px; 
+  font-size: 12px; 
+  width: auto; 
+  margin: 0; 
+  border-radius: 10px; 
+  box-shadow: none; 
+}
+
+/* Button Loading State */
+.btn-loading {
+  color: transparent !important;
+  pointer-events: none;
+}
+.btn-loading::after {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  top: calc(50% - 9px);
+  left: calc(50% - 9px);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: #fff;
+  animation: spin 0.8s linear infinite;
+}
+
+/* ==========================================================================
+   7. TABLES (RESPONSIVE & MOBILE-FRIENDLY)
+   ========================================================================== */
+.table-container {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 14px;
+  border: 1px solid var(--card-border);
+  margin-top: 12px;
+  background: var(--bg-main);
+  -webkit-overflow-scrolling: touch;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: right;
+  font-size: 13px;
+}
+
+th, td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--card-border);
+  white-space: nowrap;
+}
+
+th {
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+tr:last-child td {
+  border-bottom: none;
+}
+
+/* ==========================================================================
+   8. STATS GRID & LIST ITEMS
+   ========================================================================== */
+.stats-grid { 
+  display: grid; 
+  grid-template-columns: repeat(2, 1fr); 
+  gap: 12px; 
+  margin-bottom: 16px; 
+}
+
+.stat-box { 
+  background: var(--bg-main); 
+  padding: 16px; 
+  border-radius: 16px; 
+  border: 1px solid var(--card-border); 
+  text-align: center; 
+}
+
+.stat-box small { 
+  color: var(--text-muted); 
+  font-size: 11px; 
+  display: block; 
+  margin-bottom: 6px; 
+  font-weight: 600; 
+}
+
+.stat-box h3 { 
+  margin: 0; 
+  font-size: 20px; 
+  color: var(--text); 
+  font-weight: 800; 
+}
+
+.link-item, .ad-item { 
+  background: var(--bg-main); 
+  padding: 14px 16px; 
+  border-radius: 16px; 
+  margin-bottom: 12px; 
+  border: 1px solid var(--card-border); 
+  font-size: 13px; 
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.link-item:hover, .ad-item:hover { 
+  transform: translateY(-2px); 
+  border-color: var(--accent);
+}
+
+.link-header, .ad-header { 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center; 
+  margin-bottom: 8px; 
+}
+
+.link-actions, .ad-actions { 
+  display: flex; 
+  justify-content: flex-end; 
+  margin-top: 12px; 
+  gap: 8px; 
+}
+
+/* Wallet Specifics */
+.wallet-actions-nav { 
+  display: flex; 
+  gap: 10px; 
+  margin-bottom: 16px; 
+}
+
+.wallet-action-btn {
+  flex: 1; 
+  padding: 12px; 
+  font-size: 13px; 
+  background: var(--bg-main);
+  color: var(--text-muted); 
+  border: 1px solid var(--card-border);
+  border-radius: 14px; 
+  margin: 0; 
+  box-shadow: none;
+}
+
+.wallet-action-btn.active { 
+  background: var(--accent); 
+  color: var(--accent-text); 
+  border-color: var(--accent); 
+  box-shadow: 0 4px 14px var(--accent-glow); 
+}
+
+.address-card { 
+  background: var(--bg-main); 
+  border: 1px dashed var(--card-border); 
+  border-radius: 14px; 
+  padding: 14px; 
+  margin-top: 12px; 
+}
+
+.address-row { 
+  display: flex; 
+  align-items: center; 
+  justify-content: space-between; 
+  gap: 8px; 
+  margin-top: 8px; 
+}
+
+.address-text {
+  font-family: 'Courier New', Courier, monospace; 
+  font-size: 11px; 
+  color: var(--warning); 
+  word-break: break-all;
+  background: rgba(0, 0, 0, 0.3); 
+  padding: 10px 12px; 
+  border-radius: 10px; 
+  flex: 1; 
+  border: 1px solid var(--card-border);
+}
+
+.fee-breakdown {
+  background: var(--bg-main); 
+  border: 1px solid var(--card-border); 
+  border-radius: 12px;
+  padding: 12px 16px; 
+  margin-top: 12px; 
+  font-size: 12px; 
+  display: flex; 
+  justify-content: space-between;
+}
+
+/* ==========================================================================
+   9. MODALS & OVERLAYS
+   ========================================================================== */
+.modal-overlay {
+  position: fixed; 
+  top: 0; 
+  left: 0; 
+  right: 0; 
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.75); 
+  backdrop-filter: blur(8px); 
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 10000; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  padding: 18px;
+  animation: fadeIn 0.25s ease;
+}
+
+.modal-content {
+  background: var(--card-bg); 
+  border: 1px solid var(--card-border);
+  border-radius: 24px; 
+  padding: 24px; 
+  max-width: 460px; 
+  width: 100%; 
+  max-height: 85vh; 
+  overflow-y: auto;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+  animation: modalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalSlideUp {
+  from { opacity: 0; transform: translateY(20px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ==========================================================================
+   10. BOTTOM NAVIGATION DOCK (FIXED TELEGRAM DOCK)
+   ========================================================================== */
+.tg-nav-dock {
+  position: fixed;
+  bottom: calc(12px + var(--safe-area-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 24px);
+  max-width: 480px;
+  height: 64px;
+  background: var(--nav-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--card-border);
+  border-radius: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 6px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  z-index: 9999;
+}
+
+.nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px 0;
+  border-radius: 22px;
+  transition: color 0.2s ease, background-color 0.2s ease;
+  margin: 0;
+  box-shadow: none;
+}
+
+#tab-btn-admin { 
+  display: none; 
+}
+
+.nav-btn svg { 
+  width: 22px; 
+  height: 22px; 
+  fill: currentColor; 
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); 
+}
+
+.nav-btn.active { 
+  color: var(--accent); 
+  background: rgba(59, 130, 246, 0.12); 
+}
+
+.nav-btn.active svg { 
+  transform: scale(1.15); 
+}
+
+/* ==========================================================================
+   11. UTILITIES & TOAST NOTIFICATIONS
+   ========================================================================== */
+.hidden { 
+  display: none !important; 
+}
+
+.spinner {
+  width: 20px; 
+  height: 20px; 
+  border: 3px solid rgba(255,255,255,0.3);
+  border-radius: 50%; 
+  border-top-color: var(--accent); 
+  animation: spin 0.8s linear infinite;
+  display: inline-block;
+}
+
+@keyframes spin { 
+  to { transform: rotate(360deg); } 
+}
+
+#toast { 
+  visibility: hidden; 
+  min-width: 260px; 
+  background-color: var(--card-bg); 
+  color: var(--text); 
+  text-align: center; 
+  border-radius: 16px; 
+  padding: 14px 20px; 
+  position: fixed; 
+  z-index: 10001; 
+  left: 50%; 
+  bottom: calc(85px + var(--safe-area-bottom)); 
+  transform: translateX(-50%) translateY(20px); 
+  border: 1px solid var(--accent); 
+  font-size: 13px; 
+  opacity: 0; 
+  transition: opacity 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55), transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55); 
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4); 
+  font-weight: 600;
+}
+
+#toast.show { 
+  visibility: visible; 
+  opacity: 1; 
+  transform: translateX(-50%) translateY(0); 
+}
+
+details { 
+  background: var(--bg-main); 
+  padding: 14px; 
+  border-radius: 14px; 
+  border: 1px solid var(--card-border); 
+  margin-bottom: 10px; 
+}
+
+summary { 
+  font-weight: bold; 
+  cursor: pointer; 
+}
+
+.tab-pane { 
+  animation: fadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+}
+
+@keyframes fadeIn { 
+  from { opacity: 0; transform: translateY(8px); } 
+  to { opacity: 1; transform: translateY(0); } 
 }
