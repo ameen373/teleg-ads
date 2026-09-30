@@ -16,7 +16,39 @@ if (typeof require !== 'undefined') {
 }
 
 window.App = {
-  // دالة الاستجابة اللمسية (Haptic Feedback) عبر التليجرام
+  currentUser: null,
+
+  // 1. معالجة الأخطاء العامة لمنع توقف التطبيق عند الاستثناءات غير المتوقعة (window.onerror و unhandledrejection)
+  setupGlobalErrorHandling: function() {
+    window.onerror = function(message, source, lineno, colno, error) {
+      console.error('[Global Error Caught]:', message, 'at', source, 'line:', lineno, 'col:', colno, error);
+      try {
+        if (window.UI && typeof window.UI.showToast === 'function') {
+          const lang = window.UI.currentLang || 'ar';
+          const msg = (lang === 'ar') ? 'حدث خطأ غير متوقع في التطبيق' : 'An unexpected error occurred';
+          window.UI.showToast(msg);
+        }
+      } catch (e) {
+        // التجاوز في حالة عدم اكتمال تحميل الواجهة
+      }
+      return true; // يمنع توقف التطبيق وتعطله
+    };
+
+    window.addEventListener('unhandledrejection', function(event) {
+      console.error('[Unhandled Promise Rejection]:', event.reason);
+      try {
+        if (window.UI && typeof window.UI.showToast === 'function') {
+          const lang = window.UI.currentLang || 'ar';
+          const msg = (lang === 'ar') ? 'حدث خطأ في معالجة إحدى العمليات' : 'A promise rejection occurred';
+          window.UI.showToast(msg);
+        }
+      } catch (e) {
+        // التجاوز
+      }
+    });
+  },
+
+  // 2. دالة الاستجابة اللمسية (Haptic Feedback) عبر التليجرام
   triggerHaptic: function(type = 'impact', style = 'light') {
     try {
       const tg = window.Telegram?.WebApp;
@@ -34,7 +66,7 @@ window.App = {
     }
   },
 
-  // تهيئة واجهة الجسر للروابط المقتطعة (/r/:code)
+  // 3. تهيئة واجهة الجسر للروابط المقتطعة (/r/:code)
   initBridgeLogic: async function(code) {
     try {
       const appView = document.getElementById('app-view');
@@ -43,7 +75,7 @@ window.App = {
       if (appView) appView.classList.add('hidden');
       if (bridgeView) bridgeView.classList.remove('hidden');
 
-      const linkInfo = await window.API.getBridgeLinkInfo(code);
+      const linkInfo = await window.API?.getBridgeLinkInfo(code);
       if (!linkInfo || !linkInfo.targetUrl) {
         const msg = (window.UI?.currentLang === 'ar') ? "الرابط غير صالح أو غير موجود" : "Invalid link";
         window.UI?.showToast(msg);
@@ -69,7 +101,7 @@ window.App = {
             goBtn.onclick = async () => {
               this.triggerHaptic('impact', 'medium');
               window.UI?.setButtonLoading('go-btn', true);
-              await window.API.recordBridgeImpression(code, linkInfo.impressionToken);
+              await window.API?.recordBridgeImpression(code, linkInfo.impressionToken);
               window.location.href = linkInfo.targetUrl;
             };
           }
@@ -80,14 +112,14 @@ window.App = {
     }
   },
 
-  // حذف رابط مقتطع
+  // 4. حذف رابط مقتطع
   deleteLink: async function(linkId) {
     try {
       this.triggerHaptic('impact', 'medium');
       const confirmMsg = (window.UI?.currentLang === 'ar') ? "هل أنت تأكد من حذف هذا الرابط؟" : "Delete this link?";
       if (!confirm(confirmMsg)) return;
 
-      const success = await window.API.deleteLink(linkId);
+      const success = await window.API?.deleteLink(linkId);
       if (success) {
         this.triggerHaptic('notification', 'success');
         const toastMsg = (window.UI?.currentLang === 'ar') ? "تم حذف الرابط بنجاح" : "Link deleted";
@@ -99,12 +131,12 @@ window.App = {
     }
   },
 
-  // تحميل قائمة روابط المستخدم
+  // 5. تحميل قائمة روابط المستخدم
   loadUserLinks: async function(search = '') {
     try {
       if (window.Shortener && typeof window.Shortener.loadLinks === 'function') {
         await window.Shortener.loadLinks(search);
-      } else {
+      } else if (window.API && typeof window.API.getUserLinks === 'function') {
         const links = await window.API.getUserLinks(search);
         window.UI?.renderLinksList(links);
       }
@@ -113,9 +145,10 @@ window.App = {
     }
   },
 
-  // تحميل بيانات لوحة التحكم الرئيسية
+  // 6. تحميل بيانات لوحة التحكم الرئيسية
   loadDashboard: async function() {
     try {
+      if (!window.API || typeof window.API.getDashboardData !== 'function') return;
       const data = await window.API.getDashboardData();
       if (!data) return;
 
@@ -148,15 +181,124 @@ window.App = {
       if (window.Wallet && typeof window.Wallet.updateBalances === 'function') {
         window.Wallet.updateBalances(data);
       }
-      if (data.isAdmin && window.Admin && typeof window.Admin.showAdminTab === 'function') {
-        window.Admin.showAdminTab();
+
+      // التحقق من صلاحيات المسؤول
+      if ((data.isAdmin || data.role === 'admin') && window.Admin) {
+        this.enableAdminTab();
       }
     } catch (error) {
       console.error('Load dashboard error:', error);
     }
   },
 
-  // ربط جميع أحداث العناصر والأزرار
+  // 7. حل مشكلة الإدارة: إظهار زر/تبويب الإدارة وتحميل Module الإدارة
+  enableAdminTab: function() {
+    try {
+      const adminBtn = document.getElementById('tab-btn-admin');
+      if (adminBtn) {
+        adminBtn.classList.remove('hidden');
+        adminBtn.style.display = 'flex';
+      }
+
+      if (window.Admin) {
+        if (typeof window.Admin.showAdminTab === 'function') {
+          window.Admin.showAdminTab();
+        }
+        if (typeof window.Admin.init === 'function') {
+          window.Admin.init();
+        }
+      }
+    } catch (err) {
+      console.error('Enable Admin Tab Error:', err);
+    }
+  },
+
+  // 8. إعداد الملاحة بين التبويبات (Tab Switching)
+  setupTabNavigation: function() {
+    const navDockTabs = ['dashboard', 'wallet', 'ads', 'referral', 'settings', 'admin'];
+    navDockTabs.forEach(tab => {
+      const btn = document.getElementById(`tab-btn-${tab}`);
+      if (btn) {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          this.switchTab(tab);
+        });
+      }
+    });
+  },
+
+  // التبديل بين التبويبات وتغيير المحتوى ديناميكياً بدون إعادة تحميل الصفحة
+  switchTab: function(tabName) {
+    try {
+      this.triggerHaptic('selection');
+
+      // 1. تبديل الرؤية عبر UI
+      if (window.UI && typeof window.UI.switchTab === 'function') {
+        window.UI.switchTab(tabName);
+      } else {
+        const sections = document.querySelectorAll('.tab-content');
+        sections.forEach(sec => sec.classList.add('hidden'));
+
+        const activeSection = document.getElementById(`tab-content-${tabName}`) || document.getElementById(`view-${tabName}`);
+        if (activeSection) {
+          activeSection.classList.remove('hidden');
+        }
+
+        const navButtons = document.querySelectorAll('.nav-tab-btn');
+        navButtons.forEach(btn => btn.classList.remove('active'));
+
+        const currentBtn = document.getElementById(`tab-btn-${tabName}`);
+        if (currentBtn) {
+          currentBtn.classList.add('active');
+        }
+      }
+
+      // 2. تحديث المحتوى الديناميكي للتبويب المحدد بدون إعادة تحميل الصفحة
+      this.refreshTabContent(tabName);
+    } catch (error) {
+      console.error('Switch tab error:', error);
+    }
+  },
+
+  // تحديث محتوى التبويب المختار تلقائياً
+  refreshTabContent: async function(tabName) {
+    try {
+      switch (tabName) {
+        case 'dashboard':
+          await this.loadDashboard();
+          await this.loadUserLinks();
+          break;
+        case 'wallet':
+          if (window.Wallet && typeof window.Wallet.loadWalletData === 'function') {
+            await window.Wallet.loadWalletData();
+          } else {
+            await this.loadDashboard();
+          }
+          break;
+        case 'ads':
+          if (window.Ads && typeof window.Ads.loadCampaigns === 'function') {
+            await window.Ads.loadCampaigns();
+          }
+          break;
+        case 'referral':
+          await this.loadDashboard();
+          break;
+        case 'settings':
+          break;
+        case 'admin':
+          if (window.Admin && typeof window.Admin.loadOverview === 'function') {
+            await window.Admin.loadOverview();
+          }
+          break;
+        default:
+          break;
+      }
+    } catch (err) {
+      console.error(`Error refreshing tab content (${tabName}):`, err);
+    }
+  },
+
+  // 9. ربط جميع أحداث العناصر والأزرار
   bindEventListeners: function() {
     // 1. إنشاء رابط مقتطع
     const btnCreateLink = document.getElementById('btn-create-link');
@@ -174,15 +316,15 @@ window.App = {
         }
 
         window.UI?.setButtonLoading('btn-create-link', true);
-        const res = await window.API.createShortLink(titleInput.value, urlInput.value);
+        const res = await window.API?.createShortLink(titleInput.value, urlInput.value);
         window.UI?.setButtonLoading('btn-create-link', false);
 
         if (res) {
           this.triggerHaptic('notification', 'success');
           const msg = (window.UI?.currentLang === 'ar') ? "تم اختصار الرابط بنجاح!" : "Link shortened!";
           window.UI?.showToast(msg);
-          titleInput.value = '';
-          urlInput.value = '';
+          if (titleInput) titleInput.value = '';
+          if (urlInput) urlInput.value = '';
           this.loadUserLinks();
         }
       });
@@ -256,7 +398,7 @@ window.App = {
         }
 
         window.UI?.setButtonLoading('btn-request-deposit', true);
-        const res = await window.API.requestDeposit(network, amount, txhash);
+        const res = await window.API?.requestDeposit(network, amount, txhash);
         window.UI?.setButtonLoading('btn-request-deposit', false);
 
         if (res && res.success) {
@@ -303,7 +445,7 @@ window.App = {
         if (!addrInput || !addrInput.value) return;
 
         window.UI?.setButtonLoading('save-wallet-btn', true);
-        const res = await window.API.updateWalletAddress(addrInput.value);
+        const res = await window.API?.updateWalletAddress(addrInput.value);
         window.UI?.setButtonLoading('save-wallet-btn', false);
 
         if (res && res.success) {
@@ -341,7 +483,7 @@ window.App = {
         }
 
         window.UI?.setButtonLoading('btn-request-withdraw', true);
-        const res = await window.API.requestWithdrawal(amount, wallet);
+        const res = await window.API?.requestWithdrawal(amount, wallet);
         window.UI?.setButtonLoading('btn-request-withdraw', false);
 
         if (res && res.success) {
@@ -400,7 +542,7 @@ window.App = {
         };
 
         window.UI?.setButtonLoading('btn-create-ad', true);
-        const res = await window.API.createAdCampaign(adData);
+        const res = await window.API?.createAdCampaign(adData);
         window.UI?.setButtonLoading('btn-create-ad', false);
 
         if (res && res.success) {
@@ -454,24 +596,7 @@ window.App = {
       });
     }
 
-    // 14. التنقل عبر الشريط السفلي (Navigation Dock Buttons)
-    const navDockTabs = ['dashboard', 'wallet', 'ads', 'referral', 'settings', 'admin'];
-    navDockTabs.forEach(tab => {
-      const btn = document.getElementById(`tab-btn-${tab}`);
-      if (btn) {
-        btn.addEventListener('click', () => {
-          this.triggerHaptic('selection');
-          if (window.UI && typeof window.UI.switchTab === 'function') {
-            window.UI.switchTab(tab);
-          }
-          if (tab === 'admin' && window.Admin && typeof window.Admin.loadOverview === 'function') {
-            window.Admin.loadOverview();
-          }
-        });
-      }
-    });
-
-    // 15. ربط أحداث وحدة لوحة الإدارة (Admin Module Events)
+    // 14. ربط أحداث وحدة لوحة الإدارة (Admin Module Events)
     const btnAdminSave = document.getElementById('btn-admin-save-settings');
     if (btnAdminSave) {
       btnAdminSave.addEventListener('click', async () => {
@@ -483,47 +608,63 @@ window.App = {
     }
   },
 
-  // تهيئة تطبيق تليجرام المدمج (Telegram WebApp)
+  // 10. تهيئة تطبيق تليجرام المدمج (Telegram WebApp)
   initTelegramWebApp: function() {
     try {
       const tg = window.Telegram?.WebApp;
       if (tg) {
+        // تنفيذ التهيئة والتوسيع وفق الشروط المطلوبة
         tg.ready();
         tg.expand();
 
-        if (tg.setHeaderColor) tg.setHeaderColor('secondary');
-        if (tg.setBackgroundColor) tg.setBackgroundColor('bg_color');
-        if (tg.enableClosingConfirmation) tg.enableClosingConfirmation();
+        if (typeof tg.setHeaderColor === 'function') tg.setHeaderColor('secondary');
+        if (typeof tg.setBackgroundColor === 'function') tg.setBackgroundColor('bg_color');
+        if (typeof tg.enableClosingConfirmation === 'function') tg.enableClosingConfirmation();
       }
     } catch (error) {
       console.error('Telegram WebApp initialization error:', error);
     }
   },
 
-  // نقطة الانطلاق الشاملة للواجهة للتطبيق
+  // 11. نقطة الانطلاق الشاملة للواجهة للتطبيق (App Initialization flow)
   init: async function() {
     try {
-      // 1. تهيئة تليجرام WebApp
+      // أ. إعداد معالج الأخطاء العام لمنع توقف التطبيق عند الاستثناءات
+      this.setupGlobalErrorHandling();
+
+      // ب. تهيئة Telegram.WebApp.ready() و Telegram.WebApp.expand()
       this.initTelegramWebApp();
 
-      // 2. عرض بيانات المستخدم الأولية في الواجهة
-      if (window.UI && typeof window.UI.renderTelegramUser === 'function') {
-        window.UI.renderTelegramUser();
-      }
-
-      // 3. تهيئة وحدات اللغات
+      // ج. استدعاء i18n.init() لتحديد اللغة وتحديث النصوص
       if (window.i18n && typeof window.i18n.init === 'function') {
         window.i18n.init();
       }
 
-      // 4. مصادقة المستخدم وتأكيد الجلسة مع api.js
-      let authenticated = false;
-      if (window.API && typeof window.API.authLogin === 'function') {
+      // د. استدعاء API.getProfile() للتحقق من هوية المستخدم وجلب بياناته
+      let user = null;
+      if (window.API && typeof window.API.getProfile === 'function') {
+        user = await window.API.getProfile();
+      } else if (window.API && typeof window.API.authLogin === 'function') {
         const initData = window.Telegram?.WebApp?.initData || '';
-        authenticated = await window.API.authLogin(initData);
+        user = await window.API.authLogin(initData);
       }
 
-      // 5. التحقق من مسار رابط الجسر (/r/:code)
+      this.currentUser = user;
+
+      // هـ. حل مشكلة الإدارة: التحقق من user.role === 'admin'
+      if (user && (user.role === 'admin' || user.isAdmin)) {
+        this.enableAdminTab();
+      }
+
+      // و. عرض بيانات المستخدم في الواجهة
+      if (window.UI && typeof window.UI.renderTelegramUser === 'function') {
+        window.UI.renderTelegramUser(user);
+      }
+
+      // ز. إعداد الملاحة بين التبويبات (Tab Switching)
+      this.setupTabNavigation();
+
+      // ح. التحقق من مسار رابط الجسر (/r/:code)
       const pathParts = window.location.pathname.split('/');
       if (pathParts.length >= 3 && pathParts[1] === 'r') {
         const code = pathParts[2];
@@ -533,11 +674,11 @@ window.App = {
         }
       }
 
-      // 6. ربط الأحداث لجميع المكونات والأزرار
+      // ط. ربط أحداث العناصر والأزرار
       this.bindEventListeners();
 
-      // 7. تحميل البيانات الأساسية في حال نجاح المصادقة
-      if (authenticated) {
+      // ي. تحميل البيانات الأساسية فور تسجيل الدخول
+      if (user) {
         await this.loadDashboard();
         await this.loadUserLinks();
       }
