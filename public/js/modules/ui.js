@@ -1,11 +1,9 @@
-// public/js/modules/ui.js - UI Management Module
-
-const API = typeof require !== 'undefined' ? require('./api.js') : (window.API || {});
-const i18n = typeof require !== 'undefined' ? require('./i18n.js') : (window.i18n || {});
+// public/js/modules/ui.js - UI Management & Helpers Module
 
 const UI = {
-  currentLang: localStorage.getItem('appLang') || 'ar',
+  currentLang: (typeof localStorage !== 'undefined' && localStorage.getItem('appLang')) || 'ar',
 
+  // Escape HTML string safely
   escapeHTML: function(str) {
     if (!str) return '';
     return String(str)
@@ -16,6 +14,7 @@ const UI = {
       .replace(/'/g, '&#039;');
   },
 
+  // Telegram Haptic Feedback trigger
   triggerHaptic: function(style = 'light') {
     try {
       const tg = window.Telegram?.WebApp;
@@ -25,38 +24,102 @@ const UI = {
     } catch (e) {}
   },
 
-  showToast: function(msg) {
+  // Toast Notifications System
+  showToast: function(msg, duration = 3200) {
     this.triggerHaptic('medium');
-    const toast = document.getElementById("toast");
-    if (!toast) return;
+    let toast = document.getElementById("toast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "toast";
+      toast.className = "toast";
+      document.body.appendChild(toast);
+    }
     toast.innerText = msg;
     toast.classList.add("show");
-    setTimeout(() => { toast.classList.remove("show"); }, 3200);
+    setTimeout(() => { toast.classList.remove("show"); }, duration);
   },
 
-  copyToClipboard: function(text) {
-    if (!text) return;
-    const lang = this.currentLang;
-    navigator.clipboard.writeText(text).then(() => {
-      this.showToast(lang === 'ar' ? "تم النسخ بنجاح!" : "Copied successfully!");
-    }).catch(() => {
-      this.showToast(lang === 'ar' ? "فشل النسخ تلقائياً" : "Failed to copy");
-    });
-  },
-
-  setButtonLoading: function(btnId, isLoading, originalText) {
-    const btn = document.getElementById(btnId);
-    if (!btn) return;
-    if (isLoading) {
-      btn.disabled = true;
-      btn.dataset.oldContent = btn.innerHTML;
-      btn.innerHTML = `<div class="spinner"></div>`;
+  // Native & Custom Alerts
+  showAlert: function(msg, title = '') {
+    this.triggerHaptic('warning');
+    const tg = window.Telegram?.WebApp;
+    if (tg && typeof tg.showAlert === 'function') {
+      tg.showAlert(msg);
     } else {
-      btn.disabled = false;
-      btn.innerHTML = originalText || btn.dataset.oldContent || '';
+      alert((title ? title + '\n\n' : '') + msg);
     }
   },
 
+  // Modal Windows Management
+  showModal: function(modalId) {
+    this.triggerHaptic('medium');
+    const modal = typeof modalId === 'string' ? document.getElementById(modalId) : modalId;
+    if (modal) {
+      modal.classList.remove('hidden');
+      modal.classList.add('show', 'active');
+      modal.style.display = 'flex';
+    }
+  },
+
+  closeModal: function(modalId) {
+    this.triggerHaptic('light');
+    const modal = typeof modalId === 'string' ? document.getElementById(modalId) : modalId;
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.classList.remove('show', 'active');
+      modal.style.display = 'none';
+    }
+  },
+
+  // Loaders & Skeletons Management
+  showLoader: function(elementOrId = 'global-loader') {
+    const el = typeof elementOrId === 'string' ? document.getElementById(elementOrId) : elementOrId;
+    if (el) {
+      el.classList.remove('hidden');
+      el.style.display = 'flex';
+    }
+  },
+
+  hideLoader: function(elementOrId = 'global-loader') {
+    const el = typeof elementOrId === 'string' ? document.getElementById(elementOrId) : elementOrId;
+    if (el) {
+      el.classList.add('hidden');
+      el.style.display = 'none';
+    }
+  },
+
+  showSkeleton: function(containerId) {
+    const container = typeof containerId === 'string' ? document.getElementById(containerId) : containerId;
+    if (container) {
+      container.classList.add('skeleton-loading');
+      container.setAttribute('aria-busy', 'true');
+    }
+  },
+
+  hideSkeleton: function(containerId) {
+    const container = typeof containerId === 'string' ? document.getElementById(containerId) : containerId;
+    if (container) {
+      container.classList.remove('skeleton-loading');
+      container.removeAttribute('aria-busy');
+    }
+  },
+
+  setButtonLoading: function(btnId, isLoading, originalText) {
+    const btn = typeof btnId === 'string' ? document.getElementById(btnId) : btnId;
+    if (!btn) return;
+    if (isLoading) {
+      btn.disabled = true;
+      if (!btn.dataset.oldContent) {
+        btn.dataset.oldContent = btn.innerHTML;
+      }
+      btn.innerHTML = `<div class="spinner"></div>`;
+    } else {
+      btn.disabled = false;
+      btn.innerHTML = originalText || btn.dataset.oldContent || btn.innerHTML;
+    }
+  },
+
+  // Tab & View Switching Logic
   switchTab: function(tabName) {
     if (tabName === 'admin' && !window.isUserAdmin) {
       this.showToast(this.currentLang === 'ar' ? "غير مصرح لك بالوصول للوحة التحكم" : "Access denied");
@@ -110,9 +173,11 @@ const UI = {
   },
 
   toggleInstructionsModal: function(show) {
-    this.triggerHaptic('medium');
-    const modal = document.getElementById('instructions-modal');
-    if (modal) modal.classList.toggle('hidden', !show);
+    if (show) {
+      this.showModal('instructions-modal');
+    } else {
+      this.closeModal('instructions-modal');
+    }
   },
 
   updateWithdrawCalculations: function() {
@@ -206,6 +271,16 @@ const UI = {
     }
   },
 
+  copyToClipboard: function(text) {
+    if (!text) return;
+    const lang = this.currentLang;
+    navigator.clipboard.writeText(text).then(() => {
+      this.showToast(lang === 'ar' ? "تم النسخ بنجاح!" : "Copied successfully!");
+    }).catch(() => {
+      this.showToast(lang === 'ar' ? "فشل النسخ تلقائياً" : "Failed to copy");
+    });
+  },
+
   toggleWalletEdit: function() {
     this.triggerHaptic('light');
     const walletInput = document.getElementById('default-wallet');
@@ -273,7 +348,7 @@ const UI = {
       return;
     }
 
-    const apiBase = window.API_BASE || API.API_BASE || '';
+    const apiBase = window.API_BASE || (window.API && window.API.API_BASE) || '';
     let html = '';
     links.forEach(link => {
       const shortUrl = `${apiBase}/r/${link.code || link.shortCode}`;
@@ -295,12 +370,19 @@ const UI = {
   }
 };
 
-// Global standard helpers for backwards compatibility
+// Bind Module & Global Standard Helpers to Window
 if (typeof window !== 'undefined') {
   window.UI = UI;
   window.escapeHTML = UI.escapeHTML.bind(UI);
   window.triggerHaptic = UI.triggerHaptic.bind(UI);
   window.showToast = UI.showToast.bind(UI);
+  window.showAlert = UI.showAlert.bind(UI);
+  window.showModal = UI.showModal.bind(UI);
+  window.closeModal = UI.closeModal.bind(UI);
+  window.showLoader = UI.showLoader.bind(UI);
+  window.hideLoader = UI.hideLoader.bind(UI);
+  window.showSkeleton = UI.showSkeleton.bind(UI);
+  window.hideSkeleton = UI.hideSkeleton.bind(UI);
   window.copyToClipboard = UI.copyToClipboard.bind(UI);
   window.setButtonLoading = UI.setButtonLoading.bind(UI);
   window.switchTab = UI.switchTab.bind(UI);
@@ -314,8 +396,4 @@ if (typeof window !== 'undefined') {
   window.closeVideoAd = UI.closeVideoAd.bind(UI);
   window.adaptBridgeUI = UI.adaptBridgeUI.bind(UI);
   window.renderLinksList = UI.renderLinksList.bind(UI);
-}
-
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = UI;
 }
