@@ -1,6 +1,5 @@
-// public/js/modules/api.js - API Layer Module
+// public/js/modules/api.js - API Integration Layer
 
-// 1. Base URL Configuration
 const API_BASE = (typeof window !== 'undefined' && window.location)
   ? (window.location.protocol.startsWith('file') ? 'http://localhost:3000' : window.location.origin)
   : 'http://localhost:3000';
@@ -12,22 +11,20 @@ if (typeof window !== 'undefined') {
   window.isUserAdmin = false;
 }
 
-// 2. Core API Handler
 const API = {
   /**
-   * Central Request Handler for GET, POST, PUT, DELETE
-   * Handles auto-headers, authorization tokens, Telegram init data, and status code errors.
+   * الدالة الرئيسية لجميع طلبات الشبكة (GET, POST, PUT, DELETE)
    */
-  request: async function(endpoint, method = 'GET', body = null, customHeaders = {}) {
-    const options = {
-      method: method.toUpperCase(),
-      headers: { ...customHeaders }
-    };
+  request: async function(endpoint, options = {}) {
+    options.method = (options.method || 'GET').toUpperCase();
+    options.headers = options.headers || {};
 
     let currentUserTelegramId = (typeof window !== 'undefined') ? window.currentUserTelegramId : null;
     let authToken = (typeof window !== 'undefined') ? window.authToken : null;
 
     const tg = (typeof window !== 'undefined' && window.Telegram) ? window.Telegram.WebApp : null;
+    
+    // استخراج معرّف التليجرام إذا لم يكن مخزناً
     if (!currentUserTelegramId && tg?.initDataUnsafe?.user?.id) {
       currentUserTelegramId = String(tg.initDataUnsafe.user.id);
       if (typeof window !== 'undefined') {
@@ -38,7 +35,7 @@ const API = {
 
     const initDataStr = tg?.initData || '';
 
-    // Automatically attach Authorization Bearer and Telegram Init Data headers
+    // إرفاق رؤوس التوثيق تلقائياً
     if (initDataStr) {
       options.headers['Authorization'] = `Bearer ${initDataStr}`;
       options.headers['x-telegram-init-data'] = initDataStr;
@@ -54,26 +51,22 @@ const API = {
       options.headers['user-id'] = currentUserTelegramId;
     }
 
-    // Process Body Data for POST / PUT / DELETE
-    if (body !== null && typeof body === 'object') {
-      const formattedBody = { ...body };
-      if (currentUserTelegramId && !formattedBody.userId && !formattedBody.telegramId) {
-        formattedBody.userId = currentUserTelegramId;
-        formattedBody.telegramId = currentUserTelegramId;
+    // تجهيز جسم الطلب وتحديد نوع المحتوى JSON
+    if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
+      if (currentUserTelegramId && !options.body.userId && !options.body.telegramId) {
+        options.body.userId = currentUserTelegramId;
+        options.body.telegramId = currentUserTelegramId;
       }
-      if (initDataStr && !formattedBody.initData) {
-        formattedBody.initData = initDataStr;
+      if (initDataStr && !options.body.initData) {
+        options.body.initData = initDataStr;
       }
-      options.body = JSON.stringify(formattedBody);
-    } else if (body !== null) {
-      options.body = body;
+      options.body = JSON.stringify(options.body);
     }
 
     if (options.body && !options.headers['Content-Type']) {
       options.headers['Content-Type'] = 'application/json; charset=utf-8';
     }
 
-    // Target URL construction
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
     let targetUrl = endpoint.startsWith('http') ? endpoint : `${API_BASE}${cleanEndpoint}`;
 
@@ -85,21 +78,24 @@ const API = {
     try {
       const response = await fetch(targetUrl, options);
 
-      // Status Code Error Handling (401, 403, 500)
+      // معالجة رموز حالات الأخطاء البرمجية (401, 403, 500...)
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        const errorMessage = errorData.message || errorData.error || `HTTP ${response.status} Error`;
+        const status = response.status;
+        let errorMessage = errorData.message || errorData.error;
 
-        if (response.status === 401) {
-          console.warn("API Error 401: Unauthorized request. Clearing expired token.");
-          if (typeof window !== 'undefined') {
-            window.authToken = null;
-            localStorage.removeItem('authToken');
+        const lang = (window.UI && window.UI.currentLang) ? window.UI.currentLang : (localStorage.getItem('appLang') || 'ar');
+
+        if (!errorMessage) {
+          if (status === 401) {
+            errorMessage = lang === 'ar' ? 'جلسة الاتصال انتهت، يرجى إعادة الفتح' : 'Unauthorized. Please re-open the app.';
+          } else if (status === 403) {
+            errorMessage = lang === 'ar' ? 'غير مصرح لك بإجراء هذه العملية' : 'Access forbidden.';
+          } else if (status >= 500) {
+            errorMessage = lang === 'ar' ? 'حدث خطأ في السيرفر الداخلي' : 'Internal server error.';
+          } else {
+            errorMessage = `HTTP error! status: ${status}`;
           }
-        } else if (response.status === 403) {
-          console.warn("API Error 403: Forbidden access.");
-        } else if (response.status >= 500) {
-          console.error(`API Error ${response.status}: Server Internal Error.`);
         }
 
         throw new Error(errorMessage);
@@ -107,57 +103,37 @@ const API = {
 
       return response;
     } catch (err) {
-      console.error(`API Fetch Error [${method} ${endpoint}]:`, err);
-
-      if (typeof window !== 'undefined') {
-        const lang = (window.UI && window.UI.currentLang) 
-          ? window.UI.currentLang 
-          : (localStorage.getItem('appLang') || 'ar');
-        
-        let msg = err.message;
-        if (!msg || msg.includes('HTTP error') || msg.includes('Failed to fetch')) {
-          msg = lang === 'ar' 
-            ? "تعذر الاتصال بالسيرفر، يرجى التحقق من الاتصال بالإنترنت" 
-            : "Server connection error, please check network";
-        }
-
-        if (window.UI && typeof window.UI.showToast === 'function') {
-          window.UI.showToast(msg);
-        } else {
-          console.warn("API Error Message:", msg);
-        }
+      console.error(`[API Error] ${options.method} ${cleanEndpoint}:`, err);
+      if (typeof window !== 'undefined' && window.UI && typeof window.UI.showToast === 'function') {
+        window.UI.showToast(err.message || 'تعذر الاتصال بالسيرفر');
       }
       return null;
     }
   },
 
-  // HTTP Shortcut Methods (GET, POST, PUT, DELETE)
+  // دالة المساعدة safeFetch لضمان التوافق مع الشفرات القديمة
   safeFetch: async function(endpoint, options = {}) {
-    const method = options.method || 'GET';
-    let body = options.body;
-    if (typeof body === 'string') {
-      try { body = JSON.parse(body); } catch (e) {}
-    }
-    return await this.request(endpoint, method, body, options.headers || {});
+    return await this.request(endpoint, options);
   },
 
-  get: async function(endpoint, customHeaders = {}) {
-    return await this.request(endpoint, 'GET', null, customHeaders);
+  // مختصرات الطلبات المباشرة
+  get: async function(endpoint, headers = {}) {
+    return await this.request(endpoint, { method: 'GET', headers });
   },
 
-  post: async function(endpoint, body = {}, customHeaders = {}) {
-    return await this.request(endpoint, 'POST', body, customHeaders);
+  post: async function(endpoint, body = {}, headers = {}) {
+    return await this.request(endpoint, { method: 'POST', body, headers });
   },
 
-  put: async function(endpoint, body = {}, customHeaders = {}) {
-    return await this.request(endpoint, 'PUT', body, customHeaders);
+  put: async function(endpoint, body = {}, headers = {}) {
+    return await this.request(endpoint, { method: 'PUT', body, headers });
   },
 
-  delete: async function(endpoint, body = null, customHeaders = {}) {
-    return await this.request(endpoint, 'DELETE', body, customHeaders);
+  delete: async function(endpoint, body = {}, headers = {}) {
+    return await this.request(endpoint, { method: 'DELETE', body, headers });
   },
 
-  // Application Service Endpoints
+  // --- Auth API ---
   authLogin: async function() {
     const tg = (typeof window !== 'undefined' && window.Telegram) ? window.Telegram.WebApp : null;
     const startParam = tg?.initDataUnsafe?.start_param || null;
@@ -235,6 +211,7 @@ const API = {
     return false;
   },
 
+  // --- Dashboard & Links API ---
   getDashboardData: async function() {
     const res = await this.get('/api/user/dashboard');
     if (!res) return null;
@@ -258,9 +235,10 @@ const API = {
     const res = await this.delete(`/api/links/${linkId}`);
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-    return data.success;
+    return !!data.success;
   },
 
+  // --- Wallet API ---
   requestDeposit: async function(network, amount, txHash) {
     const res = await this.post('/api/wallet/deposit', { network, amount, txHash });
     if (!res) return null;
@@ -286,6 +264,7 @@ const API = {
     return Array.isArray(data) ? data : (data.withdrawals || []);
   },
 
+  // --- Ads API ---
   getUserAds: async function() {
     const res = await this.get('/api/ads/my-ads');
     if (!res) return [];
@@ -303,16 +282,17 @@ const API = {
     const res = await this.post('/api/ads/toggle', { adId, status });
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-    return data.success;
+    return !!data.success;
   },
 
   deleteAd: async function(adId) {
     const res = await this.delete(`/api/ads/${adId}`);
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-    return data.success;
+    return !!data.success;
   },
 
+  // --- Referrals & Bridge API ---
   getUserReferrals: async function() {
     const res = await this.get('/api/user/referrals');
     if (!res) return null;
@@ -331,6 +311,7 @@ const API = {
     return await res.json().catch(() => null);
   },
 
+  // --- Admin API ---
   loadAdminData: async function() {
     const res = await this.get('/api/admin/dashboard');
     if (!res) return null;
@@ -341,18 +322,18 @@ const API = {
     const res = await this.post('/api/admin/deposits/action', { depositId, action });
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-    return data.success;
+    return !!data.success;
   },
 
   processAdminWithdraw: async function(withdrawId, action) {
     const res = await this.post('/api/admin/withdrawals/action', { withdrawId, action });
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-    return data.success;
+    return !!data.success;
   }
 };
 
-// Bind Module to Window
+// ربط النطاق العام window
 if (typeof window !== 'undefined') {
   window.API = API;
   window.safeFetch = API.safeFetch.bind(API);
