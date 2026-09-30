@@ -1,4 +1,5 @@
-const ar = {
+// public/js/language/ar.js
+window.ar = {
   // Navigation
   nav_home: "الرئيسية",
   nav_wallet: "المحفظة",
@@ -6,6 +7,7 @@ const ar = {
   nav_referral: "الإحالات",
   nav_settings: "الإعدادات",
   nav_admin: "الإدارة",
+  nav_notifications: "الإشعارات",
 
   // Stats & Dashboard
   pending_bal: "رصيد معلق (Pending)",
@@ -92,6 +94,15 @@ const ar = {
   no_referrals: "لم تنضم أي إحالات عبر رابطك بعد.",
   share_text: "انضم إليّ في أفضل منصة لاختصار الروابط واكسب الأرباح بسهولة! 🚀",
 
+  // Notifications
+  notif_title: "الإشعارات والتنبيهات",
+  notif_empty: "لا توجد إشعارات جديدة حالياً.",
+  notif_mark_read: "تحديد الكل كمقروء",
+  notif_deposit_approved: "تم اعتماد طلب الإيداع الخاص بك بنجاح.",
+  notif_deposit_rejected: "تم رفض طلب الإيداع الخاص بك. يرجى التحقق من التفاصيل.",
+  notif_withdraw_approved: "تم تحويل مبلغ السحب بنجاح إلى محفظتك.",
+  notif_withdraw_rejected: "تم رفض طلب السحب. تمت إعادة المبلغ لرصيدك.",
+
   // Settings, FAQ & Support
   lang_settings_title: "تغيير اللغة / Language",
   faq_title: "الأسئلة الشائعة والدعم",
@@ -138,22 +149,22 @@ const ar = {
   admin_ads_mgmt: "إدارة إعلانات المنصة",
   access_denied: "غير مصرح لك بالوصول للوحة التحكم",
 
+  // Errors & Validation
+  err_invalid_url: "يرجى إدخال رابط URL صحيح وبدءاً بـ http:// أو https://",
+  err_insufficient_funds: "رصيدك غير كافٍ لإتمام هذه العملية.",
+  err_unauthorized: "غير مصرح لك بالوصول، يرجى تسجيل الدخول.",
+  err_server_error: "حدث خطأ غير متوقع في الخادم، يرجى المحاولة لاحقاً.",
+  err_network: "تعذر الاتصال بالشبكة، يرجى التحقق من اتصال الإنترنت لديك.",
+  err_required_field: "هذا الحقل مطلوب ولا يمكن تركه فارغاً.",
+  err_min_amount: "المبلغ المدخل أقل من الحد الأدنى المسموح به.",
+
   // General & Status
   loading: "جاري التحميل...",
   copied: "تم النسخ بنجاح!",
   cancel: "إلغاء",
   close: "إغلاق",
-  network_error: "تعذر الاتصال بالشبكة، يرجى التحقق من اتصال الإنترنت لديك.",
   btn_delete: "حذف",
   approved: "مكتمل",
   rejected: "مرفوض",
   pending: "قيد المراجعة"
 };
-
-if (typeof window !== 'undefined') {
-  window.ar = ar;
-}
-
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = ar;
-}
