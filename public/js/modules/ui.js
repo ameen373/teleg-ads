@@ -1,9 +1,11 @@
 // public/js/modules/ui.js - UI Management Module
 
-const UI = {
-  currentLang: (typeof localStorage !== 'undefined' ? localStorage.getItem('appLang') : null) || 'ar',
+const API = typeof require !== 'undefined' ? require('./api.js') : (window.API || {});
+const i18n = typeof require !== 'undefined' ? require('./i18n.js') : (window.i18n || {});
 
-  // --- 1. HTML Escaping & Haptics ---
+const UI = {
+  currentLang: localStorage.getItem('appLang') || 'ar',
+
   escapeHTML: function(str) {
     if (!str) return '';
     return String(str)
@@ -23,19 +25,13 @@ const UI = {
     } catch (e) {}
   },
 
-  // --- 2. Toast Notifications & Clipboard ---
-  showToast: function(msg, type = 'info') {
-    this.triggerHaptic(type === 'error' ? 'error' : 'medium');
+  showToast: function(msg) {
+    this.triggerHaptic('medium');
     const toast = document.getElementById("toast");
-    if (!toast) {
-      console.log(`[Toast ${type}]: ${msg}`);
-      return;
-    }
+    if (!toast) return;
     toast.innerText = msg;
-    toast.className = `toast show ${type}`;
-    setTimeout(() => { 
-      toast.classList.remove("show"); 
-    }, 3200);
+    toast.classList.add("show");
+    setTimeout(() => { toast.classList.remove("show"); }, 3200);
   },
 
   copyToClipboard: function(text) {
@@ -44,44 +40,8 @@ const UI = {
     navigator.clipboard.writeText(text).then(() => {
       this.showToast(lang === 'ar' ? "تم النسخ بنجاح!" : "Copied successfully!");
     }).catch(() => {
-      this.showToast(lang === 'ar' ? "فشل النسخ تلقائياً" : "Failed to copy", 'error');
+      this.showToast(lang === 'ar' ? "فشل النسخ تلقائياً" : "Failed to copy");
     });
-  },
-
-  // --- 3. Loaders, Skeletons & Button States ---
-  showLoading: function(containerId) {
-    const el = document.getElementById(containerId);
-    if (!el) return;
-    el.dataset.oldHtml = el.innerHTML;
-    el.innerHTML = `
-      <div class="loader-container" style="display:flex; justify-content:center; align-items:center; padding:20px;">
-        <div class="spinner" style="border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid var(--primary-color, #3b82f6); border-radius: 50%; width: 24px; height: 24px; animation: spin 0.8s linear infinite;"></div>
-      </div>
-    `;
-  },
-
-  hideLoading: function(containerId) {
-    const el = document.getElementById(containerId);
-    if (!el) return;
-    if (el.dataset.oldHtml !== undefined) {
-      el.innerHTML = el.dataset.oldHtml;
-      delete el.dataset.oldHtml;
-    }
-  },
-
-  showSkeleton: function(containerId, count = 3) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    let skeletonHTML = '';
-    for (let i = 0; i < count; i++) {
-      skeletonHTML += `
-        <div class="skeleton-card" style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 8px; margin-bottom: 8px; animation: pulse 1.5s infinite ease-in-out;">
-          <div style="height: 14px; background: rgba(255,255,255,0.1); border-radius: 4px; width: 60%; margin-bottom: 8px;"></div>
-          <div style="height: 10px; background: rgba(255,255,255,0.08); border-radius: 4px; width: 90%;"></div>
-        </div>
-      `;
-    }
-    container.innerHTML = skeletonHTML;
   },
 
   setButtonLoading: function(btnId, isLoading, originalText) {
@@ -90,44 +50,16 @@ const UI = {
     if (isLoading) {
       btn.disabled = true;
       btn.dataset.oldContent = btn.innerHTML;
-      btn.innerHTML = `<div class="spinner" style="display:inline-block; border: 2px solid rgba(255,255,255,0.2); border-top: 2px solid #fff; border-radius: 50%; width: 14px; height: 14px; animation: spin 0.8s linear infinite;"></div>`;
+      btn.innerHTML = `<div class="spinner"></div>`;
     } else {
       btn.disabled = false;
       btn.innerHTML = originalText || btn.dataset.oldContent || '';
     }
   },
 
-  // --- 4. Modal Management ---
-  showModal: function(modalId) {
-    this.triggerHaptic('medium');
-    const modal = document.getElementById(modalId);
-    if (modal) {
-      modal.classList.remove('hidden');
-      modal.style.display = 'flex';
-    }
-  },
-
-  closeModal: function(modalId) {
-    this.triggerHaptic('light');
-    const modal = document.getElementById(modalId);
-    if (modal) {
-      modal.classList.add('hidden');
-      modal.style.display = 'none';
-    }
-  },
-
-  toggleInstructionsModal: function(show) {
-    if (show) {
-      this.showModal('instructions-modal');
-    } else {
-      this.closeModal('instructions-modal');
-    }
-  },
-
-  // --- 5. Navigation & View Handlers ---
   switchTab: function(tabName) {
     if (tabName === 'admin' && !window.isUserAdmin) {
-      this.showToast(this.currentLang === 'ar' ? "غير مصرح لك بالوصول للوحة التحكم" : "Access denied", 'error');
+      this.showToast(this.currentLang === 'ar' ? "غير مصرح لك بالوصول للوحة التحكم" : "Access denied");
       return;
     }
     this.triggerHaptic('light');
@@ -177,6 +109,12 @@ const UI = {
     if (viewWith) viewWith.classList.toggle('hidden', view !== 'withdraw');
   },
 
+  toggleInstructionsModal: function(show) {
+    this.triggerHaptic('medium');
+    const modal = document.getElementById('instructions-modal');
+    if (modal) modal.classList.toggle('hidden', !show);
+  },
+
   updateWithdrawCalculations: function() {
     const amtInput = document.getElementById('withdraw-amount');
     const feeBox = document.getElementById('withdraw-fee-box');
@@ -200,7 +138,6 @@ const UI = {
     }
   },
 
-  // --- 6. Telegram User Integration ---
   renderTelegramUser: function() {
     const tg = window.Telegram?.WebApp;
     const u = tg?.initDataUnsafe?.user;
@@ -336,7 +273,7 @@ const UI = {
       return;
     }
 
-    const apiBase = window.API_BASE || (window.API ? window.API.API_BASE : '');
+    const apiBase = window.API_BASE || API.API_BASE || '';
     let html = '';
     links.forEach(link => {
       const shortUrl = `${apiBase}/r/${link.code || link.shortCode}`;
@@ -358,19 +295,14 @@ const UI = {
   }
 };
 
-// ربط الدوارات العالمية في نطاق window للأمان والتوافقية
+// Global standard helpers for backwards compatibility
 if (typeof window !== 'undefined') {
   window.UI = UI;
   window.escapeHTML = UI.escapeHTML.bind(UI);
   window.triggerHaptic = UI.triggerHaptic.bind(UI);
   window.showToast = UI.showToast.bind(UI);
   window.copyToClipboard = UI.copyToClipboard.bind(UI);
-  window.showLoading = UI.showLoading.bind(UI);
-  window.hideLoading = UI.hideLoading.bind(UI);
-  window.showSkeleton = UI.showSkeleton.bind(UI);
   window.setButtonLoading = UI.setButtonLoading.bind(UI);
-  window.showModal = UI.showModal.bind(UI);
-  window.closeModal = UI.closeModal.bind(UI);
   window.switchTab = UI.switchTab.bind(UI);
   window.handleNetworkChange = UI.handleNetworkChange.bind(UI);
   window.switchWalletView = UI.switchWalletView.bind(UI);
@@ -382,4 +314,8 @@ if (typeof window !== 'undefined') {
   window.closeVideoAd = UI.closeVideoAd.bind(UI);
   window.adaptBridgeUI = UI.adaptBridgeUI.bind(UI);
   window.renderLinksList = UI.renderLinksList.bind(UI);
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = UI;
 }
