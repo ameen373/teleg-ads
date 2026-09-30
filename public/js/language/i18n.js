@@ -1,166 +1,181 @@
-// public/js/language/i18n.js
 (function () {
+  /**
+   * كائن إدارة الترجمات i18n الخاص بتطبيق telega-ads
+   */
   const i18n = {
-    currentLang: "ar",
+    currentLang: 'ar',
 
     /**
-     * التهيئة الأولية واكتشاف لغة المستخدم
+     * استكشاف لغة المستخدم المحددة تلقائياً من Telegram WebApp أو LocalStorage
      */
-    init: function () {
-      let savedLang = null;
-
-      // 1. محاولة قراءة اللغة المحفوظة سابقتً في localStorage
+    getInitialLanguage: function () {
+      let storedLang = null;
       try {
-        savedLang = localStorage.getItem("appLang");
+        storedLang = localStorage.getItem('appLang') || localStorage.getItem('app_lang');
       } catch (e) {
-        console.warn("localStorage is inaccessible:", e);
+        console.warn('LocalStorage is not accessible:', e);
       }
 
-      if (savedLang === "ar" || savedLang === "en") {
-        this.currentLang = savedLang;
-      } else {
-        // 2. الفحص من بيانات Telegram WebApp إذا توفرت
-        const tgLang = window.Telegram?.WebApp?.initDataUnsafe?.user?.language_code;
-        if (tgLang && typeof tgLang === "string") {
-          this.currentLang = tgLang.toLowerCase().startsWith("ar") ? "ar" : "en";
-        } else {
-          // 3. اللغة الافتراضية للمنصة
-          this.currentLang = "ar";
-        }
+      if (storedLang && (storedLang === 'ar' || storedLang === 'en')) {
+        return storedLang;
       }
 
-      // تطبيق اللغة وتحديث الاتجاه والعناصر
-      this.applyLanguage(this.currentLang);
+      // جلب اللغة من Telegram WebApp API
+      let tgLang = null;
+      if (
+        window.Telegram &&
+        window.Telegram.WebApp &&
+        window.Telegram.WebApp.initDataUnsafe &&
+        window.Telegram.WebApp.initDataUnsafe.user &&
+        window.Telegram.WebApp.initDataUnsafe.user.language_code
+      ) {
+        tgLang = window.Telegram.WebApp.initDataUnsafe.user.language_code.toLowerCase();
+      }
+
+      if (tgLang && tgLang.startsWith('ar')) {
+        return 'ar';
+      } else if (tgLang) {
+        return 'en';
+      }
+
+      return 'ar';
     },
 
     /**
-     * دالة الترجمة البرمجية للحصول على النص بواسطة المفتاح
-     * @param {string} key - مفتاح النص
-     * @param {string} [fallback] - النص البديل في حال عدم وجود المفتاح
+     * جلب القاموس الخاص باللغة المحددة
      */
-    t: function (key, fallback) {
-      const activeDict = this.currentLang === "en" ? window.en : window.ar;
-      if (activeDict && activeDict[key] !== undefined) {
-        return activeDict[key];
-      }
-
-      // البحث في قاموس اللغة الأخرى كخيار احتياطي
-      const altDict = this.currentLang === "en" ? window.ar : window.en;
-      if (altDict && altDict[key] !== undefined) {
-        return altDict[key];
-      }
-
-      return fallback !== undefined ? fallback : key;
+    getDictionary: function (lang) {
+      const active = lang || this.currentLang;
+      if (active === 'ar' && window.ar) return window.ar;
+      if (active === 'en' && window.en) return window.en;
+      return window.ar || {};
     },
 
     /**
-     * تغيير لغة التطبيق وحفظها
-     * @param {string} lang - 'ar' أو 'en'
+     * دالة الترجمة البرمجية t(key)
+     * @param {string} key - مفتاح النص
+     * @param {string} [lang] - اختيار لغة معينة (اختياري)
+     */
+    t: function (key, lang) {
+      const dict = this.getDictionary(lang);
+      return dict[key] !== undefined ? dict[key] : key;
+    },
+
+    /**
+     * تغيير لغة التطبيق وتحديث واجهة المستخدم
+     * @param {string} lang - رمز اللغة ('ar' أو 'en')
      */
     setLanguage: function (lang) {
-      if (lang !== "ar" && lang !== "en") return;
-      this.currentLang = lang;
+      const targetLang = (lang === 'en' || lang === 'ar') ? lang : 'ar';
+      this.currentLang = targetLang;
 
       try {
-        localStorage.setItem("appLang", lang);
+        localStorage.setItem('appLang', targetLang);
       } catch (e) {
-        console.warn("Failed to save language to localStorage:", e);
+        console.warn('Unable to save language preference:', e);
       }
 
-      this.applyLanguage(lang);
+      // مزامنة المتغيرات العامة للتطبيق في حال وجود حالة (state)
+      if (window.state) window.state.currentLang = targetLang;
+      if (window.UI) window.UI.currentLang = targetLang;
+
+      this.updateDOM();
+
+      // إعادة تحميل بيانات المستخدم إن وجد المعالج
+      if (typeof window.loadUserData === 'function') {
+        window.loadUserData();
+      }
+
+      return targetLang;
     },
 
     /**
-     * تحديث عناصر DOM بالترجمات وضبط اتجاه الصفحة (RTL/LTR)
+     * تحديث عناصر DOM التي تحتوي على data-i18n أو data-i18n-placeholder أو data-i18n-ph تلقائياً
+     * وتغيير اتجاه الصفحة تلقائياً (RTL / LTR)
      */
     updateDOM: function () {
       const lang = this.currentLang;
+      const dict = this.getDictionary(lang);
 
-      // تحديث خصائص lang و dir للغة والاتجاه تلقائياً
+      // تحديث اتجاه ولغة المستند الرئيسية
       document.documentElement.lang = lang;
-      document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
+      document.documentElement.dir = (lang === 'ar') ? 'rtl' : 'ltr';
 
       if (document.body) {
-        document.body.dir = lang === "ar" ? "rtl" : "ltr";
+        document.body.dir = (lang === 'ar') ? 'rtl' : 'ltr';
       }
 
-      // 1. تحديث النصوص الداخلية للعناصر التي تحتوي على data-i18n
-      document.querySelectorAll("[data-i18n]").forEach((el) => {
-        const key = el.getAttribute("data-i18n");
-        const translated = this.t(key);
-        if (translated) {
-          el.innerText = translated;
+      // تحديث عناصر القوائم المنسدلة للغات إن وجدت
+      const langSelect = document.getElementById('language-select');
+      if (langSelect) langSelect.value = lang;
+
+      // 1. تحديث النصوص المباشرة للعناصر: data-i18n
+      document.querySelectorAll('[data-i18n]').forEach(function (el) {
+        const key = el.getAttribute('data-i18n');
+        if (dict[key] !== undefined) {
+          el.innerText = dict[key];
         }
       });
 
-      // 2. تحديث خانات الإدخال (Placeholder) لـ data-i18n-placeholder أو data-i18n-ph
-      document.querySelectorAll("[data-i18n-placeholder], [data-i18n-ph]").forEach((el) => {
-        const key = el.getAttribute("data-i18n-placeholder") || el.getAttribute("data-i18n-ph");
-        const translated = this.t(key);
-        if (translated) {
-          el.placeholder = translated;
+      // 2. تحديث خانات الإدخال: data-i18n-placeholder و data-i18n-ph
+      document.querySelectorAll('[data-i18n-placeholder], [data-i18n-ph]').forEach(function (el) {
+        const key = el.getAttribute('data-i18n-placeholder') || el.getAttribute('data-i18n-ph');
+        if (dict[key] !== undefined) {
+          el.placeholder = dict[key];
         }
       });
 
-      // 3. تحديث العناوين التوضيحية (Title) لـ data-i18n-title
-      document.querySelectorAll("[data-i18n-title]").forEach((el) => {
-        const key = el.getAttribute("data-i18n-title");
-        const translated = this.t(key);
-        if (translated) {
-          el.title = translated;
+      // 3. تحديث العناوين التوضيحية: data-i18n-title
+      document.querySelectorAll('[data-i18n-title]').forEach(function (el) {
+        const key = el.getAttribute('data-i18n-title');
+        if (dict[key] !== undefined) {
+          el.title = dict[key];
         }
       });
 
-      // 4. تحديث قيم الأزرار والإدخالات (Value) لـ data-i18n-val
-      document.querySelectorAll("[data-i18n-val]").forEach((el) => {
-        const key = el.getAttribute("data-i18n-val");
-        const translated = this.t(key);
-        if (translated) {
-          el.value = translated;
+      // 4. تحديث قيم أزرار الإدخال: data-i18n-val
+      document.querySelectorAll('[data-i18n-val]').forEach(function (el) {
+        const key = el.getAttribute('data-i18n-val');
+        if (dict[key] !== undefined) {
+          el.value = dict[key];
         }
       });
-
-      // 5. تحديث قائمة اختيار اللغة إن وجدت
-      const langSelect = document.getElementById("language-select");
-      if (langSelect) {
-        langSelect.value = lang;
-      }
     },
 
     /**
-     * تطبيق اللغة وتحديث الاتجاه والعناصر
+     * التهيئة الأولية لنظام الترجمة
      */
-    applyLanguage: function (lang) {
-      if (lang) this.currentLang = lang;
-      this.updateDOM();
+    init: function () {
+      const initialLang = this.getInitialLanguage();
+      this.setLanguage(initialLang);
     }
   };
 
-  // إتاحة الكائن والدوال العامة على نطاق window
+  // تصدير الكائن والنظائر العامة إلى نطاق window
   window.i18n = i18n;
 
-  window.t = function (key, fallback) {
-    return i18n.t(key, fallback);
+  window.t = function (key, lang) {
+    return window.i18n.t(key, lang);
   };
 
   window.updateDOM = function () {
-    i18n.updateDOM();
+    return window.i18n.updateDOM();
   };
 
   window.changeAppLanguage = function (lang) {
-    i18n.setLanguage(lang);
+    return window.i18n.setLanguage(lang);
   };
 
   window.applyLanguage = function (lang) {
-    i18n.applyLanguage(lang);
+    return window.i18n.setLanguage(lang);
   };
 
-  // التشغيل التلقائي فور اكتمال تحميل عناصر الصفحة DOM
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function () {
-      i18n.init();
+  // التفعيل التلقائي عند اكتمال تحميل المستند
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () {
+      window.i18n.init();
     });
   } else {
-    i18n.init();
+    window.i18n.init();
   }
 })();
