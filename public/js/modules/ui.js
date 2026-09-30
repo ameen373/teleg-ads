@@ -34,40 +34,14 @@ const UI = {
     setTimeout(() => { toast.classList.remove("show"); }, 3200);
   },
 
-  fallbackCopyTextToClipboard: function(text) {
-    const textArea = document.createElement("textarea");
-    textArea.value = text;
-    textArea.style.position = "fixed";
-    textArea.style.left = "-9999px";
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-    try {
-      const successful = document.execCommand('copy');
-      const lang = this.currentLang;
-      if (successful) {
-        this.showToast(lang === 'ar' ? "تم النسخ بنجاح!" : "Copied successfully!");
-      } else {
-        this.showToast(lang === 'ar' ? "فشل النسخ تلقائياً" : "Failed to copy");
-      }
-    } catch (err) {
-      this.showToast(this.currentLang === 'ar' ? "فشل النسخ" : "Failed to copy");
-    }
-    document.body.removeChild(textArea);
-  },
-
   copyToClipboard: function(text) {
     if (!text) return;
     const lang = this.currentLang;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(() => {
-        this.showToast(lang === 'ar' ? "تم النسخ بنجاح!" : "Copied successfully!");
-      }).catch(() => {
-        this.fallbackCopyTextToClipboard(text);
-      });
-    } else {
-      this.fallbackCopyTextToClipboard(text);
-    }
+    navigator.clipboard.writeText(text).then(() => {
+      this.showToast(lang === 'ar' ? "تم النسخ بنجاح!" : "Copied successfully!");
+    }).catch(() => {
+      this.showToast(lang === 'ar' ? "فشل النسخ تلقائياً" : "Failed to copy");
+    });
   },
 
   setButtonLoading: function(btnId, isLoading, originalText) {
@@ -83,48 +57,21 @@ const UI = {
     }
   },
 
-  setAdminVisibility: function(isAdmin) {
-    window.isUserAdmin = !!isAdmin;
-    const adminTabSelectors = [
-      'tab-btn-admin',
-      'admin-tab',
-      'nav-admin',
-      'admin-nav-btn',
-      'tab-admin'
-    ];
-    
-    adminTabSelectors.forEach(id => {
-      const el = document.getElementById(id);
-      if (el) {
-        if (window.isUserAdmin) {
-          el.classList.remove('hidden');
-          el.style.display = '';
-        } else {
-          el.classList.add('hidden');
-        }
-      }
-    });
-  },
-
   switchTab: function(tabName) {
-    const isAdmin = window.isUserAdmin || (window.currentUser && (window.currentUser.role === 'admin' || window.currentUser.isAdmin));
-    
-    if (tabName === 'admin' && !isAdmin) {
+    if (tabName === 'admin' && !window.isUserAdmin) {
       this.showToast(this.currentLang === 'ar' ? "غير مصرح لك بالوصول للوحة التحكم" : "Access denied");
       return;
     }
     this.triggerHaptic('light');
-
     const tabs = ['dashboard', 'wallet', 'ads', 'referral', 'settings', 'admin'];
     tabs.forEach(t => {
-      const content = document.getElementById(`tab-content-${t}`) || document.getElementById(`${t}-section`) || document.getElementById(`section-${t}`);
-      const btn = document.getElementById(`tab-btn-${t}`) || document.getElementById(`${t}-tab`) || document.getElementById(`btn-${t}`);
-      
+      const content = document.getElementById(`tab-content-${t}`);
+      const btn = document.getElementById(`tab-btn-${t}`);
       if (content) content.classList.toggle('hidden', t !== tabName);
       if (btn) btn.classList.toggle('active', t === tabName);
     });
 
-    if (tabName === 'admin' && isAdmin && typeof window.loadAdminData === 'function') {
+    if (tabName === 'admin' && window.isUserAdmin && typeof window.loadAdminData === 'function') {
       window.loadAdminData();
     } else if (tabName === 'ads' && typeof window.fetchUserAds === 'function') {
       window.fetchUserAds();
@@ -199,13 +146,6 @@ const UI = {
     const handleElem = document.getElementById('user-display-handle');
     const idElem = document.getElementById('user-tg-id');
     const premiumBadge = document.getElementById('user-premium-badge');
-
-    try {
-      const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
-      if (storedUser && (storedUser.role === 'admin' || storedUser.isAdmin)) {
-        this.setAdminVisibility(true);
-      }
-    } catch (e) {}
 
     if (u && u.id) {
       window.currentUserTelegramId = String(u.id);
@@ -363,7 +303,6 @@ if (typeof window !== 'undefined') {
   window.showToast = UI.showToast.bind(UI);
   window.copyToClipboard = UI.copyToClipboard.bind(UI);
   window.setButtonLoading = UI.setButtonLoading.bind(UI);
-  window.setAdminVisibility = UI.setAdminVisibility.bind(UI);
   window.switchTab = UI.switchTab.bind(UI);
   window.handleNetworkChange = UI.handleNetworkChange.bind(UI);
   window.switchWalletView = UI.switchWalletView.bind(UI);
