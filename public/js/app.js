@@ -43,7 +43,7 @@ window.App = {
       if (appView) appView.classList.add('hidden');
       if (bridgeView) bridgeView.classList.remove('hidden');
 
-      const linkInfo = await window.API.getBridgeLinkInfo(code);
+      const linkInfo = await window.API?.getBridgeLinkInfo(code);
       if (!linkInfo || !linkInfo.targetUrl) {
         const msg = (window.UI?.currentLang === 'ar') ? "الرابط غير صالح أو غير موجود" : "Invalid link";
         window.UI?.showToast(msg);
@@ -69,7 +69,7 @@ window.App = {
             goBtn.onclick = async () => {
               this.triggerHaptic('impact', 'medium');
               window.UI?.setButtonLoading('go-btn', true);
-              await window.API.recordBridgeImpression(code, linkInfo.impressionToken);
+              await window.API?.recordBridgeImpression(code, linkInfo.impressionToken);
               window.location.href = linkInfo.targetUrl;
             };
           }
@@ -87,7 +87,7 @@ window.App = {
       const confirmMsg = (window.UI?.currentLang === 'ar') ? "هل أنت تأكد من حذف هذا الرابط؟" : "Delete this link?";
       if (!confirm(confirmMsg)) return;
 
-      const success = await window.API.deleteLink(linkId);
+      const success = await window.API?.deleteLink(linkId);
       if (success) {
         this.triggerHaptic('notification', 'success');
         const toastMsg = (window.UI?.currentLang === 'ar') ? "تم حذف الرابط بنجاح" : "Link deleted";
@@ -104,7 +104,7 @@ window.App = {
     try {
       if (window.Shortener && typeof window.Shortener.loadLinks === 'function') {
         await window.Shortener.loadLinks(search);
-      } else {
+      } else if (window.API && typeof window.API.getUserLinks === 'function') {
         const links = await window.API.getUserLinks(search);
         window.UI?.renderLinksList(links);
       }
@@ -113,9 +113,11 @@ window.App = {
     }
   },
 
-  // تحميل بيانات لوحة التحكم الرئيسية
+  // تحميل بيانات لوحة التحكم الرئيسية وفحص صلاحيات الأدمن
   loadDashboard: async function() {
     try {
+      if (!window.API || typeof window.API.getDashboardData !== 'function') return;
+
       const data = await window.API.getDashboardData();
       if (!data) return;
 
@@ -148,8 +150,29 @@ window.App = {
       if (window.Wallet && typeof window.Wallet.updateBalances === 'function') {
         window.Wallet.updateBalances(data);
       }
-      if (data.isAdmin && window.Admin && typeof window.Admin.showAdminTab === 'function') {
-        window.Admin.showAdminTab();
+
+      // فحص شامل لصلاحيات الأدمن وإظهار التبويب الخاص بها
+      const isAdmin = !!(data.isAdmin || data.role === 'admin' || (data.user && (data.user.isAdmin || data.user.role === 'admin')));
+      
+      if (isAdmin) {
+        // 1. إظهار زر التبويب في شريط التنقل الرئيسي
+        const adminTabBtn = document.getElementById('tab-btn-admin');
+        if (adminTabBtn) {
+          adminTabBtn.classList.remove('hidden');
+          adminTabBtn.style.display = '';
+        }
+
+        // 2. استدعاء دالة عرض الأدمن من الوحدة المخصصة
+        if (window.Admin && typeof window.Admin.showAdminTab === 'function') {
+          window.Admin.showAdminTab();
+        } else if (window.UI && typeof window.UI.showAdminTab === 'function') {
+          window.UI.showAdminTab();
+        }
+
+        // 3. تهيئة وحدة الإدارة إن وجدت
+        if (window.Admin && typeof window.Admin.init === 'function') {
+          window.Admin.init();
+        }
       }
     } catch (error) {
       console.error('Load dashboard error:', error);
@@ -174,14 +197,15 @@ window.App = {
         }
 
         window.UI?.setButtonLoading('btn-create-link', true);
-        const res = await window.API.createShortLink(titleInput.value, urlInput.value);
+        const titleVal = titleInput ? titleInput.value : '';
+        const res = await window.API?.createShortLink(titleVal, urlInput.value);
         window.UI?.setButtonLoading('btn-create-link', false);
 
         if (res) {
           this.triggerHaptic('notification', 'success');
           const msg = (window.UI?.currentLang === 'ar') ? "تم اختصار الرابط بنجاح!" : "Link shortened!";
           window.UI?.showToast(msg);
-          titleInput.value = '';
+          if (titleInput) titleInput.value = '';
           urlInput.value = '';
           this.loadUserLinks();
         }
@@ -246,8 +270,10 @@ window.App = {
       btnRequestDeposit.addEventListener('click', async () => {
         this.triggerHaptic('impact', 'medium');
         const network = document.getElementById('deposit-network')?.value;
-        const amount = document.getElementById('deposit-amount')?.value;
-        const txhash = document.getElementById('deposit-txhash')?.value;
+        const amountInput = document.getElementById('deposit-amount');
+        const txhashInput = document.getElementById('deposit-txhash');
+        const amount = amountInput?.value;
+        const txhash = txhashInput?.value;
 
         if (!network || !amount || !txhash) {
           const msg = (window.UI?.currentLang === 'ar') ? "يرجى ملء جميع حقول الإيداع" : "Please fill all deposit fields";
@@ -256,15 +282,15 @@ window.App = {
         }
 
         window.UI?.setButtonLoading('btn-request-deposit', true);
-        const res = await window.API.requestDeposit(network, amount, txhash);
+        const res = await window.API?.requestDeposit(network, amount, txhash);
         window.UI?.setButtonLoading('btn-request-deposit', false);
 
         if (res && res.success) {
           this.triggerHaptic('notification', 'success');
           const msg = (window.UI?.currentLang === 'ar') ? "تم تقديم طلب الإيداع بنجاح!" : "Deposit submitted!";
           window.UI?.showToast(msg);
-          document.getElementById('deposit-amount').value = '';
-          document.getElementById('deposit-txhash').value = '';
+          if (amountInput) amountInput.value = '';
+          if (txhashInput) txhashInput.value = '';
         }
       });
     }
@@ -303,7 +329,7 @@ window.App = {
         if (!addrInput || !addrInput.value) return;
 
         window.UI?.setButtonLoading('save-wallet-btn', true);
-        const res = await window.API.updateWalletAddress(addrInput.value);
+        const res = await window.API?.updateWalletAddress(addrInput.value);
         window.UI?.setButtonLoading('save-wallet-btn', false);
 
         if (res && res.success) {
@@ -331,7 +357,8 @@ window.App = {
     if (btnRequestWithdraw) {
       btnRequestWithdraw.addEventListener('click', async () => {
         this.triggerHaptic('impact', 'medium');
-        const amount = document.getElementById('withdraw-amount')?.value;
+        const withdrawAmountElem = document.getElementById('withdraw-amount');
+        const amount = withdrawAmountElem?.value;
         const wallet = document.getElementById('default-wallet')?.value;
 
         if (!amount || amount < 30 || !wallet) {
@@ -341,14 +368,14 @@ window.App = {
         }
 
         window.UI?.setButtonLoading('btn-request-withdraw', true);
-        const res = await window.API.requestWithdrawal(amount, wallet);
+        const res = await window.API?.requestWithdrawal(amount, wallet);
         window.UI?.setButtonLoading('btn-request-withdraw', false);
 
         if (res && res.success) {
           this.triggerHaptic('notification', 'success');
           const msg = (window.UI?.currentLang === 'ar') ? "تم إرسال طلب السحب بنجاح!" : "Withdrawal submitted!";
           window.UI?.showToast(msg);
-          document.getElementById('withdraw-amount').value = '';
+          if (withdrawAmountElem) withdrawAmountElem.value = '';
           if (window.UI?.updateWithdrawCalculations) window.UI.updateWithdrawCalculations();
           this.loadDashboard();
         }
@@ -400,7 +427,7 @@ window.App = {
         };
 
         window.UI?.setButtonLoading('btn-create-ad', true);
-        const res = await window.API.createAdCampaign(adData);
+        const res = await window.API?.createAdCampaign(adData);
         window.UI?.setButtonLoading('btn-create-ad', false);
 
         if (res && res.success) {
@@ -464,8 +491,12 @@ window.App = {
           if (window.UI && typeof window.UI.switchTab === 'function') {
             window.UI.switchTab(tab);
           }
-          if (tab === 'admin' && window.Admin && typeof window.Admin.loadOverview === 'function') {
-            window.Admin.loadOverview();
+          if (tab === 'admin') {
+            if (window.Admin && typeof window.Admin.loadOverview === 'function') {
+              window.Admin.loadOverview();
+            } else if (window.Admin && typeof window.Admin.init === 'function') {
+              window.Admin.init();
+            }
           }
         });
       }
@@ -480,6 +511,11 @@ window.App = {
           await window.Admin.saveSettings();
         }
       });
+    }
+
+    // ربط أي أحداث إضافية معلقة في وحدة الإدارة إذا توفرت
+    if (window.Admin && typeof window.Admin.bindEvents === 'function') {
+      window.Admin.bindEvents();
     }
   },
 
@@ -517,10 +553,9 @@ window.App = {
       }
 
       // 4. مصادقة المستخدم وتأكيد الجلسة مع api.js
-      let authenticated = false;
       if (window.API && typeof window.API.authLogin === 'function') {
         const initData = window.Telegram?.WebApp?.initData || '';
-        authenticated = await window.API.authLogin(initData);
+        await window.API.authLogin(initData);
       }
 
       // 5. التحقق من مسار رابط الجسر (/r/:code)
@@ -536,11 +571,9 @@ window.App = {
       // 6. ربط الأحداث لجميع المكونات والأزرار
       this.bindEventListeners();
 
-      // 7. تحميل البيانات الأساسية في حال نجاح المصادقة
-      if (authenticated) {
-        await this.loadDashboard();
-        await this.loadUserLinks();
-      }
+      // 7. تحميل البيانات الأساسية دائماً
+      await this.loadDashboard();
+      await this.loadUserLinks();
     } catch (error) {
       console.error('App initialization error:', error);
     }
