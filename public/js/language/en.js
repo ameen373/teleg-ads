@@ -1,5 +1,5 @@
-window.en = {
-  // Navigation & Tabs
+const en = {
+  // Navigation
   nav_home: "Home",
   nav_wallet: "Wallet",
   nav_ads: "Ads",
@@ -138,7 +138,7 @@ window.en = {
   admin_ads_mgmt: "Platform Ads Management",
   access_denied: "Access denied",
 
-  // General & Notifications & Statuses
+  // General & Status
   loading: "Loading...",
   copied: "Copied successfully!",
   cancel: "Cancel",
@@ -147,6 +147,13 @@ window.en = {
   btn_delete: "Delete",
   approved: "Approved",
   rejected: "Rejected",
-  pending: "Pending",
-  error_generic: "An unexpected error occurred. Please try again later."
+  pending: "Pending"
 };
+
+if (typeof window !== 'undefined') {
+  window.en = en;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = en;
+}
