@@ -6,12 +6,36 @@ const API_BASE = (typeof window !== 'undefined' && window.location)
 
 if (typeof window !== 'undefined') {
   window.API_BASE = API_BASE;
-  window.authToken = localStorage.getItem('authToken') || null;
-  window.currentUserTelegramId = localStorage.getItem('telegramId') || null;
+  let storedToken = localStorage.getItem('authToken');
+  window.authToken = (storedToken && storedToken !== 'null' && storedToken !== 'undefined') ? storedToken : null;
+  
+  let storedId = localStorage.getItem('telegramId');
+  window.currentUserTelegramId = (storedId && storedId !== 'null' && storedId !== 'undefined') ? storedId : null;
+  
   window.isUserAdmin = false;
 }
 
 const API = {
+  /**
+   * استخراج معرّف التليجرام بشكل آمن ونظيف وتحديثه إذا كان مفقوداً
+   */
+  getCleanTelegramId: function() {
+    if (typeof window === 'undefined') return null;
+    
+    let id = window.currentUserTelegramId || localStorage.getItem('telegramId');
+    if (id === 'null' || id === 'undefined' || !id) {
+      const tg = window.Telegram?.WebApp;
+      if (tg?.initDataUnsafe?.user?.id) {
+        id = String(tg.initDataUnsafe.user.id);
+        window.currentUserTelegramId = id;
+        localStorage.setItem('telegramId', id);
+      } else {
+        id = null;
+      }
+    }
+    return id;
+  },
+
   /**
    * الدالة الرئيسية لجميع طلبات الشبكة (GET, POST, PUT, DELETE)
    */
@@ -19,29 +43,27 @@ const API = {
     options.method = (options.method || 'GET').toUpperCase();
     options.headers = options.headers || {};
 
-    let currentUserTelegramId = (typeof window !== 'undefined') ? window.currentUserTelegramId : null;
-    let authToken = (typeof window !== 'undefined') ? window.authToken : null;
-
-    const tg = (typeof window !== 'undefined' && window.Telegram) ? window.Telegram.WebApp : null;
+    let currentUserTelegramId = this.getCleanTelegramId();
     
-    // استخراج معرّف التليجرام إذا لم يكن مخزناً
-    if (!currentUserTelegramId && tg?.initDataUnsafe?.user?.id) {
-      currentUserTelegramId = String(tg.initDataUnsafe.user.id);
-      if (typeof window !== 'undefined') {
-        window.currentUserTelegramId = currentUserTelegramId;
-        localStorage.setItem('telegramId', currentUserTelegramId);
-      }
+    let authToken = (typeof window !== 'undefined') ? window.authToken : null;
+    if (authToken === 'null' || authToken === 'undefined') {
+      authToken = null;
     }
 
+    const tg = (typeof window !== 'undefined' && window.Telegram) ? window.Telegram.WebApp : null;
     const initDataStr = tg?.initData || '';
 
-    // إرفاق رؤوس التوثيق تلقائياً
-    if (initDataStr) {
+    // تحديد أولوية التوثيق: استخدام authToken إن وجد، وإلا استخدام initDataStr
+    if (authToken) {
+      options.headers['Authorization'] = `Bearer ${authToken}`;
+    } else if (initDataStr) {
       options.headers['Authorization'] = `Bearer ${initDataStr}`;
+    }
+
+    // إرسال بيانات التليجرام دائماً في ترويسات مستقلة للتحقق
+    if (initDataStr) {
       options.headers['x-telegram-init-data'] = initDataStr;
       options.headers['telegram-init-data'] = initDataStr;
-    } else if (authToken) {
-      options.headers['Authorization'] = `Bearer ${authToken}`;
     }
 
     if (currentUserTelegramId) {
@@ -63,7 +85,7 @@ const API = {
       options.body = JSON.stringify(options.body);
     }
 
-    if (options.body && !options.headers['Content-Type']) {
+    if (options.body && !options.headers['Content-Type'] && !(options.body instanceof FormData)) {
       options.headers['Content-Type'] = 'application/json; charset=utf-8';
     }
 
@@ -78,13 +100,15 @@ const API = {
     try {
       const response = await fetch(targetUrl, options);
 
-      // معالجة رموز حالات الأخطاء البرمجية (401, 403, 500...)
+      // معالجة استجابات الخطأ من السيرفر
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         const status = response.status;
         let errorMessage = errorData.message || errorData.error;
 
-        const lang = (window.UI && window.UI.currentLang) ? window.UI.currentLang : (localStorage.getItem('appLang') || 'ar');
+        const lang = (typeof window !== 'undefined' && window.UI && window.UI.currentLang) 
+          ? window.UI.currentLang 
+          : (typeof window !== 'undefined' ? (localStorage.getItem('appLang') || 'ar') : 'ar');
 
         if (!errorMessage) {
           if (status === 401) {
@@ -141,7 +165,7 @@ const API = {
     const initDataStr = tg?.initData || '';
 
     try {
-      const currentId = (typeof window !== 'undefined') ? window.currentUserTelegramId : null;
+      const currentId = this.getCleanTelegramId();
       const res = await this.post('/api/auth/login', {
         userId: currentId,
         telegramId: currentId,
@@ -333,9 +357,14 @@ const API = {
   }
 };
 
-// ربط النطاق العام window
+// ربط الكائن بالنطاق العام للمتصفح
 if (typeof window !== 'undefined') {
   window.API = API;
   window.safeFetch = API.safeFetch.bind(API);
   window.authLogin = API.authLogin.bind(API);
+}
+
+// تصدير الكائن وفق نظام CommonJS
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = API;
 }
