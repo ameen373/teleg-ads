@@ -1,5 +1,5 @@
-window.ar = {
-  // Navigation & Tabs
+const ar = {
+  // Navigation
   nav_home: "الرئيسية",
   nav_wallet: "المحفظة",
   nav_ads: "الإعلانات",
@@ -138,7 +138,7 @@ window.ar = {
   admin_ads_mgmt: "إدارة إعلانات المنصة",
   access_denied: "غير مصرح لك بالوصول للوحة التحكم",
 
-  // General & Notifications & Statuses
+  // General & Status
   loading: "جاري التحميل...",
   copied: "تم النسخ بنجاح!",
   cancel: "إلغاء",
@@ -147,6 +147,13 @@ window.ar = {
   btn_delete: "حذف",
   approved: "مكتمل",
   rejected: "مرفوض",
-  pending: "قيد المراجعة",
-  error_generic: "حدث خطأ غير متوقع، يرجى المحاولة لاحقاً."
+  pending: "قيد المراجعة"
 };
+
+if (typeof window !== 'undefined') {
+  window.ar = ar;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = ar;
+}
