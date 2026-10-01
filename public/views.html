@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title data-i18n="app_title">Telega.ads | Enterprise Shortener & Ad Network</title>
+  <title>Telega.ads | Enterprise Shortener & Ad Network</title>
   
   <!-- External CSS Integration -->
   <link rel="stylesheet" href="/css/style.css">
@@ -19,163 +19,151 @@
     <div id="toast" class="toast-container"></div>
 
     <!-- Deposit Guide Modal -->
-    <div id="instructions-modal" class="modal-overlay d-none hidden">
+    <div id="instructions-modal" class="modal-overlay hidden">
       <div class="modal-content">
-        <h3 class="modal-title" data-i18n="guide_modal_title">دليل الشحن ورمز المعاملة TxID</h3>
-        <hr class="modal-divider">
-        <ol class="guide-steps-list">
-          <li>
-            <b data-i18n="guide_step1_b">اختر الشبكة:</b> 
-            <span data-i18n="guide_step1_t">حدد شبكة USDT (TRC20 أو BEP20) لإظهار عنوان المحفظة ثم قم بنسخه.</span>
-          </li>
-          <li>
-            <b data-i18n="guide_step2_b">تحويل الأموال:</b> 
-            <span data-i18n="guide_step2_t">افتح تطبيق محفظتك (Binance, Trust Wallet) وقم بتحويل المبلغ إلى العنوان المنسوخ.</span>
-          </li>
-          <li>
-            <b data-i18n="guide_step3_b">نسخ رمز العملية (TxID):</b> 
-            <span data-i18n="guide_step3_t">بعد نجاح التحويل، انسخ معرف المعاملة TxHash/TxID.</span>
-            <div class="example-code-box">
-              <small data-i18n="example_txid">صيغة رمز المعاملة TxID:</small><br>
-              <code>4a8f92b8d01...e83120c91</code>
+        <h3 style="margin-top: 0; color: var(--accent); font-size: 18px;" data-i18n="guide_modal_title">دليل الشحن ورمز المعاملة TxID</h3>
+        <hr style="border: 0; border-top: 1px solid var(--card-border); margin: 14px 0;">
+        <ol style="font-size: 12px; color: var(--text); padding-left: 18px; padding-right: 18px; line-height: 1.8;">
+          <li><b data-i18n="guide_step1_b">اختر الشبكة:</b> <span data-i18n="guide_step1_t">حدد شبكة USDT (TRC20 أو BEP20) لإظهار عنوان المحفظة ثم قم بنسخه.</span></li>
+          <li><b data-i18n="guide_step2_b">تحويل الأموال:</b> <span data-i18n="guide_step2_t">افتح تطبيق محفظتك (Binance, Trust Wallet) وقم بتحويل المبلغ إلى العنوان المنسوخ.</span></li>
+          <li><b data-i18n="guide_step3_b">نسخ رمز العملية (TxID):</b> <span data-i18n="guide_step3_t">بعد نجاح التحويل، انسخ معرف المعاملة TxHash/TxID.</span>
+            <div style="background: #070a12; padding: 10px; border-radius: 10px; margin: 8px 0; border: 1px solid var(--card-border); text-align: center;">
+              <small style="color: var(--text-muted);" data-i18n="example_txid">صيغة رمز المعاملة TxID:</small><br>
+              <code style="color: var(--success); font-size: 11px; word-break: break-all;">4a8f92b8d01...e83120c91</code>
             </div>
           </li>
-          <li>
-            <b data-i18n="guide_step4_b">إرسال الطلب:</b> 
-            <span data-i18n="guide_step4_t">عد هنا وأدخل قيمة المبلغ المودع ورمز المعاملة ثم انقر تقديم الطلب.</span>
-          </li>
+          <li><b data-i18n="guide_step4_b">إرسال الطلب:</b> <span data-i18n="guide_step4_t">عد هنا وأدخل قيمة المبلغ المودع ورمز المعاملة ثم انقر تقديم الطلب.</span></li>
         </ol>
-        <button id="btn-close-instructions-modal" class="btn btn-danger" data-i18n="close">إغلاق</button>
+        <button id="btn-close-instructions-modal" class="btn-danger" style="margin-top: 16px;" data-i18n="close">إغلاق</button>
       </div>
     </div>
 
     <!-- Bridge Page View for Redirect Traffic -->
-    <div id="bridge-view" class="card tab-pane d-none hidden">
+    <div id="bridge-view" class="card hidden tab-pane">
       
       <!-- Top AdsGram / Banner Slot -->
-      <div id="bridge-top-ad-slot" class="ad-slot-container">
-        <div id="adsgram-top-banner" class="ad-banner-placeholder">
-          <span data-i18n="ad_top_placeholder">📢 إعلان مميز (AdsGram Top Banner)</span>
+      <div id="bridge-top-ad-slot" style="margin-bottom: 14px; text-align: center;">
+        <div id="adsgram-top-banner" style="min-height: 60px; background: rgba(15, 23, 42, 0.6); border: 1px dashed var(--card-border, #2a364f); border-radius: 12px; display: flex; align-items: center; justify-content: center; padding: 8px;">
+          <span style="font-size: 11px; color: var(--text-muted);" data-i18n="ad_top_placeholder">📢 إعلان مميز (AdsGram Top Banner)</span>
         </div>
       </div>
 
       <!-- VIDEO PLAYER MODE -->
-      <div id="bridge-video-mode" class="bridge-mode-card d-none hidden">
-        <div class="video-player-wrapper">
-          <img id="video-thumbnail" src="https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=800&auto=format&fit=crop" alt="Video Preview" class="video-thumb-img">
+      <div id="bridge-video-mode" class="bridge-mode-card hidden" style="background: #090d16; border-radius: 16px; border: 1px solid var(--card-border, #1e293b); overflow: hidden; margin-bottom: 16px;">
+        <div class="video-player-wrapper" style="position: relative; width: 100%; aspect-ratio: 16/9; background: #000; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+          <img id="video-thumbnail" src="https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=800&auto=format&fit=crop" alt="Video Preview" style="width: 100%; height: 100%; object-fit: cover; opacity: 0.6;">
           
-          <div class="play-btn-overlay">
+          <div class="play-btn-overlay" style="position: absolute; width: 60px; height: 60px; background: rgba(59, 130, 246, 0.9); border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 20px rgba(59, 130, 246, 0.6); cursor: pointer;">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="#ffffff"><path d="M8 5v14l11-7z"/></svg>
           </div>
 
-          <span class="video-duration-badge">08:45</span>
+          <span style="position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.85); color: #fff; font-size: 10px; padding: 3px 8px; border-radius: 6px; font-weight: bold;">08:45</span>
 
           <!-- Pop-up Overlay Ad inside Video Frame -->
-          <div id="video-popup-ad" class="video-overlay-ad">
-            <button id="btn-close-video-ad" class="btn-close-overlay">✕</button>
-            <span class="overlay-ad-label" data-i18n="featured_ad">إعلان مميز</span>
-            <h5 id="video-ad-title" data-i18n="video_ad_title">شاهد المحتوى بأعلى جودة</h5>
-            <p data-i18n="video_ad_desc">انقر لعرض الرابط والتخطي السريع</p>
-            <a id="video-ad-link" href="#" target="_blank" class="btn-ad-action" data-i18n="view_ad">عرض الإعلان ↗</a>
+          <div id="video-popup-ad" class="video-overlay-ad" style="position: absolute; top: 10%; left: 5%; right: 5%; bottom: 10%; background: rgba(15, 23, 42, 0.95); border: 1px solid var(--accent, #3b82f6); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; z-index: 10; backdrop-filter: blur(8px);">
+            <button id="btn-close-video-ad" style="position: absolute; top: 6px; left: 8px; background: rgba(255,255,255,0.15); border: none; color: #fff; font-size: 11px; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; display: flex; align-items: center; justify-content: center;">✕</button>
+            <span style="font-size: 10px; color: var(--accent, #3b82f6); text-transform: uppercase; letter-spacing: 1px; font-weight: bold; margin-bottom: 4px;">إعلان مميز</span>
+            <h5 style="margin: 4px 0; font-size: 13px; color: #fff;" id="video-ad-title">شاهد المحتوى بأعلى جودة</h5>
+            <p style="margin: 0 0 10px 0; font-size: 10px; color: #94a3b8;">انقر لعرض الرابط والتخطي السريع</p>
+            <a id="video-ad-link" href="#" target="_blank" style="background: var(--accent, #3b82f6); color: #fff; text-decoration: none; padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: bold;">عرض الإعلان ↗</a>
           </div>
         </div>
 
-        <div class="video-meta-box">
-          <h3 id="video-title-display" data-i18n="video_ready">الفيديو جاهز للمشاهدة...</h3>
-          <div class="video-stats-row">
-            <span>👁️ <span id="video-views-count">124.5K</span> <span data-i18n="views_label">مشاهدة</span></span>
-            <span data-i18n="ready_status">⏱️ جاهز للتشغيل</span>
+        <div style="padding: 12px 14px;">
+          <h3 id="video-title-display" style="font-size: 14px; margin: 0 0 6px 0; color: #f8fafc; font-weight: 700; line-height: 1.4;">الفيديو جاهز للمشاهدة...</h3>
+          <div style="display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--text-muted);">
+            <span>👁️ <span id="video-views-count">124.5K</span> مشاهدة</span>
+            <span>⏱️ جاهز للتشغيل</span>
           </div>
         </div>
       </div>
 
       <!-- APP / GAME DOWNLOAD MODE -->
-      <div id="bridge-app-mode" class="bridge-mode-card d-none hidden">
-        <div class="app-info-wrapper">
-          <div class="app-icon-box">
-            <img id="app-icon-img" src="https://cdn-icons-png.flaticon.com/512/2950/2950650.png" alt="App Icon">
+      <div id="bridge-app-mode" class="bridge-mode-card hidden" style="background: #090d16; border-radius: 16px; border: 1px solid var(--card-border, #1e293b); padding: 16px; margin-bottom: 16px;">
+        <div style="display: flex; gap: 14px; align-items: center;">
+          <div style="width: 64px; height: 64px; border-radius: 16px; background: linear-gradient(135deg, #1e293b, #0f172a); border: 1px solid var(--card-border, #334155); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; box-shadow: 0 4px 12px rgba(0,0,0,0.4);">
+            <img id="app-icon-img" src="https://cdn-icons-png.flaticon.com/512/2950/2950650.png" alt="App Icon" style="width: 100%; height: 100%; object-fit: cover;">
           </div>
           
-          <div class="app-details">
-            <div class="app-tags">
-              <span class="badge badge-success" data-i18n="verified_safe">✓ آمن ومعتمد</span>
-              <span class="badge badge-accent" data-i18n="app_game_tag">تطبيق / لعبة</span>
+          <div style="flex: 1; min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 2px;">
+              <span style="background: rgba(34, 197, 94, 0.15); color: var(--success, #22c55e); font-size: 9px; padding: 2px 6px; border-radius: 10px; font-weight: bold; border: 1px solid rgba(34, 197, 94, 0.3);">✓ آمن ومعتمد</span>
+              <span style="background: rgba(59, 130, 246, 0.15); color: var(--accent, #3b82f6); font-size: 9px; padding: 2px 6px; border-radius: 10px; font-weight: bold;">تطبيق / لعبة</span>
             </div>
-            <h3 id="app-title-display" data-i18n="app_title_default">تطبيق مميز جاهز للتحميل</h3>
-            <p id="app-developer-display" data-i18n="app_updated_year">تحديث معتمد 2026</p>
+            <h3 id="app-title-display" style="font-size: 15px; margin: 2px 0; color: #fff; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">تطبيق مميز جاهز للتحميل</h3>
+            <p id="app-developer-display" style="margin: 0; font-size: 11px; color: var(--text-muted);">تحديث معتمد 2026</p>
           </div>
         </div>
 
-        <div class="app-stats-grid">
-          <div class="app-stat-cell">
-            <div class="stat-value text-warning">4.9 ★</div>
-            <small data-i18n="rating_count">98K تقييم</small>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); text-align: center;">
+          <div style="background: rgba(255,255,255,0.03); padding: 6px; border-radius: 8px;">
+            <div style="font-size: 12px; color: #fbbf24; font-weight: bold;">4.9 ★</div>
+            <small style="font-size: 9px; color: var(--text-muted);">98K تقييم</small>
           </div>
-          <div class="app-stat-cell">
-            <div class="stat-value">+1M</div>
-            <small data-i18n="download_count">تنزيل</small>
+          <div style="background: rgba(255,255,255,0.03); padding: 6px; border-radius: 8px;">
+            <div style="font-size: 12px; color: #fff; font-weight: bold;">+1M</div>
+            <small style="font-size: 9px; color: var(--text-muted);">تنزيل</small>
           </div>
-          <div class="app-stat-cell">
-            <div class="stat-value text-accent">42 MB</div>
-            <small data-i18n="file_size">الحجم</small>
+          <div style="background: rgba(255,255,255,0.03); padding: 6px; border-radius: 8px;">
+            <div style="font-size: 12px; color: var(--accent, #3b82f6); font-weight: bold;">42 MB</div>
+            <small style="font-size: 9px; color: var(--text-muted);">الحجم</small>
           </div>
         </div>
       </div>
 
       <!-- GENERAL LINK MODE -->
       <div id="bridge-general-mode" class="bridge-mode-card">
-        <h2 class="bridge-heading" data-i18n="bridge_title">جاري تجهيز الرابط...</h2>
-        <p class="bridge-subheading" data-i18n="bridge_desc">الرجاء الانتظار للتحويل التلقائي للجهة المطلوبة</p>
+        <h2 style="text-align: center; margin-bottom: 6px; font-size: 22px;" data-i18n="bridge_title">جاري تجهيز الرابط...</h2>
+        <p style="text-align: center; color: var(--text-muted); font-size: 12px; margin: 0 0 14px 0;" data-i18n="bridge_desc">الرجاء الانتظار للتحويل التلقائي للجهة المطلوبة</p>
       </div>
 
       <!-- Main Banner Container -->
-      <div id="ad-container" class="main-ad-wrapper">
-        <span id="ad-text-placeholder" data-i18n="ad_loading">جاري تحميل الإعلان...</span>
+      <div id="ad-container" style="min-height: 200px; background: #000; border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 14px 0; border: 1px dashed var(--card-border); overflow: hidden; padding: 14px; text-align: center; position: relative;">
+        <span id="ad-text-placeholder" style="color: var(--text-muted); font-size: 12px;" data-i18n="ad_loading">جاري تحميل الإعلان...</span>
       </div>
 
       <!-- AdsGram Widget Container -->
-      <div id="adsgram-ad-container" class="adsgram-wrapper">
-        <div class="adsgram-header">
-          <span data-i18n="adsgram_certified">⚡ إعلانات AdsGram المعتمدة</span>
-          <span class="badge-sponsored">Sponsored</span>
+      <div id="adsgram-ad-container" style="margin: 14px 0; border-radius: 14px; background: rgba(15, 23, 42, 0.8); border: 1px solid var(--card-border); padding: 12px; text-align: center;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 11px; color: var(--text-muted);">
+          <span>⚡ إعلانات AdsGram المعتمدة</span>
+          <span style="color: var(--accent);">Sponsored</span>
         </div>
-        <div id="adsgram-widget-area" class="adsgram-content">
-          <span data-i18n="adsgram_loading">جاري تحميل وحدات AdsGram...</span>
+        <div id="adsgram-widget-area" style="min-height: 100px; display: flex; align-items: center; justify-content: center;">
+          <span style="font-size: 11px; color: var(--text-muted);" data-i18n="adsgram_loading">جاري تحميل وحدات AdsGram...</span>
         </div>
       </div>
 
       <!-- Timer & Action Progress Area -->
-      <div class="action-card">
-        <p class="timer-display">
+      <div style="background: rgba(15, 23, 42, 0.9); border-radius: 14px; padding: 16px; border: 1px solid var(--card-border); margin-top: 14px; text-align: center;">
+        <p style="text-align: center; font-size: 14px; margin-top: 0; margin-bottom: 8px;">
           <span data-i18n="timer_text">سيفعل الزر خلال:</span> 
-          <b id="timer">5</b> 
+          <b id="timer" style="color: var(--accent); font-size: 22px;">5</b> 
           <span data-i18n="seconds">ثوانٍ</span>
         </p>
 
-        <div class="progress-bar-container">
-          <div id="timer-progress-bar" class="progress-bar-fill"></div>
+        <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 10px; overflow: hidden; margin-bottom: 14px;">
+          <div id="timer-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, var(--accent, #3b82f6), var(--success, #22c55e)); transition: width 1s linear;"></div>
         </div>
 
-        <button id="go-btn" class="btn btn-primary btn-block" disabled>
+        <button id="go-btn" disabled style="width: 100%; padding: 14px; font-size: 15px; font-weight: bold; border-radius: 12px;">
           <span id="go-btn-text" data-i18n="go_button">الانتقال إلى الرابط الأصلي</span>
         </button>
       </div>
 
       <!-- Bottom Extra Banner Slot -->
-      <div id="bridge-bottom-ad-slot" class="ad-slot-container">
-        <div id="banner-bottom-ad" class="ad-banner-placeholder bottom">
-          <span data-i18n="ad_bottom_placeholder">مساحة إعلانية بوب أب / بانر سفلي</span>
+      <div id="bridge-bottom-ad-slot" style="margin-top: 16px; text-align: center;">
+        <div id="banner-bottom-ad" style="min-height: 50px; background: rgba(15, 23, 42, 0.5); border: 1px dashed var(--card-border); border-radius: 10px; display: flex; align-items: center; justify-content: center; padding: 6px;">
+          <span style="font-size: 10px; color: var(--text-muted);" data-i18n="ad_bottom_placeholder">مساحة إعلانية بوب أب / بانر سفلي</span>
         </div>
       </div>
 
       <!-- Footer Info -->
-      <div class="bridge-footer">
-        <p>
-          <span data-i18n="rights_reserved">جميع الحقوق محفوظة لمنصة</span> 
-          <a id="official-bot-link" href="https://t.me/Ads_telegabot" target="_blank" rel="noopener">Telega.ads</a>
+      <div style="margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--card-border); text-align: center; font-size: 11px; color: var(--text-muted);">
+        <p style="margin: 0 0 8px 0;">
+          <span data-i18n="rights_reserved">جميع الحقوق محفوظة لمنصة</span> <a id="official-bot-link" href="https://t.me/Ads_telegabot" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: none; font-weight: bold;">Telega.ads</a>
         </p>
-        <div class="footer-actions">
-          <a id="official-channel-link" href="https://t.me/ttelega_ads" target="_blank" rel="noopener" class="btn-channel-link" data-i18n="official_channel">
+        <div>
+          <a id="official-channel-link" href="https://t.me/ttelega_ads" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; background: rgba(59, 130, 246, 0.15); border: 1px solid var(--accent); border-radius: 20px; color: var(--accent); text-decoration: none; font-weight: bold;" data-i18n="official_channel">
             📢 القناة الرسمية
           </a>
         </div>
@@ -186,355 +174,322 @@
     <div id="app-view">
       
       <!-- Top Header with User Info, Balance & Quick Lang Switcher -->
-      <header class="user-profile-header">
-        <div class="user-info-group">
-          <div id="user-avatar-container" class="user-avatar-placeholder">U</div>
-          <div class="user-details">
-            <div class="user-name-row">
-              <span id="user-display-name">...</span>
-              <span id="user-premium-badge" class="user-badge badge-premium d-none hidden" data-i18n="premium_badge">★ Premium</span>
+      <div class="user-profile-header" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: rgba(15, 23, 42, 0.85); border-radius: 16px; border: 1px solid var(--card-border); margin-bottom: 14px;">
+        <div style="display: flex; align-items: center; gap: 12px; flex: 1; overflow: hidden;">
+          <div id="user-avatar-container" style="width: 42px; height: 42px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: bold; color: #fff; flex-shrink: 0;"></div>
+          <div style="flex: 1; overflow: hidden;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span id="user-display-name" style="font-weight: 800; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff;">...</span>
+              <span id="user-premium-badge" class="user-badge hidden" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; font-size: 9px; padding: 2px 6px; border-radius: 8px;">★ Premium</span>
             </div>
-            <div id="user-display-handle">@user</div>
-            <div id="user-tg-id">ID: -</div>
+            <div id="user-display-handle" style="font-size: 11px; color: var(--text-muted);">@user</div>
+            <div id="user-tg-id" style="font-size: 10px; color: var(--text-muted);">ID: -</div>
           </div>
         </div>
 
-        <div class="header-actions-group">
+        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
           <!-- Header Balance Display -->
-          <div class="balance-badge-box">
-            <small data-i18n="header_balance_lbl">الرصيد الحالي</small>
-            <span id="header-user-balance">$0.00</span>
+          <div style="background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 12px; padding: 4px 10px; text-align: right;">
+            <small style="font-size: 9px; color: var(--text-muted); display: block;" data-i18n="header_balance_lbl">الرصيد الحالي</small>
+            <span id="header-user-balance" style="font-size: 13px; font-weight: bold; color: var(--success, #22c55e);">$0.00</span>
           </div>
           <!-- Quick Language Toggle Button -->
-          <button id="btn-quick-lang-toggle" class="btn-small btn-lang-toggle">
+          <button id="btn-quick-lang-toggle" class="btn-small" style="padding: 3px 8px; font-size: 10px; background: rgba(255,255,255,0.08); border: 1px solid var(--card-border); border-radius: 8px; color: var(--text); cursor: pointer;">
             🌐 <span id="quick-lang-label">AR / EN</span>
           </button>
         </div>
-      </header>
+      </div>
 
       <!-- Tab 1: Dashboard / Shortener -->
-      <main id="tab-content-dashboard" class="tab-pane">
-        <div class="card card-accent">
-          <h4 class="card-title-accent" data-i18n="about_title">ℹ️ نبذة وشروط الاستخدام</h4>
-          <p class="card-description" data-i18n="about_desc">
+      <div id="tab-content-dashboard" class="tab-pane">
+        <div class="card" style="border-color: var(--accent); background: rgba(21, 29, 48, 0.95);">
+          <h4 style="margin: 0 0 6px 0; color: var(--accent); font-size: 14px;" data-i18n="about_title">ℹ️ نبذة وشروط الاستخدام</h4>
+          <p style="margin: 0; font-size: 12px; color: var(--text-muted); line-height: 1.6;" data-i18n="about_desc">
             هذا البوت مخصص لاختصار الروابط بأمان وإدارة الحملات الإعلانية بكفاءة عالية. باستخدامك لهذه المنصة، فإنك توافق على الالتزام بشروط الاستخدام وسياسة الجودة لدينا.
           </p>
         </div>
 
-        <div id="announcement-box" class="card card-warning d-none hidden">
-          <h4 id="anc-title"></h4>
-          <p id="anc-content" class="card-description"></p>
+        <div id="announcement-box" class="card hidden" style="border-color: var(--warning);">
+          <h4 id="anc-title" style="margin: 0 0 6px 0; color: var(--warning);"></h4>
+          <p id="anc-content" style="margin: 0; font-size: 12px; color: var(--text-muted); line-height: 1.6;"></p>
         </div>
 
         <div class="card">
-          <h3 class="card-title" data-i18n="create_link_title">اختصار رابط جديد</h3>
-          <div class="form-group">
-            <input type="text" id="link-title" data-i18n-ph="ph_link_title" placeholder="عنوان المعاينة (اختياري)">
-          </div>
-          <div class="form-group">
-            <input type="url" id="link-url" data-i18n-ph="ph_link_url" placeholder="الرابط الأصلي (https://...)">
-          </div>
+          <h3 style="font-size: 16px; margin-top:0;" data-i18n="create_link_title">اختصار رابط جديد</h3>
+          <input type="text" id="link-title" data-i18n-ph="ph_link_title" placeholder="عنوان المعاينة (اختياري)">
+          <input type="url" id="link-url" data-i18n-ph="ph_link_url" placeholder="الرابط الأصلي (https://...)">
           
-          <div class="form-group">
-            <label data-i18n="ad_type_select_lbl">اختر نوع عرض الإعلانات للرابط:</label>
-            <select id="link-ad-mode">
-              <option value="general" data-i18n="opt_mode_general">🌐 رابط عام (توجيه قياسي + بانرات)</option>
-              <option value="video" data-i18n="opt_mode_video">🎥 مشغل فيديو (تراكب إعلاني للفيديوهات)</option>
-              <option value="app" data-i18n="opt_mode_app">📱 صفحة تطبيق/لعبة (تحميل وتثبيت)</option>
-            </select>
-          </div>
+          <label style="font-size: 12px; color: var(--text-muted); display: block; margin-top: 10px; margin-bottom: 4px;" data-i18n="ad_type_select_lbl">اختر نوع عرض الإعلانات للرابط:</label>
+          <select id="link-ad-mode" style="margin-top: 0; margin-bottom: 12px;">
+            <option value="general" data-i18n="opt_mode_general">🌐 رابط عام (توجيه قياسي + بانرات)</option>
+            <option value="video" data-i18n="opt_mode_video">🎥 مشغل فيديو (تراكب إعلاني للفيديوهات)</option>
+            <option value="app" data-i18n="opt_mode_app">📱 صفحة تطبيق/لعبة (تحميل وتثبيت)</option>
+          </select>
 
-          <button id="btn-create-link" class="btn btn-primary">
+          <button id="btn-create-link">
             <span data-i18n="btn_shorten">اختصار الرابط الآن</span>
           </button>
         </div>
 
         <div class="card">
-          <div class="card-header-flex">
-            <h3 class="card-title" data-i18n="my_links_title">الروابط الخاصة بك</h3>
-            <input type="text" id="search-links-input" data-i18n-ph="search_placeholder" placeholder="بحث..." class="input-search">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h3 style="font-size: 16px; margin:0;" data-i18n="my_links_title">الروابط الخاصة بك</h3>
+            <input type="text" id="search-links-input" data-i18n-ph="search_placeholder" placeholder="بحث..." style="width: 110px; padding: 6px 10px; margin:0; font-size: 11px;">
           </div>
-          <div id="links-list" class="data-list-empty" data-i18n="loading">جاري التحميل...</div>
+          <div id="links-list" style="color: var(--text-muted); font-size: 12px;" data-i18n="loading">جاري التحميل...</div>
         </div>
-      </main>
+      </div>
 
       <!-- Tab 2: Wallet & Transactions -->
-      <section id="tab-content-wallet" class="tab-pane d-none hidden">
+      <div id="tab-content-wallet" class="tab-pane hidden">
         <div class="stats-grid">
           <div class="stat-box">
             <small data-i18n="pending_bal">رصيد معلق (Pending)</small>
-            <h3 id="pending-bal" class="text-warning">$0.00</h3>
+            <h3 id="pending-bal" style="color: var(--warning);">$0.00</h3>
           </div>
           <div class="stat-box">
             <small data-i18n="avail_bal">متاح للسحب (Available)</small>
-            <h3 id="avail-bal" class="text-success">$0.00</h3>
+            <h3 id="avail-bal" style="color: var(--success);">$0.00</h3>
           </div>
         </div>
 
-        <div class="wallet-actions-nav">
-          <button id="wallet-nav-deposit" class="wallet-action-btn active" data-i18n="tab_deposit">📥 الشحن والإيداع</button>
-          <button id="wallet-nav-withdraw" class="wallet-action-btn" data-i18n="tab_withdraw">📤 سحب الأرباح</button>
+        <div class="wallet-actions-nav" style="display: flex; gap: 8px; margin: 12px 0;">
+          <button id="wallet-nav-deposit" class="wallet-action-btn active" style="flex: 1; padding: 10px;" data-i18n="tab_deposit">📥 الشحن والإيداع</button>
+          <button id="wallet-nav-withdraw" class="wallet-action-btn" style="flex: 1; padding: 10px;" data-i18n="tab_withdraw">📤 سحب الأرباح</button>
         </div>
 
         <div id="wallet-view-deposit" class="card">
-          <div class="card-header-flex">
-            <h3 class="card-title" data-i18n="deposit_funds_title">شحن الرصيد (USDT)</h3>
-            <button id="btn-deposit-guide" class="btn-small btn-warning" data-i18n="btn_deposit_guide">❓ دليل الشحن</button>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h3 style="font-size: 16px; margin:0;" data-i18n="deposit_funds_title">شحن الرصيد (USDT)</h3>
+            <button id="btn-deposit-guide" class="btn-small btn-warning" style="width: auto;" data-i18n="btn_deposit_guide">❓ دليل الشحن</button>
           </div>
           
-          <div class="form-group">
-            <label data-i18n="select_network_label">اختر الشبكة:</label>
-            <select id="deposit-network">
-              <option value="" data-i18n="opt_select_network">-- اختر شبكة الدفع --</option>
-              <option value="TRC20">USDT (TRC20 Network)</option>
-              <option value="BEP20">USDT (BEP20 Network)</option>
-            </select>
-          </div>
+          <h4 style="font-size: 13px; margin: 12px 0 4px 0;" data-i18n="select_network_label">اختر الشبكة:</h4>
+          <select id="deposit-network">
+            <option value="" data-i18n="opt_select_network">-- اختر شبكة الدفع --</option>
+            <option value="TRC20">USDT (TRC20 Network)</option>
+            <option value="BEP20">USDT (BEP20 Network)</option>
+          </select>
 
-          <div id="card-addr-trc20" class="address-card d-none hidden">
-            <small data-i18n="lbl_trc20_addr">عنوان USDT - TRC20:</small>
-            <div class="address-row">
-              <span class="address-text" id="addr-trc20">TYqN8xM9KzL3pQ2vA5wR7jH4uE1sD8fX9k</span>
-              <button id="btn-copy-trc20" class="btn-small btn-primary" data-i18n="btn_copy">نسخ</button>
+          <div id="card-addr-trc20" class="address-card hidden">
+            <small style="color: var(--text-muted);" data-i18n="lbl_trc20_addr">عنوان USDT - TRC20:</small>
+            <div class="address-row" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px;">
+              <span class="address-text" id="addr-trc20" style="font-size: 11px; font-family: monospace; word-break: break-all;">TYqN8xM9KzL3pQ2vA5wR7jH4uE1sD8fX9k</span>
+              <button id="btn-copy-trc20" class="btn-small" style="width: auto; flex-shrink: 0;" data-i18n="btn_copy">نسخ</button>
             </div>
           </div>
 
-          <div id="card-addr-bep20" class="address-card d-none hidden">
-            <small data-i18n="lbl_bep20_addr">عنوان USDT - BEP20 (BSC):</small>
-            <div class="address-row">
-              <span class="address-text" id="addr-bep20">0x71C7656EC7ab88b098defB751B7401B5f6d8976F</span>
-              <button id="btn-copy-bep20" class="btn-small btn-primary" data-i18n="btn_copy">نسخ</button>
+          <div id="card-addr-bep20" class="address-card hidden">
+            <small style="color: var(--text-muted);" data-i18n="lbl_bep20_addr">عنوان USDT - BEP20 (BSC):</small>
+            <div class="address-row" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px;">
+              <span class="address-text" id="addr-bep20" style="font-size: 11px; font-family: monospace; word-break: break-all;">0x71C7656EC7ab88b098defB751B7401B5f6d8976F</span>
+              <button id="btn-copy-bep20" class="btn-small" style="width: auto; flex-shrink: 0;" data-i18n="btn_copy">نسخ</button>
             </div>
           </div>
 
-          <div class="form-group margin-top-md">
-            <label data-i18n="submit_proof_label">إرسال إثبات الشحن:</label>
-            <input type="number" id="deposit-amount" data-i18n-ph="ph_deposit_amount" placeholder="المبلغ ($)" min="1" step="any">
-          </div>
-          <div class="form-group">
-            <input type="text" id="deposit-txhash" data-i18n-ph="ph_deposit_txid" placeholder="رمز المعاملة TxID / Hash">
-          </div>
+          <h4 style="font-size: 13px; margin: 16px 0 6px 0;" data-i18n="submit_proof_label">إرسال إثبات الشحن:</h4>
+          <input type="number" id="deposit-amount" data-i18n-ph="ph_deposit_amount" placeholder="المبلغ ($)" min="1" step="any">
+          <input type="text" id="deposit-txhash" data-i18n-ph="ph_deposit_txid" placeholder="رمز المعاملة TxID / Hash">
           
-          <button id="btn-request-deposit" class="btn btn-success">
+          <button id="btn-request-deposit" class="btn-success" style="margin-top: 14px;">
             <span data-i18n="btn_submit_deposit">تأكيد وإرسال طلب الشحن</span>
           </button>
         </div>
 
-        <div id="wallet-view-withdraw" class="card d-none hidden">
-          <h3 class="card-title" data-i18n="withdraw_request_title">طلب سحب الأرباح</h3>
+        <div id="wallet-view-withdraw" class="card hidden">
+          <h3 style="font-size: 16px; margin-top:0;" data-i18n="withdraw_request_title">طلب سحب الأرباح</h3>
           
-          <div class="form-group">
-            <label data-i18n="wallet_addr_label">عنوان محفظة السحب (USDT TRC20)</label>
-            <div class="input-with-button">
-              <input type="text" id="default-wallet" data-i18n-ph="ph_wallet_addr" placeholder="أدخل عنوان المحفظة" readonly>
-              <button class="btn-small btn-warning" id="edit-wallet-btn" data-i18n="btn_edit">تعديل</button>
+          <div style="margin-bottom: 12px;">
+            <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;" data-i18n="wallet_addr_label">عنوان محفظة السحب (USDT TRC20)</label>
+            <div style="display: flex; gap: 6px;">
+              <input type="text" id="default-wallet" data-i18n-ph="ph_wallet_addr" placeholder="أدخل عنوان المحفظة" readonly style="margin-top: 0;">
+              <button class="btn-small btn-warning" id="edit-wallet-btn" style="margin-top: 0; width: auto;" data-i18n="btn_edit">تعديل</button>
             </div>
-            <button id="save-wallet-btn" class="btn-small btn-primary d-none hidden width-full margin-top-sm" data-i18n="btn_save_wallet">حفظ العنوان الجديد</button>
+            <button id="save-wallet-btn" class="hidden btn-small" style="margin-top: 8px; width: 100%;" data-i18n="btn_save_wallet">حفظ العنوان الجديد</button>
           </div>
 
-          <div class="form-group">
-            <input type="number" id="withdraw-amount" data-i18n-ph="ph_withdraw_amount" placeholder="المبلغ (الحد الأدنى 30$)" min="30" step="any">
-          </div>
+          <input type="number" id="withdraw-amount" data-i18n-ph="ph_withdraw_amount" placeholder="المبلغ (الحد الأدنى 30$)" min="30" step="any">
           
-          <div class="fee-breakdown d-none hidden" id="withdraw-fee-box">
+          <div class="fee-breakdown hidden" id="withdraw-fee-box" style="background: rgba(15, 23, 42, 0.6); padding: 10px; border-radius: 8px; margin-top: 8px; font-size: 12px; display: flex; justify-content: space-between;">
             <span><span data-i18n="lbl_amount">المبلغ</span>: <b id="calc-req">$0.00</b></span>
-            <span><span data-i18n="lbl_fee">الرسوم ($3)</span>: <b id="calc-fee" class="text-danger">$3.00</b></span>
-            <span><span data-i18n="lbl_net">الصافي</span>: <b id="calc-net" class="text-success">$0.00</b></span>
+            <span><span data-i18n="lbl_fee">الرسوم ($3)</span>: <b id="calc-fee" style="color: var(--danger);">$3.00</b></span>
+            <span><span data-i18n="lbl_net">الصافي</span>: <b id="calc-net" style="color: var(--success);">$0.00</b></span>
           </div>
 
-          <button id="btn-request-withdraw" class="btn btn-primary margin-top-md">
+          <button id="btn-request-withdraw" style="margin-top: 16px;">
             <span data-i18n="btn_submit_withdraw">تقديم طلب السحب</span>
           </button>
 
-          <h4 class="section-divider-title" data-i18n="withdraw_history">سجل طلبات السحب</h4>
-          <div id="withdraws-list" class="data-list-empty" data-i18n="loading">جاري التحميل...</div>
+          <h4 style="font-size: 13px; margin: 20px 0 10px 0; border-top: 1px solid var(--card-border); padding-top: 14px;" data-i18n="withdraw_history">سجل طلبات السحب</h4>
+          <div id="withdraws-list" style="font-size: 12px; color: var(--text-muted);" data-i18n="loading">جاري التحميل...</div>
         </div>
-      </section>
+      </div>
 
       <!-- Tab 3: Self-Serve Ads -->
-      <section id="tab-content-ads" class="tab-pane d-none hidden">
+      <div id="tab-content-ads" class="tab-pane hidden">
         <div class="card">
-          <h3 class="card-title" data-i18n="create_ad_title">إنشاء حملة إعلانية جديدة</h3>
-          <p class="card-subtitle" data-i18n="ad_rate_desc">تكلفة الإعلان: $1.50 لكل 1,000 مشاهدة حقيقية (CPM)</p>
+          <h3 style="font-size: 16px; margin-top:0;" data-i18n="create_ad_title">إنشاء حملة إعلانية جديدة</h3>
+          <p style="font-size: 11px; color: var(--text-muted); margin-top:-4px;" data-i18n="ad_rate_desc">تكلفة الإعلان: $1.50 لكل 1,000 مشاهدة حقيقية (CPM)</p>
 
-          <div class="form-group">
-            <label data-i18n="ad_type_lbl">نوع الإعلان:</label>
-            <select id="ad-type">
-              <option value="image" data-i18n="opt_ad_type_image">🖼️ إعلان صورة (Image Banner)</option>
-              <option value="video" data-i18n="opt_ad_type_video">🎥 إعلان فيديو (Video Ad)</option>
-              <option value="app" data-i18n="opt_ad_type_app">📱 إعلان تطبيق (App Install)</option>
-              <option value="game" data-i18n="opt_ad_type_game">🎮 إعلان لعبة (HTML5 Game Embed)</option>
-            </select>
+          <label style="font-size: 12px; color: var(--text-muted); display: block; margin-top: 10px; margin-bottom: 4px;">نوع الإعلان:</label>
+          <select id="ad-type" style="margin-top: 0;">
+            <option value="image">🖼️ إعلان صورة (Image Banner)</option>
+            <option value="video">🎥 إعلان فيديو (Video Ad)</option>
+            <option value="app">📱 إعلان تطبيق (App Install)</option>
+            <option value="game">🎮 إعلان لعبة (HTML5 Game Embed)</option>
+          </select>
+
+          <input type="text" id="ad-title" data-i18n-ph="ph_ad_title" placeholder="عنوان الإعلان">
+          <input type="url" id="ad-target-url" data-i18n-ph="ph_ad_target_url" placeholder="رابط التوجيه الأساسي (https://...)">
+
+          <div id="container-media-url">
+            <input type="url" id="ad-media-url" placeholder="رابط الصورة أو الفيديو (Direct Media URL)">
           </div>
 
-          <div class="form-group">
-            <input type="text" id="ad-title" data-i18n-ph="ph_ad_title" placeholder="عنوان الإعلان">
-          </div>
-          <div class="form-group">
-            <input type="url" id="ad-target-url" data-i18n-ph="ph_ad_target_url" placeholder="رابط التوجيه الأساسي (https://...)">
+          <div id="container-app-url" class="hidden">
+            <input type="url" id="ad-app-download-url" placeholder="رابط التحميل المباشر للتطبيق (APK / App Store)">
           </div>
 
-          <div id="container-media-url" class="form-group">
-            <input type="url" id="ad-media-url" data-i18n-ph="ph_ad_media_url" placeholder="رابط الصورة أو الفيديو (Direct Media URL)">
+          <div id="container-game-url" class="hidden">
+            <input type="url" id="ad-game-embed-url" placeholder="رابط تضمين اللعبة (Game iFrame / Embed URL)">
           </div>
 
-          <div id="container-app-url" class="form-group d-none hidden">
-            <input type="url" id="ad-app-download-url" data-i18n-ph="ph_ad_app_url" placeholder="رابط التحميل المباشر للتطبيق (APK / App Store)">
-          </div>
+          <label style="font-size: 12px; color: var(--text-muted); display: block; margin-top: 10px; margin-bottom: 4px;">تصنيف المحتوى المستهدف:</label>
+          <select id="ad-category" style="margin-top: 0;">
+            <option value="all">الكل (All Categories)</option>
+            <option value="video">مقاطع فيديو (Videos)</option>
+            <option value="image">صور ومعارض (Images)</option>
+            <option value="app_game">تطبيقات وألعاب (Apps & Games)</option>
+            <option value="file">ملفات وتحميلات (Files)</option>
+          </select>
 
-          <div id="container-game-url" class="form-group d-none hidden">
-            <input type="url" id="ad-game-embed-url" data-i18n-ph="ph_ad_game_url" placeholder="رابط تضمين اللعبة (Game iFrame / Embed URL)">
-          </div>
-
-          <div class="form-group">
-            <label data-i18n="ad_category_lbl">تصنيف المحتوى المستهدف:</label>
-            <select id="ad-category">
-              <option value="all" data-i18n="opt_cat_all">الكل (All Categories)</option>
-              <option value="video" data-i18n="opt_cat_video">مقاطع فيديو (Videos)</option>
-              <option value="image" data-i18n="opt_cat_image">صور ومعارض (Images)</option>
-              <option value="app_game" data-i18n="opt_cat_app">تطبيقات وألعاب (Apps & Games)</option>
-              <option value="file" data-i18n="opt_cat_file">ملفات وتحميلات (Files)</option>
-            </select>
-          </div>
-
-          <div class="targeting-box">
-            <h4 class="targeting-title" data-i18n="targeting_title">🎯 خيارات الاستهداف المتقدم:</h4>
+          <div style="background: rgba(15, 23, 42, 0.4); border: 1px solid var(--card-border); padding: 12px; border-radius: 10px; margin: 12px 0;">
+            <h4 style="margin: 0 0 8px 0; font-size: 13px; color: var(--accent);">🎯 خيارات الاستهداف المتقدم:</h4>
             
-            <label data-i18n="target_devices_lbl">الأجهزة المستهدفة:</label>
-            <div class="checkbox-group">
+            <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 6px;">الأجهزة المستهدفة:</label>
+            <div style="display: flex; gap: 12px; font-size: 12px; color: var(--text); margin-bottom: 10px;">
               <label><input type="checkbox" id="device-android" checked> Android</label>
               <label><input type="checkbox" id="device-ios" checked> iOS</label>
               <label><input type="checkbox" id="device-desktop" checked> Desktop</label>
             </div>
 
-            <label data-i18n="target_countries_lbl">الدول المستهدفة (اتركها فارغة للكل، أو أدخل رمزي الدول مثل: US, SA, EG):</label>
-            <input type="text" id="ad-countries" data-i18n-ph="ph_ad_countries" placeholder="مثال: SA, AE, EG, US (أو ALL للجميع)">
+            <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">الدول المستهدفة (اتركها فارغة للكل، أو أدخل رمزي الدول مثل: US, SA, EG):</label>
+            <input type="text" id="ad-countries" placeholder="مثال: SA, AE, EG, US (أو ALL للجميع)" style="margin-top: 0;">
           </div>
 
-          <div class="form-row-grid">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
             <input type="number" id="ad-budget" data-i18n-ph="ph_ad_budget" placeholder="الميزانية الإجمالية ($)" min="5" step="any">
-            <input type="number" id="ad-daily-budget" data-i18n-ph="ph_ad_daily_budget" placeholder="الميزانية اليومية (اختياري)" min="0" step="any">
+            <input type="number" id="ad-daily-budget" placeholder="الميزانية اليومية (اختياري)" min="0" step="any">
           </div>
           
-          <button id="btn-create-ad" class="btn btn-primary margin-top-sm">
+          <button id="btn-create-ad" style="margin-top: 10px;">
             <span data-i18n="btn_launch_ad">إطلاق الحملة الإعلانية</span>
           </button>
         </div>
 
         <div class="card">
-          <h3 class="card-title" data-i18n="my_ads_title">حملاتك الإعلانية</h3>
-          <div id="ads-list" class="data-list-empty" data-i18n="loading">جاري التحميل...</div>
+          <h3 style="font-size: 16px; margin-top:0;" data-i18n="my_ads_title">حملاتك الإعلانية</h3>
+          <div id="ads-list" style="color: var(--text-muted); font-size: 12px;" data-i18n="loading">جاري التحميل...</div>
         </div>
-      </section>
+      </div>
 
       <!-- Tab 4: Referral System -->
-      <section id="tab-content-referral" class="tab-pane d-none hidden">
+      <div id="tab-content-referral" class="tab-pane hidden">
         <div class="card">
-          <h3 class="card-title" data-i18n="ref_title">نظام الإحالة (10%)</h3>
-          <p class="card-description" data-i18n="ref_desc">ادعُ أصدقاءك واحصل على 10% من إجمالي الأرباح التي يحققونها فورياً.</p>
-          <div class="form-group margin-top-sm">
-            <input type="text" id="ref-link" readonly>
-          </div>
-          <button id="btn-share-ref" class="btn btn-success margin-top-sm">
+          <h3 style="margin-top:0;" data-i18n="ref_title">نظام الإحالة (10%)</h3>
+          <p style="font-size: 12px; color: var(--text-muted); line-height: 1.6;" data-i18n="ref_desc">ادعُ أصدقاءك واحصل على 10% من إجمالي الأرباح التي يحققونها فورياً.</p>
+          <input type="text" id="ref-link" readonly>
+          <button id="btn-share-ref" class="btn-success" style="margin-top: 12px;">
             <span data-i18n="btn_share_ref">مشاركة رابط الإحالة عبر تليجرام</span>
           </button>
-          
-          <div class="stats-grid margin-top-md">
+          <div class="stats-grid" style="margin-top: 16px;">
             <div class="stat-box">
               <small data-i18n="total_ref_count">عدد الإحالات</small>
-              <h3 id="ref-count" class="text-accent">0</h3>
+              <h3 id="ref-count" style="color:var(--accent);">0</h3>
             </div>
             <div class="stat-box">
               <small data-i18n="total_ref_earnings">إجمالي أرباح الإحالات</small>
-              <h3 id="ref-earnings" class="text-success">$0.00</h3>
+              <h3 id="ref-earnings" style="color:var(--success);">$0.00</h3>
             </div>
           </div>
         </div>
 
         <div class="card">
-          <h3 class="card-title" data-i18n="ref_list_title">سجل الأشخاص المنضمين عبرك</h3>
-          <div id="ref-list" class="data-list-empty" data-i18n="loading">جاري التحميل...</div>
+          <h3 style="font-size: 16px; margin-top:0;" data-i18n="ref_list_title">سجل الأشخاص المنضمين عبرك</h3>
+          <div id="ref-list" style="color: var(--text-muted); font-size: 12px;" data-i18n="loading">جاري التحميل...</div>
         </div>
-      </section>
+      </div>
 
       <!-- Tab 5: Settings & FAQ -->
-      <section id="tab-content-settings" class="tab-pane d-none hidden">
+      <div id="tab-content-settings" class="tab-pane hidden">
         <div class="card">
-          <h3 class="card-title" data-i18n="lang_settings_title">تغيير اللغة / Language</h3>
-          <div class="form-group">
-            <select id="language-select">
-              <option value="ar">العربية (Arabic)</option>
-              <option value="en">English (الإنجليزية)</option>
-            </select>
-          </div>
+          <h3 style="margin-top:0; font-size: 16px;" data-i18n="lang_settings_title">تغيير اللغة / Language</h3>
+          <select id="language-select">
+            <option value="ar">العربية (Arabic)</option>
+            <option value="en">English (الإنجليزية)</option>
+          </select>
         </div>
 
         <div class="card">
-          <h3 class="card-title" data-i18n="faq_title">الأسئلة الشائعة والدعم</h3>
-          <details class="faq-accordion">
-            <summary data-i18n="faq_q1">كيف يتم احتساب الأرباح؟</summary>
-            <p data-i18n="faq_a1">تعتمد الأرباح على إيرادات الإعلانات وتوزع نسبياً حسب الزيارات الحقيقية المعتمدة.</p>
+          <h3 style="margin-top:0; font-size: 16px;" data-i18n="faq_title">الأسئلة الشائعة والدعم</h3>
+          <details style="margin-bottom: 8px;">
+            <summary style="cursor: pointer; font-weight: bold; font-size: 13px;" data-i18n="faq_q1">كيف يتم احتساب الأرباح؟</summary>
+            <p style="color: var(--text-muted); font-size: 12px; margin-top: 8px;" data-i18n="faq_a1">تعتمد الأرباح على إيرادات الإعلانات وتوزع نسبياً حسب الزيارات الحقيقية المعتمدة.</p>
           </details>
-          <details class="faq-accordion">
-            <summary data-i18n="faq_q2">ما هي فترة الرصيد المعلق (يوم واحد)؟</summary>
-            <p data-i18n="faq_a2">هي فترة أمان لمراجعة مصادر الحركة والتأكد من عدم وجود نقرات وهمية قبل تحويل الأرباح للرصيد المتاح خلال 24 ساعة.</p>
+          <details style="margin-bottom: 8px;">
+            <summary style="cursor: pointer; font-weight: bold; font-size: 13px;" data-i18n="faq_q2">ما هي فترة الرصيد المعلق (يوم واحد)؟</summary>
+            <p style="color: var(--text-muted); font-size: 12px; margin-top: 8px;" data-i18n="faq_a2">هي فترة أمان لمراجعة مصادر الحركة والتأكد من عدم وجود نقرات وهمية قبل تحويل الأرباح للرصيد المتاح خلال 24 ساعة.</p>
           </details>
           
-          <div class="support-card-box">
+          <div style="margin-top: 18px; padding: 14px; background: #0f172a; border-radius: 14px; border: 1px solid var(--card-border); font-size: 12px; text-align: center;">
             <span data-i18n="support_text">للتواصل والدعم الفني عبر التليجرام:</span>
-            <div class="support-buttons-grid">
-              <a id="support-bot-btn" href="https://t.me/Ads_telegabot" target="_blank" rel="noopener">
-                <button class="btn-small btn-primary" data-i18n="support_btn_bot">🤖 البوت</button>
+            <div style="display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;">
+              <a id="support-bot-btn" href="https://t.me/Ads_telegabot" target="_blank" rel="noopener" style="flex: 1; text-decoration: none;">
+                <button class="btn-small" style="width: 100%; background: var(--accent);" data-i18n="support_btn_bot">🤖 البوت</button>
               </a>
-              <a id="support-channel-btn" href="https://t.me/ttelega_ads" target="_blank" rel="noopener">
-                <button class="btn-small btn-success" data-i18n="support_btn_channel">📢 القناة</button>
+              <a id="support-channel-btn" href="https://t.me/ttelega_ads" target="_blank" rel="noopener" style="flex: 1; text-decoration: none;">
+                <button class="btn-small btn-success" style="width: 100%;" data-i18n="support_btn_channel">📢 القناة</button>
               </a>
-              <a id="support-contact-btn" href="https://t.me/Te_AdsNs_bot" target="_blank" rel="noopener">
-                <button class="btn-small btn-warning" data-i18n="support_btn_chat">🎧 الدعم</button>
+              <a id="support-contact-btn" href="https://t.me/Te_AdsNs_bot" target="_blank" rel="noopener" style="flex: 1; text-decoration: none;">
+                <button class="btn-small btn-warning" style="width: 100%;" data-i18n="support_btn_chat">🎧 الدعم</button>
               </a>
             </div>
           </div>
         </div>
-      </section>
+      </div>
 
       <!-- Tab 6: Admin Dashboard Panel -->
-      <section id="tab-content-admin" class="tab-pane d-none hidden">
-        <div class="stats-grid margin-bottom-md">
-          <div class="stat-box">
-            <small data-i18n="admin_total_users">إجمالي المستخدمين</small>
-            <h3 id="admin-total-users">0</h3>
-          </div>
-          <div class="stat-box">
-            <small data-i18n="admin_total_pending">إجمالي الأرصدة المعلقة</small>
-            <h3 id="admin-total-pending" class="text-warning">$0.00</h3>
-          </div>
+      <div id="tab-content-admin" class="tab-pane hidden">
+        <div class="stats-grid" style="margin-bottom: 16px;">
+          <div class="stat-box"><small data-i18n="admin_total_users">إجمالي المستخدمين</small><h3 id="admin-total-users">0</h3></div>
+          <div class="stat-box"><small data-i18n="admin_total_pending">إجمالي الأرصدة المعلقة</small><h3 id="admin-total-pending" style="color: var(--warning);">$0.00</h3></div>
         </div>
 
         <div class="card">
-          <h4 class="card-title" data-i18n="admin_pending_deposits">طلبات الإيداع المعلقة</h4>
-          <div id="admin-deposits-list" class="data-list-empty" data-i18n="loading">جاري التحميل...</div>
+          <h4 style="margin-top:0;" data-i18n="admin_pending_deposits">طلبات الإيداع المعلقة</h4>
+          <div id="admin-deposits-list" style="font-size: 12px;" data-i18n="loading">جاري التحميل...</div>
         </div>
 
         <div class="card">
-          <h4 class="card-title" data-i18n="admin_pending_withdraws">طلبات السحب المعلقة</h4>
-          <div id="admin-withdraws-list" class="data-list-empty" data-i18n="loading">جاري التحميل...</div>
+          <h4 style="margin-top:0;" data-i18n="admin_pending_withdraws">طلبات السحب المعلقة</h4>
+          <div id="admin-withdraws-list" style="font-size: 12px;" data-i18n="loading">جاري التحميل...</div>
         </div>
         
         <div class="card">
-          <h4 class="card-title" data-i18n="admin_users_mgmt">إدارة مستخدمي النظام</h4>
-          <div id="admin-users-list" class="data-list-empty" data-i18n="loading">جاري التحميل...</div>
+          <h4 style="margin-top:0;" data-i18n="admin_users_mgmt">إدارة مستخدمي النظام</h4>
+          <div id="admin-users-list" style="font-size: 12px;" data-i18n="loading">جاري التحميل...</div>
         </div>
 
         <div class="card">
-          <h4 class="card-title" data-i18n="admin_links_mgmt">إدارة روابط المنصة</h4>
-          <div id="admin-links-list" class="data-list-empty" data-i18n="loading">جاري التحميل...</div>
+          <h4 style="margin-top:0;" data-i18n="admin_links_mgmt">إدارة روابط المنصة</h4>
+          <div id="admin-links-list" style="font-size: 12px;" data-i18n="loading">جاري التحميل...</div>
         </div>
 
         <div class="card">
-          <h4 class="card-title" data-i18n="admin_ads_mgmt">إدارة إعلانات المنصة</h4>
-          <div id="admin-ads-list" class="data-list-empty" data-i18n="loading">جاري التحميل...</div>
+          <h4 style="margin-top:0;" data-i18n="admin_ads_mgmt">إدارة إعلانات المنصة</h4>
+          <div id="admin-ads-list" style="font-size: 12px;" data-i18n="loading">جاري التحميل...</div>
         </div>
-      </section>
+      </div>
 
       <!-- Navigation Dock Footer -->
       <nav class="tg-nav-dock">
@@ -563,7 +518,7 @@
           <span data-i18n="nav_settings">الإعدادات</span>
         </button>
 
-        <button class="nav-btn d-none hidden text-warning" id="tab-btn-admin">
+        <button class="nav-btn" id="tab-btn-admin" style="color: var(--warning); display: none;">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-5.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
           <span data-i18n="nav_admin">الإدارة</span>
         </button>
