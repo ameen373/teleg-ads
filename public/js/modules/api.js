@@ -1,69 +1,38 @@
-// public/js/modules/api.js - API Integration Layer
-
 const API_BASE = (typeof window !== 'undefined' && window.location)
   ? (window.location.protocol.startsWith('file') ? 'http://localhost:3000' : window.location.origin)
   : 'http://localhost:3000';
 
 if (typeof window !== 'undefined') {
   window.API_BASE = API_BASE;
-  let storedToken = localStorage.getItem('authToken');
-  window.authToken = (storedToken && storedToken !== 'null' && storedToken !== 'undefined') ? storedToken : null;
-  
-  let storedId = localStorage.getItem('telegramId');
-  window.currentUserTelegramId = (storedId && storedId !== 'null' && storedId !== 'undefined') ? storedId : null;
-  
+  window.authToken = localStorage.getItem('authToken');
+  window.currentUserTelegramId = localStorage.getItem('telegramId') || null;
   window.isUserAdmin = false;
 }
 
 const API = {
-  /**
-   * استخراج معرّف التليجرام بشكل آمن ونظيف وتحديثه إذا كان مفقوداً
-   */
-  getCleanTelegramId: function() {
-    if (typeof window === 'undefined') return null;
-    
-    let id = window.currentUserTelegramId || localStorage.getItem('telegramId');
-    if (id === 'null' || id === 'undefined' || !id) {
-      const tg = window.Telegram?.WebApp;
-      if (tg?.initDataUnsafe?.user?.id) {
-        id = String(tg.initDataUnsafe.user.id);
-        window.currentUserTelegramId = id;
-        localStorage.setItem('telegramId', id);
-      } else {
-        id = null;
-      }
-    }
-    return id;
-  },
-
-  /**
-   * الدالة الرئيسية لجميع طلبات الشبكة (GET, POST, PUT, DELETE)
-   */
-  request: async function(endpoint, options = {}) {
-    options.method = (options.method || 'GET').toUpperCase();
+  safeFetch: async function(endpoint, options = {}) {
     options.headers = options.headers || {};
 
-    let currentUserTelegramId = this.getCleanTelegramId();
-    
+    let currentUserTelegramId = (typeof window !== 'undefined') ? window.currentUserTelegramId : null;
     let authToken = (typeof window !== 'undefined') ? window.authToken : null;
-    if (authToken === 'null' || authToken === 'undefined') {
-      authToken = null;
-    }
 
     const tg = (typeof window !== 'undefined' && window.Telegram) ? window.Telegram.WebApp : null;
-    const initDataStr = tg?.initData || '';
-
-    // تحديد أولوية التوثيق: استخدام authToken إن وجد، وإلا استخدام initDataStr
-    if (authToken) {
-      options.headers['Authorization'] = `Bearer ${authToken}`;
-    } else if (initDataStr) {
-      options.headers['Authorization'] = `Bearer ${initDataStr}`;
+    if (!currentUserTelegramId && tg?.initDataUnsafe?.user?.id) {
+      currentUserTelegramId = String(tg.initDataUnsafe.user.id);
+      if (typeof window !== 'undefined') {
+        window.currentUserTelegramId = currentUserTelegramId;
+        localStorage.setItem('telegramId', currentUserTelegramId);
+      }
     }
 
-    // إرسال بيانات التليجرام دائماً في ترويسات مستقلة للتحقق
+    const initDataStr = tg?.initData || '';
+
     if (initDataStr) {
+      options.headers['Authorization'] = `Bearer ${initDataStr}`;
       options.headers['x-telegram-init-data'] = initDataStr;
       options.headers['telegram-init-data'] = initDataStr;
+    } else if (authToken) {
+      options.headers['Authorization'] = `Bearer ${authToken}`;
     }
 
     if (currentUserTelegramId) {
@@ -73,8 +42,7 @@ const API = {
       options.headers['user-id'] = currentUserTelegramId;
     }
 
-    // تجهيز جسم الطلب وتحديد نوع المحتوى JSON
-    if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
+    if (options.body && typeof options.body === 'object') {
       if (currentUserTelegramId && !options.body.userId && !options.body.telegramId) {
         options.body.userId = currentUserTelegramId;
         options.body.telegramId = currentUserTelegramId;
@@ -85,7 +53,7 @@ const API = {
       options.body = JSON.stringify(options.body);
     }
 
-    if (options.body && !options.headers['Content-Type'] && !(options.body instanceof FormData)) {
+    if (options.body && !options.headers['Content-Type']) {
       options.headers['Content-Type'] = 'application/json; charset=utf-8';
     }
 
@@ -99,65 +67,32 @@ const API = {
 
     try {
       const response = await fetch(targetUrl, options);
-
-      // معالجة استجابات الخطأ من السيرفر
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        const status = response.status;
-        let errorMessage = errorData.message || errorData.error;
-
-        const lang = (typeof window !== 'undefined' && window.UI && window.UI.currentLang) 
-          ? window.UI.currentLang 
-          : (typeof window !== 'undefined' ? (localStorage.getItem('appLang') || 'ar') : 'ar');
-
-        if (!errorMessage) {
-          if (status === 401) {
-            errorMessage = lang === 'ar' ? 'جلسة الاتصال انتهت، يرجى إعادة الفتح' : 'Unauthorized. Please re-open the app.';
-          } else if (status === 403) {
-            errorMessage = lang === 'ar' ? 'غير مصرح لك بإجراء هذه العملية' : 'Access forbidden.';
-          } else if (status >= 500) {
-            errorMessage = lang === 'ar' ? 'حدث خطأ في السيرفر الداخلي' : 'Internal server error.';
-          } else {
-            errorMessage = `HTTP error! status: ${status}`;
-          }
-        }
-
-        throw new Error(errorMessage);
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
       }
-
       return response;
     } catch (err) {
-      console.error(`[API Error] ${options.method} ${cleanEndpoint}:`, err);
-      if (typeof window !== 'undefined' && window.UI && typeof window.UI.showToast === 'function') {
-        window.UI.showToast(err.message || 'تعذر الاتصال بالسيرفر');
+      console.error("API Fetch Error:", err);
+      if (typeof window !== 'undefined') {
+        const lang = (window.UI && window.UI.currentLang) 
+          ? window.UI.currentLang 
+          : (localStorage.getItem('appLang') || 'ar');
+        
+        const msg = (err.message && !err.message.includes('HTTP error')) 
+          ? err.message 
+          : (lang === 'ar' ? "تعذر الاتصال بالسيرفر، يرجى التحقق من الاتصال بالإنترنت" : "Server connection error, please check network");
+
+        if (window.UI && typeof window.UI.showToast === 'function') {
+          window.UI.showToast(msg);
+        } else {
+          console.warn("API Error Message:", msg);
+        }
       }
       return null;
     }
   },
 
-  // دالة المساعدة safeFetch لضمان التوافق مع الشفرات القديمة
-  safeFetch: async function(endpoint, options = {}) {
-    return await this.request(endpoint, options);
-  },
-
-  // مختصرات الطلبات المباشرة
-  get: async function(endpoint, headers = {}) {
-    return await this.request(endpoint, { method: 'GET', headers });
-  },
-
-  post: async function(endpoint, body = {}, headers = {}) {
-    return await this.request(endpoint, { method: 'POST', body, headers });
-  },
-
-  put: async function(endpoint, body = {}, headers = {}) {
-    return await this.request(endpoint, { method: 'PUT', body, headers });
-  },
-
-  delete: async function(endpoint, body = {}, headers = {}) {
-    return await this.request(endpoint, { method: 'DELETE', body, headers });
-  },
-
-  // --- Auth API ---
   authLogin: async function() {
     const tg = (typeof window !== 'undefined' && window.Telegram) ? window.Telegram.WebApp : null;
     const startParam = tg?.initDataUnsafe?.start_param || null;
@@ -165,17 +100,20 @@ const API = {
     const initDataStr = tg?.initData || '';
 
     try {
-      const currentId = this.getCleanTelegramId();
-      const res = await this.post('/api/auth/login', {
-        userId: currentId,
-        telegramId: currentId,
-        referrerId: startParam,
-        firstName: u.first_name || '',
-        lastName: u.last_name || '',
-        username: u.username || '',
-        photoUrl: u.photo_url || '',
-        isPremium: !!u.is_premium,
-        initData: initDataStr
+      const currentId = (typeof window !== 'undefined') ? window.currentUserTelegramId : null;
+      const res = await this.safeFetch('/api/auth/login', {
+        method: 'POST',
+        body: {
+          userId: currentId,
+          telegramId: currentId,
+          referrerId: startParam,
+          firstName: u.first_name || '',
+          lastName: u.last_name || '',
+          username: u.username || '',
+          photoUrl: u.photo_url || '',
+          isPremium: !!u.is_premium,
+          initData: initDataStr
+        }
       });
 
       if (!res) return false;
@@ -235,136 +173,156 @@ const API = {
     return false;
   },
 
-  // --- Dashboard & Links API ---
   getDashboardData: async function() {
-    const res = await this.get('/api/user/dashboard');
+    const res = await this.safeFetch('/api/user/dashboard', { method: 'GET' });
     if (!res) return null;
     return await res.json().catch(() => null);
   },
 
   getUserLinks: async function(search = '') {
-    const res = await this.get(`/api/links?search=${encodeURIComponent(search)}`);
+    const res = await this.safeFetch(`/api/links?search=${encodeURIComponent(search)}`, { method: 'GET' });
     if (!res) return [];
     const data = await res.json().catch(() => []);
     return Array.isArray(data) ? data : (data.links || []);
   },
 
   createShortLink: async function(title, originalUrl) {
-    const res = await this.post('/api/links/shorten', { title, originalUrl });
+    const res = await this.safeFetch('/api/links/shorten', {
+      method: 'POST',
+      body: { title, originalUrl }
+    });
     if (!res) return null;
     return await res.json().catch(() => null);
   },
 
   deleteLink: async function(linkId) {
-    const res = await this.delete(`/api/links/${linkId}`);
+    const res = await this.safeFetch(`/api/links/${linkId}`, { method: 'DELETE' });
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-    return !!data.success;
+    return data.success;
   },
 
-  // --- Wallet API ---
   requestDeposit: async function(network, amount, txHash) {
-    const res = await this.post('/api/wallet/deposit', { network, amount, txHash });
+    const res = await this.safeFetch('/api/wallet/deposit', {
+      method: 'POST',
+      body: { network, amount, txHash }
+    });
     if (!res) return null;
     return await res.json().catch(() => null);
   },
 
   requestWithdrawal: async function(amount, walletAddress) {
-    const res = await this.post('/api/wallet/withdraw', { amount, walletAddress });
+    const res = await this.safeFetch('/api/wallet/withdraw', {
+      method: 'POST',
+      body: { amount, walletAddress }
+    });
     if (!res) return null;
     return await res.json().catch(() => null);
   },
 
   updateWalletAddress: async function(walletAddress) {
-    const res = await this.post('/api/wallet/update-address', { walletAddress });
+    const res = await this.safeFetch('/api/wallet/update-address', {
+      method: 'POST',
+      body: { walletAddress }
+    });
     if (!res) return null;
     return await res.json().catch(() => null);
   },
 
   getWithdrawalsHistory: async function() {
-    const res = await this.get('/api/wallet/withdrawals');
+    const res = await this.safeFetch('/api/wallet/withdrawals', { method: 'GET' });
     if (!res) return [];
     const data = await res.json().catch(() => []);
     return Array.isArray(data) ? data : (data.withdrawals || []);
   },
 
-  // --- Ads API ---
   getUserAds: async function() {
-    const res = await this.get('/api/ads/my-ads');
+    const res = await this.safeFetch('/api/ads/my-ads', { method: 'GET' });
     if (!res) return [];
     const data = await res.json().catch(() => []);
     return Array.isArray(data) ? data : (data.ads || []);
   },
 
   createAdCampaign: async function(adData) {
-    const res = await this.post('/api/ads/create', adData);
+    const res = await this.safeFetch('/api/ads/create', {
+      method: 'POST',
+      body: adData
+    });
     if (!res) return null;
     return await res.json().catch(() => null);
   },
 
   toggleAdStatus: async function(adId, status) {
-    const res = await this.post('/api/ads/toggle', { adId, status });
+    const res = await this.safeFetch(`/api/ads/toggle`, {
+      method: 'POST',
+      body: { adId, status }
+    });
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-    return !!data.success;
+    return data.success;
   },
 
   deleteAd: async function(adId) {
-    const res = await this.delete(`/api/ads/${adId}`);
+    const res = await this.safeFetch(`/api/ads/${adId}`, { method: 'DELETE' });
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-    return !!data.success;
+    return data.success;
   },
 
-  // --- Referrals & Bridge API ---
   getUserReferrals: async function() {
-    const res = await this.get('/api/user/referrals');
+    const res = await this.safeFetch('/api/user/referrals', { method: 'GET' });
     if (!res) return null;
     return await res.json().catch(() => null);
   },
 
   getBridgeLinkInfo: async function(code) {
-    const res = await this.get(`/api/bridge/${code}`);
+    const res = await this.safeFetch(`/api/bridge/${code}`, { method: 'GET' });
     if (!res) return null;
     return await res.json().catch(() => null);
   },
 
   recordBridgeImpression: async function(code, token) {
-    const res = await this.post('/api/bridge/impression', { code, token });
+    const res = await this.safeFetch('/api/bridge/impression', {
+      method: 'POST',
+      body: { code, token }
+    });
     if (!res) return null;
     return await res.json().catch(() => null);
   },
 
-  // --- Admin API ---
   loadAdminData: async function() {
-    const res = await this.get('/api/admin/dashboard');
+    const res = await this.safeFetch('/api/admin/dashboard', { method: 'GET' });
     if (!res) return null;
     return await res.json().catch(() => null);
   },
 
   processAdminDeposit: async function(depositId, action) {
-    const res = await this.post('/api/admin/deposits/action', { depositId, action });
+    const res = await this.safeFetch('/api/admin/deposits/action', {
+      method: 'POST',
+      body: { depositId, action }
+    });
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-    return !!data.success;
+    return data.success;
   },
 
   processAdminWithdraw: async function(withdrawId, action) {
-    const res = await this.post('/api/admin/withdrawals/action', { withdrawId, action });
+    const res = await this.safeFetch('/api/admin/withdrawals/action', {
+      method: 'POST',
+      body: { withdrawId, action }
+    });
     if (!res) return false;
     const data = await res.json().catch(() => ({}));
-    return !!data.success;
+    return data.success;
   }
 };
 
-// ربط الكائن بالنطاق العام للمتصفح
 if (typeof window !== 'undefined') {
   window.API = API;
   window.safeFetch = API.safeFetch.bind(API);
   window.authLogin = API.authLogin.bind(API);
 }
 
-// تصدير الكائن وفق نظام CommonJS
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = API;
 }
