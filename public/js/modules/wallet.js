@@ -182,7 +182,7 @@ const WalletModule = {
   },
 
   /**
-   * عرض سجل طلبات السحب والمعاملات المالية
+   * عرض سجل طلبات السحب
    */
   renderWithdrawalsHistory: function(withdraws) {
     const container = document.getElementById('withdraws-list');
@@ -328,14 +328,8 @@ const WalletModule = {
 
         if (data.isAdmin === true) {
           window.isUserAdmin = true;
-          if (window.AdminModule && typeof window.AdminModule.checkAdminAccess === 'function') {
-            window.AdminModule.checkAdminAccess();
-          }
-        } else {
-          window.isUserAdmin = false;
-          if (window.AdminModule && typeof window.AdminModule.checkAdminAccess === 'function') {
-            window.AdminModule.checkAdminAccess();
-          }
+          const adminBtn = document.getElementById('tab-btn-admin');
+          if (adminBtn) adminBtn.style.display = 'flex';
         }
       }
     } catch (err) {
