@@ -43,6 +43,8 @@ window.App = {
       if (appView) appView.classList.add('hidden');
       if (bridgeView) bridgeView.classList.remove('hidden');
 
+      if (!window.API || typeof window.API.getBridgeLinkInfo !== 'function') return;
+
       const linkInfo = await window.API.getBridgeLinkInfo(code);
       if (!linkInfo || !linkInfo.targetUrl) {
         const msg = (window.UI?.currentLang === 'ar') ? "الرابط غير صالح أو غير موجود" : "Invalid link";
@@ -69,7 +71,9 @@ window.App = {
             goBtn.onclick = async () => {
               this.triggerHaptic('impact', 'medium');
               window.UI?.setButtonLoading('go-btn', true);
-              await window.API.recordBridgeImpression(code, linkInfo.impressionToken);
+              if (window.API?.recordBridgeImpression) {
+                await window.API.recordBridgeImpression(code, linkInfo.impressionToken);
+              }
               window.location.href = linkInfo.targetUrl;
             };
           }
@@ -86,6 +90,8 @@ window.App = {
       this.triggerHaptic('impact', 'medium');
       const confirmMsg = (window.UI?.currentLang === 'ar') ? "هل أنت تأكد من حذف هذا الرابط؟" : "Delete this link?";
       if (!confirm(confirmMsg)) return;
+
+      if (!window.API || typeof window.API.deleteLink !== 'function') return;
 
       const success = await window.API.deleteLink(linkId);
       if (success) {
@@ -104,7 +110,7 @@ window.App = {
     try {
       if (window.Shortener && typeof window.Shortener.loadLinks === 'function') {
         await window.Shortener.loadLinks(search);
-      } else {
+      } else if (window.API && typeof window.API.getUserLinks === 'function') {
         const links = await window.API.getUserLinks(search);
         window.UI?.renderLinksList(links);
       }
@@ -116,6 +122,8 @@ window.App = {
   // تحميل بيانات لوحة التحكم الرئيسية
   loadDashboard: async function() {
     try {
+      if (!window.API || typeof window.API.getDashboardData !== 'function') return;
+
       const data = await window.API.getDashboardData();
       if (!data) return;
 
@@ -148,8 +156,14 @@ window.App = {
       if (window.Wallet && typeof window.Wallet.updateBalances === 'function') {
         window.Wallet.updateBalances(data);
       }
-      if (data.isAdmin && window.Admin && typeof window.Admin.showAdminTab === 'function') {
-        window.Admin.showAdminTab();
+
+      // التحقق من صلاحيات الأدمن وإظهار لوحة التحكم
+      if (data.isAdmin) {
+        window.isUserAdmin = true;
+        const adminObj = window.Admin || window.AdminModule;
+        if (adminObj && typeof adminObj.showAdminTab === 'function') {
+          adminObj.showAdminTab();
+        }
       }
     } catch (error) {
       console.error('Load dashboard error:', error);
@@ -173,6 +187,8 @@ window.App = {
           return;
         }
 
+        if (!window.API || typeof window.API.createShortLink !== 'function') return;
+
         window.UI?.setButtonLoading('btn-create-link', true);
         const res = await window.API.createShortLink(titleInput.value, urlInput.value);
         window.UI?.setButtonLoading('btn-create-link', false);
@@ -181,8 +197,8 @@ window.App = {
           this.triggerHaptic('notification', 'success');
           const msg = (window.UI?.currentLang === 'ar') ? "تم اختصار الرابط بنجاح!" : "Link shortened!";
           window.UI?.showToast(msg);
-          titleInput.value = '';
-          urlInput.value = '';
+          if (titleInput) titleInput.value = '';
+          if (urlInput) urlInput.value = '';
           this.loadUserLinks();
         }
       });
@@ -255,6 +271,8 @@ window.App = {
           return;
         }
 
+        if (!window.API || typeof window.API.requestDeposit !== 'function') return;
+
         window.UI?.setButtonLoading('btn-request-deposit', true);
         const res = await window.API.requestDeposit(network, amount, txhash);
         window.UI?.setButtonLoading('btn-request-deposit', false);
@@ -263,8 +281,10 @@ window.App = {
           this.triggerHaptic('notification', 'success');
           const msg = (window.UI?.currentLang === 'ar') ? "تم تقديم طلب الإيداع بنجاح!" : "Deposit submitted!";
           window.UI?.showToast(msg);
-          document.getElementById('deposit-amount').value = '';
-          document.getElementById('deposit-txhash').value = '';
+          const depAmountEl = document.getElementById('deposit-amount');
+          const depTxEl = document.getElementById('deposit-txhash');
+          if (depAmountEl) depAmountEl.value = '';
+          if (depTxEl) depTxEl.value = '';
         }
       });
     }
@@ -302,6 +322,8 @@ window.App = {
         const addrInput = document.getElementById('default-wallet');
         if (!addrInput || !addrInput.value) return;
 
+        if (!window.API || typeof window.API.updateWalletAddress !== 'function') return;
+
         window.UI?.setButtonLoading('save-wallet-btn', true);
         const res = await window.API.updateWalletAddress(addrInput.value);
         window.UI?.setButtonLoading('save-wallet-btn', false);
@@ -321,8 +343,8 @@ window.App = {
       withdrawAmount.addEventListener('input', () => {
         if (window.Wallet && typeof window.Wallet.updateCalculations === 'function') {
           window.Wallet.updateCalculations();
-        } else {
-          window.UI?.updateWithdrawCalculations();
+        } else if (window.UI && typeof window.UI.updateWithdrawCalculations === 'function') {
+          window.UI.updateWithdrawCalculations();
         }
       });
     }
@@ -340,6 +362,8 @@ window.App = {
           return;
         }
 
+        if (!window.API || typeof window.API.requestWithdrawal !== 'function') return;
+
         window.UI?.setButtonLoading('btn-request-withdraw', true);
         const res = await window.API.requestWithdrawal(amount, wallet);
         window.UI?.setButtonLoading('btn-request-withdraw', false);
@@ -348,7 +372,8 @@ window.App = {
           this.triggerHaptic('notification', 'success');
           const msg = (window.UI?.currentLang === 'ar') ? "تم إرسال طلب السحب بنجاح!" : "Withdrawal submitted!";
           window.UI?.showToast(msg);
-          document.getElementById('withdraw-amount').value = '';
+          const wAmountEl = document.getElementById('withdraw-amount');
+          if (wAmountEl) wAmountEl.value = '';
           if (window.UI?.updateWithdrawCalculations) window.UI.updateWithdrawCalculations();
           this.loadDashboard();
         }
@@ -362,8 +387,8 @@ window.App = {
         this.triggerHaptic('selection');
         if (window.Ads && typeof window.Ads.onTypeChange === 'function') {
           window.Ads.onTypeChange();
-        } else {
-          window.UI?.onAdTypeChange();
+        } else if (window.UI && typeof window.UI.onAdTypeChange === 'function') {
+          window.UI.onAdTypeChange();
         }
       });
     }
@@ -388,6 +413,8 @@ window.App = {
           window.UI?.showToast(msg);
           return;
         }
+
+        if (!window.API || typeof window.API.createAdCampaign !== 'function') return;
 
         const adData = {
           type, title, targetUrl, mediaUrl, appUrl, gameUrl, category, budget, dailyBudget,
@@ -416,7 +443,7 @@ window.App = {
     if (btnShareRef) {
       btnShareRef.addEventListener('click', () => {
         this.triggerHaptic('impact', 'light');
-        if (window.UI?.shareReferralLink) {
+        if (window.UI && typeof window.UI.shareReferralLink === 'function') {
           window.UI.shareReferralLink();
         } else {
           const refInput = document.getElementById('ref-link');
@@ -448,8 +475,8 @@ window.App = {
         this.triggerHaptic('selection');
         if (window.Ads && typeof window.Ads.closeVideo === 'function') {
           window.Ads.closeVideo();
-        } else {
-          window.UI?.closeVideoAd();
+        } else if (window.UI && typeof window.UI.closeVideoAd === 'function') {
+          window.UI.closeVideoAd();
         }
       });
     }
@@ -464,8 +491,11 @@ window.App = {
           if (window.UI && typeof window.UI.switchTab === 'function') {
             window.UI.switchTab(tab);
           }
-          if (tab === 'admin' && window.Admin && typeof window.Admin.loadOverview === 'function') {
-            window.Admin.loadOverview();
+          if (tab === 'admin') {
+            const adminObj = window.Admin || window.AdminModule;
+            if (adminObj && typeof adminObj.loadOverview === 'function') {
+              adminObj.loadOverview();
+            }
           }
         });
       }
@@ -476,8 +506,9 @@ window.App = {
     if (btnAdminSave) {
       btnAdminSave.addEventListener('click', async () => {
         this.triggerHaptic('impact', 'medium');
-        if (window.Admin && typeof window.Admin.saveSettings === 'function') {
-          await window.Admin.saveSettings();
+        const adminObj = window.Admin || window.AdminModule;
+        if (adminObj && typeof adminObj.saveSettings === 'function') {
+          await adminObj.saveSettings();
         }
       });
     }
@@ -491,9 +522,9 @@ window.App = {
         tg.ready();
         tg.expand();
 
-        if (tg.setHeaderColor) tg.setHeaderColor('secondary');
-        if (tg.setBackgroundColor) tg.setBackgroundColor('bg_color');
-        if (tg.enableClosingConfirmation) tg.enableClosingConfirmation();
+        if (typeof tg.setHeaderColor === 'function') tg.setHeaderColor('secondary');
+        if (typeof tg.setBackgroundColor === 'function') tg.setBackgroundColor('bg_color');
+        if (typeof tg.enableClosingConfirmation === 'function') tg.enableClosingConfirmation();
       }
     } catch (error) {
       console.error('Telegram WebApp initialization error:', error);
