@@ -3,48 +3,15 @@
 // استيراد الوحدات بأسلوب CommonJS لتوافقية بيئات التجميع والترميز
 if (typeof require !== 'undefined') {
   try {
-    var i18nModule = require('./i18n.js');
-    var uiModule = require('./ui.js');
-    var apiModule = require('./api.js');
-    var shortenerModule = require('./shortener.js');
-    var adsModule = require('./ads.js');
-    var walletModule = require('./wallet.js');
-    var adminModule = require('./admin.js');
+    var i18n = require('./i18n.js');
+    var UI = require('./ui.js');
+    var API = require('./api.js');
+    var ShortenerModule = require('./shortener.js');
+    var AdsModule = require('./ads.js');
+    var WalletModule = require('./wallet.js');
+    var AdminModule = require('./admin.js');
   } catch (e) {
     // التجاوز في حالة التشغيل المباشر داخل متصفح الويب
-  }
-}
-
-// -------------------------------------------------------------
-// دالة مساعدة جالبة للوحدات المدمجة لضمان التوافق مع اختلاف مسميات window
-// -------------------------------------------------------------
-function getModule(name) {
-  if (typeof window === 'undefined') return {};
-  switch (name) {
-    case 'i18n':
-      return window.i18n || window.i18nModule || (typeof require !== 'undefined' ? tryRequire('./i18n.js') : {}) || {};
-    case 'UI':
-      return window.UI || window.uiModule || window.UIModule || (typeof require !== 'undefined' ? tryRequire('./ui.js') : {}) || {};
-    case 'API':
-      return window.API || window.apiModule || window.APIModule || (typeof require !== 'undefined' ? tryRequire('./api.js') : {}) || {};
-    case 'Shortener':
-      return window.ShortenerModule || window.Shortener || (typeof require !== 'undefined' ? tryRequire('./shortener.js') : {}) || {};
-    case 'Ads':
-      return window.AdsModule || window.Ads || (typeof require !== 'undefined' ? tryRequire('./ads.js') : {}) || {};
-    case 'Wallet':
-      return window.WalletModule || window.Wallet || (typeof require !== 'undefined' ? tryRequire('./wallet.js') : {}) || {};
-    case 'Admin':
-      return window.AdminModule || window.Admin || (typeof require !== 'undefined' ? tryRequire('./admin.js') : {}) || {};
-    default:
-      return {};
-  }
-}
-
-function tryRequire(path) {
-  try {
-    return require(path);
-  } catch (e) {
-    return null;
   }
 }
 
@@ -53,20 +20,18 @@ function tryRequire(path) {
 // -------------------------------------------------------------
 window.onerror = function (message, source, lineno, colno, error) {
   console.error('[App Global Error]:', message, 'at', source, 'line:', lineno, colno, error);
-  const UI = getModule('UI');
-  if (UI && typeof UI.showToast === 'function') {
-    const lang = UI.currentLang || 'ar';
-    UI.showToast(lang === 'ar' ? 'حدث خطأ غير متوقع في النظام' : 'An unexpected error occurred');
+  if (window.UI && typeof window.UI.showToast === 'function') {
+    const lang = window.UI.currentLang || 'ar';
+    window.UI.showToast(lang === 'ar' ? 'حدث خطأ غير متوقع في النظام' : 'An unexpected error occurred');
   }
   return true; // منع توقف التطبيق أو انهياره
 };
 
 window.addEventListener('unhandledrejection', function (event) {
   console.error('[Unhandled Rejection]:', event.reason);
-  const UI = getModule('UI');
-  if (UI && typeof UI.showToast === 'function') {
-    const lang = UI.currentLang || 'ar';
-    UI.showToast(lang === 'ar' ? 'خطأ في الاتصال بالشبكة أو الاستجابة' : 'Network/Promise rejection error');
+  if (window.UI && typeof window.UI.showToast === 'function') {
+    const lang = window.UI.currentLang || 'ar';
+    window.UI.showToast(lang === 'ar' ? 'خطأ في الاتصال بالشبكة أو الاستجابة' : 'Network/Promise rejection error');
   }
 });
 
@@ -77,7 +42,7 @@ window.App = {
   activeTab: 'dashboard',
 
   /**
-   * دالة التفاعل اللمسي (Haptic Feedback) لـ Telegram Mini App
+   * دالة الاستجابة اللمسية (Haptic Feedback) عبر التليجرام
    */
   triggerHaptic: function (type = 'impact', style = 'light') {
     try {
@@ -122,7 +87,6 @@ window.App = {
     try {
       const adminTabBtn = document.getElementById('tab-btn-admin');
       const adminElements = document.querySelectorAll('.admin-only');
-      const Admin = getModule('Admin');
 
       window.isUserAdmin = !!isAdmin;
 
@@ -130,10 +94,10 @@ window.App = {
         if (adminTabBtn) adminTabBtn.style.display = 'flex';
         adminElements.forEach(el => { if (el) el.style.display = ''; });
 
-        if (Admin && typeof Admin.showAdminTab === 'function') {
-          Admin.showAdminTab();
-        } else if (Admin && typeof Admin.checkAdminAccess === 'function') {
-          Admin.checkAdminAccess();
+        if (window.AdminModule && typeof window.AdminModule.checkAdminAccess === 'function') {
+          window.AdminModule.checkAdminAccess();
+        } else if (window.Admin && typeof window.Admin.showAdminTab === 'function') {
+          window.Admin.showAdminTab();
         }
       } else {
         if (adminTabBtn) adminTabBtn.style.display = 'none';
@@ -153,70 +117,66 @@ window.App = {
   switchTab: function (targetTabId) {
     if (!targetTabId) return;
 
-    this.activeTab = targetTabId;
-    this.triggerHaptic('selection');
+    try {
+      this.activeTab = targetTabId;
+      this.triggerHaptic('selection');
 
-    const allTabs = ['dashboard', 'wallet', 'ads', 'referral', 'settings', 'admin'];
+      const allTabs = ['dashboard', 'wallet', 'ads', 'referral', 'settings', 'admin'];
 
-    allTabs.forEach(tabId => {
-      const btn = document.getElementById(`tab-btn-${tabId}`);
-      const section = document.getElementById(`tab-${tabId}`);
+      allTabs.forEach(tabId => {
+        const btn = document.getElementById(`tab-btn-${tabId}`);
+        const section = document.getElementById(`tab-${tabId}`);
 
-      if (btn) {
-        if (tabId === targetTabId) {
-          btn.classList.add('active');
-        } else {
-          btn.classList.remove('active');
+        if (btn) {
+          if (tabId === targetTabId) {
+            btn.classList.add('active');
+          } else {
+            btn.classList.remove('active');
+          }
         }
-      }
 
-      if (section) {
-        if (tabId === targetTabId) {
-          section.classList.remove('hidden');
-        } else {
-          section.classList.add('hidden');
+        if (section) {
+          if (tabId === targetTabId) {
+            section.classList.remove('hidden');
+          } else {
+            section.classList.add('hidden');
+          }
         }
-      }
-    });
+      });
 
-    const Wallet = getModule('Wallet');
-    const Shortener = getModule('Shortener');
-    const Ads = getModule('Ads');
-    const Admin = getModule('Admin');
-
-    // تحديث وتحميل البيانات الحية الخاصة بالتبويب المفتوح
-    if (targetTabId === 'dashboard' || targetTabId === 'wallet') {
-      if (Wallet && typeof Wallet.loadUserData === 'function') {
-        Wallet.loadUserData();
-      } else {
+      // تحديث وتحميل البيانات الحية الخاصة بالتبويب المفتوح
+      if (targetTabId === 'dashboard') {
         this.loadDashboard();
-      }
-
-      if (Shortener && typeof Shortener.fetchUserLinks === 'function') {
-        Shortener.fetchUserLinks();
-      } else if (Shortener && typeof Shortener.loadLinks === 'function') {
-        Shortener.loadLinks();
-      } else {
         this.loadUserLinks();
-      }
-    } else if (targetTabId === 'ads') {
-      if (Ads && typeof Ads.fetchUserAds === 'function') {
-        Ads.fetchUserAds();
-      } else if (Ads && typeof Ads.loadUserAds === 'function') {
-        Ads.loadUserAds();
-      }
-    } else if (targetTabId === 'referral') {
-      if (Wallet && typeof Wallet.fetchUserReferrals === 'function') {
-        Wallet.fetchUserReferrals();
-      }
-    } else if (targetTabId === 'admin') {
-      if (window.isUserAdmin) {
-        if (Admin && typeof Admin.loadAdminData === 'function') {
-          Admin.loadAdminData();
-        } else if (Admin && typeof Admin.loadOverview === 'function') {
-          Admin.loadOverview();
+      } else if (targetTabId === 'wallet') {
+        if (window.WalletModule && typeof window.WalletModule.loadUserData === 'function') {
+          window.WalletModule.loadUserData();
+        } else {
+          this.loadDashboard();
+        }
+      } else if (targetTabId === 'ads') {
+        if (window.AdsModule && typeof window.AdsModule.fetchUserAds === 'function') {
+          window.AdsModule.fetchUserAds();
+        } else if (window.Ads && typeof window.Ads.loadAds === 'function') {
+          window.Ads.loadAds();
+        }
+      } else if (targetTabId === 'referral') {
+        if (window.WalletModule && typeof window.WalletModule.fetchUserReferrals === 'function') {
+          window.WalletModule.fetchUserReferrals();
+        } else {
+          this.loadDashboard();
+        }
+      } else if (targetTabId === 'admin') {
+        if (window.isUserAdmin) {
+          if (window.AdminModule && typeof window.AdminModule.loadAdminData === 'function') {
+            window.AdminModule.loadAdminData();
+          } else if (window.Admin && typeof window.Admin.loadOverview === 'function') {
+            window.Admin.loadOverview();
+          }
         }
       }
+    } catch (error) {
+      console.error('Switch tab error:', error);
     }
   },
 
@@ -242,35 +202,27 @@ window.App = {
    */
   initBridgeLogic: async function (code) {
     try {
-      const Shortener = getModule('Shortener');
-      const API = getModule('API');
-      const UI = getModule('UI');
-
-      if (Shortener && typeof Shortener.initBridgeView === 'function') {
-        await Shortener.initBridgeView(code);
+      if (window.ShortenerModule && typeof window.ShortenerModule.initBridgeView === 'function') {
+        await window.ShortenerModule.initBridgeView(code);
         return;
       }
 
-      if (Shortener && typeof Shortener.initBridgeLogic === 'function') {
-        await Shortener.initBridgeLogic(code);
-        return;
-      }
-
-      // المنطق المباشر في حال عدم وجود الدالة بالوحدة
+      // المنطق الاحتياطي في حال عدم تحميل الموديول المخصص
       const appView = document.getElementById('app-view');
       const bridgeView = document.getElementById('bridge-view');
 
       if (appView) appView.classList.add('hidden');
       if (bridgeView) bridgeView.classList.remove('hidden');
 
-      const linkInfo = API.getBridgeLinkInfo ? await API.getBridgeLinkInfo(code) : null;
+      const apiInstance = window.API || {};
+      const linkInfo = apiInstance.getBridgeLinkInfo ? await apiInstance.getBridgeLinkInfo(code) : null;
       if (!linkInfo || !linkInfo.targetUrl) {
-        const msg = (UI?.currentLang === 'ar') ? "الرابط غير صالح أو غير موجود" : "Invalid link";
-        if (UI?.showToast) UI.showToast(msg);
+        const msg = (window.UI?.currentLang === 'ar') ? "الرابط غير صالح أو غير موجود" : "Invalid link";
+        window.UI?.showToast(msg);
         return;
       }
 
-      if (UI?.adaptBridgeUI) UI.adaptBridgeUI(linkInfo.targetUrl, linkInfo.title);
+      window.UI?.adaptBridgeUI(linkInfo.targetUrl, linkInfo.title);
 
       let timeLeft = 5;
       const timerElem = document.getElementById('timer');
@@ -288,9 +240,9 @@ window.App = {
             goBtn.disabled = false;
             goBtn.onclick = async () => {
               this.triggerHaptic('impact', 'medium');
-              if (UI?.setButtonLoading) UI.setButtonLoading('go-btn', true);
-              if (API?.recordBridgeImpression) {
-                await API.recordBridgeImpression(code, linkInfo.impressionToken);
+              window.UI?.setButtonLoading('go-btn', true);
+              if (apiInstance.recordBridgeImpression) {
+                await apiInstance.recordBridgeImpression(code, linkInfo.impressionToken);
               }
               window.location.href = linkInfo.targetUrl;
             };
@@ -307,26 +259,17 @@ window.App = {
    */
   deleteLink: async function (linkId) {
     try {
-      const Shortener = getModule('Shortener');
-      const API = getModule('API');
-      const UI = getModule('UI');
-
-      if (Shortener && typeof Shortener.deleteLink === 'function') {
-        return await Shortener.deleteLink(linkId);
-      }
-
       this.triggerHaptic('impact', 'medium');
-      const confirmMsg = (UI?.currentLang === 'ar') ? "هل أنت تأكد من حذف هذا الرابط؟" : "Delete this link?";
+      const confirmMsg = (window.UI?.currentLang === 'ar') ? "هل أنت تأكد من حذف هذا الرابط؟" : "Delete this link?";
       if (!confirm(confirmMsg)) return;
 
-      if (API && typeof API.deleteLink === 'function') {
-        const success = await API.deleteLink(linkId);
-        if (success) {
-          this.triggerHaptic('notification', 'success');
-          const toastMsg = (UI?.currentLang === 'ar') ? "تم حذف الرابط بنجاح" : "Link deleted";
-          if (UI?.showToast) UI.showToast(toastMsg);
-          this.loadUserLinks();
-        }
+      const apiInstance = window.API || {};
+      const success = apiInstance.deleteLink ? await apiInstance.deleteLink(linkId) : false;
+      if (success) {
+        this.triggerHaptic('notification', 'success');
+        const toastMsg = (window.UI?.currentLang === 'ar') ? "تم حذف الرابط بنجاح" : "Link deleted";
+        window.UI?.showToast(toastMsg);
+        this.loadUserLinks();
       }
     } catch (error) {
       console.error('Delete link error:', error);
@@ -338,19 +281,15 @@ window.App = {
    */
   loadUserLinks: async function (search = '') {
     try {
-      const Shortener = getModule('Shortener');
-      const API = getModule('API');
-      const UI = getModule('UI');
-
-      if (Shortener && typeof Shortener.loadLinks === 'function') {
-        await Shortener.loadLinks(search);
-      } else if (Shortener && typeof Shortener.fetchUserLinks === 'function') {
-        await Shortener.fetchUserLinks(search);
-      } else if (API && typeof API.getUserLinks === 'function') {
-        const links = await API.getUserLinks(search);
-        if (UI && typeof UI.renderLinksList === 'function') {
-          UI.renderLinksList(links);
-        }
+      if (window.ShortenerModule && typeof window.ShortenerModule.fetchUserLinks === 'function') {
+        await window.ShortenerModule.fetchUserLinks(search);
+      } else if (window.ShortenerModule && typeof window.ShortenerModule.loadLinks === 'function') {
+        await window.ShortenerModule.loadLinks(search);
+      } else if (window.Shortener && typeof window.Shortener.loadLinks === 'function') {
+        await window.Shortener.loadLinks(search);
+      } else if (window.API && typeof window.API.getUserLinks === 'function') {
+        const links = await window.API.getUserLinks(search);
+        window.UI?.renderLinksList(links);
       }
     } catch (error) {
       console.error('Load user links error:', error);
@@ -362,12 +301,10 @@ window.App = {
    */
   loadDashboard: async function () {
     try {
-      const API = getModule('API');
-      const Wallet = getModule('Wallet');
+      const apiInstance = window.API || {};
+      if (typeof apiInstance.getDashboardData !== 'function') return;
 
-      if (!API || typeof API.getDashboardData !== 'function') return;
-
-      const data = await API.getDashboardData();
+      const data = await apiInstance.getDashboardData();
       if (!data) return;
 
       const pendingBal = document.getElementById('pending-bal');
@@ -395,14 +332,15 @@ window.App = {
         }
       }
 
-      // تحديث بيانات الرصيد والصلاحيات عبر الوحدات
-      if (Wallet && typeof Wallet.updateBalances === 'function') {
-        Wallet.updateBalances(data);
+      // تمرير البيانات للوحدات المخصصة
+      if (window.WalletModule && typeof window.WalletModule.updateBalances === 'function') {
+        window.WalletModule.updateBalances(data);
+      } else if (window.Wallet && typeof window.Wallet.updateBalances === 'function') {
+        window.Wallet.updateBalances(data);
       }
 
       const isAdmin = !!(data.isAdmin || (data.user && data.user.role === 'admin'));
       this.setupAdminRole(isAdmin);
-
     } catch (error) {
       console.error('Load dashboard error:', error);
     }
@@ -412,14 +350,6 @@ window.App = {
    * ربط كافة أحداث الواجهة العامة والأزرار مع الوحدات المخصصة
    */
   bindEventListeners: function () {
-    const UI = getModule('UI');
-    const API = getModule('API');
-    const Shortener = getModule('Shortener');
-    const Wallet = getModule('Wallet');
-    const Ads = getModule('Ads');
-    const Admin = getModule('Admin');
-    const i18n = getModule('i18n');
-
     // 1. اختصار رابط جديد
     const btnCreateLink = document.getElementById('btn-create-link');
     if (btnCreateLink) {
@@ -427,30 +357,30 @@ window.App = {
         e.preventDefault();
         this.triggerHaptic('impact', 'medium');
 
-        if (Shortener && typeof Shortener.handleShortenClick === 'function') {
-          return Shortener.handleShortenClick(e);
-        }
+        if (window.ShortenerModule && typeof window.ShortenerModule.handleShortenClick === 'function') {
+          await window.ShortenerModule.handleShortenClick(e);
+        } else {
+          const titleInput = document.getElementById('link-title');
+          const urlInput = document.getElementById('link-url');
 
-        const titleInput = document.getElementById('link-title');
-        const urlInput = document.getElementById('link-url');
+          if (!urlInput || !urlInput.value) {
+            const msg = (window.UI?.currentLang === 'ar') ? "يرجى إدخال الرابط الأصلي" : "Please enter original URL";
+            window.UI?.showToast(msg);
+            return;
+          }
 
-        if (!urlInput || !urlInput.value) {
-          const msg = (UI?.currentLang === 'ar') ? "يرجى إدخال الرابط الأصلي" : "Please enter original URL";
-          if (UI?.showToast) UI.showToast(msg);
-          return;
-        }
+          window.UI?.setButtonLoading('btn-create-link', true);
+          const res = window.API?.createShortLink ? await window.API.createShortLink(titleInput?.value || '', urlInput.value) : null;
+          window.UI?.setButtonLoading('btn-create-link', false);
 
-        if (UI?.setButtonLoading) UI.setButtonLoading('btn-create-link', true);
-        const res = (API && typeof API.createShortLink === 'function') ? await API.createShortLink(titleInput?.value || '', urlInput.value) : null;
-        if (UI?.setButtonLoading) UI.setButtonLoading('btn-create-link', false);
-
-        if (res) {
-          this.triggerHaptic('notification', 'success');
-          const msg = (UI?.currentLang === 'ar') ? "تم اختصار الرابط بنجاح!" : "Link shortened!";
-          if (UI?.showToast) UI.showToast(msg);
-          if (titleInput) titleInput.value = '';
-          if (urlInput) urlInput.value = '';
-          this.loadUserLinks();
+          if (res) {
+            this.triggerHaptic('notification', 'success');
+            const msg = (window.UI?.currentLang === 'ar') ? "تم اختصار الرابط بنجاح!" : "Link shortened!";
+            window.UI?.showToast(msg);
+            if (titleInput) titleInput.value = '';
+            if (urlInput) urlInput.value = '';
+            this.loadUserLinks();
+          }
         }
       });
     }
@@ -459,20 +389,20 @@ window.App = {
     const searchInput = document.getElementById('search-links-input');
     if (searchInput) {
       searchInput.addEventListener('input', (e) => {
-        if (Shortener && typeof Shortener.filterUserLinks === 'function') {
-          Shortener.filterUserLinks(e.target.value);
+        if (window.ShortenerModule && typeof window.ShortenerModule.filterUserLinks === 'function') {
+          window.ShortenerModule.filterUserLinks(e.target.value);
         } else {
           this.loadUserLinks(e.target.value);
         }
       });
     }
 
-    // 3. تعليمات ودليل الإيداع
+    // 3. تعليمات وطريقة الإيداع
     const btnDepositGuide = document.getElementById('btn-deposit-guide');
     if (btnDepositGuide) {
       btnDepositGuide.addEventListener('click', () => {
         this.triggerHaptic('selection');
-        if (UI?.toggleInstructionsModal) UI.toggleInstructionsModal(true);
+        window.UI?.toggleInstructionsModal(true);
       });
     }
 
@@ -480,16 +410,16 @@ window.App = {
     if (btnCloseInstructionsModal) {
       btnCloseInstructionsModal.addEventListener('click', () => {
         this.triggerHaptic('selection');
-        if (UI?.toggleInstructionsModal) UI.toggleInstructionsModal(false);
+        window.UI?.toggleInstructionsModal(false);
       });
     }
 
-    // 4. تغيير شبكة الإيداع ونسخ عناوين المحافظ
+    // 4. تغيير شبكة الإيداع ونسخ العنوان
     const depositNetwork = document.getElementById('deposit-network');
     if (depositNetwork) {
       depositNetwork.addEventListener('change', (e) => {
         this.triggerHaptic('selection');
-        if (UI?.handleNetworkChange) UI.handleNetworkChange(e.target.value);
+        window.UI?.handleNetworkChange(e.target.value);
       });
     }
 
@@ -498,7 +428,7 @@ window.App = {
       btnCopyTrc20.addEventListener('click', () => {
         this.triggerHaptic('impact', 'light');
         const addr = document.getElementById('addr-trc20')?.innerText;
-        if (UI?.copyToClipboard) UI.copyToClipboard(addr);
+        window.UI?.copyToClipboard(addr);
       });
     }
 
@@ -507,7 +437,7 @@ window.App = {
       btnCopyBep20.addEventListener('click', () => {
         this.triggerHaptic('impact', 'light');
         const addr = document.getElementById('addr-bep20')?.innerText;
-        if (UI?.copyToClipboard) UI.copyToClipboard(addr);
+        window.UI?.copyToClipboard(addr);
       });
     }
 
@@ -518,42 +448,42 @@ window.App = {
         e.preventDefault();
         this.triggerHaptic('impact', 'medium');
 
-        if (Wallet && typeof Wallet.requestDeposit === 'function') {
-          return Wallet.requestDeposit();
-        }
+        if (window.WalletModule && typeof window.WalletModule.requestDeposit === 'function') {
+          await window.WalletModule.requestDeposit();
+        } else {
+          const network = document.getElementById('deposit-network')?.value;
+          const amount = document.getElementById('deposit-amount')?.value;
+          const txhash = document.getElementById('deposit-txhash')?.value;
 
-        const network = document.getElementById('deposit-network')?.value;
-        const amount = document.getElementById('deposit-amount')?.value;
-        const txhash = document.getElementById('deposit-txhash')?.value;
+          if (!network || !amount || !txhash) {
+            const msg = (window.UI?.currentLang === 'ar') ? "يرجى ملء جميع حقول الإيداع" : "Please fill all deposit fields";
+            window.UI?.showToast(msg);
+            return;
+          }
 
-        if (!network || !amount || !txhash) {
-          const msg = (UI?.currentLang === 'ar') ? "يرجى ملء جميع حقول الإيداع" : "Please fill all deposit fields";
-          if (UI?.showToast) UI.showToast(msg);
-          return;
-        }
+          window.UI?.setButtonLoading('btn-request-deposit', true);
+          const res = window.API?.requestDeposit ? await window.API.requestDeposit(network, amount, txhash) : null;
+          window.UI?.setButtonLoading('btn-request-deposit', false);
 
-        if (UI?.setButtonLoading) UI.setButtonLoading('btn-request-deposit', true);
-        const res = (API && typeof API.requestDeposit === 'function') ? await API.requestDeposit(network, amount, txhash) : null;
-        if (UI?.setButtonLoading) UI.setButtonLoading('btn-request-deposit', false);
-
-        if (res && res.success) {
-          this.triggerHaptic('notification', 'success');
-          const msg = (UI?.currentLang === 'ar') ? "تم تقديم طلب الإيداع بنجاح!" : "Deposit submitted!";
-          if (UI?.showToast) UI.showToast(msg);
-          const depAmt = document.getElementById('deposit-amount');
-          const depTx = document.getElementById('deposit-txhash');
-          if (depAmt) depAmt.value = '';
-          if (depTx) depTx.value = '';
+          if (res && res.success) {
+            this.triggerHaptic('notification', 'success');
+            const msg = (window.UI?.currentLang === 'ar') ? "تم تقديم طلب الإيداع بنجاح!" : "Deposit submitted!";
+            window.UI?.showToast(msg);
+            const amtElem = document.getElementById('deposit-amount');
+            const hashElem = document.getElementById('deposit-txhash');
+            if (amtElem) amtElem.value = '';
+            if (hashElem) hashElem.value = '';
+          }
         }
       });
     }
 
-    // 6. التنقل المباشر داخل قسم المحفظة (إيداع / سحب)
+    // 6. التنقل داخل وحدة المحفظة (إيداع / سحب)
     const walletNavDeposit = document.getElementById('wallet-nav-deposit');
     if (walletNavDeposit) {
       walletNavDeposit.addEventListener('click', () => {
         this.triggerHaptic('selection');
-        if (UI?.switchWalletView) UI.switchWalletView('deposit');
+        window.UI?.switchWalletView('deposit');
       });
     }
 
@@ -561,7 +491,7 @@ window.App = {
     if (walletNavWithdraw) {
       walletNavWithdraw.addEventListener('click', () => {
         this.triggerHaptic('selection');
-        if (UI?.switchWalletView) UI.switchWalletView('withdraw');
+        window.UI?.switchWalletView('withdraw');
       });
     }
 
@@ -570,7 +500,7 @@ window.App = {
     if (editWalletBtn) {
       editWalletBtn.addEventListener('click', () => {
         this.triggerHaptic('selection');
-        if (UI?.toggleWalletEdit) UI.toggleWalletEdit();
+        window.UI?.toggleWalletEdit();
       });
     }
 
@@ -580,34 +510,36 @@ window.App = {
         e.preventDefault();
         this.triggerHaptic('impact', 'medium');
 
-        if (Wallet && typeof Wallet.saveSettings === 'function') {
-          return Wallet.saveSettings();
-        }
+        if (window.WalletModule && typeof window.WalletModule.saveSettings === 'function') {
+          await window.WalletModule.saveSettings();
+        } else {
+          const addrInput = document.getElementById('default-wallet');
+          if (!addrInput || !addrInput.value) return;
 
-        const addrInput = document.getElementById('default-wallet');
-        if (!addrInput || !addrInput.value) return;
+          window.UI?.setButtonLoading('save-wallet-btn', true);
+          const res = window.API?.updateWalletAddress ? await window.API.updateWalletAddress(addrInput.value) : null;
+          window.UI?.setButtonLoading('save-wallet-btn', false);
 
-        if (UI?.setButtonLoading) UI.setButtonLoading('save-wallet-btn', true);
-        const res = (API && typeof API.updateWalletAddress === 'function') ? await API.updateWalletAddress(addrInput.value) : null;
-        if (UI?.setButtonLoading) UI.setButtonLoading('save-wallet-btn', false);
-
-        if (res && res.success) {
-          this.triggerHaptic('notification', 'success');
-          const msg = (UI?.currentLang === 'ar') ? "تم حفظ عنوان المحفظة!" : "Wallet saved!";
-          if (UI?.showToast) UI.showToast(msg);
-          if (UI?.toggleWalletEdit) UI.toggleWalletEdit();
+          if (res && res.success) {
+            this.triggerHaptic('notification', 'success');
+            const msg = (window.UI?.currentLang === 'ar') ? "تم حفظ عنوان المحفظة!" : "Wallet saved!";
+            window.UI?.showToast(msg);
+            window.UI?.toggleWalletEdit();
+          }
         }
       });
     }
 
-    // 8. احتساب مبالغ طلب السحب وإرساله
+    // 8. حسابات طلب السحب وإرساله
     const withdrawAmount = document.getElementById('withdraw-amount');
     if (withdrawAmount) {
       withdrawAmount.addEventListener('input', () => {
-        if (Wallet && typeof Wallet.updateCalculations === 'function') {
-          Wallet.updateCalculations();
-        } else if (UI && typeof UI.updateWithdrawCalculations === 'function') {
-          UI.updateWithdrawCalculations();
+        if (window.WalletModule && typeof window.WalletModule.updateCalculations === 'function') {
+          window.WalletModule.updateCalculations();
+        } else if (window.Wallet && typeof window.Wallet.updateCalculations === 'function') {
+          window.Wallet.updateCalculations();
+        } else {
+          window.UI?.updateWithdrawCalculations();
         }
       });
     }
@@ -618,118 +550,106 @@ window.App = {
         e.preventDefault();
         this.triggerHaptic('impact', 'medium');
 
-        if (Wallet && typeof Wallet.requestWithdrawal === 'function') {
-          return Wallet.requestWithdrawal();
-        }
+        if (window.WalletModule && typeof window.WalletModule.requestWithdrawal === 'function') {
+          await window.WalletModule.requestWithdrawal();
+        } else {
+          const amount = document.getElementById('withdraw-amount')?.value;
+          const wallet = document.getElementById('default-wallet')?.value;
 
-        const amount = document.getElementById('withdraw-amount')?.value;
-        const wallet = document.getElementById('default-wallet')?.value;
+          if (!amount || amount < 30 || !wallet) {
+            const msg = (window.UI?.currentLang === 'ar') ? "الحد الأدنى للسحب 30$ مع وجود محفظة" : "Min withdrawal is $30";
+            window.UI?.showToast(msg);
+            return;
+          }
 
-        if (!amount || amount < 30 || !wallet) {
-          const msg = (UI?.currentLang === 'ar') ? "الحد الأدنى للسحب 30$ مع وجود محفظة" : "Min withdrawal is $30";
-          if (UI?.showToast) UI.showToast(msg);
-          return;
-        }
+          window.UI?.setButtonLoading('btn-request-withdraw', true);
+          const res = window.API?.requestWithdrawal ? await window.API.requestWithdrawal(amount, wallet) : null;
+          window.UI?.setButtonLoading('btn-request-withdraw', false);
 
-        if (UI?.setButtonLoading) UI.setButtonLoading('btn-request-withdraw', true);
-        const res = (API && typeof API.requestWithdrawal === 'function') ? await API.requestWithdrawal(amount, wallet) : null;
-        if (UI?.setButtonLoading) UI.setButtonLoading('btn-request-withdraw', false);
-
-        if (res && res.success) {
-          this.triggerHaptic('notification', 'success');
-          const msg = (UI?.currentLang === 'ar') ? "تم إرسال طلب السحب بنجاح!" : "Withdrawal submitted!";
-          if (UI?.showToast) UI.showToast(msg);
-          const wInput = document.getElementById('withdraw-amount');
-          if (wInput) wInput.value = '';
-          if (UI?.updateWithdrawCalculations) UI.updateWithdrawCalculations();
-          this.loadDashboard();
+          if (res && res.success) {
+            this.triggerHaptic('notification', 'success');
+            const msg = (window.UI?.currentLang === 'ar') ? "تم إرسال طلب السحب بنجاح!" : "Withdrawal submitted!";
+            window.UI?.showToast(msg);
+            const amtInput = document.getElementById('withdraw-amount');
+            if (amtInput) amtInput.value = '';
+            if (window.UI?.updateWithdrawCalculations) window.UI.updateWithdrawCalculations();
+            this.loadDashboard();
+          }
         }
       });
     }
 
-    // 9. اختيارات نوع الإعلان وإنشاؤه
+    // 9. اختيارات نوع الإعلان
     const adTypeSelect = document.getElementById('ad-type');
     if (adTypeSelect) {
       adTypeSelect.addEventListener('change', () => {
         this.triggerHaptic('selection');
-        if (Ads && typeof Ads.onAdTypeChange === 'function') {
-          Ads.onAdTypeChange();
-        } else if (Ads && typeof Ads.onTypeChange === 'function') {
-          Ads.onTypeChange();
-        } else if (UI && typeof UI.onAdTypeChange === 'function') {
-          UI.onAdTypeChange();
+        if (window.AdsModule && typeof window.AdsModule.onAdTypeChange === 'function') {
+          window.AdsModule.onAdTypeChange();
+        } else if (window.Ads && typeof window.Ads.onTypeChange === 'function') {
+          window.Ads.onTypeChange();
+        } else {
+          window.UI?.onAdTypeChange();
         }
       });
     }
 
+    // 10. إنشاء حملة إعلانية
     const btnCreateAd = document.getElementById('btn-create-ad');
     if (btnCreateAd) {
       btnCreateAd.addEventListener('click', async (e) => {
         e.preventDefault();
         this.triggerHaptic('impact', 'heavy');
 
-        if (Ads && typeof Ads.createAdCampaign === 'function') {
-          return Ads.createAdCampaign();
-        }
+        if (window.AdsModule && typeof window.AdsModule.createAdCampaign === 'function') {
+          await window.AdsModule.createAdCampaign();
+        } else {
+          const type = document.getElementById('ad-type')?.value;
+          const title = document.getElementById('ad-title')?.value;
+          const targetUrl = document.getElementById('ad-target-url')?.value;
+          const mediaUrl = document.getElementById('ad-media-url')?.value;
+          const appUrl = document.getElementById('ad-app-download-url')?.value;
+          const gameUrl = document.getElementById('ad-game-embed-url')?.value;
+          const category = document.getElementById('ad-category')?.value;
+          const budget = document.getElementById('ad-budget')?.value;
+          const dailyBudget = document.getElementById('ad-daily-budget')?.value;
 
-        const type = document.getElementById('ad-type')?.value;
-        const title = document.getElementById('ad-title')?.value;
-        const targetUrl = document.getElementById('ad-target-url')?.value;
-        const mediaUrl = document.getElementById('ad-media-url')?.value;
-        const appUrl = document.getElementById('ad-app-download-url')?.value;
-        const gameUrl = document.getElementById('ad-game-embed-url')?.value;
-        const category = document.getElementById('ad-category')?.value;
-        const budget = document.getElementById('ad-budget')?.value;
-        const dailyBudget = document.getElementById('ad-daily-budget')?.value;
+          if (!title || !targetUrl || !budget) {
+            const msg = (window.UI?.currentLang === 'ar') ? "يرجى إكمال الحقول الرئيسية للإعلان" : "Please complete ad fields";
+            window.UI?.showToast(msg);
+            return;
+          }
 
-        if (!title || !targetUrl || !budget) {
-          const msg = (UI?.currentLang === 'ar') ? "يرجى إكمال الحقول الرئيسية للإعلان" : "Please complete ad fields";
-          if (UI?.showToast) UI.showToast(msg);
-          return;
-        }
+          const adData = {
+            type, title, targetUrl, mediaUrl, appUrl, gameUrl, category, budget, dailyBudget,
+            devices: {
+              android: !!document.getElementById('device-android')?.checked,
+              ios: !!document.getElementById('device-ios')?.checked,
+              desktop: !!document.getElementById('device-desktop')?.checked
+            },
+            countries: document.getElementById('ad-countries')?.value || 'ALL'
+          };
 
-        const adData = {
-          type, title, targetUrl, mediaUrl, appUrl, gameUrl, category, budget, dailyBudget,
-          devices: {
-            android: !!document.getElementById('device-android')?.checked,
-            ios: !!document.getElementById('device-ios')?.checked,
-            desktop: !!document.getElementById('device-desktop')?.checked
-          },
-          countries: document.getElementById('ad-countries')?.value || 'ALL'
-        };
+          window.UI?.setButtonLoading('btn-create-ad', true);
+          const res = window.API?.createAdCampaign ? await window.API.createAdCampaign(adData) : null;
+          window.UI?.setButtonLoading('btn-create-ad', false);
 
-        if (UI?.setButtonLoading) UI.setButtonLoading('btn-create-ad', true);
-        const res = (API && typeof API.createAdCampaign === 'function') ? await API.createAdCampaign(adData) : null;
-        if (UI?.setButtonLoading) UI.setButtonLoading('btn-create-ad', false);
-
-        if (res && res.success) {
-          this.triggerHaptic('notification', 'success');
-          const msg = (UI?.currentLang === 'ar') ? "تم إنشاء الحملة الإعلانية بنجاح!" : "Campaign created!";
-          if (UI?.showToast) UI.showToast(msg);
-        }
-      });
-    }
-
-    // 10. اختيار اللغة ومشاركة رابط الإحالة
-    const languageSelect = document.getElementById('language-select');
-    if (languageSelect) {
-      languageSelect.addEventListener('change', (e) => {
-        this.triggerHaptic('selection');
-        const lang = e.target.value;
-        if (i18n && typeof i18n.setLanguage === 'function') {
-          i18n.setLanguage(lang);
-        } else if (typeof window.changeAppLanguage === 'function') {
-          window.changeAppLanguage(lang);
+          if (res && res.success) {
+            this.triggerHaptic('notification', 'success');
+            const msg = (window.UI?.currentLang === 'ar') ? "تم إنشاء الحملة الإعلانية بنجاح!" : "Campaign created!";
+            window.UI?.showToast(msg);
+          }
         }
       });
     }
 
+    // 11. مشاركة رابط الإحالة عبر تليجرام
     const btnShareRef = document.getElementById('btn-share-ref');
     if (btnShareRef) {
       btnShareRef.addEventListener('click', () => {
         this.triggerHaptic('impact', 'light');
-        if (UI && typeof UI.shareReferralLink === 'function') {
-          UI.shareReferralLink();
+        if (window.UI && typeof window.UI.shareReferralLink === 'function') {
+          window.UI.shareReferralLink();
         } else {
           const refInput = document.getElementById('ref-link');
           if (refInput && refInput.value) {
@@ -739,26 +659,44 @@ window.App = {
       });
     }
 
-    // 11. إغلاق إعلان الفيديو Overlay
-    const btnCloseVideoAd = document.getElementById('btn-close-video-ad');
-    if (btnCloseVideoAd) {
-      btnCloseVideoAd.addEventListener('click', () => {
+    // 12. اختيار لغة التطبيق
+    const languageSelect = document.getElementById('language-select');
+    if (languageSelect) {
+      languageSelect.addEventListener('change', (e) => {
         this.triggerHaptic('selection');
-        if (Ads && typeof Ads.closeVideo === 'function') {
-          Ads.closeVideo();
-        } else if (UI && typeof UI.closeVideoAd === 'function') {
-          UI.closeVideoAd();
+        const lang = e.target.value;
+        if (window.i18n && typeof window.i18n.setLanguage === 'function') {
+          window.i18n.setLanguage(lang);
+        } else if (typeof window.changeAppLanguage === 'function') {
+          window.changeAppLanguage(lang);
         }
       });
     }
 
-    // 12. حفظ إعدادات لوحة التحكم للأدمن
+    // 13. إغلاق إعلان الفيديو Overlay
+    const btnCloseVideoAd = document.getElementById('btn-close-video-ad');
+    if (btnCloseVideoAd) {
+      btnCloseVideoAd.addEventListener('click', () => {
+        this.triggerHaptic('selection');
+        if (window.AdsModule && typeof window.AdsModule.closeVideo === 'function') {
+          window.AdsModule.closeVideo();
+        } else if (window.Ads && typeof window.Ads.closeVideo === 'function') {
+          window.Ads.closeVideo();
+        } else {
+          window.UI?.closeVideoAd();
+        }
+      });
+    }
+
+    // 14. ربط أحداث لوحة الإدارة
     const btnAdminSave = document.getElementById('btn-admin-save-settings');
     if (btnAdminSave) {
       btnAdminSave.addEventListener('click', async () => {
         this.triggerHaptic('impact', 'medium');
-        if (Admin && typeof Admin.saveSettings === 'function') {
-          await Admin.saveSettings();
+        if (window.AdminModule && typeof window.AdminModule.saveSettings === 'function') {
+          await window.AdminModule.saveSettings();
+        } else if (window.Admin && typeof window.Admin.saveSettings === 'function') {
+          await window.Admin.saveSettings();
         }
       });
     }
@@ -769,43 +707,38 @@ window.App = {
    */
   init: async function () {
     try {
-      const UI = getModule('UI');
-      const API = getModule('API');
-      const i18n = getModule('i18n');
-      const Wallet = getModule('Wallet');
-      const Shortener = getModule('Shortener');
-
       // 1. تهيئة بيئة تليجرام المدمجة
       this.initTelegramWebApp();
 
-      // 2. عرض بيانات المستخدم الأولية للواجهة
-      if (UI && typeof UI.renderTelegramUser === 'function') {
-        UI.renderTelegramUser();
+      // 2. تهيئة اللغة وترجمة واجهة المستخدم
+      if (window.i18n && typeof window.i18n.init === 'function') {
+        window.i18n.init();
       }
 
-      // 3. تهيئة اللغة وترجمة واجهة المستخدم
-      if (i18n && typeof i18n.init === 'function') {
-        i18n.init();
+      // 3. عرض بيانات المستخدم الأولية للواجهة
+      if (window.UI && typeof window.UI.renderTelegramUser === 'function') {
+        window.UI.renderTelegramUser();
       }
 
-      // 4. مصادقة المستخدم وجلب بيانات الملف الشخصي والصلاحيات
+      // 4. مصادقة المستخدم وتأكيد الجلسة
       let authenticated = false;
       let user = null;
-
-      if (API && typeof API.authLogin === 'function') {
-        const initData = window.Telegram?.WebApp?.initData || '';
-        authenticated = await API.authLogin(initData);
-      }
-
       try {
-        if (API && typeof API.getProfile === 'function') {
-          user = await API.getProfile();
-        } else if (API && typeof API.getDashboardData === 'function') {
-          const dashData = await API.getDashboardData();
+        const apiInstance = window.API || (typeof require !== 'undefined' ? require('./api.js') : {});
+        if (typeof apiInstance.authLogin === 'function') {
+          const initData = window.Telegram?.WebApp?.initData || '';
+          authenticated = await apiInstance.authLogin(initData);
+        }
+
+        if (typeof apiInstance.getProfile === 'function') {
+          user = await apiInstance.getProfile();
+        } else if (typeof apiInstance.getDashboardData === 'function') {
+          const dashData = await apiInstance.getDashboardData();
           user = dashData ? (dashData.user || dashData) : null;
+          if (dashData) authenticated = true;
         }
       } catch (authErr) {
-        console.warn("Profile fetch warning:", authErr);
+        console.error("Authentication/Profile Fetch Error:", authErr);
       }
 
       // 5. التحقق من صلاحيات المدير واستحقاق لوحة الإدارة
@@ -822,23 +755,14 @@ window.App = {
         }
       }
 
-      // 7. تهيئة الملاحة بين التبويبات وربط كافة الأحداث
+      // 7. تهيئة الملاحة بين التبويبات وربط الأحداث
       this.initTabNavigation();
       this.bindEventListeners();
 
-      // 8. تحميل البيانات التشغيلية للوحة التحكم الرئيسية والروابط
+      // 8. تحميل البيانات التشغيلية للوحة التحكم الرئيسية
       if (authenticated || user) {
-        if (Wallet && typeof Wallet.loadUserData === 'function') {
-          await Wallet.loadUserData();
-        } else {
-          await this.loadDashboard();
-        }
-
-        if (Shortener && typeof Shortener.fetchUserLinks === 'function') {
-          await Shortener.fetchUserLinks();
-        } else {
-          await this.loadUserLinks();
-        }
+        await this.loadDashboard();
+        await this.loadUserLinks();
       }
 
     } catch (err) {
