@@ -281,6 +281,15 @@ const UI = {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
     const tg = window.Telegram?.WebApp;
+    if (tg) {
+      try {
+        tg.ready();
+        tg.expand();
+      } catch (e) {
+        console.warn('[Telegram WebApp Ready Error]:', e);
+      }
+    }
+
     const u = tg?.initDataUnsafe?.user;
     const avatarContainer = document.getElementById('user-avatar-container');
     const nameElem = document.getElementById('user-display-name');
@@ -442,6 +451,7 @@ const UI = {
 
     links.forEach(link => {
       const shortUrl = `${apiBase}/r/${link.code || link.shortCode}`;
+      const linkId = link._id || link.code || '';
       html += `
         <div class="link-card" style="background: rgba(15,23,42,0.6); padding: 10px; border-radius: 10px; margin-bottom: 8px; border: 1px solid var(--card-border);">
           <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -451,17 +461,22 @@ const UI = {
           <div style="display:flex; gap:6px; align-items:center; margin-top:6px;">
             <input type="text" value="${shortUrl}" readonly style="margin:0; font-size:11px; padding:4px 8px;">
             <button class="btn-small" onclick="window.UI.copyToClipboard('${shortUrl}')">${this.currentLang === 'ar' ? 'نسخ' : 'Copy'}</button>
-            <button class="btn-small btn-danger" onclick="window.ShortenerModule ? window.ShortenerModule.deleteLink('${link._id || link.code}') : null">✕</button>
+            <button class="btn-small btn-danger" onclick="window.ShortenerModule ? window.ShortenerModule.deleteLink('${linkId}') : null">✕</button>
           </div>
         </div>
       `;
     });
 
     container.innerHTML = html;
+  },
+
+  // --- 7. UI Module Initialization ---
+  init: function() {
+    this.renderTelegramUser();
   }
 };
 
-// ربط جميع الدوال بالنطاق العالمي (window) للأمان والتوافقية
+// ربط جميع الدوال بالنطاق العالمي (window) للأمان والتوافقية مع الأحداث المباشرة من HTML
 if (typeof window !== 'undefined') {
   window.UI = UI;
   window.escapeHTML = UI.escapeHTML.bind(UI);
