@@ -1,355 +1,460 @@
-// public/js/modules/wallet.js - Wallet & Transactions Module
+/**
+ * public/js/modules/wallet.js
+ * TelegaApp - Complete Unified Wallet Module
+ */
 
-const API = typeof require !== 'undefined' ? require('./api.js') : (window.API || {});
-const i18n = typeof require !== 'undefined' ? require('./i18n.js') : (window.i18n || {});
+(function () {
+  'use strict';
 
-const WalletModule = {
-  /**
-   * تقديم طلب إيداع جديد
-   */
-  requestDeposit: async function() {
-    const networkInput = document.getElementById('deposit-network');
-    const amountInput = document.getElementById('deposit-amount');
-    const txHashInput = document.getElementById('deposit-txhash');
+  // دالة موحدة لإرسال طلبات الـ API لدعم كلاً من API.request و TelegaApp.api.request
+  const requestApi = async (endpoint, method = 'GET', data = null) => {
+    if (window.API && typeof window.API.request === 'function') {
+      return await window.API.request(endpoint, method, data);
+    }
+    if (window.TelegaApp?.api && typeof window.TelegaApp.api.request === 'function') {
+      return await window.TelegaApp.api.request(endpoint, method, data);
+    }
+    const options = {
+      method,
+      headers: { 'Content-Type': 'application/json' }
+    };
+    if (data) options.body = JSON.stringify(data);
+    const res = await fetch(endpoint, options);
+    return await res.json();
+  };
 
-    if (!networkInput || !amountInput || !txHashInput) return;
+  // دالة موحدة للتنبيهات
+  const notify = (msg, isError = false) => {
+    if (window.TelegaApp?.ui?.showToast) {
+      window.TelegaApp.ui.showToast(msg);
+    } else if (window.UI?.notify) {
+      window.UI.notify(msg, isError);
+    } else {
+      alert(msg);
+    }
+  };
 
-    const network = networkInput.value;
-    const amountVal = amountInput.value;
-    const txHashVal = txHashInput.value.trim();
-    const lang = window.UI ? window.UI.currentLang : (window.currentLang || 'ar');
+  // دالة موحدة للترجمة والنصوص الافتراضية
+  const t = (key, fallback) => {
+    if (window.TelegaApp?.i18n?.t) {
+      return window.TelegaApp.i18n.t(key);
+    }
+    return fallback;
+  };
 
-    if (!network) {
-      if (window.UI && typeof window.UI.showToast === 'function') {
-        window.UI.showToast(lang === 'ar' ? 'يرجى اختيار شبكة الدفع' : 'Please select payment network');
+  const WalletModule = {
+    data: {
+      balance: 0,
+      pendingWithdrawal: 0,
+      usdtAddress: '',
+      depositAddresses: {},
+      minDeposit: 10
+    },
+
+    init: async function () {
+      this.bindEvents();
+      await this.loadAllData();
+    },
+
+    bindEvents: function () {
+      // فتح النوافذ المنبثقة
+      document.getElementById('open-deposit-modal')?.addEventListener('click', () => {
+        document.getElementById('deposit-modal')?.classList.remove('hidden');
+      });
+
+      document.getElementById('open-withdraw-modal')?.addEventListener('click', () => {
+        document.getElementById('withdraw-modal')?.classList.remove('hidden');
+      });
+
+      // نموذج الإيداع
+      document.getElementById('deposit-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await this.submitDepositRequest();
+      });
+
+      // نموذج السحب
+      document.getElementById('withdraw-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await this.submitWithdrawalRequest();
+      });
+
+      // تغيير شبكة الإيداع
+      document.getElementById('deposit-network-select')?.addEventListener('change', () => {
+        this.updateDepositAddressDisplay();
+      });
+
+      // حساب رسوم السحب ديناميكياً
+      document.getElementById('withdraw-amount')?.addEventListener('input', () => {
+        this.calculateWithdrawalSummary();
+      });
+
+      // حفظ عنوان USDT
+      document.getElementById('save-address-btn')?.addEventListener('click', () => {
+        this.saveAddress();
+      });
+
+      // نسخ رابط الإحالة
+      document.getElementById('copy-ref-btn')?.addEventListener('click', () => {
+        this.copyText('referral-link-input');
+      });
+    },
+
+    loadAllData: async function () {
+      try {
+        await Promise.all([
+          this.loadWalletInfo(),
+          this.loadDepositAddresses(),
+          this.loadTransactions(),
+          this.loadWithdrawalHistory(),
+          this.loadDepositHistory(),
+          this.loadReferralData()
+        ]);
+      } catch (err) {
+        console.error('Error loading wallet data:', err);
       }
-      return;
-    }
+    },
 
-    const amount = parseFloat(amountVal);
-    if (!amount || amount < 1) {
-      if (window.UI && typeof window.UI.showToast === 'function') {
-        window.UI.showToast(lang === 'ar' ? 'الحد الأدنى للإيداع هو $1' : 'Minimum deposit amount is $1');
-      }
-      return;
-    }
+    loadWalletInfo: async function () {
+      try {
+        const res = await requestApi('/api/wallet/info');
+        if (res && res.success && res.data) {
+          const { balance = 0, pendingWithdrawal = 0, usdtTrc20Address = '', totalEarned = 0, totalWithdrawn = 0, referralLink = '' } = res.data;
 
-    if (!txHashVal || txHashVal.length < 5) {
-      if (window.UI && typeof window.UI.showToast === 'function') {
-        window.UI.showToast(lang === 'ar' ? 'يرجى إدخال رمز المعاملة (TxID)' : 'Please enter transaction TxID / Hash');
-      }
-      return;
-    }
+          this.data.balance = balance;
+          this.data.pendingWithdrawal = pendingWithdrawal;
+          this.data.usdtAddress = usdtTrc20Address;
 
-    if (window.UI && typeof window.UI.setButtonLoading === 'function') {
-      window.UI.setButtonLoading('btn-request-deposit', true);
-    }
+          this.updateBalances(balance, pendingWithdrawal);
 
-    try {
-      const apiInstance = window.API || API;
-      const data = await apiInstance.requestDeposit(network, amount, txHashVal);
+          const totalEarnedEl = document.getElementById('total-earned');
+          if (totalEarnedEl) totalEarnedEl.innerText = `$${totalEarned.toFixed(2)}`;
 
-      if (data && (data.success || data.deposit)) {
-        if (window.UI && typeof window.UI.showToast === 'function') {
-          window.UI.showToast(lang === 'ar' ? 'تم تقديم طلب الشحن بنجاح! سيتم مراجعته قريباً.' : 'Deposit request submitted successfully!');
+          const totalWithdrawnEl = document.getElementById('total-withdrawn');
+          if (totalWithdrawnEl) totalWithdrawnEl.innerText = `$${totalWithdrawn.toFixed(2)}`;
+
+          const addressInput = document.getElementById('saved-usdt-address');
+          if (addressInput) addressInput.value = usdtTrc20Address;
+
+          const refLinkInput = document.getElementById('referral-link-input');
+          if (refLinkInput) refLinkInput.value = referralLink;
         }
-        amountInput.value = '';
-        txHashInput.value = '';
-        await this.loadUserData();
-      } else {
-        const errorMsg = data?.error || data?.message || (lang === 'ar' ? 'فشل تقديم طلب الشحن' : 'Failed to submit deposit request');
-        if (window.UI && typeof window.UI.showToast === 'function') {
-          window.UI.showToast(errorMsg);
+      } catch (err) {
+        console.error('Error in loadWalletInfo:', err);
+      }
+    },
+
+    updateBalances: function (available = 0, pending = 0) {
+      const availFormatted = `$${parseFloat(available).toFixed(2)}`;
+      const availNum = parseFloat(available).toFixed(2);
+      const pendingFormatted = `$${parseFloat(pending).toFixed(2)}`;
+
+      ['home-balance', 'wallet-balance'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = availNum;
+      });
+
+      ['available-balance', 'availableBal'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = availFormatted;
+      });
+
+      ['pending-balance', 'reservedBal'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = pendingFormatted;
+      });
+    },
+
+    saveAddress: async function () {
+      const input = document.getElementById('saved-usdt-address');
+      if (!input) return;
+      const address = input.value.trim();
+
+      if (!address) {
+        notify('يرجى إدخال العنوان', true);
+        return;
+      }
+
+      try {
+        const res = await requestApi('/api/wallet/address', 'POST', { address });
+        if (res && res.success) {
+          notify(res.message || 'تم حفظ العنوان بنجاح!');
+          this.data.usdtAddress = address;
+        } else {
+          notify(res?.message || 'فشل حفظ العنوان', true);
         }
+      } catch (err) {
+        notify('حدث خطأ أثناء حفظ العنوان', true);
       }
-    } catch (err) {
-      console.error("Deposit request error:", err);
-      if (window.UI && typeof window.UI.showToast === 'function') {
-        window.UI.showToast(err.message || (lang === 'ar' ? 'خطأ أثناء تقديم الطلب' : 'Error submitting request'));
-      }
-    } finally {
-      if (window.UI && typeof window.UI.setButtonLoading === 'function') {
-        window.UI.setButtonLoading('btn-request-deposit', false);
-      }
-    }
-  },
+    },
 
-  /**
-   * حفظ إعدادات المحفظة الافتراضية
-   */
-  saveSettings: async function() {
-    const walletInput = document.getElementById('default-wallet');
-    if (!walletInput) return;
-    const walletAddr = walletInput.value.trim();
-    const lang = window.UI ? window.UI.currentLang : (window.currentLang || 'ar');
-
-    if (!walletAddr) {
-      if (window.UI && typeof window.UI.showToast === 'function') {
-        window.UI.showToast(lang === 'ar' ? 'يرجى إدخال عنوان المحفظة' : 'Please enter wallet address');
-      }
-      return;
-    }
-
-    if (window.UI && typeof window.UI.setButtonLoading === 'function') {
-      window.UI.setButtonLoading('save-wallet-btn', true);
-    }
-
-    try {
-      const apiInstance = window.API || API;
-      const data = await apiInstance.updateWalletAddress(walletAddr);
-
-      if (data && (data.success || data.user)) {
-        if (window.UI && typeof window.UI.showToast === 'function') {
-          window.UI.showToast(lang === 'ar' ? 'تم حفظ العنوان بنجاح' : 'Wallet address saved');
+    loadDepositAddresses: async function () {
+      try {
+        const res = await requestApi('/api/wallet/deposit-addresses');
+        if (res && res.success) {
+          this.data.depositAddresses = res.addresses || {};
+          this.data.minDeposit = res.minDeposit || 10;
+          this.updateDepositAddressDisplay();
         }
-        if (window.UI && typeof window.UI.toggleWalletEdit === 'function') {
-          window.UI.toggleWalletEdit();
+      } catch (err) {
+        console.error('Error in loadDepositAddresses:', err);
+      }
+    },
+
+    updateDepositAddressDisplay: function () {
+      const select = document.getElementById('deposit-network-select');
+      const addressDisplay = document.getElementById('deposit-address-display');
+      if (select && addressDisplay) {
+        const network = select.value;
+        addressDisplay.innerText = this.data.depositAddresses[network] || 'غير متوفر';
+      }
+    },
+
+    calculateWithdrawalSummary: function () {
+      const amountInput = document.getElementById('withdraw-amount');
+      if (!amountInput) return;
+      const amount = parseFloat(amountInput.value) || 0;
+      const fee = 3;
+      const net = amount > fee ? amount - fee : 0;
+
+      const feeDisplay = document.getElementById('withdraw-fee-display');
+      if (feeDisplay) feeDisplay.innerText = `$${fee}`;
+
+      const netDisplay = document.getElementById('withdraw-net-display');
+      if (netDisplay) netDisplay.innerText = `$${net.toFixed(2)}`;
+    },
+
+    submitWithdrawalRequest: async function () {
+      const amountInput = document.getElementById('withdraw-amount');
+      const amount = parseFloat(amountInput?.value);
+
+      if (!this.data.usdtAddress) {
+        notify('يرجى إضافة وتأكيد عنوان USDT TRC20 أولاً', true);
+        return;
+      }
+
+      if (isNaN(amount) || amount < 30) {
+        notify('الحد الأدنى للسحب هو $30', true);
+        return;
+      }
+
+      if (amount > this.data.balance) {
+        notify('الرصيد المتاح غير كافٍ', true);
+        return;
+      }
+
+      const confirmMsg = `تأكيد طلب السحب:\nالمبلغ الإجمالي: $${amount}\nرسوم السحب: $3\nالمبلغ الصافي: $${amount - 3}\nالعنوان: ${this.data.usdtAddress}`;
+      if (!confirm(confirmMsg)) return;
+
+      try {
+        const res = await requestApi('/api/wallet/withdraw', 'POST', { amount });
+        if (res && res.success) {
+          notify(res.message || 'تم تقديم طلب السحب بنجاح!');
+          if (amountInput) amountInput.value = '';
+          document.getElementById('withdraw-modal')?.classList.add('hidden');
+          await this.loadAllData();
+        } else {
+          notify(res?.message || 'فشل تقديم طلب السحب', true);
         }
-        await this.loadUserData();
-      } else {
-        const errorMsg = data?.error || (lang === 'ar' ? 'فشل حفظ العنوان' : 'Failed to save address');
-        if (window.UI && typeof window.UI.showToast === 'function') {
-          window.UI.showToast(errorMsg);
+      } catch (err) {
+        notify('حدث خطأ أثناء إجراء السحب', true);
+      }
+    },
+
+    submitDepositRequest: async function () {
+      const networkEl = document.getElementById('deposit-network-select');
+      const amountInput = document.getElementById('deposit-amount-input') || document.getElementById('deposit-amount');
+      const txidInput = document.getElementById('deposit-txid-input');
+
+      const network = networkEl ? networkEl.value : 'TRC20';
+      const amount = parseFloat(amountInput?.value);
+      const txid = txidInput ? txidInput.value.trim() : '';
+
+      if (isNaN(amount) || amount < (this.data.minDeposit || 10)) {
+        notify(`الحد الأدنى للإيداع هو $${this.data.minDeposit || 10}`, true);
+        return;
+      }
+
+      try {
+        const payload = txid ? { network, amount, txid } : { amount };
+        const res = await requestApi('/api/wallet/deposit', 'POST', payload);
+
+        if (res && res.success) {
+          notify(res.message || 'تم الإيداع بنجاح!');
+          if (amountInput) amountInput.value = '';
+          if (txidInput) txidInput.value = '';
+          document.getElementById('deposit-modal')?.classList.add('hidden');
+          await this.loadAllData();
+        } else {
+          notify(res?.message || 'فشل طلب الإيداع', true);
         }
+      } catch (err) {
+        notify('حدث خطأ أثناء طلب الإيداع', true);
       }
-    } catch (err) {
-      if (window.UI && typeof window.UI.showToast === 'function') {
-        window.UI.showToast(err.message || (lang === 'ar' ? 'خطأ أثناء الحفظ' : 'Error saving settings'));
-      }
-    } finally {
-      if (window.UI && typeof window.UI.setButtonLoading === 'function') {
-        window.UI.setButtonLoading('save-wallet-btn', false);
-      }
-    }
-  },
+    },
 
-  /**
-   * تقديم طلب سحب الأرباح
-   */
-  requestWithdrawal: async function() {
-    const walletInput = document.getElementById('default-wallet');
-    const amountInput = document.getElementById('withdraw-amount');
-    const walletAddr = walletInput ? walletInput.value.trim() : '';
-    const amountVal = amountInput ? parseFloat(amountInput.value) || 0 : 0;
-    const lang = window.UI ? window.UI.currentLang : (window.currentLang || 'ar');
+    loadTransactions: async function () {
+      const listContainer = document.getElementById('transactions-list');
+      if (!listContainer) return;
 
-    if (!walletAddr) {
-      if (window.UI && typeof window.UI.showToast === 'function') {
-        window.UI.showToast(lang === 'ar' ? 'يرجى إدخال وتحديد عنوان محفظة السحب أولاً' : 'Please define withdrawal wallet address first');
-      }
-      return;
-    }
-
-    if (amountVal < 30) {
-      if (window.UI && typeof window.UI.showToast === 'function') {
-        window.UI.showToast(lang === 'ar' ? 'الحد الأدنى للسحب هو 30$' : 'Minimum withdrawal is $30');
-      }
-      return;
-    }
-
-    if (window.UI && typeof window.UI.setButtonLoading === 'function') {
-      window.UI.setButtonLoading('btn-request-withdraw', true);
-    }
-
-    try {
-      const apiInstance = window.API || API;
-      const data = await apiInstance.requestWithdrawal(amountVal, walletAddr);
-
-      if (data && (data.success || data.withdraw)) {
-        if (window.UI && typeof window.UI.showToast === 'function') {
-          window.UI.showToast(lang === 'ar' ? 'تم تقديم طلب السحب بنجاح' : 'Withdrawal requested successfully');
+      try {
+        const res = await requestApi('/api/wallet/transactions');
+        if (res && res.success && res.transactions && res.transactions.length > 0) {
+          listContainer.innerHTML = res.transactions.map(tx => `
+            <div class="list-item">
+              <div class="list-item-info">
+                <span class="list-item-title">${tx.description || tx.type}</span>
+                <span class="list-item-sub">${new Date(tx.createdAt).toLocaleString()}</span>
+              </div>
+              <span class="stat-value ${tx.amount > 0 ? 'color-success' : 'color-danger'}">
+                ${tx.amount > 0 ? '+' : ''}$${parseFloat(tx.amount).toFixed(2)}
+              </span>
+            </div>
+          `).join('');
+        } else {
+          listContainer.innerHTML = `<div class="empty-state">${t('no_transactions', 'لا توجد معاملات بعد')}</div>`;
         }
-        if (amountInput) amountInput.value = '';
-        if (window.UI && typeof window.UI.updateWithdrawCalculations === 'function') {
-          window.UI.updateWithdrawCalculations();
-        }
-        await this.loadUserData();
-      } else {
-        const errorMsg = data?.error || data?.message || (lang === 'ar' ? 'فشل تقديم طلب السحب' : 'Failed to request withdrawal');
-        if (window.UI && typeof window.UI.showToast === 'function') {
-          window.UI.showToast(errorMsg);
-        }
+      } catch (err) {
+        console.error('Error loading transactions:', err);
       }
-    } catch (err) {
-      if (window.UI && typeof window.UI.showToast === 'function') {
-        window.UI.showToast(err.message || (lang === 'ar' ? 'خطأ في عملية السحب' : 'Error processing withdrawal'));
-      }
-    } finally {
-      if (window.UI && typeof window.UI.setButtonLoading === 'function') {
-        window.UI.setButtonLoading('btn-request-withdraw', false);
-      }
-    }
-  },
+    },
 
-  /**
-   * عرض سجل طلبات السحب
-   */
-  renderWithdrawalsHistory: function(withdraws) {
-    const container = document.getElementById('withdraws-list');
-    if (!container) return;
+    loadWithdrawalHistory: async function () {
+      const container = document.getElementById('withdrawal-history-list');
+      if (!container) return;
 
-    const lang = window.UI ? window.UI.currentLang : (window.currentLang || 'ar');
-
-    if (!withdraws || withdraws.length === 0) {
-      container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 10px 0;">${lang === 'ar' ? 'لا توجد طلبات سحب سابقة.' : 'No withdrawal history found.'}</p>`;
-      return;
-    }
-
-    container.innerHTML = withdraws.map(w => {
-      const statusClass = (w.status === 'completed' || w.status === 'approved') ? 'color: var(--success);' : w.status === 'rejected' ? 'color: var(--danger);' : 'color: var(--warning);';
-      const statusText = (w.status === 'completed' || w.status === 'approved') ? (lang === 'ar' ? 'مكتمل' : 'Approved') : w.status === 'rejected' ? (lang === 'ar' ? 'مرفوض' : 'Rejected') : (lang === 'ar' ? 'قيد المراجعة' : 'Pending');
-      const dateStr = new Date(w.createdAt || Date.now()).toLocaleDateString();
-
-      return `
-        <div style="background: #0f172a; padding: 12px; border-radius: 12px; border: 1px solid var(--card-border); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
-          <div>
-            <strong style="font-size: 13px; color: var(--text);">$${(w.amount || 0).toFixed(2)}</strong>
-            <small style="display: block; color: var(--text-muted); font-size: 10px;">${dateStr}</small>
-          </div>
-          <span style="font-size: 12px; font-weight: bold; ${statusClass}">${statusText}</span>
-        </div>
-      `;
-    }).join('');
-  },
-
-  /**
-   * جلب وعرض قائمة الإحالات
-   */
-  fetchUserReferrals: async function() {
-    const container = document.getElementById('ref-list');
-    if (container) {
-      container.innerHTML = `<div style="text-align:center; padding: 10px;"><div class="spinner"></div></div>`;
-    }
-
-    try {
-      const apiInstance = window.API || API;
-      const data = await apiInstance.getUserReferrals();
-      if (data) {
-        const referrals = Array.isArray(data) ? data : (data.referrals || data.data || []);
-        this.renderUserReferrals(referrals);
-      }
-    } catch (err) {
-      console.error("Error fetching referrals:", err);
-    }
-  },
-
-  /**
-   * عرض قائمة الإحالات
-   */
-  renderUserReferrals: function(referrals) {
-    const container = document.getElementById('ref-list');
-    if (!container) return;
-
-    const lang = window.UI ? window.UI.currentLang : (window.currentLang || 'ar');
-
-    if (!referrals || referrals.length === 0) {
-      container.innerHTML = `<p style="text-align:center; color: var(--text-muted); margin: 12px 0;">${lang === 'ar' ? 'لم تنضم أي إحالات عبر رابطك بعد.' : 'No referrals registered yet.'}</p>`;
-      return;
-    }
-
-    container.innerHTML = referrals.map(ref => {
-      const escapeFn = window.UI ? window.UI.escapeHTML : (str => str);
-      const name = escapeFn(ref.firstName || ref.username || 'User');
-      const earnings = (ref.earnedAmount || ref.contribution || 0).toFixed(2);
-      const dateStr = new Date(ref.createdAt || Date.now()).toLocaleDateString();
-
-      return `
-        <div style="background: #0f172a; padding: 12px; border-radius: 12px; border: 1px solid var(--card-border); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
-          <div>
-            <strong style="font-size: 13px; color: var(--text);">${name}</strong>
-            <small style="display: block; color: var(--text-muted); font-size: 10px;">${dateStr}</small>
-          </div>
-          <span style="font-size: 12px; color: var(--success); font-weight: bold;">+$${earnings}</span>
-        </div>
-      `;
-    }).join('');
-  },
-
-  /**
-   * تحميل وإعادة تحديث جميع بيانات المستخدم بالواجهة
-   */
-  loadUserData: async function() {
-    try {
-      const apiInstance = window.API || API;
-      const data = await apiInstance.getDashboardData();
-      if (data) {
-        const u = data.user || data;
-
-        const pendingBalElem = document.getElementById('pending-bal');
-        const availBalElem = document.getElementById('avail-bal');
-        const refEarningsElem = document.getElementById('ref-earnings');
-        const refCountElem = document.getElementById('ref-count');
-
-        if (pendingBalElem) pendingBalElem.innerText = `$${(u.pendingBalance || 0).toFixed(2)}`;
-        if (availBalElem) availBalElem.innerText = `$${(u.availableBalance || 0).toFixed(2)}`;
-        if (refEarningsElem) refEarningsElem.innerText = `$${(u.referralEarnings || 0).toFixed(2)}`;
-        if (refCountElem) refCountElem.innerText = data.referralsCount || u.referralsCount || 0;
-
-        const refInput = document.getElementById('ref-link');
-        const botUsername = (data.botUsername || 'Ads_telegabot').replace(/^@/, '');
-        if (refInput) {
-          refInput.value = `https://t.me/${botUsername}?start=${window.currentUserTelegramId}`;
+      try {
+        const res = await requestApi('/api/wallet/withdrawals');
+        if (res && res.success && res.withdrawals && res.withdrawals.length > 0) {
+          container.innerHTML = res.withdrawals.map(w => `
+            <div class="history-item">
+              <div class="item-header">
+                <span class="req-id">#${w.requestId}</span>
+                <span class="status status-${(w.status || '').toLowerCase()}">${w.status}</span>
+              </div>
+              <div class="item-details">
+                <p>المبلغ: <strong>$${w.amount}</strong> | الصافي: <strong>$${w.netAmount}</strong></p>
+                <p class="date">${new Date(w.createdAt).toLocaleString('ar-EG')}</p>
+                ${w.rejectionReason ? `<p class="error-text">سبب الرفض: ${w.rejectionReason}</p>` : ''}
+              </div>
+            </div>
+          `).join('');
+        } else {
+          container.innerHTML = `<p class="empty-msg">${t('no_withdrawals', 'لا توجد طلبات سحب سابقة')}</p>`;
         }
+      } catch (err) {
+        console.error('Error loading withdrawal history:', err);
+      }
+    },
 
-        const walletInput = document.getElementById('default-wallet');
-        if (walletInput && (u.defaultWallet || u.walletAddress)) {
-          walletInput.value = u.defaultWallet || u.walletAddress;
+    loadDepositHistory: async function () {
+      const container = document.getElementById('deposit-history-list');
+      if (!container) return;
+
+      try {
+        const res = await requestApi('/api/wallet/deposits');
+        if (res && res.success && res.deposits && res.deposits.length > 0) {
+          container.innerHTML = res.deposits.map(d => `
+            <div class="history-item">
+              <div class="item-header">
+                <span class="req-id">#${d.requestId} (${d.network})</span>
+                <span class="status status-${(d.status || '').toLowerCase()}">${d.status}</span>
+              </div>
+              <div class="item-details">
+                <p>المبلغ: <strong>$${d.amount}</strong></p>
+                <p class="txid">TXID: ${d.txid}</p>
+                <p class="date">${new Date(d.createdAt).toLocaleString('ar-EG')}</p>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          container.innerHTML = `<p class="empty-msg">${t('no_deposits', 'لا توجد طلبات إيداع سابقة')}</p>`;
         }
+      } catch (err) {
+        console.error('Error loading deposit history:', err);
+      }
+    },
 
-        if (data.links && Array.isArray(data.links)) {
-          window.rawUserLinksCache = data.links;
-          if (window.ShortenerModule && typeof window.ShortenerModule.renderUserLinks === 'function') {
-            window.ShortenerModule.renderUserLinks(window.rawUserLinksCache);
+    loadReferralData: async function () {
+      try {
+        const res = await requestApi('/api/referrals/stats');
+        if (res && res.success) {
+          const refCountEl = document.getElementById('ref-count') || document.getElementById('referral-count');
+          if (refCountEl) refCountEl.textContent = res.referralCount ?? res.referralsCount ?? 0;
+
+          const refEarningsEl = document.getElementById('ref-earnings') || document.getElementById('referral-commission');
+          if (refEarningsEl) {
+            const totalComm = res.referralEarnings ?? res.totalCommission ?? 0;
+            refEarningsEl.textContent = `$${parseFloat(totalComm).toFixed(2)}`;
+          }
+
+          const referralsList = document.getElementById('referrals-list');
+          if (referralsList) {
+            if (res.referrals && res.referrals.length > 0) {
+              referralsList.innerHTML = res.referrals.map(ref => `
+                <div class="list-item">
+                  <div class="list-item-info">
+                    <span class="list-item-title">${ref.firstName || 'مستخدم'} ${ref.username ? '(@' + ref.username + ')' : ''}</span>
+                    <span class="list-item-sub">انضم بتاريخ: ${new Date(ref.registeredAt || ref.createdAt).toLocaleDateString('ar-EG')}</span>
+                  </div>
+                </div>
+              `).join('');
+            } else {
+              referralsList.innerHTML = `<div class="empty-state">${t('no_referrals', 'لا توجد إحالات بعد')}</div>`;
+            }
+          }
+
+          const logsContainer = document.getElementById('referral-logs-list');
+          if (logsContainer) {
+            if (res.logs && res.logs.length > 0) {
+              logsContainer.innerHTML = res.logs.map(log => `
+                <div class="history-item">
+                  <div class="item-header">
+                    <span>المستخدم: ${log.referredUser ? log.referredUser.username || log.referredUser.firstName : 'مستخدم'}</span>
+                    <span class="status status-${(log.status || '').toLowerCase()}">${log.status}</span>
+                  </div>
+                  <div class="item-details">
+                    <p>العمولة: <strong>$${log.commission}</strong> (من $${log.amount})</p>
+                    <p class="date">${new Date(log.createdAt).toLocaleString('ar-EG')}</p>
+                  </div>
+                </div>
+              `).join('');
+            } else {
+              logsContainer.innerHTML = `<p class="empty-msg">${t('no_referral_logs', 'لا توجد أرباح إحالات بعد')}</p>`;
+            }
           }
         }
-
-        if (data.withdraws && Array.isArray(data.withdraws)) {
-          this.renderWithdrawalsHistory(data.withdraws);
-        }
-
-        if (data.ads && Array.isArray(data.ads)) {
-          if (window.AdsModule && typeof window.AdsModule.renderUserAds === 'function') {
-            window.AdsModule.renderUserAds(data.ads);
-          }
-        }
-
-        if (data.announcements && Array.isArray(data.announcements) && data.announcements.length > 0) {
-          const anc = data.announcements[0];
-          const ancBox = document.getElementById('announcement-box');
-          const ancTitle = document.getElementById('anc-title');
-          const ancContent = document.getElementById('anc-content');
-
-          if (ancBox && anc.title) {
-            if (ancTitle) ancTitle.innerText = anc.title;
-            if (ancContent) ancContent.innerText = anc.content || anc.message || '';
-            ancBox.classList.remove('hidden');
-          }
-        }
-
-        if (data.isAdmin === true) {
-          window.isUserAdmin = true;
-          const adminBtn = document.getElementById('tab-btn-admin');
-          if (adminBtn) adminBtn.style.display = 'flex';
-        }
+      } catch (err) {
+        console.error('Error loading referral data:', err);
       }
-    } catch (err) {
-      console.error("Error loading user data:", err);
-    }
-  }
-};
+    },
 
-// Global standard helpers mapping for compatibility
-if (typeof window !== 'undefined') {
+    copyText: function (elementId) {
+      const el = document.getElementById(elementId);
+      if (!el) return;
+      const text = el.value || el.innerText;
+      if (!text) return;
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          notify('تم النسخ للحافظة بنجاح!');
+        }).catch(() => {
+          notify('فشل النسخ تلقائياً', true);
+        });
+      } else {
+        notify('النسخ غير مدعوم على هذا المتصفح', true);
+      }
+    }
+  };
+
+  // تصدير النطاق الآمن لكلا الاسمين للربط الخلفي والتوافق التام
   window.WalletModule = WalletModule;
-  window.requestDeposit = WalletModule.requestDeposit.bind(WalletModule);
-  window.saveSettings = WalletModule.saveSettings.bind(WalletModule);
-  window.requestWithdrawal = WalletModule.requestWithdrawal.bind(WalletModule);
-  window.renderWithdrawalsHistory = WalletModule.renderWithdrawalsHistory.bind(WalletModule);
-  window.fetchUserReferrals = WalletModule.fetchUserReferrals.bind(WalletModule);
-  window.renderUserReferrals = WalletModule.renderUserReferrals.bind(WalletModule);
-  window.loadUserData = WalletModule.loadUserData.bind(WalletModule);
-}
+  window.TelegaApp = window.TelegaApp || {};
+  window.TelegaApp.wallet = WalletModule;
 
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = WalletModule;
-}
+  // تهيئة عند اكتمال التحميل
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => WalletModule.init());
+  } else {
+    WalletModule.init();
+  }
+})();
