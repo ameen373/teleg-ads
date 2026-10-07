@@ -6,13 +6,13 @@
 (function () {
   'use strict';
 
-  // دالة موحدة لإرسال طلبات الـ API لدعم كلاً من API.request و TelegaApp.api.request
+  // دالة موحدة لإرسال طلبات الـ API
   const requestApi = async (endpoint, method = 'GET', data = null) => {
-    if (window.API && typeof window.API.request === 'function') {
-      return await window.API.request(endpoint, method, data);
-    }
     if (window.TelegaApp?.api && typeof window.TelegaApp.api.request === 'function') {
       return await window.TelegaApp.api.request(endpoint, method, data);
+    }
+    if (window.API && typeof window.API.request === 'function') {
+      return await window.API.request(endpoint, method, data);
     }
     const options = {
       method,
@@ -23,10 +23,12 @@
     return await res.json();
   };
 
-  // دالة موحدة للتنبيهات
+  // دالة موحدة للتنبيهات عبر UI
   const notify = (msg, isError = false) => {
-    if (window.TelegaApp?.ui?.showToast) {
+    if (window.TelegaApp?.ui?.showToast && !isError) {
       window.TelegaApp.ui.showToast(msg);
+    } else if (window.TelegaApp?.ui?.showAlert) {
+      window.TelegaApp.ui.showAlert(msg, isError);
     } else if (window.UI?.notify) {
       window.UI.notify(msg, isError);
     } else {
@@ -47,7 +49,10 @@
       balance: 0,
       pendingWithdrawal: 0,
       usdtAddress: '',
-      depositAddresses: {},
+      depositAddresses: {
+        TRC20: '',
+        BEP20: ''
+      },
       minDeposit: 10
     },
 
@@ -59,11 +64,19 @@
     bindEvents: function () {
       // فتح النوافذ المنبثقة
       document.getElementById('open-deposit-modal')?.addEventListener('click', () => {
-        document.getElementById('deposit-modal')?.classList.remove('hidden');
+        if (window.TelegaApp?.ui?.openModal) {
+          window.TelegaApp.ui.openModal('deposit-modal');
+        } else {
+          document.getElementById('deposit-modal')?.classList.remove('hidden');
+        }
       });
 
       document.getElementById('open-withdraw-modal')?.addEventListener('click', () => {
-        document.getElementById('withdraw-modal')?.classList.remove('hidden');
+        if (window.TelegaApp?.ui?.openModal) {
+          window.TelegaApp.ui.openModal('withdraw-modal');
+        } else {
+          document.getElementById('withdraw-modal')?.classList.remove('hidden');
+        }
       });
 
       // نموذج الإيداع
@@ -97,6 +110,11 @@
       document.getElementById('copy-ref-btn')?.addEventListener('click', () => {
         this.copyText('referral-link-input');
       });
+
+      // نسخ عنوان الإيداع
+      document.getElementById('copy-deposit-addr-btn')?.addEventListener('click', () => {
+        this.copyText('deposit-address-display');
+      });
     },
 
     loadAllData: async function () {
@@ -127,10 +145,10 @@
           this.updateBalances(balance, pendingWithdrawal);
 
           const totalEarnedEl = document.getElementById('total-earned');
-          if (totalEarnedEl) totalEarnedEl.innerText = `$${totalEarned.toFixed(2)}`;
+          if (totalEarnedEl) totalEarnedEl.innerText = `$${parseFloat(totalEarned).toFixed(2)}`;
 
           const totalWithdrawnEl = document.getElementById('total-withdrawn');
-          if (totalWithdrawnEl) totalWithdrawnEl.innerText = `$${totalWithdrawn.toFixed(2)}`;
+          if (totalWithdrawnEl) totalWithdrawnEl.innerText = `$${parseFloat(totalWithdrawn).toFixed(2)}`;
 
           const addressInput = document.getElementById('saved-usdt-address');
           if (addressInput) addressInput.value = usdtTrc20Address;
@@ -191,8 +209,18 @@
       try {
         const res = await requestApi('/api/wallet/deposit-addresses');
         if (res && res.success) {
-          this.data.depositAddresses = res.addresses || {};
+          this.data.depositAddresses = res.addresses || {
+            TRC20: res.DEPOSIT_ADDRESS_TRC20 || res.trc20 || '',
+            BEP20: res.DEPOSIT_ADDRESS_BEP20 || res.bep20 || ''
+          };
           this.data.minDeposit = res.minDeposit || 10;
+
+          const trcEl = document.getElementById('deposit-address-trc20');
+          if (trcEl) trcEl.textContent = this.data.depositAddresses.TRC20 || 'غير متوفر';
+
+          const bepEl = document.getElementById('deposit-address-bep20');
+          if (bepEl) bepEl.textContent = this.data.depositAddresses.BEP20 || 'غير متوفر';
+
           this.updateDepositAddressDisplay();
         }
       } catch (err) {
@@ -203,9 +231,10 @@
     updateDepositAddressDisplay: function () {
       const select = document.getElementById('deposit-network-select');
       const addressDisplay = document.getElementById('deposit-address-display');
-      if (select && addressDisplay) {
-        const network = select.value;
-        addressDisplay.innerText = this.data.depositAddresses[network] || 'غير متوفر';
+      if (addressDisplay) {
+        const network = select ? select.value : 'TRC20';
+        const addr = this.data.depositAddresses[network] || Object.values(this.data.depositAddresses)[0] || 'غير متوفر';
+        addressDisplay.innerText = addr;
       }
     },
 
@@ -250,7 +279,11 @@
         if (res && res.success) {
           notify(res.message || 'تم تقديم طلب السحب بنجاح!');
           if (amountInput) amountInput.value = '';
-          document.getElementById('withdraw-modal')?.classList.add('hidden');
+          if (window.TelegaApp?.ui?.closeModal) {
+            window.TelegaApp.ui.closeModal('withdraw-modal');
+          } else {
+            document.getElementById('withdraw-modal')?.classList.add('hidden');
+          }
           await this.loadAllData();
         } else {
           notify(res?.message || 'فشل تقديم طلب السحب', true);
@@ -275,14 +308,18 @@
       }
 
       try {
-        const payload = txid ? { network, amount, txid } : { amount };
+        const payload = txid ? { network, amount, txid } : { network, amount };
         const res = await requestApi('/api/wallet/deposit', 'POST', payload);
 
         if (res && res.success) {
           notify(res.message || 'تم الإيداع بنجاح!');
           if (amountInput) amountInput.value = '';
           if (txidInput) txidInput.value = '';
-          document.getElementById('deposit-modal')?.classList.add('hidden');
+          if (window.TelegaApp?.ui?.closeModal) {
+            window.TelegaApp.ui.closeModal('deposit-modal');
+          } else {
+            document.getElementById('deposit-modal')?.classList.add('hidden');
+          }
           await this.loadAllData();
         } else {
           notify(res?.message || 'فشل طلب الإيداع', true);
@@ -303,7 +340,7 @@
             <div class="list-item">
               <div class="list-item-info">
                 <span class="list-item-title">${tx.description || tx.type}</span>
-                <span class="list-item-sub">${new Date(tx.createdAt).toLocaleString()}</span>
+                <span class="list-item-sub">${new Date(tx.createdAt).toLocaleString('ar-EG')}</span>
               </div>
               <span class="stat-value ${tx.amount > 0 ? 'color-success' : 'color-danger'}">
                 ${tx.amount > 0 ? '+' : ''}$${parseFloat(tx.amount).toFixed(2)}
@@ -328,11 +365,11 @@
           container.innerHTML = res.withdrawals.map(w => `
             <div class="history-item">
               <div class="item-header">
-                <span class="req-id">#${w.requestId}</span>
+                <span class="req-id">#${w.requestId || w.id || ''}</span>
                 <span class="status status-${(w.status || '').toLowerCase()}">${w.status}</span>
               </div>
               <div class="item-details">
-                <p>المبلغ: <strong>$${w.amount}</strong> | الصافي: <strong>$${w.netAmount}</strong></p>
+                <p>المبلغ: <strong>$${w.amount}</strong> | الصافي: <strong>$${w.netAmount || (w.amount - 3)}</strong></p>
                 <p class="date">${new Date(w.createdAt).toLocaleString('ar-EG')}</p>
                 ${w.rejectionReason ? `<p class="error-text">سبب الرفض: ${w.rejectionReason}</p>` : ''}
               </div>
@@ -356,12 +393,12 @@
           container.innerHTML = res.deposits.map(d => `
             <div class="history-item">
               <div class="item-header">
-                <span class="req-id">#${d.requestId} (${d.network})</span>
+                <span class="req-id">#${d.requestId || d.id || ''} (${d.network || 'TRC20'})</span>
                 <span class="status status-${(d.status || '').toLowerCase()}">${d.status}</span>
               </div>
               <div class="item-details">
                 <p>المبلغ: <strong>$${d.amount}</strong></p>
-                <p class="txid">TXID: ${d.txid}</p>
+                ${d.txid ? `<p class="txid">TXID: ${d.txid}</p>` : ''}
                 <p class="date">${new Date(d.createdAt).toLocaleString('ar-EG')}</p>
               </div>
             </div>
@@ -428,6 +465,8 @@
       }
     },
 
+    loadReferrals: function() { return this.loadReferralData(); },
+
     copyText: function (elementId) {
       const el = document.getElementById(elementId);
       if (!el) return;
@@ -446,12 +485,11 @@
     }
   };
 
-  // تصدير النطاق الآمن لكلا الاسمين للربط الخلفي والتوافق التام
+  // تصدير النطاق الآمن
   window.WalletModule = WalletModule;
   window.TelegaApp = window.TelegaApp || {};
   window.TelegaApp.wallet = WalletModule;
 
-  // تهيئة عند اكتمال التحميل
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => WalletModule.init());
   } else {
