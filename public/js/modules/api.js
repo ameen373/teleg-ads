@@ -2,7 +2,6 @@
  * TelegaApp - API Module
  * File: public/js/modules/api.js
  */
-
 (function () {
   'use strict';
 
@@ -33,7 +32,7 @@
     },
 
     /**
-     * دالة الطلبات البرمجية المركزية
+     * دالة الطلبات البرمجية المركزية مع معالجة الأخطاء والتنبيه عبر UI
      */
     request: async function (endpoint, method = 'GET', data = null, customHeaders = {}) {
       const headers = {
@@ -59,7 +58,7 @@
         headers
       };
 
-      if (data && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
+      if (data && (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE')) {
         config.body = JSON.stringify(data);
       }
 
@@ -76,6 +75,8 @@
         console.error(`API Error [${endpoint}]:`, err.message);
         if (window.TelegaApp?.ui?.showToast) {
           window.TelegaApp.ui.showToast(err.message || 'حدث خطأ في الاتصال بالسيرفر');
+        } else if (window.TelegaApp?.ui?.showAlert) {
+          window.TelegaApp.ui.showAlert(err.message || 'حدث خطأ في الاتصال بالسيرفر', true);
         }
         throw err;
       }
@@ -91,11 +92,19 @@
     // ==========================================
     // 2. المحفظة والعمليات (Wallet & Ledger)
     // ==========================================
-    deposit: function (amount) { return this.request('/api/wallet/deposit', 'POST', { amount }); },
+    getWalletInfo: function () { return this.request('/api/wallet/info'); },
+    getDepositAddresses: function () { return this.request('/api/wallet/deposit-addresses'); },
+    saveWalletAddress: function (address) { return this.request('/api/wallet/address', 'POST', { address }); },
+    deposit: function (data) { return this.request('/api/wallet/deposit', 'POST', typeof data === 'object' ? data : { amount: data }); },
+    withdraw: function (amount) { return this.request('/api/wallet/withdraw', 'POST', { amount }); },
+    getTransactions: function () { return this.request('/api/wallet/transactions'); },
+    getWithdrawalsHistory: function () { return this.request('/api/wallet/withdrawals'); },
+    getDepositsHistory: function () { return this.request('/api/wallet/deposits'); },
+    getReferralStats: function () { return this.request('/api/referrals/stats'); },
     getLedger: function () { return this.request('/api/wallet/ledger'); },
 
     // ==========================================
-    // 3. الحملات الإعلانية (Campaigns)
+    // 3. الحملات الإعلانية والتفاعل (Ads)
     // ==========================================
     getCampaigns: function () { return this.request('/api/campaigns'); },
     createCampaign: function (data) { return this.request('/api/campaigns', 'POST', data); },
@@ -103,23 +112,28 @@
     pauseCampaign: function (id) { return this.request(`/api/campaigns/${id}/pause`, 'POST'); },
     resumeCampaign: function (id) { return this.request(`/api/campaigns/${id}/resume`, 'POST'); },
     cancelCampaign: function (id) { return this.request(`/api/campaigns/${id}/cancel`, 'POST'); },
-
-    // ==========================================
-    // 4. الإعلانات والتفاعل (Ads)
-    // ==========================================
     serveAd: function () { return this.request('/api/ads/serve'); },
     clickAd: function (campaignId, publisherId) { return this.request('/api/ads/click', 'POST', { campaignId, publisherId }); },
+    getActiveAds: function () { return this.request('/api/ads/active'); },
+    getMyAds: function () { return this.request('/api/ads/my-ads'); },
 
     // ==========================================
-    // 5. اختصار الروابط (URL Shortener)
+    // 4. اختصار الروابط (URL Shortener)
     // ==========================================
     shorten: function (originalUrl) { return this.request('/api/shortener/shorten', 'POST', { originalUrl }); },
-    getShortLinks: function () { return this.request('/api/shortener/links'); },
+    createLink: function (data) { return this.request('/api/links/create', 'POST', data); },
+    getShortLinks: function (telegramId) { 
+      return telegramId ? this.request(`/api/links?telegramId=${telegramId}`) : this.request('/api/shortener/links'); 
+    },
+    deleteLink: function (shortId, data) { return this.request(`/api/links/${shortId}`, 'DELETE', data); },
+    getLinkStats: function (shortId) { return this.request(`/api/links/stats/${shortId}`); },
 
     // ==========================================
-    // 6. لوحة التحكم والإدارة (Admin Panel)
+    // 5. لوحة التحكم والإدارة (Admin Panel)
     // ==========================================
     getDashboard: function () { return this.request('/api/admin/dashboard'); },
+    getAdminStats: function () { return this.request('/api/admin/stats'); },
+    getAdminUsers: function () { return this.request('/api/admin/users'); },
     getAdminCampaigns: function () { return this.request('/api/admin/campaigns'); },
     approveCampaign: function (id) { return this.request(`/api/admin/campaigns/${id}/approve`, 'POST'); },
     rejectCampaign: function (id) { return this.request(`/api/admin/campaigns/${id}/reject`, 'POST'); },
@@ -130,6 +144,7 @@
     searchUsers: function (query) { return this.request(`/api/admin/users/search?query=${encodeURIComponent(query)}`); },
     getUserProfile: function (id) { return this.request(`/api/admin/users/profile/${id}`); },
     updateUserStatus: function (userId, status, role) { return this.request('/api/admin/users/status', 'POST', { userId, status, role }); },
+    saveAdminConfig: function (data) { return this.request('/api/admin/config', 'POST', data); },
     getAds: function () { return this.request('/api/admin/ads'); },
     manageAd: function (payload) { return this.request('/api/admin/ads/manage', 'POST', payload); }
   };
@@ -137,5 +152,4 @@
   // ربط الكائن بالأسماء العامة المتوافقة مع التطبيق
   window.TelegaApp.api = API;
   window.API = API;
-
 })();
