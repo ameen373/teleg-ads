@@ -10,8 +10,11 @@ const jwt = require('jsonwebtoken');
 // استيراد النماذج الموحدة من ملف models
 const { 
   User, 
+  Campaign,
   AdCampaign, 
+  ShortLink,
   ShortenedLink, 
+  Ledger,
   Transaction, 
   SystemConfig, 
   VisitLog, 
@@ -20,11 +23,35 @@ const {
   Deposit, 
   ReferralLog, 
   FraudAlert, 
-  AdEvent, 
-  Ledger 
+  AdEvent 
 } = require('./models');
 
 const app = express();
+
+// ==========================================
+// قراءة وتحديد متغيرات البيئة المطلوب استهلاكها
+// ==========================================
+const PORT = process.env.PORT || 3000;
+const NODE_ENV = process.env.NODE_ENV || 'development';
+const APP_DOMAIN = process.env.APP_DOMAIN || 'http://localhost:3000';
+const SECRET_KEY = process.env.SECRET_KEY || 'telega_ads_default_secret_key_2026';
+const JWT_SECRET = process.env.JWT_SECRET || 'telega_ads_super_secret_jwt_key_2026';
+const BOT_TOKEN = process.env.BOT_TOKEN || '';
+const BOT_USERNAME = process.env.BOT_USERNAME || 'AdTelega_bot';
+const PLATFORM_BOT_URL = process.env.PLATFORM_BOT_URL || `https://t.me/${BOT_USERNAME}`;
+const ADMIN_ID = String(process.env.ADMIN_ID || process.env.ADMIN_TELEGRAM_ID || '0');
+const PLATFORM_NAME = process.env.PLATFORM_NAME || 'Telega Ads';
+const PUBLISHER_SHARE = parseFloat(process.env.PUBLISHER_SHARE || '0.80');
+const DEPOSIT_ADDRESS_TRC20 = process.env.DEPOSIT_ADDRESS_TRC20 || 'T9xR5aK8v2mL1nQ3pY7w4zE6uI8o0P2s1A';
+const DEPOSIT_ADDRESS_BEP20 = process.env.DEPOSIT_ADDRESS_BEP20 || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F';
+const MONGO_URI = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/telega_ads';
+
+const TRC20_REGEX = /^T[a-zA-1-9]{33}$/;
+
+const SYSTEM_DEPOSIT_ADDRESSES = {
+  TRC20: DEPOSIT_ADDRESS_TRC20,
+  BEP20: DEPOSIT_ADDRESS_BEP20
+};
 
 // ==========================================
 // الإعدادات والبرمجيات الوسيطة الأساسية
@@ -34,17 +61,6 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
-
-const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'telega_ads_super_secret_jwt_key_2026';
-const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/telega_ads';
-const BOT_USERNAME = process.env.BOT_USERNAME || 'AdTelega_bot';
-const TRC20_REGEX = /^T[a-zA-1-9]{33}$/;
-
-const SYSTEM_DEPOSIT_ADDRESSES = {
-  TRC20: process.env.DEPOSIT_ADDRESS_TRC20 || 'T9xR5aK8v2mL1nQ3pY7w4zE6uI8o0P2s1A',
-  BEP20: process.env.DEPOSIT_ADDRESS_BEP20 || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F'
-};
 
 // تسجيل الأحداث
 const logEvent = (level, scope, message, meta = {}) => {
@@ -56,7 +72,7 @@ const logEvent = (level, scope, message, meta = {}) => {
 const connectDB = async () => {
   try {
     if (mongoose.connection.readyState === 0) {
-      await mongoose.connect(MONGODB_URI);
+      await mongoose.connect(MONGO_URI);
       logEvent('info', 'DATABASE', 'Connected to MongoDB successfully');
     }
   } catch (err) {
@@ -65,7 +81,7 @@ const connectDB = async () => {
 };
 connectDB();
 
-// معالج الأخطاء للوظائف المزامنة والغير متزامنة
+// معالج الأخطاء للوظائف المزامنة والغير متزامنة (asyncHandler)
 const asyncHandler = (fn) => (req, res, next) => {
   Promise.resolve(fn(req, res, next)).catch(next);
 };
@@ -81,7 +97,7 @@ function generateRequestId(prefix) {
 // أدوات الحماية والتحقق من الهوية (Auth & Security)
 // ==========================================
 
-// التحقق من بيانات Telegram WebApp
+// التحقق من بيانات Telegram WebApp باستخدام BOT_TOKEN
 const verifyTelegramInitData = (initData, botToken) => {
   if (!initData || !botToken) return null;
   try {
@@ -111,13 +127,13 @@ const verifyTelegramInitData = (initData, botToken) => {
   }
 };
 
-// برمجية توثيق المستخدم الموحدة (يدعم Telegram InitData أو JWT Bearer Token أو Dev User)
+// برمجية توثيق المستخدم الموحدة
 const authMiddleware = async (req, res, next) => {
   try {
     const initData = req.headers['x-telegram-init-data'] || req.headers['authorization'];
     const customTgId = req.headers['x-telegram-id'];
     
-    let tgUser = verifyTelegramInitData(initData, process.env.BOT_TOKEN);
+    let tgUser = verifyTelegramInitData(initData, BOT_TOKEN);
 
     // دعم JWT Token إذا كان معطى
     if (!tgUser && initData && initData.startsWith('Bearer ')) {
@@ -144,8 +160,8 @@ const authMiddleware = async (req, res, next) => {
       };
     }
 
-    // وضع التطوير المحلية
-    if (!tgUser && process.env.NODE_ENV !== 'production' && req.headers['x-dev-user-id']) {
+    // وضع التطوير المحلي
+    if (!tgUser && NODE_ENV !== 'production' && req.headers['x-dev-user-id']) {
       tgUser = {
         id: parseInt(req.headers['x-dev-user-id'], 10),
         first_name: 'DevUser',
@@ -162,16 +178,16 @@ const authMiddleware = async (req, res, next) => {
     let user = await User.findOne({ telegramId: String(tgUser.id) });
     
     if (!user) {
-      const adminId = parseInt(process.env.ADMIN_TELEGRAM_ID || '0', 10);
-      const assignedRole = (tgUser.id === adminId) ? 'Admin' : 'User';
+      const assignedRole = (String(tgUser.id) === ADMIN_ID) ? 'Admin' : 'User';
 
       user = await User.create({
         telegramId: String(tgUser.id),
         firstName: tgUser.first_name || 'User',
         lastName: tgUser.last_name || '',
         username: tgUser.username || '',
-        language: tgUser.language_code || 'en',
+        language: tgUser.language_code || 'ar',
         role: assignedRole,
+        isAdmin: assignedRole === 'Admin',
         lastActive: new Date(),
         referralCode: crypto.randomBytes(4).toString('hex')
       });
@@ -199,8 +215,7 @@ const authMiddleware = async (req, res, next) => {
 
 // برمجية للتحقق من صلاحيات المسؤول (Admin)
 const adminMiddleware = (req, res, next) => {
-  const adminId = String(process.env.ADMIN_TELEGRAM_ID || '0');
-  if (req.dbUser && (req.dbUser.role === 'Admin' || req.dbUser.telegramId === adminId)) {
+  if (req.dbUser && (req.dbUser.role === 'Admin' || req.dbUser.role === 'admin' || req.dbUser.telegramId === ADMIN_ID || req.dbUser.isAdmin)) {
     return next();
   }
   logEvent('warn', 'SECURITY', `Unauthorized admin access attempt by ID ${req.dbUser?.telegramId}`);
@@ -215,6 +230,15 @@ class FraudEngine {
     let score = 0;
     const reasons = [];
 
+    // تسجيل النشاط الحالي
+    await ActivityLog.create({
+      userId: userId ? String(userId) : '',
+      ip,
+      userAgent,
+      action: type || 'click',
+      details: { linkId, adId }
+    });
+
     // 1. فحص تواتر الطلبات السريعة
     const recentLogs = await ActivityLog.find({ ip, createdAt: { $gt: new Date(Date.now() - 60000) } });
     if (recentLogs.length > 10) {
@@ -223,10 +247,10 @@ class FraudEngine {
     }
 
     // 2. تحليل السرعة والمدة الزمنية بين النقرات
-    const lastLog = await ActivityLog.findOne({ ip }).sort({ createdAt: -1 });
+    const lastLogs = await ActivityLog.find({ ip }).sort({ createdAt: -1 }).limit(2);
     let interval = 0;
-    if (lastLog) {
-      interval = Date.now() - new Date(lastLog.createdAt).getTime();
+    if (lastLogs.length > 1) {
+      interval = new Date(lastLogs[0].createdAt).getTime() - new Date(lastLogs[1].createdAt).getTime();
       if (interval < 800) {
         score += 35;
         reasons.push('Unnatural bot-like click speed (<800ms)');
@@ -241,7 +265,7 @@ class FraudEngine {
     }
 
     // 4. الحسابات المتعددة من نفس عنوان IP
-    const distinctUsersOnIp = await ActivityLog.distinct('userId', { ip });
+    const distinctUsersOnIp = await ActivityLog.distinct('userId', { ip, userId: { $ne: '' } });
     if (distinctUsersOnIp.length > 3) {
       score += 25;
       reasons.push('Multiple accounts active on same IP');
@@ -254,13 +278,19 @@ class FraudEngine {
     else if (finalScore >= 31) category = 'monitored';
 
     if (userId && finalScore >= 61) {
-      await User.findByIdAndUpdate(userId, { riskScore: finalScore, riskCategory: category });
-      await FraudAlert.create({
-        userId,
-        riskScore: finalScore,
-        reason: reasons.join(' | ') || 'High Risk Behavioral Pattern Detected',
-        details: { ip, userAgent, clickIntervalMs: interval }
-      });
+      const dbUser = await User.findById(userId);
+      if (dbUser) {
+        dbUser.riskScore = finalScore;
+        dbUser.riskCategory = category;
+        await dbUser.save();
+
+        await FraudAlert.create({
+          userId: dbUser._id,
+          riskScore: finalScore,
+          reason: reasons.join(' | ') || 'High Risk Behavioral Pattern Detected',
+          details: { ip, userAgent, clickIntervalMs: interval }
+        });
+      }
     }
 
     return { finalScore, category, isFlagged: finalScore >= 61, interval };
@@ -277,18 +307,35 @@ const getOrCreateConfig = async () => {
 };
 
 // ==========================================
-// مسارات الإعدادات والمستخدمين (User & System API)
+// إتاحة الإعدادات العامة للواجهة الأمامية (Public Config API)
 // ==========================================
 
 app.get('/api/config', asyncHandler(async (req, res) => {
   const config = await getOrCreateConfig();
+  
+  // إرجاع كافة البيانات العامة والآمنة للواجهة دون كشف الأسرار مثل JWT_SECRET أو BOT_TOKEN
   res.json({
     success: true,
-    platformName: process.env.PLATFORM_NAME || 'Telega Ads',
-    platformBotUrl: `https://t.me/${BOT_USERNAME}`,
-    config
+    platformName: PLATFORM_NAME,
+    platformBotUrl: PLATFORM_BOT_URL,
+    botUsername: BOT_USERNAME,
+    publisherShare: PUBLISHER_SHARE,
+    appDomain: APP_DOMAIN,
+    depositAddresses: SYSTEM_DEPOSIT_ADDRESSES,
+    config: {
+      minWithdrawal: config.minWithdrawal,
+      cpcRate: config.cpcRate,
+      shortenerCpc: config.shortenerCpc,
+      referralCommissionRate: config.referralCommissionRate,
+      supportLink: config.supportLink,
+      channelLink: config.channelLink
+    }
   });
 }));
+
+// ==========================================
+// مسارات المستخدمين (User API)
+// ==========================================
 
 app.post('/api/user/sync', authMiddleware, asyncHandler(async (req, res) => {
   const { startParam } = req.body;
@@ -312,8 +359,7 @@ app.post('/api/user/sync', authMiddleware, asyncHandler(async (req, res) => {
   }
 
   const config = await getOrCreateConfig();
-  const adminId = String(process.env.ADMIN_TELEGRAM_ID || '0');
-  const isAdmin = (user.telegramId === adminId || user.role === 'Admin');
+  const isAdmin = (user.telegramId === ADMIN_ID || user.role === 'Admin' || user.isAdmin);
 
   res.json({
     success: true,
@@ -364,12 +410,13 @@ app.post('/api/shortener/create', authMiddleware, asyncHandler(async (req, res) 
   const link = await ShortenedLink.create({
     userId: req.dbUser.telegramId,
     owner: req.dbUser.telegramId,
+    userRef: req.dbUser._id,
     shortCode,
     shortId: shortCode,
     originalUrl
   });
 
-  const telegaBotUrl = `https://t.me/${BOT_USERNAME}?start=${shortCode}`;
+  const telegaBotUrl = `${PLATFORM_BOT_URL}?start=${shortCode}`;
   logEvent('info', 'SHORTENER', `Link created by ${req.dbUser.telegramId}: ${shortCode}`);
   res.json({ success: true, link, telegaBotUrl });
 }));
@@ -404,7 +451,7 @@ app.get('/s/:code', asyncHandler(async (req, res) => {
   const userAgent = req.headers['user-agent'] || '';
 
   const evaluation = await FraudEngine.evaluateActivity({
-    userId: link.userId,
+    userId: link.userRef,
     linkId: link._id,
     type: 'click',
     ip,
@@ -426,6 +473,7 @@ app.get('/s/:code', asyncHandler(async (req, res) => {
 
       await Transaction.create({
         userId: owner.telegramId,
+        userRef: owner._id,
         type: 'shortener_earn',
         amount: earnings,
         status: 'completed',
@@ -480,11 +528,12 @@ app.post('/api/ads/create', authMiddleware, asyncHandler(async (req, res) => {
 
   req.dbUser.balance -= numBudget;
   req.dbUser.totalSpent = (req.dbUser.totalSpent || 0) + numBudget;
-  if (req.dbUser.role === 'User') req.dbUser.role = 'Advertiser';
+  if (req.dbUser.role === 'User' || req.dbUser.role === 'user') req.dbUser.role = 'Advertiser';
   await req.dbUser.save();
 
   const campaign = await AdCampaign.create({
     advertiserId: req.dbUser.telegramId,
+    advertiserUser: req.dbUser._id,
     title: finalTitle,
     url: finalUrl,
     targetUrl: finalUrl,
@@ -500,6 +549,7 @@ app.post('/api/ads/create', authMiddleware, asyncHandler(async (req, res) => {
 
   await Transaction.create({
     userId: req.dbUser.telegramId,
+    userRef: req.dbUser._id,
     type: 'ad_spend',
     amount: -numBudget,
     status: 'completed',
@@ -553,23 +603,35 @@ app.post('/api/ads/click', authMiddleware, asyncHandler(async (req, res) => {
 
   const cpc = campaign.costPerClick || campaign.cpc || 0.01;
   campaign.spent = (campaign.spent || 0) + cpc;
+  campaign.clicks = (campaign.clicks || 0) + 1;
   campaign.totalClicks = (campaign.totalClicks || 0) + 1;
   if (campaign.spent >= campaign.budget) {
     campaign.status = 'completed';
   }
   await campaign.save();
 
-  const userEarn = cpc * 0.8;
+  const userEarn = cpc * PUBLISHER_SHARE;
   req.dbUser.balance += userEarn;
   req.dbUser.totalEarned = (req.dbUser.totalEarned || 0) + userEarn;
   await req.dbUser.save();
 
   await Transaction.create({
     userId: req.dbUser.telegramId,
+    userRef: req.dbUser._id,
     type: 'ad_click_earn',
     amount: userEarn,
     status: 'completed',
     description: `Ad click reward for campaign ${campaign._id}`
+  });
+
+  await AdEvent.create({
+    campaignId: campaign._id,
+    publisherId: req.dbUser.telegramId,
+    type: 'click',
+    cost: cpc,
+    publisherEarnings: userEarn,
+    visitorIp: ip,
+    telegramId: req.dbUser.telegramId
   });
 
   res.json({ success: true, redirectUrl: campaign.url || campaign.targetUrl, reward: userEarn });
@@ -581,7 +643,7 @@ app.post('/api/ads/click', authMiddleware, asyncHandler(async (req, res) => {
 
 app.get('/api/wallet/info', authMiddleware, asyncHandler(async (req, res) => {
   const user = req.dbUser;
-  const referralLink = `https://t.me/${BOT_USERNAME}?start=ref_${user.referralCode}`;
+  const referralLink = `${PLATFORM_BOT_URL}?start=ref_${user.referralCode}`;
 
   res.json({
     success: true,
@@ -640,7 +702,6 @@ app.post('/api/wallet/deposit', authMiddleware, asyncHandler(async (req, res) =>
     return res.json({ success: true, message: 'تم إرسال طلب الإيداع قيد المراجعة', deposit });
   }
 
-  // محاكاة إيداع مباشر للمطورين/الاختبار
   if (isNaN(numAmount) || numAmount <= 0) {
     return res.status(400).json({ success: false, error: 'Invalid deposit amount' });
   }
@@ -650,6 +711,7 @@ app.post('/api/wallet/deposit', authMiddleware, asyncHandler(async (req, res) =>
 
   await Transaction.create({
     userId: req.dbUser.telegramId,
+    userRef: req.dbUser._id,
     type: 'deposit',
     amount: numAmount,
     status: 'completed',
@@ -663,7 +725,7 @@ app.post('/api/wallet/withdraw', authMiddleware, asyncHandler(async (req, res) =
   const { amount } = req.body;
   const numAmount = parseFloat(amount);
   const config = await getOrCreateConfig();
-  const minWithdrawal = config.minWithdrawal || 30;
+  const minWithdrawal = config.minWithdrawal || 5.0;
 
   if (isNaN(numAmount) || numAmount < minWithdrawal) {
     return res.status(400).json({ success: false, error: `الحد الأدنى للسحب هو $${minWithdrawal}` });
@@ -686,8 +748,8 @@ app.post('/api/wallet/withdraw', authMiddleware, asyncHandler(async (req, res) =
     user: req.dbUser._id,
     userId: req.dbUser._id,
     amount: numAmount,
-    fee: 3,
-    netAmount: numAmount - 3,
+    fee: 1,
+    netAmount: numAmount - 1,
     address: req.dbUser.usdtTrc20Address,
     walletAddress: req.dbUser.usdtTrc20Address,
     status: 'Pending'
@@ -695,6 +757,7 @@ app.post('/api/wallet/withdraw', authMiddleware, asyncHandler(async (req, res) =
 
   await Transaction.create({
     userId: req.dbUser.telegramId,
+    userRef: req.dbUser._id,
     type: 'withdrawal',
     amount: -numAmount,
     status: 'pending',
@@ -755,7 +818,7 @@ app.get('/api/admin/stats', authMiddleware, adminMiddleware, asyncHandler(async 
 }));
 
 app.get('/api/admin/users', authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
-  const users = await User.find().sort({ registeredAt: -1, createdAt: -1 }).limit(100);
+  const users = await User.find().sort({ createdAt: -1 }).limit(100);
   res.json({ success: true, users });
 }));
 
@@ -838,7 +901,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ success: false, error: err.message || 'An unexpected internal error occurred' });
 });
 
-if (process.env.NODE_ENV !== 'production' || require.main === module) {
+if (NODE_ENV !== 'production' || require.main === module) {
   app.listen(PORT, () => {
     logEvent('info', 'SERVER', `Telega Ads Server running smoothly on port ${PORT}`);
   });
