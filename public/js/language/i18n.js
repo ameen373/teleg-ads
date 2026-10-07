@@ -1,89 +1,153 @@
-const ar = typeof window !== 'undefined' && window.ar ? window.ar : require('./ar');
-const en = typeof window !== 'undefined' && window.en ? window.en : require('./en');
+/**
+ * TelegaApp i18n Module - محرك الترجمة الموحد
+ * File: public/js/language/i18n.js
+ */
 
-const i18nDictionary = {
-  ar: ar || {},
-  en: en || {}
-};
+window.TelegaApp = window.TelegaApp || {};
 
-if (typeof window !== 'undefined') {
-  window.i18n = i18nDictionary;
-}
+(function () {
+  'use strict';
 
-let currentLang = (typeof localStorage !== 'undefined' && localStorage.getItem('appLang')) || 'ar';
+  const SUPPORTED_LANGS = ['ar', 'en'];
+  const DEFAULT_LANG = 'ar';
+  const STORAGE_KEY = 'app_lang';
 
-function changeAppLanguage(lang) {
-  try {
-    currentLang = i18nDictionary[lang] ? lang : 'ar';
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('appLang', currentLang);
-    }
+  const i18nModule = {
+    currentLang: DEFAULT_LANG,
 
-    if (typeof window !== 'undefined' && window.state) {
-      window.state.currentLang = currentLang;
-    }
+    /**
+     * تهيئة محرك الترجمة وحفظ اللغة المحددة
+     * @param {string} [userLang]
+     */
+    init: function (userLang) {
+      const savedLang = localStorage.getItem(STORAGE_KEY);
+      let lang = userLang || savedLang || document.documentElement.lang || DEFAULT_LANG;
 
-    applyLanguage(currentLang);
-
-    if (typeof window !== 'undefined' && typeof window.loadUserData === 'function') {
-      window.loadUserData();
-    }
-  } catch (err) {
-    console.error("i18n changeAppLanguage Error:", err);
-  }
-}
-
-function applyLanguage(lang) {
-  try {
-    if (typeof document === 'undefined') return;
-
-    const activeLang = i18nDictionary[lang] ? lang : 'ar';
-    document.documentElement.lang = activeLang;
-    document.documentElement.dir = activeLang === 'ar' ? 'rtl' : 'ltr';
-
-    if (document.body) {
-      document.body.style.direction = activeLang === 'ar' ? 'rtl' : 'ltr';
-    }
-
-    const langSelect = document.getElementById('language-select');
-    if (langSelect) {
-      langSelect.value = activeLang;
-    }
-
-    document.querySelectorAll('[data-i18n]').forEach(el => {
-      const key = el.getAttribute('data-i18n');
-      if (i18nDictionary[activeLang] && i18nDictionary[activeLang][key] !== undefined) {
-        el.innerText = i18nDictionary[activeLang][key];
+      if (!SUPPORTED_LANGS.includes(lang)) {
+        lang = DEFAULT_LANG;
       }
-    });
 
-    document.querySelectorAll('[data-i18n-ph]').forEach(el => {
-      const key = el.getAttribute('data-i18n-ph');
-      if (i18nDictionary[activeLang] && i18nDictionary[activeLang][key] !== undefined) {
-        el.placeholder = i18nDictionary[activeLang][key];
+      this.setLanguage(lang);
+    },
+
+    /**
+     * جلب قاموس الترجمة المتاح بمرونة
+     * @param {string} lang 
+     * @returns {Object}
+     */
+    getDictionary: function (lang) {
+      const targetLang = lang || this.currentLang;
+
+      // 1. الفحص في TelegaApp.translations
+      if (window.TelegaApp && window.TelegaApp.translations && window.TelegaApp.translations[targetLang]) {
+        return window.TelegaApp.translations[targetLang];
       }
-    });
-  } catch (err) {
-    console.error("i18n applyLanguage Error:", err);
-  }
-}
 
-if (typeof window !== 'undefined') {
-  window.changeAppLanguage = changeAppLanguage;
-  window.applyLanguage = applyLanguage;
+      // 2. الفحص في المتغيرات العامة المتعددة (translationsAr / translationsEn)
+      if (targetLang === 'ar' && window.translationsAr) return window.translationsAr;
+      if (targetLang === 'en' && window.translationsEn) return window.translationsEn;
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      applyLanguage(currentLang);
-    });
-  } else {
-    applyLanguage(currentLang);
-  }
-}
+      // 3. الفحص في المتغيرات العامة البديلة (i18n_ar / i18n_en)
+      if (targetLang === 'ar' && window.i18n_ar) return window.i18n_ar;
+      if (targetLang === 'en' && window.i18n_en) return window.i18n_en;
 
-module.exports = {
-  i18n: i18nDictionary,
-  getCurrentLang: () => currentLang,
-  changeAppLanguage,
-  applyLanguage
-};
+      return {};
+    },
+
+    /**
+     * تغيير اللغة الحالية وتحديث اتجاه الصفحة والعناصر
+     * @param {string} lang 
+     */
+    setLanguage: function (lang) {
+      if (!SUPPORTED_LANGS.includes(lang)) return;
+
+      this.currentLang = lang;
+      localStorage.setItem(STORAGE_KEY, lang);
+
+      // تحديث اتجاه لغة الصفحة (RTL / LTR)
+      document.documentElement.lang = lang;
+      document.documentElement.dir = (lang === 'ar') ? 'rtl' : 'ltr';
+
+      // تحديث رمز اللغة في الواجهة إن وجد
+      const langCodeLabel = document.getElementById('current-lang-code');
+      if (langCodeLabel) {
+        langCodeLabel.textContent = lang.toUpperCase();
+      }
+
+      // تطبيق الترجمة على الشاشة
+      this.translateDOM();
+    },
+
+    /**
+     * جلب رمز اللغة الحالية
+     * @returns {string}
+     */
+    getLang: function () {
+      return this.currentLang;
+    },
+
+    /**
+     * ترجمة مفتاح نصي محدد
+     * @param {string} key 
+     * @returns {string}
+     */
+    t: function (key) {
+      if (!key) return '';
+
+      const currentDict = this.getDictionary(this.currentLang);
+      if (currentDict && currentDict[key] !== undefined) {
+        return currentDict[key];
+      }
+
+      // محاولة البحث في اللغة البديلة (Fallback)
+      const fallbackLang = this.currentLang === 'ar' ? 'en' : 'ar';
+      const fallbackDict = this.getDictionary(fallbackLang);
+      if (fallbackDict && fallbackDict[key] !== undefined) {
+        return fallbackDict[key];
+      }
+
+      return key; // إرجاع المفتاح نفسه في حال عدم وجود ترجمة
+    },
+
+    /**
+     * ترجمة كل العناصر الحاملة للخاصية [data-i18n]
+     */
+    translateDOM: function () {
+      const elements = document.querySelectorAll('[data-i18n]');
+
+      elements.forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        const translation = this.t(key);
+
+        if (!translation) return;
+
+        // التعامل الذكي مع حقول الإدخال والـ Placeholders والأزرار
+        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+          if (['submit', 'button', 'reset'].includes(el.type)) {
+            el.value = translation;
+          } else if (el.hasAttribute('placeholder')) {
+            el.placeholder = translation;
+          } else {
+            el.value = translation;
+          }
+        } else {
+          el.textContent = translation;
+        }
+      });
+    },
+
+    // أسماء مستعارة (Aliases) لضمان عدم كسر أي كود قديم في تطبيقك
+    updateDOM: function () {
+      this.translateDOM();
+    },
+
+    applyTranslations: function () {
+      this.translateDOM();
+    }
+  };
+
+  // إسناد الكائن للواجهتين العامة المعتمدة في مشروعك
+  window.TelegaApp.i18n = i18nModule;
+  window.I18n = i18nModule;
+
+})();
