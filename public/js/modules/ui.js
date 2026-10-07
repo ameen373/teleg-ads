@@ -1,419 +1,242 @@
-// public/js/modules/ui.js - UI Management Module
+/**
+ * TelegaApp UI Module
+ * Integrated & Cleaned Version (No duplications, no conflicts, null-safe)
+ */
+window.TelegaApp = window.TelegaApp || {};
 
-const API = typeof require !== 'undefined' ? require('./api.js') : (window.API || {});
-const i18n = typeof require !== 'undefined' ? require('./i18n.js') : (window.i18n || {});
-
-const UI = {
-  currentLang: localStorage.getItem('appLang') || 'ar',
-
-  escapeHTML: function(str) {
-    if (!str) return '';
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
+window.TelegaApp.ui = {
+  // 1. Initialization & Events
+  init: function () {
+    this.bindNavEvents();
+    this.bindModalEvents();
   },
 
-  triggerHaptic: function(style = 'light') {
-    try {
-      const tg = window.Telegram?.WebApp;
-      if (tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.1') && tg.HapticFeedback) {
-        tg.HapticFeedback.impactOccurred(style);
-      }
-    } catch (e) {
-      console.warn('Haptic feedback error:', e);
-    }
-  },
-
-  showToast: function(msg) {
-    try {
-      this.triggerHaptic('medium');
-      const toast = document.getElementById("toast");
-      if (!toast) return;
-      toast.innerText = msg;
-      toast.classList.add("show");
-      setTimeout(() => { 
-        toast.classList.remove("show"); 
-      }, 3200);
-    } catch (e) {
-      console.error('showToast error:', e);
-    }
-  },
-
-  copyToClipboard: function(text) {
-    if (!text) return;
-    const lang = this.currentLang;
-    try {
-      navigator.clipboard.writeText(text).then(() => {
-        this.showToast(lang === 'ar' ? "تم النسخ بنجاح!" : "Copied successfully!");
-      }).catch(() => {
-        this.showToast(lang === 'ar' ? "فشل النسخ تلقائياً" : "Failed to copy");
-      });
-    } catch (e) {
-      this.showToast(lang === 'ar' ? "فشل النسخ" : "Copy error");
-    }
-  },
-
-  setButtonLoading: function(btnId, isLoading, originalText) {
-    try {
-      const btn = document.getElementById(btnId);
-      if (!btn) return;
-      if (isLoading) {
-        btn.disabled = true;
-        btn.dataset.oldContent = btn.innerHTML;
-        btn.innerHTML = `<div class="spinner"></div>`;
-      } else {
-        btn.disabled = false;
-        btn.innerHTML = originalText || btn.dataset.oldContent || '';
-      }
-    } catch (e) {
-      console.error('setButtonLoading error:', e);
-    }
-  },
-
-  setAdminVisibility: function(isAdmin) {
-    try {
-      window.isUserAdmin = Boolean(isAdmin);
-      const adminElements = [
-        document.getElementById('tab-btn-admin'),
-        document.getElementById('admin-tab'),
-        document.getElementById('nav-admin'),
-        document.getElementById('admin-nav-item'),
-        document.getElementById('admin-section')
-      ];
-
-      adminElements.forEach(el => {
-        if (el) {
-          if (isAdmin) {
-            el.classList.remove('hidden');
-            el.style.display = '';
-          } else {
-            el.classList.add('hidden');
-          }
+  bindNavEvents: function () {
+    const navItems = document.querySelectorAll('.nav-item');
+    navItems.forEach((item) => {
+      item.addEventListener('click', () => {
+        const targetTab = item.getAttribute('data-tab');
+        if (targetTab) {
+          this.switchTab(targetTab);
         }
       });
-    } catch (e) {
-      console.error('setAdminVisibility error:', e);
-    }
+    });
   },
 
-  switchTab: function(tabName) {
-    try {
-      if (tabName === 'admin' && !window.isUserAdmin) {
-        this.showToast(this.currentLang === 'ar' ? "غير مصرح لك بالوصول للوحة التحكم" : "Access denied");
-        return;
-      }
-      this.triggerHaptic('light');
-      const tabs = ['dashboard', 'wallet', 'ads', 'referral', 'settings', 'admin'];
-      tabs.forEach(t => {
-        const content = document.getElementById(`tab-content-${t}`);
-        const btn = document.getElementById(`tab-btn-${t}`);
-        if (content) content.classList.toggle('hidden', t !== tabName);
-        if (btn) btn.classList.toggle('active', t === tabName);
+  bindModalEvents: function () {
+    document.querySelectorAll('.closeModal').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.modal').forEach((m) => m.classList.add('hidden'));
+        const dynamicModal = document.getElementById('ui-modal');
+        if (dynamicModal) dynamicModal.remove();
       });
+    });
 
-      if (tabName === 'admin' && window.isUserAdmin) {
-        if (typeof window.loadAdminData === 'function') {
-          window.loadAdminData();
-        } else if (window.AdminModule && typeof window.AdminModule.loadAdminData === 'function') {
-          window.AdminModule.loadAdminData();
-        }
-      } else if (tabName === 'ads') {
-        if (typeof window.fetchUserAds === 'function') {
-          window.fetchUserAds();
-        } else if (window.AdsModule && typeof window.AdsModule.fetchUserAds === 'function') {
-          window.AdsModule.fetchUserAds();
-        }
-      } else if (tabName === 'referral') {
-        if (typeof window.fetchUserReferrals === 'function') {
-          window.fetchUserReferrals();
-        }
+    document.getElementById('faq-open-btn')?.addEventListener('click', () => {
+      this.openModal('faq-modal');
+    });
+  },
+
+  // 2. Navigation & View Switching
+  switchTab: function (tabId) {
+    document.querySelectorAll('.nav-item').forEach((el) => el.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach((el) => {
+      el.classList.remove('active');
+      el.classList.add('hidden');
+    });
+
+    const activeNav = document.querySelector(`.nav-item[data-tab="${tabId}"]`);
+    const activeContent = document.getElementById(tabId);
+
+    if (activeNav) activeNav.classList.add('active');
+    if (activeContent) {
+      activeContent.classList.add('active');
+      activeContent.classList.remove('hidden');
+    }
+
+    // Safely trigger sub-modules if present
+    if (tabId === 'tab-home') {
+      window.TelegaApp.shortener?.loadMyLinks?.();
+      window.TelegaApp.ads?.loadActiveAds?.();
+    } else if (tabId === 'tab-promote') {
+      window.TelegaApp.ads?.loadMyCampaigns?.();
+    } else if (tabId === 'tab-wallet') {
+      window.TelegaApp.wallet?.loadTransactions?.();
+    } else if (tabId === 'tab-referral') {
+      window.TelegaApp.wallet?.loadReferrals?.();
+    } else if (tabId === 'tab-admin') {
+      window.TelegaApp.admin?.loadAdminData?.();
+    }
+  },
+
+  showTab: function (tabId) {
+    this.switchTab(tabId);
+  },
+
+  showView: function (viewId) {
+    document.querySelectorAll('.view').forEach((view) => view.classList.add('hidden'));
+    const target = document.getElementById(viewId);
+    if (target) target.classList.remove('hidden');
+  },
+
+  // 3. Modal Management
+  openModal: function (modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+      modal.classList.remove('hidden');
+      modal.style.display = 'flex';
+    }
+  },
+
+  closeModal: function (modalId) {
+    if (modalId) {
+      const modal = document.getElementById(modalId);
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
       }
-    } catch (e) {
-      console.error('switchTab error:', e);
-    }
-  },
-
-  handleNetworkChange: function(networkVal) {
-    try {
-      this.triggerHaptic('light');
-      const trcCard = document.getElementById('card-addr-trc20');
-      const bepCard = document.getElementById('card-addr-bep20');
-
-      if (trcCard) trcCard.classList.add('hidden');
-      if (bepCard) bepCard.classList.add('hidden');
-
-      if (networkVal === 'TRC20' && trcCard) {
-        trcCard.classList.remove('hidden');
-      } else if (networkVal === 'BEP20' && bepCard) {
-        bepCard.classList.remove('hidden');
-      }
-    } catch (e) {
-      console.error('handleNetworkChange error:', e);
-    }
-  },
-
-  switchWalletView: function(view) {
-    try {
-      this.triggerHaptic('light');
-      const navDep = document.getElementById('wallet-nav-deposit');
-      const navWith = document.getElementById('wallet-nav-withdraw');
-      const viewDep = document.getElementById('wallet-view-deposit');
-      const viewWith = document.getElementById('wallet-view-withdraw');
-
-      if (navDep) navDep.classList.toggle('active', view === 'deposit');
-      if (navWith) navWith.classList.toggle('active', view === 'withdraw');
-
-      if (viewDep) viewDep.classList.toggle('hidden', view !== 'deposit');
-      if (viewWith) viewWith.classList.toggle('hidden', view !== 'withdraw');
-    } catch (e) {
-      console.error('switchWalletView error:', e);
-    }
-  },
-
-  toggleInstructionsModal: function(show) {
-    try {
-      this.triggerHaptic('medium');
-      const modal = document.getElementById('instructions-modal');
-      if (modal) modal.classList.toggle('hidden', !show);
-    } catch (e) {
-      console.error('toggleInstructionsModal error:', e);
-    }
-  },
-
-  updateWithdrawCalculations: function() {
-    try {
-      const amtInput = document.getElementById('withdraw-amount');
-      const feeBox = document.getElementById('withdraw-fee-box');
-      if (!amtInput) return;
-      const val = parseFloat(amtInput.value) || 0;
-
-      if (val > 0) {
-        if (feeBox) feeBox.classList.remove('hidden');
-        const fee = 3;
-        const net = Math.max(0, val - fee);
-
-        const reqElem = document.getElementById('calc-req');
-        const feeElem = document.getElementById('calc-fee');
-        const netElem = document.getElementById('calc-net');
-
-        if (reqElem) reqElem.innerText = `$${val.toFixed(2)}`;
-        if (feeElem) feeElem.innerText = `$${fee.toFixed(2)}`;
-        if (netElem) netElem.innerText = `$${net.toFixed(2)}`;
-      } else {
-        if (feeBox) feeBox.classList.add('hidden');
-      }
-    } catch (e) {
-      console.error('updateWithdrawCalculations error:', e);
-    }
-  },
-
-  renderTelegramUser: function() {
-    try {
-      const tg = window.Telegram?.WebApp;
-      const u = tg?.initDataUnsafe?.user;
-      const avatarContainer = document.getElementById('user-avatar-container');
-      const nameElem = document.getElementById('user-display-name');
-      const handleElem = document.getElementById('user-display-handle');
-      const idElem = document.getElementById('user-tg-id');
-      const premiumBadge = document.getElementById('user-premium-badge');
-
-      if (u && u.id) {
-        window.currentUserTelegramId = String(u.id);
-        window.TelegramUser = u;
-        localStorage.setItem('telegramId', window.currentUserTelegramId);
-        const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || 'Telegram User';
-        if (nameElem) nameElem.innerText = fullName;
-        if (handleElem) handleElem.innerText = u.username ? `@${u.username}` : '@no_username';
-        if (idElem) idElem.innerText = `ID: ${u.id}`;
-
-        if (u.is_premium && premiumBadge) {
-          premiumBadge.classList.remove('hidden');
-        }
-
-        if (avatarContainer) {
-          if (u.photo_url) {
-            avatarContainer.innerHTML = `<img src="${this.escapeHTML(u.photo_url)}" class="user-avatar-img" alt="Avatar">`;
-          } else {
-            const letter = (u.first_name || 'U').charAt(0).toUpperCase();
-            avatarContainer.innerHTML = `<div class="user-avatar-placeholder">${this.escapeHTML(letter)}</div>`;
-          }
-        }
-
-        const savedLang = localStorage.getItem('appLang');
-        if (savedLang) {
-          this.currentLang = savedLang;
-        } else if (u.language_code) {
-          this.currentLang = u.language_code === 'ar' ? 'ar' : 'en';
-        }
-      } else {
-        if (!window.currentUserTelegramId) {
-          window.currentUserTelegramId = localStorage.getItem('telegramId') || '123456789';
-        }
-        if (nameElem) nameElem.innerText = 'Telegram User';
-        if (handleElem) handleElem.innerText = '@user';
-        if (idElem) idElem.innerText = `ID: ${window.currentUserTelegramId}`;
-        if (avatarContainer) avatarContainer.innerHTML = `<div class="user-avatar-placeholder">U</div>`;
-      }
-
-      if (typeof window.applyLanguage === 'function') {
-        window.applyLanguage(this.currentLang);
-      }
-    } catch (e) {
-      console.error('renderTelegramUser error:', e);
-    }
-  },
-
-  shareReferralLink: function() {
-    try {
-      const refInput = document.getElementById('ref-link');
-      if (!refInput) return;
-      const refUrl = refInput.value;
-      if (!refUrl) return;
-      this.triggerHaptic('medium');
-      const tg = window.Telegram?.WebApp;
-      const shareText = encodeURIComponent(this.currentLang === 'ar' ? "انضم إليّ في أفضل منصة لاختصار الروابط واكسب الأرباح بسهولة! 🚀" : "Join me on the best url shortener platform & earn money! 🚀");
-      const url = `https://t.me/share/url?url=${encodeURIComponent(refUrl)}&text=${shareText}`;
-      
-      if (tg && tg.openTelegramLink) {
-        tg.openTelegramLink(url);
-      } else {
-        window.open(url, '_blank');
-      }
-    } catch (e) {
-      console.error('shareReferralLink error:', e);
-    }
-  },
-
-  toggleWalletEdit: function() {
-    try {
-      this.triggerHaptic('light');
-      const walletInput = document.getElementById('default-wallet');
-      const editBtn = document.getElementById('edit-wallet-btn');
-      const saveBtn = document.getElementById('save-wallet-btn');
-      if (!walletInput || !editBtn) return;
-
-      if (walletInput.hasAttribute('readonly')) {
-        walletInput.removeAttribute('readonly');
-        walletInput.focus();
-        editBtn.innerText = this.currentLang === 'ar' ? 'إلغاء' : 'Cancel';
-        editBtn.className = "btn-small btn-danger";
-        if (saveBtn) saveBtn.classList.remove('hidden');
-      } else {
-        walletInput.setAttribute('readonly', 'readonly');
-        editBtn.innerText = this.currentLang === 'ar' ? 'تعديل' : 'Edit';
-        editBtn.className = "btn-small btn-warning";
-        if (saveBtn) saveBtn.classList.add('hidden');
-      }
-    } catch (e) {
-      console.error('toggleWalletEdit error:', e);
-    }
-  },
-
-  closeVideoAd: function() {
-    try {
-      const vAd = document.getElementById('video-popup-ad');
-      if (vAd) vAd.classList.add('hidden');
-    } catch (e) {
-      console.error('closeVideoAd error:', e);
-    }
-  },
-
-  adaptBridgeUI: function(targetUrl, linkTitle) {
-    try {
-      const vMode = document.getElementById('bridge-video-mode');
-      const aMode = document.getElementById('bridge-app-mode');
-      const gMode = document.getElementById('bridge-general-mode');
-      const goBtnText = document.getElementById('go-btn-text');
-
-      if (!targetUrl) return;
-      const urlLower = targetUrl.toLowerCase();
-
-      const isVideo = /(youtube\.com|youtu\.be|vimeo\.com|tiktok\.com|dailymotion\.com|\.mp4|\.m3u8|\.webm|video)/i.test(urlLower);
-      const isApp = /(play\.google\.com|apps\.apple\.com|\.apk|mediafire\.com|mega\.nz|drive\.google\.com|app|game|download)/i.test(urlLower) && !isVideo;
-
-      if (vMode) vMode.classList.add('hidden');
-      if (aMode) aMode.classList.add('hidden');
-      if (gMode) gMode.classList.add('hidden');
-
-      if (isVideo) {
-        if (vMode) vMode.classList.remove('hidden');
-        const vTitle = document.getElementById('video-title-display');
-        if (vTitle && linkTitle) vTitle.innerText = linkTitle;
-        if (goBtnText) goBtnText.innerText = '▶ مشاهدة الفيديو الآن';
-      } else if (isApp) {
-        if (aMode) aMode.classList.remove('hidden');
-        const aTitle = document.getElementById('app-title-display');
-        if (aTitle && linkTitle) aTitle.innerText = linkTitle;
-        if (goBtnText) goBtnText.innerText = '🚀 تحميل التطبيق / انتقال';
-      } else {
-        if (gMode) gMode.classList.remove('hidden');
-        if (goBtnText) goBtnText.innerText = 'الانتقال إلى الرابط الأصلي';
-      }
-    } catch (e) {
-      console.error('adaptBridgeUI error:', e);
-    }
-  },
-
-  renderLinksList: function(links) {
-    try {
-      const container = document.getElementById('links-list');
-      if (!container) return;
-
-      if (!links || links.length === 0) {
-        container.innerHTML = `<p style="text-align:center; padding: 10px; color: var(--text-muted);">${this.currentLang === 'ar' ? 'لا توجد روابط حالياً' : 'No links found'}</p>`;
-        return;
-      }
-
-      const apiBase = window.API_BASE || API.API_BASE || '';
-      let html = '';
-      links.forEach(link => {
-        const shortUrl = `${apiBase}/r/${link.code || link.shortCode}`;
-        html += `
-          <div class="link-card" style="background: rgba(15,23,42,0.6); padding: 10px; border-radius: 10px; margin-bottom: 8px; border: 1px solid var(--card-border);">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <strong style="color:#fff; font-size:13px;">${this.escapeHTML(link.title || link.code || link.shortCode)}</strong>
-              <span style="font-size:10px; color:var(--text-muted);">👁️ ${link.clicks || link.views || 0}</span>
-            </div>
-            <div style="display:flex; gap:6px; align-items:center; margin-top:6px;">
-              <input type="text" value="${shortUrl}" readonly style="margin:0; font-size:11px; padding:4px 8px;">
-              <button class="btn-small" onclick="window.UI.copyToClipboard('${shortUrl}')">${this.currentLang === 'ar' ? 'نسخ' : 'Copy'}</button>
-              <button class="btn-small btn-danger" onclick="window.ShortenerModule ? window.ShortenerModule.deleteLink('${link._id || link.code}') : null">✕</button>
-            </div>
-          </div>
-        `;
+    } else {
+      document.querySelectorAll('.modal').forEach((m) => {
+        m.classList.add('hidden');
+        m.style.display = 'none';
       });
-      container.innerHTML = html;
-    } catch (e) {
-      console.error('renderLinksList error:', e);
+      const dynamicModal = document.getElementById('ui-modal');
+      if (dynamicModal) dynamicModal.remove();
     }
+  },
+
+  // Handles showing existing modal element OR dynamic HTML overlay
+  showModal: function (modalIdOrHtml) {
+    if (!modalIdOrHtml) return;
+
+    const existingModal = document.getElementById(modalIdOrHtml);
+    if (existingModal) {
+      this.openModal(modalIdOrHtml);
+    } else {
+      let modal = document.getElementById('ui-modal');
+      if (modal) modal.remove();
+
+      modal = document.createElement('div');
+      modal.id = 'ui-modal';
+      modal.style.cssText =
+        'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:1000;';
+      modal.innerHTML = `
+        <div style="background:var(--bg-card, #1e293b);padding:2rem;border-radius:12px;max-width:600px;width:90%;max-height:80vh;overflow-y:auto;position:relative;color:#fff;">
+          <button onclick="document.getElementById('ui-modal').remove()" style="position:absolute;top:10px;left:10px;background:#f87171;color:#fff;border:none;border-radius:4px;padding:0.3rem 0.6rem;cursor:pointer;">✕</button>
+          ${modalIdOrHtml}
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+  },
+
+  // 4. Notifications & Alerts
+  showToast: function (message) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = message;
+    container.appendChild(toast);
+
+    setTimeout(() => {
+      toast.remove();
+    }, 3500);
+  },
+
+  showAlert: function (message, isError = false) {
+    const alertBox = document.getElementById('alert-box');
+    if (!alertBox) {
+      this.showToast(message);
+      return;
+    }
+    alertBox.textContent = message;
+    alertBox.style.color = isError ? '#f87171' : '#4ade80';
+    alertBox.classList.remove('hidden');
+
+    setTimeout(() => {
+      alertBox.classList.add('hidden');
+    }, 4000);
+  },
+
+  notify: function (message, isError = false) {
+    const alertBox = document.getElementById('alert-box');
+    if (alertBox) {
+      this.showAlert(message, isError);
+    } else {
+      this.showToast(message);
+    }
+  },
+
+  // 5. User Data Processing (Null-safe)
+  updateUserData: function (user) {
+    if (!user) return;
+
+    const setSafeText = (id, text) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    };
+
+    const fullName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+    const initial = user.firstName ? user.firstName.charAt(0).toUpperCase() : '?';
+    const balance = typeof user.balance === 'number' ? user.balance.toFixed(2) : '0.00';
+    const earned = typeof user.totalEarned === 'number' ? user.totalEarned.toFixed(2) : '0.00';
+    const spent = typeof user.totalSpent === 'number' ? user.totalSpent.toFixed(2) : '0.00';
+
+    setSafeText('header-user-name', fullName);
+    setSafeText('header-user-role', user.role || '');
+    setSafeText('user-avatar', initial);
+
+    setSafeText('home-balance', balance);
+    setSafeText('home-earned', earned);
+    setSafeText('home-spent', spent);
+    setSafeText('wallet-balance', balance);
+
+    setSafeText('profile-avatar', initial);
+    setSafeText('profile-full-name', fullName);
+    setSafeText('profile-username', user.username ? `@${user.username}` : 'N/A');
+    setSafeText('profile-id', user.telegramId || 'N/A');
+    setSafeText('profile-reg-date', user.registeredAt ? new Date(user.registeredAt).toLocaleDateString() : 'N/A');
+
+    const botUsername = 'TelegaAdsBot';
+    const refLink = `https://t.me/${botUsername}?start=${user.telegramId || ''}`;
+    const refInput = document.getElementById('referral-link-input');
+    if (refInput) refInput.value = refLink;
+
+    const adminNav = document.getElementById('admin-nav-item');
+    if (adminNav) {
+      if (user.isAdmin) {
+        adminNav.classList.remove('hidden');
+      } else {
+        adminNav.classList.add('hidden');
+      }
+    }
+  },
+
+  // 6. Utility Formatting & Renderers
+  formatCurrency: function (num) {
+    return '$' + parseFloat(num || 0).toFixed(2);
+  },
+
+  formatDate: function (dateStr) {
+    if (!dateStr) return '';
+    return new Date(dateStr).toLocaleString();
+  },
+
+  renderCard: function (title, value) {
+    return `
+      <div class="card">
+        <h4>${title}</h4>
+        <div class="metric">${value}</div>
+      </div>
+    `;
+  },
+
+  renderRiskBadge: function (score, category) {
+    return `<span class="badge ${category}">Score: ${score} (${category})</span>`;
   }
 };
 
-// Global standard helpers for backwards compatibility
-if (typeof window !== 'undefined') {
-  window.UI = UI;
-  window.escapeHTML = UI.escapeHTML.bind(UI);
-  window.triggerHaptic = UI.triggerHaptic.bind(UI);
-  window.showToast = UI.showToast.bind(UI);
-  window.copyToClipboard = UI.copyToClipboard.bind(UI);
-  window.setButtonLoading = UI.setButtonLoading.bind(UI);
-  window.setAdminVisibility = UI.setAdminVisibility.bind(UI);
-  window.switchTab = UI.switchTab.bind(UI);
-  window.handleNetworkChange = UI.handleNetworkChange.bind(UI);
-  window.switchWalletView = UI.switchWalletView.bind(UI);
-  window.toggleInstructionsModal = UI.toggleInstructionsModal.bind(UI);
-  window.updateWithdrawCalculations = UI.updateWithdrawCalculations.bind(UI);
-  window.renderTelegramUser = UI.renderTelegramUser.bind(UI);
-  window.shareReferralLink = UI.shareReferralLink.bind(UI);
-  window.toggleWalletEdit = UI.toggleWalletEdit.bind(UI);
-  window.closeVideoAd = UI.closeVideoAd.bind(UI);
-  window.adaptBridgeUI = UI.adaptBridgeUI.bind(UI);
-  window.renderLinksList = UI.renderLinksList.bind(UI);
-}
-
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = UI;
-}
+// Global Alias for Backward Compatibility
+window.UI = window.TelegaApp.ui;
