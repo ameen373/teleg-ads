@@ -1,13 +1,32 @@
 const mongoose = require('mongoose');
 
 // ==========================================
+// الاتصال بقاعدة البيانات باستخدام process.env.MONGO_URI
+// ==========================================
+const connectDatabase = async () => {
+  const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
+  if (mongoUri && mongoose.connection.readyState === 0) {
+    try {
+      await mongoose.connect(mongoUri);
+      console.log('[DATABASE] Connected successfully via models.js');
+    } catch (err) {
+      console.error('[DATABASE] Connection error in models.js:', err.message);
+    }
+  }
+};
+
+if (process.env.MONGO_URI || process.env.MONGODB_URI) {
+  connectDatabase();
+}
+
+// ==========================================
 // 1. مخطط المستخدمين (User Schema)
 // ==========================================
 const userSchema = new mongoose.Schema({
   telegramId: { type: String, required: true, unique: true, index: true },
-  username: { type: String, default: '' },
-  firstName: { type: String, default: '' },
-  lastName: { type: String, default: '' },
+  username: { type: String, default: '', trim: true },
+  firstName: { type: String, default: '', trim: true },
+  lastName: { type: String, default: '', trim: true },
   language: { type: String, default: 'ar' },
   role: { 
     type: String, 
@@ -18,7 +37,8 @@ const userSchema = new mongoose.Schema({
   accountStatus: { 
     type: String, 
     enum: ['active', 'banned', 'suspended'], 
-    default: 'active' 
+    default: 'active',
+    index: true
   },
   
   // الأرصدة والمالية
@@ -35,26 +55,33 @@ const userSchema = new mongoose.Schema({
   referrerId: { type: String, default: null, index: true },
   referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, index: true },
   referralCode: { type: String, unique: true, sparse: true, index: true },
-  referralCount: { type: Number, default: 0 },
+  referralCount: { type: Number, default: 0, min: 0 },
   referralEarnings: { type: Number, default: 0.0, min: 0 },
 
-  // حماية وإعدادات حساب
+  // حماية وإعدادات حساب وتقييم المخاطر
   usdtTrc20Address: { type: String, default: '', trim: true },
   ipAddress: { type: String, default: '' },
   deviceHash: { type: String, default: '' },
+  riskScore: { type: Number, default: 0, min: 0, max: 100 },
+  riskCategory: { type: String, enum: ['normal', 'monitored', 'suspicious', 'high_risk'], default: 'normal' },
   isBlocked: { type: Boolean, default: false },
   isAdmin: { type: Boolean, default: false },
-  lastActive: { type: Date, default: Date.now }
+  lastActive: { type: Date, default: Date.now, index: true }
 }, { timestamps: true });
 
+// فهارس إضافية محسنة للاستعلامات السريعة
 userSchema.index({ telegramId: 1, accountStatus: 1 });
+userSchema.index({ role: 1, isBlocked: 1 });
+userSchema.index({ createdAt: -1 });
 
 // ==========================================
 // 2. مخطط الحملات الإعلانية (Campaign Schema)
 // ==========================================
 const campaignSchema = new mongoose.Schema({
-  advertiserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  advertiserId: { type: String, required: true, index: true },
+  advertiserUser: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
   title: { type: String, required: true, trim: true },
+  url: { type: String, trim: true },
   targetUrl: { type: String, required: true, trim: true },
   adText: { type: String, default: '', trim: true },
   mediaUrl: { type: String, default: '' },
@@ -63,22 +90,27 @@ const campaignSchema = new mongoose.Schema({
   videoDuration: { type: Number, default: 0, max: 60 },
   pricingType: { type: String, enum: ['CPC', 'CPM'], default: 'CPC' },
   
-  // الميزانية
+  // الميزانية والتكاليف
+  budget: { type: Number, default: 0, min: 0 },
   totalBudget: { type: Number, required: true, min: 0.1 },
+  remainingBudget: { type: Number, default: 0, min: 0 },
   reservedBudget: { type: Number, default: 0, min: 0 },
   spentBudget: { type: Number, default: 0, min: 0 },
-  cpc: { type: Number, default: 0, min: 0 },
+  spent: { type: Number, default: 0, min: 0 },
+  costPerClick: { type: Number, default: 0.01, min: 0 },
+  cpc: { type: Number, default: 0.01, min: 0 },
   cpm: { type: Number, default: 0, min: 0 },
   
   // الإحصائيات والحالة
-  impressions: { type: Number, default: 0 },
-  clicks: { type: Number, default: 0 },
+  impressions: { type: Number, default: 0, min: 0 },
+  clicks: { type: Number, default: 0, min: 0 },
+  totalClicks: { type: Number, default: 0, min: 0 },
   ctr: { type: Number, default: 0 },
   qualityScore: { type: Number, default: 1.0, min: 0.1, max: 10.0 },
   status: { 
     type: String, 
     enum: ['Draft', 'Pending Review', 'Active', 'Paused', 'Completed', 'Rejected', 'active', 'paused', 'completed', 'rejected'], 
-    default: 'Active',
+    default: 'active',
     index: true 
   },
   startDate: { type: Date, default: Date.now, index: true },
@@ -86,20 +118,27 @@ const campaignSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 campaignSchema.index({ status: 1, totalBudget: 1, spentBudget: 1 });
+campaignSchema.index({ advertiserId: 1, status: 1 });
+campaignSchema.index({ status: 1, spent: 1, budget: 1 });
 
 // ==========================================
 // 3. مخطط اختصار الروابط (ShortLink Schema)
 // ==========================================
 const shortLinkSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  userId: { type: String, required: true, index: true },
+  owner: { type: String, index: true },
+  userRef: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   shortCode: { type: String, required: true, unique: true, index: true },
-  originalUrl: { type: String, required: true },
-  views: { type: Number, default: 0 },
-  clicks: { type: Number, default: 0 },
-  earnings: { type: Number, default: 0.0 },
-  status: { type: String, enum: ['active', 'disabled'], default: 'active' },
-  lastActivity: { type: Date, default: Date.now }
+  shortId: { type: String, index: true },
+  originalUrl: { type: String, required: true, trim: true },
+  views: { type: Number, default: 0, min: 0 },
+  clicks: { type: Number, default: 0, min: 0 },
+  earnings: { type: Number, default: 0.0, min: 0 },
+  status: { type: String, enum: ['active', 'disabled'], default: 'active', index: true },
+  lastActivity: { type: Date, default: Date.now, index: true }
 }, { timestamps: true });
+
+shortLinkSchema.index({ userId: 1, createdAt: -1 });
 
 // ==========================================
 // 4. مخطط سجل الزيارات والحماية (VisitLog Schema)
@@ -118,31 +157,36 @@ const visitLogSchema = new mongoose.Schema({
   unlockedAt: { type: Date, index: true }
 }, { timestamps: true });
 
+visitLogSchema.index({ visitorIp: 1, createdAt: -1 });
+
 // ==========================================
 // 5. مخطط الأحداث الإعلانية (AdEvent Schema)
 // ==========================================
 const adEventSchema = new mongoose.Schema({
   campaignId: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign', required: true, index: true },
-  publisherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
-  type: { type: String, enum: ['impression', 'click'], required: true },
+  publisherId: { type: String, index: true },
+  type: { type: String, enum: ['impression', 'click'], required: true, index: true },
   cost: { type: Number, default: 0 },
   publisherEarnings: { type: Number, default: 0 },
-  visitorIp: { type: String, default: '127.0.0.1' },
-  telegramId: { type: String, default: '' }
+  visitorIp: { type: String, default: '127.0.0.1', index: true },
+  telegramId: { type: String, default: '', index: true }
 }, { timestamps: true });
 
+adEventSchema.index({ campaignId: 1, createdAt: -1 });
+
 // ==========================================
-// 6. مخطط السجل المالي والترانزاكشن (Ledger Schema)
+// 6. مخطط السجل المالي والمعاملات (Ledger Schema)
 // ==========================================
 const ledgerSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  userId: { type: String, required: true, index: true },
+  userRef: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   type: { 
     type: String, 
     enum: [
       'DEPOSIT', 'WITHDRAWAL', 'REFERRAL_BONUS', 'AD_SPEND', 
       'CAMPAIGN_RESERVE', 'CAMPAIGN_UNRESERVE', 'CPC_SPEND', 
       'CPM_SPEND', 'PUBLISHER_EARNING', 'SHORTENER_EARN', 'REFUND',
-      'deposit', 'withdrawal', 'referral_bonus', 'ad_spend', 'shortener_earn'
+      'deposit', 'withdrawal', 'referral_bonus', 'ad_spend', 'shortener_earn', 'ad_click_earn'
     ], 
     required: true,
     index: true 
@@ -162,6 +206,7 @@ const ledgerSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 ledgerSchema.index({ userId: 1, createdAt: -1 });
+ledgerSchema.index({ type: 1, status: 1 });
 
 // ==========================================
 // 7. مخطط طلبات السحب (Withdrawal Schema)
@@ -169,10 +214,12 @@ ledgerSchema.index({ userId: 1, createdAt: -1 });
 const withdrawalSchema = new mongoose.Schema({
   requestId: { type: String, required: true, unique: true, index: true },
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
   amount: { type: Number, required: true, min: 0 },
   fee: { type: Number, required: true, default: 0 },
   netAmount: { type: Number, required: true },
   address: { type: String, required: true, trim: true },
+  walletAddress: { type: String, trim: true },
   status: {
     type: String,
     enum: ['Pending', 'Approved', 'Processing', 'Paid', 'Rejected'],
@@ -183,12 +230,15 @@ const withdrawalSchema = new mongoose.Schema({
   txid: { type: String, default: '' }
 }, { timestamps: true });
 
+withdrawalSchema.index({ status: 1, createdAt: -1 });
+
 // ==========================================
 // 8. مخطط طلبات الإيداع (Deposit Schema)
 // ==========================================
 const depositSchema = new mongoose.Schema({
   requestId: { type: String, required: true, unique: true, index: true },
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
   network: { type: String, enum: ['TRC20', 'BEP20'], required: true },
   amount: { type: Number, required: true, min: 0 },
   txid: { type: String, required: true, unique: true, trim: true, index: true },
@@ -200,6 +250,8 @@ const depositSchema = new mongoose.Schema({
   },
   rejectionReason: { type: String, default: '' }
 }, { timestamps: true });
+
+depositSchema.index({ status: 1, createdAt: -1 });
 
 // ==========================================
 // 9. مخطط سجلات الإحالة (ReferralLog Schema)
@@ -214,11 +266,13 @@ const referralLogSchema = new mongoose.Schema({
   flagReason: { type: String, default: '' }
 }, { timestamps: true });
 
+referralLogSchema.index({ referrer: 1, createdAt: -1 });
+
 // ==========================================
 // 10. مخطط إعدادات النظام (SystemConfig Schema)
 // ==========================================
 const systemConfigSchema = new mongoose.Schema({
-  key: { type: String, default: 'main_config', unique: true },
+  key: { type: String, default: 'main_config', unique: true, index: true },
   minWithdrawal: { type: Number, default: 5.0 },
   cpcRate: { type: Number, default: 0.05 },
   shortenerCpc: { type: Number, default: 0.02 },
@@ -226,6 +280,32 @@ const systemConfigSchema = new mongoose.Schema({
   supportLink: { type: String, default: 'https://t.me/support' },
   channelLink: { type: String, default: 'https://t.me/channel' }
 }, { timestamps: true });
+
+// ==========================================
+// 11. مخطط سجلات النشاط (ActivityLog Schema)
+// ==========================================
+const activityLogSchema = new mongoose.Schema({
+  userId: { type: String, default: '', index: true },
+  ip: { type: String, required: true, index: true },
+  userAgent: { type: String, default: '' },
+  action: { type: String, default: 'click' },
+  details: { type: mongoose.Schema.Types.Mixed, default: {} }
+}, { timestamps: true });
+
+activityLogSchema.index({ ip: 1, createdAt: -1 });
+
+// ==========================================
+// 12. مخطط تنبيهات الاحتيال (FraudAlert Schema)
+// ==========================================
+const fraudAlertSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  riskScore: { type: Number, required: true, index: true },
+  reason: { type: String, required: true },
+  details: { type: mongoose.Schema.Types.Mixed, default: {} },
+  status: { type: String, enum: ['new', 'reviewed', 'dismissed'], default: 'new', index: true }
+}, { timestamps: true });
+
+fraudAlertSchema.index({ createdAt: -1 });
 
 // ==========================================
 // تسجيل النماذج وتصديرها (Models Compilation)
@@ -240,6 +320,8 @@ const Withdrawal = mongoose.models.Withdrawal || mongoose.model('Withdrawal', wi
 const Deposit = mongoose.models.Deposit || mongoose.model('Deposit', depositSchema);
 const ReferralLog = mongoose.models.ReferralLog || mongoose.model('ReferralLog', referralLogSchema);
 const SystemConfig = mongoose.models.SystemConfig || mongoose.model('SystemConfig', systemConfigSchema);
+const ActivityLog = mongoose.models.ActivityLog || mongoose.model('ActivityLog', activityLogSchema);
+const FraudAlert = mongoose.models.FraudAlert || mongoose.model('FraudAlert', fraudAlertSchema);
 
 module.exports = {
   User,
@@ -255,5 +337,7 @@ module.exports = {
   Withdrawal,
   Deposit,
   ReferralLog,
-  SystemConfig
+  SystemConfig,
+  ActivityLog,
+  FraudAlert
 };
