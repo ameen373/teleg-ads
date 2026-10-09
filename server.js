@@ -991,6 +991,13 @@ app.put('/api/admin/deposits/:id/status', authMiddleware, adminMiddleware, async
 }));
 
 // ==========================================
+// مسار احتياطي لتطبيقات الصفحة الواحدة (SPA Fallback)
+// ==========================================
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// ==========================================
 // معالجة الأخطاء والتشغيل (Global Error & Start)
 // ==========================================
 
