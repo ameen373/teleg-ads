@@ -151,23 +151,29 @@ const authMiddleware = async (req, res, next) => {
     let tgUser = verifyTelegramInitData(initData, BOT_TOKEN);
 
     if (!tgUser && customTgId) {
-      tgUser = {
-        id: parseInt(customTgId, 10),
-        username: req.headers['x-telegram-username'] || '',
-        first_name: req.headers['x-telegram-firstname'] || 'User'
-      };
+      const parsedId = parseInt(customTgId, 10);
+      if (!isNaN(parsedId)) {
+        tgUser = {
+          id: parsedId,
+          username: req.headers['x-telegram-username'] || '',
+          first_name: req.headers['x-telegram-firstname'] || 'User'
+        };
+      }
     }
 
     if (!tgUser && NODE_ENV !== 'production' && req.headers['x-dev-user-id']) {
-      tgUser = {
-        id: parseInt(req.headers['x-dev-user-id'], 10),
-        first_name: 'DevUser',
-        username: 'dev_user',
-        language_code: 'ar'
-      };
+      const parsedDevId = parseInt(req.headers['x-dev-user-id'], 10);
+      if (!isNaN(parsedDevId)) {
+        tgUser = {
+          id: parsedDevId,
+          first_name: 'DevUser',
+          username: 'dev_user',
+          language_code: 'ar'
+        };
+      }
     }
 
-    if (!tgUser || !tgUser.id) {
+    if (!tgUser || !tgUser.id || isNaN(tgUser.id)) {
       return res.status(401).json({ success: false, error: 'Unauthorized: Authentication credentials missing or invalid' });
     }
 
@@ -498,9 +504,13 @@ app.get('/s/:code', asyncHandler(async (req, res) => {
     link.earnings = (link.earnings || 0) + earnings;
     await link.save();
 
-    const owner = await User.findOne({ 
-      $or: [{ telegramId: String(link.userId) }, { _id: link.userRef }] 
-    });
+    const ownerConditions = [];
+    if (link.userId) ownerConditions.push({ telegramId: String(link.userId) });
+    if (link.userRef && mongoose.Types.ObjectId.isValid(link.userRef)) {
+      ownerConditions.push({ _id: link.userRef });
+    }
+
+    const owner = ownerConditions.length ? await User.findOne({ $or: ownerConditions }) : null;
 
     if (owner) {
       owner.balance = (owner.balance || 0) + earnings;
