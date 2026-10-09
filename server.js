@@ -8,6 +8,7 @@ const path = require('path');
 const jwt = require('jsonwebtoken');
 
 // استيراد النماذج الموحدة من ملف models
+const models = require('./models');
 const { 
   User, 
   Campaign,
@@ -24,12 +25,12 @@ const {
   ReferralLog, 
   FraudAlert, 
   AdEvent 
-} = require('./models');
+} = models;
 
 const app = express();
 
 // ==========================================
-// قراءة وتحديد متغيرات البيئة المطلوب استهلاكها
+// قراءة وتحديد متغيرات البيئة
 // ==========================================
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -46,7 +47,7 @@ const DEPOSIT_ADDRESS_TRC20 = process.env.DEPOSIT_ADDRESS_TRC20 || 'T9xR5aK8v2mL
 const DEPOSIT_ADDRESS_BEP20 = process.env.DEPOSIT_ADDRESS_BEP20 || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F';
 const MONGO_URI = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/telega_ads';
 
-// تعبير نمطي دقيق لعناوين TRC20 المقبولة
+// تعبير نمطي لعنوان TRC20
 const TRC20_REGEX = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
 
 const SYSTEM_DEPOSIT_ADDRESSES = {
@@ -69,20 +70,24 @@ const logEvent = (level, scope, message, meta = {}) => {
   console.log(`[${timestamp}] [${level.toUpperCase()}] [${scope}]: ${message}`, Object.keys(meta).length ? JSON.stringify(meta) : '');
 };
 
-// الاتصال بقاعدة البيانات
+// الاتصال بقاعدة البيانات بشكل متوافق مع Vercel Serverless
 const connectDB = async () => {
+  if (mongoose.connection.readyState >= 1) return;
   try {
-    if (mongoose.connection.readyState === 0) {
-      await mongoose.connect(MONGO_URI);
-      logEvent('info', 'DATABASE', 'Connected to MongoDB successfully');
-    }
+    await mongoose.connect(MONGO_URI);
+    logEvent('info', 'DATABASE', 'Connected to MongoDB successfully');
   } catch (err) {
     logEvent('error', 'DATABASE', 'MongoDB connection failed', { error: err.message });
   }
 };
-connectDB();
 
-// معالج الأخطاء للوظائف المزامنة والغير متزامنة (asyncHandler)
+// ضمان الاتصال بقاعدة البيانات قبل معالجة أي طلب
+app.use(async (req, res, next) => {
+  await connectDB();
+  next();
+});
+
+// معالج الأخطاء للوظائف المزامنة وغير المزامنة (asyncHandler)
 const asyncHandler = (fn) => (req, res, next) => {
   Promise.resolve(fn(req, res, next)).catch(next);
 };
@@ -98,7 +103,6 @@ function generateRequestId(prefix) {
 // أدوات الحماية والتحقق من الهوية (Auth & Security)
 // ==========================================
 
-// التحقق من بيانات Telegram WebApp باستخدام BOT_TOKEN
 const verifyTelegramInitData = (initData, botToken) => {
   if (!initData || !botToken) return null;
   try {
@@ -128,13 +132,11 @@ const verifyTelegramInitData = (initData, botToken) => {
   }
 };
 
-// برمجية توثيق المستخدم الموحدة
 const authMiddleware = async (req, res, next) => {
   try {
     const initData = req.headers['x-telegram-init-data'] || req.headers['authorization'];
     const customTgId = req.headers['x-telegram-id'];
 
-    // دعم JWT Token إذا كان معطى
     if (initData && initData.startsWith('Bearer ')) {
       try {
         const token = initData.split(' ')[1];
@@ -152,7 +154,6 @@ const authMiddleware = async (req, res, next) => {
     
     let tgUser = verifyTelegramInitData(initData, BOT_TOKEN);
 
-    // دعم الهيدر المباشر لتطبيقات الميني
     if (!tgUser && customTgId) {
       tgUser = {
         id: parseInt(customTgId, 10),
@@ -161,7 +162,6 @@ const authMiddleware = async (req, res, next) => {
       };
     }
 
-    // وضع التطوير المحلي
     if (!tgUser && NODE_ENV !== 'production' && req.headers['x-dev-user-id']) {
       tgUser = {
         id: parseInt(req.headers['x-dev-user-id'], 10),
@@ -218,7 +218,6 @@ const authMiddleware = async (req, res, next) => {
   }
 };
 
-// برمجية للتحقق من صلاحيات المسؤول (Admin)
 const adminMiddleware = (req, res, next) => {
   if (req.dbUser && (req.dbUser.role === 'Admin' || req.dbUser.role === 'admin' || req.dbUser.telegramId === ADMIN_ID || req.dbUser.isAdmin)) {
     return next();
@@ -238,7 +237,6 @@ class FraudEngine {
     const activeIp = ip || '127.0.0.1';
     const activeAgent = userAgent || '';
 
-    // تسجيل النشاط الحالي
     await ActivityLog.create({
       userId: userId ? String(userId) : '',
       ip: activeIp,
@@ -247,14 +245,12 @@ class FraudEngine {
       details: { linkId, adId }
     });
 
-    // 1. فحص تواتر الطلبات السريعة
     const recentLogs = await ActivityLog.find({ ip: activeIp, createdAt: { $gt: new Date(Date.now() - 60000) } });
     if (recentLogs.length > 10) {
       score += 40;
       reasons.push('High frequency requests within 60s');
     }
 
-    // 2. تحليل السرعة والمدة الزمنية بين النقرات
     const lastLogs = await ActivityLog.find({ ip: activeIp }).sort({ createdAt: -1 }).limit(2);
     let interval = 0;
     if (lastLogs.length > 1) {
@@ -265,14 +261,12 @@ class FraudEngine {
       }
     }
 
-    // 3. التحقق من متصفح الزائر (User Agent)
     const botPattern = /bot|crawl|spider|slurp|curl|wget|python|php|harvest|headless/i;
     if (!activeAgent || botPattern.test(activeAgent) || activeAgent.length < 15) {
       score += 30;
       reasons.push('Suspicious or Bot User-Agent header');
     }
 
-    // 4. الحسابات المتعددة من نفس عنوان IP
     const distinctUsersOnIp = await ActivityLog.distinct('userId', { ip: activeIp, userId: { $ne: '' } });
     if (distinctUsersOnIp.length > 3) {
       score += 25;
@@ -309,7 +303,6 @@ class FraudEngine {
   }
 }
 
-// دالة جلب أو إنشاء إعدادات النظام
 const getOrCreateConfig = async () => {
   let config = await SystemConfig.findOne({ key: 'main_config' });
   if (!config) {
@@ -319,7 +312,7 @@ const getOrCreateConfig = async () => {
 };
 
 // ==========================================
-// إتاحة الإعدادات العامة للواجهة الأمامية (Public Config API)
+// إتاحة الإعدادات العامة للواجهة الأمامية
 // ==========================================
 
 app.get('/api/config', asyncHandler(async (req, res) => {
@@ -455,7 +448,6 @@ app.delete('/api/shortener/:code', authMiddleware, asyncHandler(async (req, res)
   res.json({ success: true, message: 'Link deleted successfully' });
 }));
 
-// مسار التوجيه وزيارة الرابط المختصر
 app.get('/s/:code', asyncHandler(async (req, res) => {
   const { code } = req.params;
   const link = await ShortenedLink.findOne({ $or: [{ shortCode: code }, { shortId: code }] });
@@ -500,7 +492,6 @@ app.get('/s/:code', asyncHandler(async (req, res) => {
         description: `Earnings for link ${code}`
       });
 
-      // احتساب عمولة الإحالة
       if (owner.referrerId) {
         const referrer = await User.findOne({ telegramId: owner.referrerId });
         if (referrer && !referrer.isBlocked && referrer.accountStatus !== 'banned') {
@@ -942,7 +933,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ success: false, error: err.message || 'An unexpected internal error occurred' });
 });
 
-if (NODE_ENV !== 'production' || require.main === module) {
+if (require.main === module && !process.env.VERCEL) {
   app.listen(PORT, () => {
     logEvent('info', 'SERVER', `Telega Ads Server running smoothly on port ${PORT}`);
   });
