@@ -1,356 +1,90 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="description" content="Telega Ads - منصة الإعلانات واختصار الروابط عبر التلجرام">
-  <meta name="theme-color" content="#2481cc">
   <title>Telega Ads</title>
+
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-  <div id="app" class="app-container">
-    
-    <!-- Header Section -->
-    <header class="top-header">
-      <div class="user-info">
-        <div class="avatar" id="user-avatar">T</div>
-        <div class="user-details">
-          <span class="user-name" id="header-user-name">Loading...</span>
-          <span class="user-role badge" id="header-user-role">User</span>
+  <div id="app">
+    <header class="app-header">
+      <div class="user-profile" id="headerProfileTrigger">
+        <div class="avatar" id="headerAvatar">U</div>
+        <div class="user-info">
+          <span class="user-name" id="headerUserName">Loading...</span>
+          <span class="user-id" id="headerUserId">@id</span>
         </div>
       </div>
-      <div class="header-actions">
-        <button id="lang-toggle-btn" type="button" class="icon-btn" aria-label="تغيير اللغة">
-          🌐 <span id="current-lang-code">EN</span>
-        </button>
+      <div class="header-balance">
+        <span class="balance-amount" id="headerBalance">$0.00</span>
       </div>
     </header>
 
-    <!-- Main Content Area -->
-    <main class="content-area">
-      
-      <!-- Tab: Home -->
-      <section id="tab-home" class="tab-content active" role="tabpanel">
-        <div class="card balance-card">
-          <div class="card-title" data-i18n="current_balance">الرصيد الحالي</div>
-          <div class="balance-amount">$<span id="home-balance">0.00</span></div>
-          <div class="stats-row">
-            <div class="stat-item">
-              <span class="stat-label" data-i18n="total_earned">إجمالي الأرباح</span>
-              <span class="stat-value">$<span id="home-earned">0.00</span></span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label" data-i18n="total_spent">إجمالي الإنفاق</span>
-              <span class="stat-value">$<span id="home-spent">0.00</span></span>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <h3 data-i18n="link_shortener">اختصار الروابط وتحقيق الربح</h3>
-          <form id="shorten-form" class="form-group">
-            <label for="short-url-input" class="sr-only" data-i18n="enter_url">أدخل الرابط</label>
-            <input type="url" id="short-url-input" name="short_url" placeholder="https://example.com/link" required class="input-field">
-            <button type="submit" class="btn primary-btn" data-i18n="shorten_now">اختصر الآن</button>
-          </form>
-          <div id="shortened-result" class="result-box hidden">
-            <span id="short-url-output" class="short-url"></span>
-            <button type="button" id="copy-link-btn" class="btn secondary-btn" data-i18n="copy">نسخ</button>
-          </div>
-        </div>
-
-        <div class="card">
-          <h3 data-i18n="my_shortened_links">روابطك المُختصرة</h3>
-          <div id="links-list" class="data-list">
-            <div class="empty-state" data-i18n="no_links">لا توجد روابط مُختصرة بعد.</div>
-          </div>
-        </div>
-
-        <div class="card">
-          <h3 data-i18n="available_ads">إعلانات متاحة للمشاهدة والربح</h3>
-          <div id="active-ads-list" class="data-list">
-            <div class="empty-state" data-i18n="no_ads">لا توجد إعلانات متاحة حالياً.</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Tab: Promote -->
-      <section id="tab-promote" class="tab-content" role="tabpanel">
-        <div class="card">
-          <h3 data-i18n="create_ad">إنشاء حملة إعلانية</h3>
-          <form id="create-ad-form">
-            <div class="form-group">
-              <label for="ad-title" data-i18n="ad_title">عنوان الإعلان</label>
-              <input type="text" id="ad-title" name="title" class="input-field" required placeholder="مثال: قناة تلجرام مميزة">
-            </div>
-            <div class="form-group">
-              <label for="ad-url" data-i18n="ad_url">رابط الإعلان</label>
-              <input type="url" id="ad-url" name="url" class="input-field" required placeholder="https://t.me/yourchannel">
-            </div>
-            <div class="form-group">
-              <label for="ad-budget" data-i18n="ad_budget">الميزانية الكلية ($)</label>
-              <input type="number" id="ad-budget" name="budget" step="0.1" min="0.5" class="input-field" required placeholder="5.0">
-            </div>
-            <div class="form-group">
-              <label for="ad-cpc" data-i18n="ad_cpc">تكلفة الضغطة ($)</label>
-              <input type="number" id="ad-cpc" name="cpc" step="0.001" min="0.005" class="input-field" required placeholder="0.05">
-            </div>
-            <button type="submit" class="btn primary-btn" data-i18n="launch_ad">إطلاق الحملة الإعلانية</button>
-          </form>
-        </div>
-
-        <div class="card">
-          <h3 data-i18n="my_campaigns">حملاتك الإعلانية</h3>
-          <div id="my-ads-list" class="data-list">
-            <div class="empty-state" data-i18n="no_campaigns">لم تقم بإنشاء أي حملة بعد.</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Tab: Wallet -->
-      <section id="tab-wallet" class="tab-content" role="tabpanel">
-        <div class="card balance-card">
-          <div class="card-title" data-i18n="available_balance">الرصيد المتاح للسحب</div>
-          <div class="balance-amount">$<span id="wallet-balance">0.00</span></div>
-          <div class="action-buttons-row">
-            <button type="button" id="open-deposit-modal" class="btn secondary-btn" data-i18n="deposit">إيداع</button>
-            <button type="button" id="open-withdraw-modal" class="btn primary-btn" data-i18n="withdraw">سحب</button>
-          </div>
-        </div>
-
-        <div class="card">
-          <h3 data-i18n="transaction_history">سجل العمليات المالية</h3>
-          <div id="transactions-list" class="data-list">
-            <div class="empty-state" data-i18n="no_transactions">لا توجد عمليات سابقة.</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Tab: Referral -->
-      <section id="tab-referral" class="tab-content" role="tabpanel">
-        <div class="card">
-          <h3 data-i18n="referral_program">نظام الإحالة والعمولات</h3>
-          <p class="description-text" data-i18n="referral_desc">شارك الرابط الخاص بك واحصل على عمولة بنسبة 10% على كافة أرباح إحالاتك مدى الحياة!</p>
-          <div class="form-group">
-            <label for="referral-link-input" class="sr-only" data-i18n="referral_link">رابط الإحالة</label>
-            <input type="text" id="referral-link-input" name="referral_link" readonly class="input-field">
-            <button type="button" id="copy-ref-btn" class="btn secondary-btn" data-i18n="copy_ref_link">نسخ رابط الإحالة</button>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="stats-grid">
-            <div class="stat-card">
-              <span class="stat-number" id="ref-count">0</span>
-              <span class="stat-label" data-i18n="total_referrals">عدد الإحالات</span>
-            </div>
-            <div class="stat-card">
-              <span class="stat-number">$<span id="ref-earnings">0.00</span></span>
-              <span class="stat-label" data-i18n="referral_earned">أرباح الإحالات</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <h3 data-i18n="your_referrals_list">قائمة المحالين</h3>
-          <div id="referrals-list" class="data-list">
-            <div class="empty-state" data-i18n="no_referrals">لا يوجد مستخدمون محالون عن طريقك حتى الآن.</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Tab: Profile -->
-      <section id="tab-profile" class="tab-content" role="tabpanel">
-        <div class="card profile-card">
-          <div class="avatar large-avatar" id="profile-avatar">T</div>
-          <h2 id="profile-full-name">User Name</h2>
-          <span class="username-tag" id="profile-username">@username</span>
-          <div class="profile-info-grid">
-            <div><strong data-i18n="user_id">معرف الحساب:</strong> <span id="profile-id">-</span></div>
-            <div><strong data-i18n="reg_date">تاريخ التسجيل:</strong> <span id="profile-reg-date">-</span></div>
-          </div>
-        </div>
-
-        <div class="menu-list card">
-          <a id="support-link-btn" href="#" target="_blank" rel="noopener noreferrer" class="menu-item">
-            <span>🎧 <span data-i18n="tech_support">الدعم الفني</span></span>
-            <span>←</span>
-          </a>
-          <a id="channel-link-btn" href="#" target="_blank" rel="noopener noreferrer" class="menu-item">
-            <span>📢 <span data-i18n="official_channel">القناة الرسمية</span></span>
-            <span>←</span>
-          </a>
-          <button type="button" id="faq-open-btn" class="menu-item border-none">
-            <span>❓ <span data-i18n="faq">الأسئلة الشائعة</span></span>
-            <span>←</span>
-          </button>
-        </div>
-      </section>
-
-      <!-- Tab: Admin Panel -->
-      <section id="tab-admin" class="tab-content" role="tabpanel">
-        <div class="card admin-header-card">
-          <h2 data-i18n="admin_panel">لوحة الإدارة المركزية</h2>
-          <span class="badge danger-badge">Admin Only</span>
-        </div>
-
-        <div class="card">
-          <h3 data-i18n="system_overview">إحصائيات النظام العامة</h3>
-          <div class="stats-grid">
-            <div class="stat-card">
-              <span class="stat-number" id="admin-total-users">0</span>
-              <span class="stat-label">المستخدمين</span>
-            </div>
-            <div class="stat-card">
-              <span class="stat-number" id="admin-total-ads">0</span>
-              <span class="stat-label">الحملات</span>
-            </div>
-            <div class="stat-card">
-              <span class="stat-number" id="admin-total-links">0</span>
-              <span class="stat-label">الروابط</span>
-            </div>
-            <div class="stat-card">
-              <span class="stat-number">$<span id="admin-revenue">0.00</span></span>
-              <span class="stat-label">إجمالي الإنفاق</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <h3 data-i18n="system_settings">إعدادات النظام والأسعار</h3>
-          <form id="admin-config-form">
-            <div class="form-group">
-              <label for="cfg-min-withdraw">الحد الأدنى للسحب ($)</label>
-              <input type="number" id="cfg-min-withdraw" name="min_withdraw" step="0.1" class="input-field">
-            </div>
-            <div class="form-group">
-              <label for="cfg-cpc">تكلفة النقر على الإعلان - CPC ($)</label>
-              <input type="number" id="cfg-cpc" name="cpc" step="0.001" class="input-field">
-            </div>
-            <div class="form-group">
-              <label for="cfg-shortener-cpc">ربح الضغطة على الرابط المُختصر ($)</label>
-              <input type="number" id="cfg-shortener-cpc" name="shortener_cpc" step="0.001" class="input-field">
-            </div>
-            <div class="form-group">
-              <label for="cfg-ref-rate">نسبة عمولة الإحالة (0.1 = 10%)</label>
-              <input type="number" id="cfg-ref-rate" name="ref_rate" step="0.01" class="input-field">
-            </div>
-            <div class="form-group">
-              <label for="cfg-support">رابط الدعم الفني</label>
-              <input type="url" id="cfg-support" name="support" class="input-field">
-            </div>
-            <div class="form-group">
-              <label for="cfg-channel">رابط القناة الرسمية</label>
-              <input type="url" id="cfg-channel" name="channel" class="input-field">
-            </div>
-            <button type="submit" class="btn primary-btn" data-i18n="save_settings">حفظ الإعدادات</button>
-          </form>
-        </div>
-
-        <div class="card">
-          <h3 data-i18n="users_management">إدارة المستخدمين</h3>
-          <div id="admin-users-list" class="data-list">
-            <div class="empty-state">جاري تحميل قائمة المستخدمين...</div>
-          </div>
-        </div>
-      </section>
-
+    <main class="app-content">
+      <div class="card">
+        <h2 data-i18n="welcomeTitle">Welcome to Telega Ads</h2>
+        <p data-i18n="welcomeSubtitle">Monetize your Telegram audience or run high-converting ad campaigns.</p>
+      </div>
     </main>
 
-    <!-- Navigation Bar -->
-    <nav class="bottom-nav" aria-label="التنقل الرئيسي">
-      <button type="button" class="nav-item active" data-tab="tab-home">
-        <span class="nav-icon">🏠</span>
-        <span class="nav-label" data-i18n="nav_home">الرئيسية</span>
-      </button>
-      <button type="button" class="nav-item" data-tab="tab-promote">
-        <span class="nav-icon">📢</span>
-        <span class="nav-label" data-i18n="nav_promote">الترويج</span>
-      </button>
-      <button type="button" class="nav-item" data-tab="tab-wallet">
-        <span class="nav-icon">👛</span>
-        <span class="nav-label" data-i18n="nav_wallet">المحفظة</span>
-      </button>
-      <button type="button" class="nav-item" data-tab="tab-referral">
-        <span class="nav-icon">🔗</span>
-        <span class="nav-label" data-i18n="nav_referral">الإحالة</span>
-      </button>
-      <button type="button" class="nav-item" data-tab="tab-profile">
-        <span class="nav-icon">👤</span>
-        <span class="nav-label" data-i18n="nav_profile">الملف</span>
-      </button>
-      <button type="button" class="nav-item hidden" id="admin-nav-item" data-tab="tab-admin">
-        <span class="nav-icon">👑</span>
-        <span class="nav-label" data-i18n="nav_admin">الإدارة</span>
-      </button>
-    </nav>
-
-    <!-- Deposit Modal -->
-    <div id="deposit-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="deposit-modal-title">
-      <div class="modal-content card">
-        <h3 id="deposit-modal-title" data-i18n="deposit_funds">إيداع رصيد</h3>
-        <form id="deposit-form">
-          <div class="form-group">
-            <label for="deposit-amount" data-i18n="amount">المبلغ ($)</label>
-            <input type="number" id="deposit-amount" name="amount" min="1" step="0.5" required class="input-field" placeholder="10.0">
-          </div>
-          <div class="modal-actions">
-            <button type="submit" class="btn primary-btn" data-i18n="confirm_deposit">تأكيد الإيداع</button>
-            <button type="button" class="btn secondary-btn closeModal">إلغاء</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- Withdraw Modal -->
-    <div id="withdraw-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="withdraw-modal-title">
-      <div class="modal-content card">
-        <h3 id="withdraw-modal-title" data-i18n="withdraw_funds">سحب رصيد</h3>
-        <form id="withdraw-form">
-          <div class="form-group">
-            <label for="withdraw-amount" data-i18n="amount">المبلغ ($)</label>
-            <input type="number" id="withdraw-amount" name="amount" min="1" step="0.5" required class="input-field" placeholder="5.0">
-          </div>
-          <div class="modal-actions">
-            <button type="submit" class="btn primary-btn" data-i18n="confirm_withdraw">طلب السحب</button>
-            <button type="button" class="btn secondary-btn closeModal">إلغاء</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- FAQ Modal -->
-    <div id="faq-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="faq-modal-title">
-      <div class="modal-content card">
-        <h3 id="faq-modal-title" data-i18n="faq">الأسئلة الشائعة</h3>
-        <div class="faq-item">
-          <strong data-i18n="faq_q1">كيف يمكنني تحقيق الربح؟</strong>
-          <p data-i18n="faq_a1">عن طريق اختصار الروابط ومشاركتها، أو مشاهدة الإعلانات المتاحة، أو دعوة أصدقائك عبر رابط الإحالة.</p>
+    <div class="modal-overlay" id="profileModal">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 data-i18n="profileTitle">User Settings</h3>
+          <button class="close-btn" id="closeProfileModal">&times;</button>
         </div>
-        <div class="faq-item">
-          <strong data-i18n="faq_q2">متى يتم استلام طلب السحب؟</strong>
-          <p data-i18n="faq_a2">تتم معالجة الطلبات خلال 24 ساعة من تاريخ الطلب بعد التأكد من صحة الحساب.</p>
+        <div class="modal-body">
+          <div class="modal-user-details">
+            <div class="avatar-large" id="modalAvatar">U</div>
+            <h4 id="modalUserName">User Name</h4>
+            <p id="modalUserId">ID: 0000000</p>
+          </div>
+          <div class="menu-list">
+            <a href="https://t.me/Te_AdsNs_bot" target="_blank" class="menu-item">
+              <span class="icon">💬</span>
+              <span data-i18n="supportBtn">Technical Support</span>
+            </a>
+            <a href="https://t.me/ttelega_ads" target="_blank" class="menu-item">
+              <span class="icon">📢</span>
+              <span data-i18n="channelBtn">Official Channel</span>
+            </a>
+            <button class="menu-item" id="faqBtn">
+              <span class="icon">❓</span>
+              <span data-i18n="faqBtn">Frequently Asked Questions</span>
+            </button>
+            <button class="menu-item" id="toggleLanguageBtn">
+              <span class="icon">🌐</span>
+              <span data-i18n="switchLang">Change Language</span>
+            </button>
+          </div>
         </div>
-        <button type="button" class="btn secondary-btn closeModal full-width margin-top">إغلاق</button>
       </div>
     </div>
 
-    <!-- Toast Notifications -->
-    <div id="toast-container" class="toast-container" aria-live="polite"></div>
+    <div class="modal-overlay" id="faqModal">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 data-i18n="faqTitle">FAQ</h3>
+          <button class="close-btn" id="closeFaqModal">&times;</button>
+        </div>
+        <div class="modal-body faq-content">
+          <h4 data-i18n="faqQ1">What is Telega Ads?</h4>
+          <p data-i18n="faqA1">Telega Ads is an automated advertising network designed for Telegram content creators and advertisers.</p>
+          <h4 data-i18n="faqQ2">How to earn as a publisher?</h4>
+          <p data-i18n="faqA2">Create short links or embed ads into your channels to receive payout per engagement.</p>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <!-- JavaScript Scripts -->
   <script src="js/language/ar.js"></script>
   <script src="js/language/en.js"></script>
   <script src="js/language/i18n.js"></script>
   <script src="js/modules/api.js"></script>
   <script src="js/modules/ui.js"></script>
-  <script src="js/modules/shortener.js"></script>
-  <script src="js/modules/ads.js"></script>
-  <script src="js/modules/wallet.js"></script>
-  <script src="js/modules/admin.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
