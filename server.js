@@ -7,25 +7,19 @@ const crypto = require('crypto');
 const path = require('path');
 const jwt = require('jsonwebtoken');
 
-// استيراد النماذج الموحدة من ملف models
-const models = require('./models');
-const { 
-  User, 
-  Campaign,
-  AdCampaign, 
-  ShortLink,
-  ShortenedLink, 
-  Ledger,
-  Transaction, 
-  SystemConfig, 
-  VisitLog, 
-  ActivityLog, 
-  Withdrawal, 
-  Deposit, 
-  ReferralLog, 
-  FraudAlert, 
-  AdEvent 
-} = models;
+// استيراد النماذج من ملف models مع تحسين التوافق
+const models = require('./models') || {};
+const User = models.User;
+const AdCampaign = models.AdCampaign || models.Campaign;
+const ShortenedLink = models.ShortenedLink || models.ShortLink;
+const Transaction = models.Transaction || models.Ledger;
+const SystemConfig = models.SystemConfig;
+const ActivityLog = models.ActivityLog || models.VisitLog;
+const Withdrawal = models.Withdrawal;
+const Deposit = models.Deposit;
+const ReferralLog = models.ReferralLog;
+const FraudAlert = models.FraudAlert;
+const AdEvent = models.AdEvent;
 
 const app = express();
 
@@ -141,11 +135,13 @@ const authMiddleware = async (req, res, next) => {
       try {
         const token = initData.split(' ')[1];
         const decoded = jwt.verify(token, JWT_SECRET);
-        const dbUser = await User.findById(decoded.id);
-        if (dbUser) {
-          req.dbUser = dbUser;
-          req.user = dbUser;
-          return next();
+        if (User) {
+          const dbUser = await User.findById(decoded.id);
+          if (dbUser) {
+            req.dbUser = dbUser;
+            req.user = dbUser;
+            return next();
+          }
         }
       } catch (e) {
         // الاستمرار لمسارات التحقق الأخرى في حال عدم صلاحية التوكن
@@ -176,6 +172,11 @@ const authMiddleware = async (req, res, next) => {
     }
 
     req.tgUser = tgUser;
+    
+    if (!User) {
+      return res.status(500).json({ success: false, error: 'User model not initialized' });
+    }
+
     let user = await User.findOne({ telegramId: String(tgUser.id) });
     
     if (!user) {
@@ -237,21 +238,23 @@ class FraudEngine {
     const activeIp = ip || '127.0.0.1';
     const activeAgent = userAgent || '';
 
-    await ActivityLog.create({
-      userId: userId ? String(userId) : '',
-      ip: activeIp,
-      userAgent: activeAgent,
-      action: type || 'click',
-      details: { linkId, adId }
-    });
+    if (ActivityLog) {
+      await ActivityLog.create({
+        userId: userId ? String(userId) : '',
+        ip: activeIp,
+        userAgent: activeAgent,
+        action: type || 'click',
+        details: { linkId, adId }
+      }).catch(() => {});
+    }
 
-    const recentLogs = await ActivityLog.find({ ip: activeIp, createdAt: { $gt: new Date(Date.now() - 60000) } });
+    const recentLogs = ActivityLog ? await ActivityLog.find({ ip: activeIp, createdAt: { $gt: new Date(Date.now() - 60000) } }) : [];
     if (recentLogs.length > 10) {
       score += 40;
       reasons.push('High frequency requests within 60s');
     }
 
-    const lastLogs = await ActivityLog.find({ ip: activeIp }).sort({ createdAt: -1 }).limit(2);
+    const lastLogs = ActivityLog ? await ActivityLog.find({ ip: activeIp }).sort({ createdAt: -1 }).limit(2) : [];
     let interval = 0;
     if (lastLogs.length > 1) {
       interval = new Date(lastLogs[0].createdAt).getTime() - new Date(lastLogs[1].createdAt).getTime();
@@ -267,7 +270,7 @@ class FraudEngine {
       reasons.push('Suspicious or Bot User-Agent header');
     }
 
-    const distinctUsersOnIp = await ActivityLog.distinct('userId', { ip: activeIp, userId: { $ne: '' } });
+    const distinctUsersOnIp = ActivityLog ? await ActivityLog.distinct('userId', { ip: activeIp, userId: { $ne: '' } }) : [];
     if (distinctUsersOnIp.length > 3) {
       score += 25;
       reasons.push('Multiple accounts active on same IP');
@@ -279,7 +282,7 @@ class FraudEngine {
     else if (finalScore >= 61) category = 'suspicious';
     else if (finalScore >= 31) category = 'monitored';
 
-    if (userId && finalScore >= 61) {
+    if (userId && finalScore >= 61 && User) {
       const isObjectId = mongoose.Types.ObjectId.isValid(userId);
       const dbUser = isObjectId 
         ? await User.findById(userId) 
@@ -290,12 +293,14 @@ class FraudEngine {
         dbUser.riskCategory = category;
         await dbUser.save();
 
-        await FraudAlert.create({
-          userId: dbUser._id,
-          riskScore: finalScore,
-          reason: reasons.join(' | ') || 'High Risk Behavioral Pattern Detected',
-          details: { ip: activeIp, userAgent: activeAgent, clickIntervalMs: interval }
-        });
+        if (FraudAlert) {
+          await FraudAlert.create({
+            userId: dbUser._id,
+            riskScore: finalScore,
+            reason: reasons.join(' | ') || 'High Risk Behavioral Pattern Detected',
+            details: { ip: activeIp, userAgent: activeAgent, clickIntervalMs: interval }
+          }).catch(() => {});
+        }
       }
     }
 
@@ -304,6 +309,16 @@ class FraudEngine {
 }
 
 const getOrCreateConfig = async () => {
+  if (!SystemConfig) {
+    return {
+      minWithdrawal: 5.0,
+      cpcRate: 0.01,
+      shortenerCpc: 0.004,
+      referralCommissionRate: 0.10,
+      supportLink: '',
+      channelLink: ''
+    };
+  }
   let config = await SystemConfig.findOne({ key: 'main_config' });
   if (!config) {
     config = await SystemConfig.create({ key: 'main_config' });
@@ -327,12 +342,12 @@ app.get('/api/config', asyncHandler(async (req, res) => {
     appDomain: APP_DOMAIN,
     depositAddresses: SYSTEM_DEPOSIT_ADDRESSES,
     config: {
-      minWithdrawal: config.minWithdrawal,
-      cpcRate: config.cpcRate,
-      shortenerCpc: config.shortenerCpc,
-      referralCommissionRate: config.referralCommissionRate,
-      supportLink: config.supportLink,
-      channelLink: config.channelLink
+      minWithdrawal: config.minWithdrawal || 5.0,
+      cpcRate: config.cpcRate || 0.01,
+      shortenerCpc: config.shortenerCpc || 0.004,
+      referralCommissionRate: config.referralCommissionRate || 0.10,
+      supportLink: config.supportLink || '',
+      channelLink: config.channelLink || ''
     }
   });
 }));
@@ -413,6 +428,10 @@ app.post('/api/shortener/create', authMiddleware, asyncHandler(async (req, res) 
     return res.status(400).json({ success: false, error: 'Valid HTTP/HTTPS URL required' });
   }
 
+  if (!ShortenedLink) {
+    return res.status(500).json({ success: false, error: 'ShortenedLink model not initialized' });
+  }
+
   const shortCode = crypto.randomBytes(4).toString('hex');
   const link = await ShortenedLink.create({
     userId: req.dbUser.telegramId,
@@ -429,6 +448,7 @@ app.post('/api/shortener/create', authMiddleware, asyncHandler(async (req, res) 
 }));
 
 app.get('/api/shortener/my-links', authMiddleware, asyncHandler(async (req, res) => {
+  if (!ShortenedLink) return res.json({ success: true, links: [] });
   const links = await ShortenedLink.find({ 
     $or: [{ userId: req.dbUser.telegramId }, { owner: req.dbUser.telegramId }] 
   }).sort({ createdAt: -1 });
@@ -437,6 +457,8 @@ app.get('/api/shortener/my-links', authMiddleware, asyncHandler(async (req, res)
 
 app.delete('/api/shortener/:code', authMiddleware, asyncHandler(async (req, res) => {
   const { code } = req.params;
+  if (!ShortenedLink) return res.status(404).json({ success: false, error: 'Link model missing' });
+
   const link = await ShortenedLink.findOneAndDelete({
     $and: [
       { $or: [{ shortCode: code }, { shortId: code }] },
@@ -450,6 +472,8 @@ app.delete('/api/shortener/:code', authMiddleware, asyncHandler(async (req, res)
 
 app.get('/s/:code', asyncHandler(async (req, res) => {
   const { code } = req.params;
+  if (!ShortenedLink) return res.status(404).send('Shortener service unavailable');
+
   const link = await ShortenedLink.findOne({ $or: [{ shortCode: code }, { shortId: code }] });
 
   if (!link) {
@@ -483,14 +507,16 @@ app.get('/s/:code', asyncHandler(async (req, res) => {
       owner.totalEarned = (owner.totalEarned || 0) + earnings;
       await owner.save();
 
-      await Transaction.create({
-        userId: owner.telegramId,
-        userRef: owner._id,
-        type: 'shortener_earn',
-        amount: earnings,
-        status: 'completed',
-        description: `Earnings for link ${code}`
-      });
+      if (Transaction) {
+        await Transaction.create({
+          userId: owner.telegramId,
+          userRef: owner._id,
+          type: 'shortener_earn',
+          amount: earnings,
+          status: 'completed',
+          description: `Earnings for link ${code}`
+        });
+      }
 
       if (owner.referrerId) {
         const referrer = await User.findOne({ telegramId: owner.referrerId });
@@ -501,14 +527,16 @@ app.get('/s/:code', asyncHandler(async (req, res) => {
           referrer.referralEarnings = (referrer.referralEarnings || 0) + refBonus;
           await referrer.save();
 
-          await ReferralLog.create({
-            referrer: referrer._id,
-            referredUser: owner._id,
-            source: 'SHORTENER_COMMISSION',
-            amount: earnings,
-            commission: refBonus,
-            status: 'Paid'
-          });
+          if (ReferralLog) {
+            await ReferralLog.create({
+              referrer: referrer._id,
+              referredUser: owner._id,
+              source: 'SHORTENER_COMMISSION',
+              amount: earnings,
+              commission: refBonus,
+              status: 'Paid'
+            });
+          }
         }
       }
     }
@@ -524,6 +552,10 @@ app.get('/s/:code', asyncHandler(async (req, res) => {
 app.post('/api/ads/create', authMiddleware, asyncHandler(async (req, res) => {
   const { title, url, targetUrl, budget, totalBudget, costPerClick, cpc, cpm, pricingType } = req.body;
   
+  if (!AdCampaign) {
+    return res.status(500).json({ success: false, error: 'AdCampaign model not initialized' });
+  }
+
   const finalTitle = title;
   const finalUrl = url || targetUrl;
   const numBudget = parseFloat(budget || totalBudget);
@@ -561,25 +593,29 @@ app.post('/api/ads/create', authMiddleware, asyncHandler(async (req, res) => {
     totalClicks: 0
   });
 
-  await Transaction.create({
-    userId: req.dbUser.telegramId,
-    userRef: req.dbUser._id,
-    type: 'ad_spend',
-    amount: -numBudget,
-    status: 'completed',
-    description: `Campaign created: ${finalTitle}`
-  });
+  if (Transaction) {
+    await Transaction.create({
+      userId: req.dbUser.telegramId,
+      userRef: req.dbUser._id,
+      type: 'ad_spend',
+      amount: -numBudget,
+      status: 'completed',
+      description: `Campaign created: ${finalTitle}`
+    });
+  }
 
   logEvent('info', 'ADS', `Campaign created by ${req.dbUser.telegramId}: ${finalTitle}`);
   res.json({ success: true, campaign, newBalance: req.dbUser.balance });
 }));
 
 app.get('/api/ads/my-ads', authMiddleware, asyncHandler(async (req, res) => {
+  if (!AdCampaign) return res.json({ success: true, campaigns: [] });
   const campaigns = await AdCampaign.find({ advertiserId: req.dbUser.telegramId }).sort({ createdAt: -1 });
   res.json({ success: true, campaigns });
 }));
 
 app.get('/api/ads/active', authMiddleware, asyncHandler(async (req, res) => {
+  if (!AdCampaign) return res.json({ success: true, ads: [] });
   const activeAds = await AdCampaign.find({ 
     status: 'active',
     $expr: { $lt: [{$ifNull: ["$spent", 0] }, "$budget"] }
@@ -590,6 +626,8 @@ app.get('/api/ads/active', authMiddleware, asyncHandler(async (req, res) => {
 
 app.post('/api/ads/click', authMiddleware, asyncHandler(async (req, res) => {
   const { campaignId } = req.body;
+
+  if (!AdCampaign) return res.status(500).json({ success: false, error: 'Ad service unavailable' });
 
   if (!campaignId || !mongoose.Types.ObjectId.isValid(campaignId)) {
     return res.status(400).json({ success: false, error: 'Valid campaign ID required' });
@@ -636,24 +674,28 @@ app.post('/api/ads/click', authMiddleware, asyncHandler(async (req, res) => {
   req.dbUser.totalEarned = (req.dbUser.totalEarned || 0) + userEarn;
   await req.dbUser.save();
 
-  await Transaction.create({
-    userId: req.dbUser.telegramId,
-    userRef: req.dbUser._id,
-    type: 'ad_click_earn',
-    amount: userEarn,
-    status: 'completed',
-    description: `Ad click reward for campaign ${campaign._id}`
-  });
+  if (Transaction) {
+    await Transaction.create({
+      userId: req.dbUser.telegramId,
+      userRef: req.dbUser._id,
+      type: 'ad_click_earn',
+      amount: userEarn,
+      status: 'completed',
+      description: `Ad click reward for campaign ${campaign._id}`
+    });
+  }
 
-  await AdEvent.create({
-    campaignId: campaign._id,
-    publisherId: req.dbUser.telegramId,
-    type: 'click',
-    cost: cpc,
-    publisherEarnings: userEarn,
-    visitorIp: ip,
-    telegramId: req.dbUser.telegramId
-  });
+  if (AdEvent) {
+    await AdEvent.create({
+      campaignId: campaign._id,
+      publisherId: req.dbUser.telegramId,
+      type: 'click',
+      cost: cpc,
+      publisherEarnings: userEarn,
+      visitorIp: ip,
+      telegramId: req.dbUser.telegramId
+    }).catch(() => {});
+  }
 
   res.json({ success: true, redirectUrl: campaign.url || campaign.targetUrl, reward: userEarn });
 }));
@@ -704,6 +746,8 @@ app.post('/api/wallet/deposit', authMiddleware, asyncHandler(async (req, res) =>
       return res.status(400).json({ success: false, error: 'الحد الأدنى للإيداع هو $10' });
     }
 
+    if (!Deposit) return res.status(500).json({ success: false, error: 'Deposit model missing' });
+
     const cleanTxid = txid.trim();
     const existingDeposit = await Deposit.findOne({ txid: cleanTxid });
     if (existingDeposit) {
@@ -730,14 +774,16 @@ app.post('/api/wallet/deposit', authMiddleware, asyncHandler(async (req, res) =>
   req.dbUser.balance = (req.dbUser.balance || 0) + numAmount;
   await req.dbUser.save();
 
-  await Transaction.create({
-    userId: req.dbUser.telegramId,
-    userRef: req.dbUser._id,
-    type: 'deposit',
-    amount: numAmount,
-    status: 'completed',
-    description: 'Direct wallet deposit'
-  });
+  if (Transaction) {
+    await Transaction.create({
+      userId: req.dbUser.telegramId,
+      userRef: req.dbUser._id,
+      type: 'deposit',
+      amount: numAmount,
+      status: 'completed',
+      description: 'Direct wallet deposit'
+    });
+  }
 
   res.json({ success: true, balance: req.dbUser.balance });
 }));
@@ -760,6 +806,8 @@ app.post('/api/wallet/withdraw', authMiddleware, asyncHandler(async (req, res) =
     return res.status(400).json({ success: false, error: 'يرجى حفظ عنوان USDT TRC20 أولاً' });
   }
 
+  if (!Withdrawal) return res.status(500).json({ success: false, error: 'Withdrawal model missing' });
+
   req.dbUser.balance -= numAmount;
   req.dbUser.pendingWithdrawal = (req.dbUser.pendingWithdrawal || 0) + numAmount;
   await req.dbUser.save();
@@ -776,19 +824,22 @@ app.post('/api/wallet/withdraw', authMiddleware, asyncHandler(async (req, res) =
     status: 'Pending'
   });
 
-  await Transaction.create({
-    userId: req.dbUser.telegramId,
-    userRef: req.dbUser._id,
-    type: 'withdrawal',
-    amount: -numAmount,
-    status: 'pending',
-    description: 'Withdrawal request submitted'
-  });
+  if (Transaction) {
+    await Transaction.create({
+      userId: req.dbUser.telegramId,
+      userRef: req.dbUser._id,
+      type: 'withdrawal',
+      amount: -numAmount,
+      status: 'pending',
+      description: 'Withdrawal request submitted'
+    });
+  }
 
   res.json({ success: true, balance: req.dbUser.balance, withdrawal });
 }));
 
 app.get('/api/wallet/transactions', authMiddleware, asyncHandler(async (req, res) => {
+  if (!Transaction) return res.json({ success: true, transactions: [] });
   const transactions = await Transaction.find({ userId: req.dbUser.telegramId }).sort({ createdAt: -1 }).limit(50);
   res.json({ success: true, transactions });
 }));
@@ -806,7 +857,7 @@ app.get('/api/referrals/stats', authMiddleware, asyncHandler(async (req, res) =>
     $or: [{ referrerId: req.dbUser.telegramId }, { referredBy: req.dbUser._id }] 
   }, 'firstName username registeredAt createdAt').sort({ createdAt: -1 });
 
-  const logs = await ReferralLog.find({ referrer: req.dbUser._id }).sort({ createdAt: -1 });
+  const logs = ReferralLog ? await ReferralLog.find({ referrer: req.dbUser._id }).sort({ createdAt: -1 }) : [];
 
   res.json({ 
     success: true, 
@@ -822,15 +873,18 @@ app.get('/api/referrals/stats', authMiddleware, asyncHandler(async (req, res) =>
 // ==========================================
 
 app.get('/api/admin/stats', authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
-  const totalUsers = await User.countDocuments();
-  const totalAds = await AdCampaign.countDocuments();
-  const totalLinks = await ShortenedLink.countDocuments();
-  const pendingWithdrawals = await Withdrawal.countDocuments({ status: 'Pending' });
+  const totalUsers = User ? await User.countDocuments() : 0;
+  const totalAds = AdCampaign ? await AdCampaign.countDocuments() : 0;
+  const totalLinks = ShortenedLink ? await ShortenedLink.countDocuments() : 0;
+  const pendingWithdrawals = Withdrawal ? await Withdrawal.countDocuments({ status: 'Pending' }) : 0;
 
-  const totalSpentResult = await AdCampaign.aggregate([
-    { $group: { _id: null, total: { $sum: "$spent" } } }
-  ]);
-  const platformRevenue = totalSpentResult[0]?.total || 0;
+  let platformRevenue = 0;
+  if (AdCampaign) {
+    const totalSpentResult = await AdCampaign.aggregate([
+      { $group: { _id: null, total: { $sum: "$spent" } } }
+    ]);
+    platformRevenue = totalSpentResult[0]?.total || 0;
+  }
 
   res.json({
     success: true,
@@ -839,6 +893,7 @@ app.get('/api/admin/stats', authMiddleware, adminMiddleware, asyncHandler(async 
 }));
 
 app.get('/api/admin/users', authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  if (!User) return res.json({ success: true, users: [] });
   const users = await User.find().sort({ createdAt: -1 }).limit(100);
   res.json({ success: true, users });
 }));
@@ -854,31 +909,38 @@ app.post('/api/admin/config', authMiddleware, adminMiddleware, asyncHandler(asyn
   if (supportLink !== undefined) config.supportLink = supportLink;
   if (channelLink !== undefined) config.channelLink = channelLink;
 
-  await config.save();
+  if (config.save) await config.save();
   res.json({ success: true, config });
 }));
 
 app.get('/api/admin/withdrawals', authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
-  const list = await Withdrawal.find().populate('user userId').sort({ createdAt: -1 });
+  if (!Withdrawal) return res.json({ success: true, withdrawals: [] });
+  const list = await Withdrawal.find().populate('user').sort({ createdAt: -1 });
   res.json({ success: true, withdrawals: list });
 }));
 
 app.put('/api/admin/withdrawals/:id/status', authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
   const { status, rejectionReason, txid } = req.body;
+  if (!Withdrawal) return res.status(500).json({ success: false, error: 'Withdrawal model missing' });
+
   const withdrawal = await Withdrawal.findById(req.params.id);
 
   if (!withdrawal) return res.status(404).json({ success: false, error: 'Withdrawal request not found' });
   if (withdrawal.status !== 'Pending') return res.status(400).json({ success: false, error: 'Withdrawal request already processed' });
 
   if (status === 'Rejected') {
-    await User.findByIdAndUpdate(withdrawal.user || withdrawal.userId, {
-      $inc: { balance: withdrawal.amount, pendingWithdrawal: -withdrawal.amount }
-    });
+    if (User) {
+      await User.findByIdAndUpdate(withdrawal.user || withdrawal.userId, {
+        $inc: { balance: withdrawal.amount, pendingWithdrawal: -withdrawal.amount }
+      });
+    }
     withdrawal.rejectionReason = rejectionReason || 'Rejected by Admin';
   } else if (status === 'Paid') {
-    await User.findByIdAndUpdate(withdrawal.user || withdrawal.userId, {
-      $inc: { pendingWithdrawal: -withdrawal.amount, totalWithdrawn: withdrawal.amount }
-    });
+    if (User) {
+      await User.findByIdAndUpdate(withdrawal.user || withdrawal.userId, {
+        $inc: { pendingWithdrawal: -withdrawal.amount, totalWithdrawn: withdrawal.amount }
+      });
+    }
     if (txid) withdrawal.txid = txid;
   }
 
@@ -889,30 +951,34 @@ app.put('/api/admin/withdrawals/:id/status', authMiddleware, adminMiddleware, as
 }));
 
 app.get('/api/admin/deposits', authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
-  const list = await Deposit.find().populate('user userId').sort({ createdAt: -1 });
+  if (!Deposit) return res.json({ success: true, deposits: [] });
+  const list = await Deposit.find().populate('user').sort({ createdAt: -1 });
   res.json({ success: true, deposits: list });
 }));
 
 app.put('/api/admin/deposits/:id/status', authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
   const { status, rejectionReason } = req.body;
+  if (!Deposit) return res.status(500).json({ success: false, error: 'Deposit model missing' });
+
   const deposit = await Deposit.findById(req.params.id);
 
   if (!deposit) return res.status(404).json({ success: false, error: 'Deposit request not found' });
   if (deposit.status !== 'Pending') return res.status(400).json({ success: false, error: 'Deposit request already processed' });
 
   if (status === 'Approved') {
-    await User.findByIdAndUpdate(deposit.user || deposit.userId, { $inc: { balance: deposit.amount } });
-    
-    const targetUser = await User.findById(deposit.user || deposit.userId);
-    if (targetUser) {
-      await Transaction.create({
-        userId: targetUser.telegramId,
-        userRef: targetUser._id,
-        type: 'deposit',
-        amount: deposit.amount,
-        status: 'completed',
-        description: `Deposit approved (TXID: ${deposit.txid || deposit.requestId})`
-      });
+    if (User) {
+      await User.findByIdAndUpdate(deposit.user || deposit.userId, { $inc: { balance: deposit.amount } });
+      const targetUser = await User.findById(deposit.user || deposit.userId);
+      if (targetUser && Transaction) {
+        await Transaction.create({
+          userId: targetUser.telegramId,
+          userRef: targetUser._id,
+          type: 'deposit',
+          amount: deposit.amount,
+          status: 'completed',
+          description: `Deposit approved (TXID: ${deposit.txid || deposit.requestId})`
+        });
+      }
     }
   } else if (status === 'Rejected') {
     deposit.rejectionReason = rejectionReason || 'Verification failed';
