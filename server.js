@@ -46,7 +46,8 @@ const DEPOSIT_ADDRESS_TRC20 = process.env.DEPOSIT_ADDRESS_TRC20 || 'T9xR5aK8v2mL
 const DEPOSIT_ADDRESS_BEP20 = process.env.DEPOSIT_ADDRESS_BEP20 || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F';
 const MONGO_URI = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/telega_ads';
 
-const TRC20_REGEX = /^T[a-zA-1-9]{33}$/;
+// تعبير نمطي دقيق لعناوين TRC20 المقبولة
+const TRC20_REGEX = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
 
 const SYSTEM_DEPOSIT_ADDRESSES = {
   TRC20: DEPOSIT_ADDRESS_TRC20,
@@ -132,11 +133,9 @@ const authMiddleware = async (req, res, next) => {
   try {
     const initData = req.headers['x-telegram-init-data'] || req.headers['authorization'];
     const customTgId = req.headers['x-telegram-id'];
-    
-    let tgUser = verifyTelegramInitData(initData, BOT_TOKEN);
 
     // دعم JWT Token إذا كان معطى
-    if (!tgUser && initData && initData.startsWith('Bearer ')) {
+    if (initData && initData.startsWith('Bearer ')) {
       try {
         const token = initData.split(' ')[1];
         const decoded = jwt.verify(token, JWT_SECRET);
@@ -147,9 +146,11 @@ const authMiddleware = async (req, res, next) => {
           return next();
         }
       } catch (e) {
-        // الاستمرار لمسارات التحقق الأخرى
+        // الاستمرار لمسارات التحقق الأخرى في حال عدم صلاحية التوكن
       }
     }
+    
+    let tgUser = verifyTelegramInitData(initData, BOT_TOKEN);
 
     // دعم الهيدر المباشر لتطبيقات الميني
     if (!tgUser && customTgId) {
@@ -197,6 +198,10 @@ const authMiddleware = async (req, res, next) => {
       if (tgUser.username && user.username !== tgUser.username) {
         user.username = tgUser.username;
       }
+      if (String(tgUser.id) === ADMIN_ID && !user.isAdmin) {
+        user.role = 'Admin';
+        user.isAdmin = true;
+      }
       await user.save();
     }
 
@@ -223,31 +228,34 @@ const adminMiddleware = (req, res, next) => {
 };
 
 // ==========================================
-// محرك كشف والاحتيال والتقييم (Fraud Engine)
+// محرك كشف الاحتيال والتقييم (Fraud Engine)
 // ==========================================
 class FraudEngine {
   static async evaluateActivity({ userId, linkId, adId, type, ip, userAgent }) {
     let score = 0;
     const reasons = [];
 
+    const activeIp = ip || '127.0.0.1';
+    const activeAgent = userAgent || '';
+
     // تسجيل النشاط الحالي
     await ActivityLog.create({
       userId: userId ? String(userId) : '',
-      ip,
-      userAgent,
+      ip: activeIp,
+      userAgent: activeAgent,
       action: type || 'click',
       details: { linkId, adId }
     });
 
     // 1. فحص تواتر الطلبات السريعة
-    const recentLogs = await ActivityLog.find({ ip, createdAt: { $gt: new Date(Date.now() - 60000) } });
+    const recentLogs = await ActivityLog.find({ ip: activeIp, createdAt: { $gt: new Date(Date.now() - 60000) } });
     if (recentLogs.length > 10) {
       score += 40;
       reasons.push('High frequency requests within 60s');
     }
 
     // 2. تحليل السرعة والمدة الزمنية بين النقرات
-    const lastLogs = await ActivityLog.find({ ip }).sort({ createdAt: -1 }).limit(2);
+    const lastLogs = await ActivityLog.find({ ip: activeIp }).sort({ createdAt: -1 }).limit(2);
     let interval = 0;
     if (lastLogs.length > 1) {
       interval = new Date(lastLogs[0].createdAt).getTime() - new Date(lastLogs[1].createdAt).getTime();
@@ -259,13 +267,13 @@ class FraudEngine {
 
     // 3. التحقق من متصفح الزائر (User Agent)
     const botPattern = /bot|crawl|spider|slurp|curl|wget|python|php|harvest|headless/i;
-    if (!userAgent || botPattern.test(userAgent) || userAgent.length < 15) {
+    if (!activeAgent || botPattern.test(activeAgent) || activeAgent.length < 15) {
       score += 30;
       reasons.push('Suspicious or Bot User-Agent header');
     }
 
     // 4. الحسابات المتعددة من نفس عنوان IP
-    const distinctUsersOnIp = await ActivityLog.distinct('userId', { ip, userId: { $ne: '' } });
+    const distinctUsersOnIp = await ActivityLog.distinct('userId', { ip: activeIp, userId: { $ne: '' } });
     if (distinctUsersOnIp.length > 3) {
       score += 25;
       reasons.push('Multiple accounts active on same IP');
@@ -278,7 +286,11 @@ class FraudEngine {
     else if (finalScore >= 31) category = 'monitored';
 
     if (userId && finalScore >= 61) {
-      const dbUser = await User.findById(userId);
+      const isObjectId = mongoose.Types.ObjectId.isValid(userId);
+      const dbUser = isObjectId 
+        ? await User.findById(userId) 
+        : await User.findOne({ telegramId: String(userId) });
+
       if (dbUser) {
         dbUser.riskScore = finalScore;
         dbUser.riskCategory = category;
@@ -288,7 +300,7 @@ class FraudEngine {
           userId: dbUser._id,
           riskScore: finalScore,
           reason: reasons.join(' | ') || 'High Risk Behavioral Pattern Detected',
-          details: { ip, userAgent, clickIntervalMs: interval }
+          details: { ip: activeIp, userAgent: activeAgent, clickIntervalMs: interval }
         });
       }
     }
@@ -313,7 +325,6 @@ const getOrCreateConfig = async () => {
 app.get('/api/config', asyncHandler(async (req, res) => {
   const config = await getOrCreateConfig();
   
-  // إرجاع كافة البيانات العامة والآمنة للواجهة دون كشف الأسرار مثل JWT_SECRET أو BOT_TOKEN
   res.json({
     success: true,
     platformName: PLATFORM_NAME,
@@ -341,20 +352,23 @@ app.post('/api/user/sync', authMiddleware, asyncHandler(async (req, res) => {
   const { startParam } = req.body;
   const user = req.dbUser;
 
-  if (startParam && !user.referrerId && String(startParam) !== String(user.telegramId)) {
-    const referrer = await User.findOne({ 
-      $or: [{ telegramId: String(startParam) }, { referralCode: startParam }] 
-    });
-    
-    if (referrer && String(referrer._id) !== String(user._id)) {
-      user.referrerId = referrer.telegramId;
-      user.referredBy = referrer._id;
-      await user.save();
+  if (startParam && !user.referrerId) {
+    const cleanParam = String(startParam).replace(/^ref_/, '').trim();
+    if (cleanParam && cleanParam !== String(user.telegramId) && cleanParam !== user.referralCode) {
+      const referrer = await User.findOne({ 
+        $or: [{ telegramId: cleanParam }, { referralCode: cleanParam }] 
+      });
       
-      referrer.referralCount = (referrer.referralCount || 0) + 1;
-      await referrer.save();
-      
-      logEvent('info', 'REFERRAL', `User ${user.telegramId} linked to referrer ${referrer.telegramId}`);
+      if (referrer && String(referrer._id) !== String(user._id)) {
+        user.referrerId = referrer.telegramId;
+        user.referredBy = referrer._id;
+        await user.save();
+        
+        referrer.referralCount = (referrer.referralCount || 0) + 1;
+        await referrer.save();
+        
+        logEvent('info', 'REFERRAL', `User ${user.telegramId} linked to referrer ${referrer.telegramId}`);
+      }
     }
   }
 
@@ -431,7 +445,10 @@ app.get('/api/shortener/my-links', authMiddleware, asyncHandler(async (req, res)
 app.delete('/api/shortener/:code', authMiddleware, asyncHandler(async (req, res) => {
   const { code } = req.params;
   const link = await ShortenedLink.findOneAndDelete({
-    $or: [{ shortCode: code }, { shortId: code }],$or: [{ userId: req.dbUser.telegramId }, { owner: req.dbUser.telegramId }]
+    $and: [
+      { $or: [{ shortCode: code }, { shortId: code }] },
+      { $or: [{ userId: req.dbUser.telegramId }, { owner: req.dbUser.telegramId }] }
+    ]
   });
 
   if (!link) return res.status(404).json({ success: false, error: 'Link not found or unauthorized' });
@@ -451,7 +468,7 @@ app.get('/s/:code', asyncHandler(async (req, res) => {
   const userAgent = req.headers['user-agent'] || '';
 
   const evaluation = await FraudEngine.evaluateActivity({
-    userId: link.userRef,
+    userId: link.userRef || link.userId,
     linkId: link._id,
     type: 'click',
     ip,
@@ -465,7 +482,10 @@ app.get('/s/:code', asyncHandler(async (req, res) => {
     link.earnings = (link.earnings || 0) + earnings;
     await link.save();
 
-    const owner = await User.findOne({ telegramId: link.userId });
+    const owner = await User.findOne({ 
+      $or: [{ telegramId: String(link.userId) }, { _id: link.userRef }] 
+    });
+
     if (owner) {
       owner.balance = (owner.balance || 0) + earnings;
       owner.totalEarned = (owner.totalEarned || 0) + earnings;
@@ -483,7 +503,7 @@ app.get('/s/:code', asyncHandler(async (req, res) => {
       // احتساب عمولة الإحالة
       if (owner.referrerId) {
         const referrer = await User.findOne({ telegramId: owner.referrerId });
-        if (referrer && !referrer.isBlocked) {
+        if (referrer && !referrer.isBlocked && referrer.accountStatus !== 'banned') {
           const refBonus = earnings * (config.referralCommissionRate || 0.10);
           referrer.balance = (referrer.balance || 0) + refBonus;
           referrer.totalEarned = (referrer.totalEarned || 0) + refBonus;
@@ -522,7 +542,7 @@ app.post('/api/ads/create', authMiddleware, asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, error: 'Invalid parameters for ad campaign' });
   }
 
-  if (req.dbUser.balance < numBudget) {
+  if ((req.dbUser.balance || 0) < numBudget) {
     return res.status(400).json({ success: false, error: 'Insufficient balance for campaign budget' });
   }
 
@@ -544,7 +564,10 @@ app.post('/api/ads/create', authMiddleware, asyncHandler(async (req, res) => {
     cpc: numCpc,
     cpm: parseFloat(cpm || 1.0),
     pricingType: pricingType || 'CPC',
-    status: 'active'
+    status: 'active',
+    spent: 0,
+    clicks: 0,
+    totalClicks: 0
   });
 
   await Transaction.create({
@@ -568,7 +591,7 @@ app.get('/api/ads/my-ads', authMiddleware, asyncHandler(async (req, res) => {
 app.get('/api/ads/active', authMiddleware, asyncHandler(async (req, res) => {
   const activeAds = await AdCampaign.find({ 
     status: 'active',
-    $expr: {$lt: ["$spent", "$budget"] }
+    $expr: { $lt: [{$ifNull: ["$spent", 0] }, "$budget"] }
   }).limit(20);
   
   res.json({ success: true, ads: activeAds });
@@ -576,9 +599,14 @@ app.get('/api/ads/active', authMiddleware, asyncHandler(async (req, res) => {
 
 app.post('/api/ads/click', authMiddleware, asyncHandler(async (req, res) => {
   const { campaignId } = req.body;
+
+  if (!campaignId || !mongoose.Types.ObjectId.isValid(campaignId)) {
+    return res.status(400).json({ success: false, error: 'Valid campaign ID required' });
+  }
+
   const campaign = await AdCampaign.findById(campaignId);
 
-  if (!campaign || campaign.status !== 'active' || (campaign.spent >= campaign.budget)) {
+  if (!campaign || campaign.status !== 'active' || ((campaign.spent || 0) >= campaign.budget)) {
     return res.status(400).json({ success: false, error: 'Campaign is not active or exhausted' });
   }
 
@@ -605,13 +633,15 @@ app.post('/api/ads/click', authMiddleware, asyncHandler(async (req, res) => {
   campaign.spent = (campaign.spent || 0) + cpc;
   campaign.clicks = (campaign.clicks || 0) + 1;
   campaign.totalClicks = (campaign.totalClicks || 0) + 1;
+  campaign.remainingBudget = Math.max(0, campaign.budget - campaign.spent);
+
   if (campaign.spent >= campaign.budget) {
     campaign.status = 'completed';
   }
   await campaign.save();
 
   const userEarn = cpc * PUBLISHER_SHARE;
-  req.dbUser.balance += userEarn;
+  req.dbUser.balance = (req.dbUser.balance || 0) + userEarn;
   req.dbUser.totalEarned = (req.dbUser.totalEarned || 0) + userEarn;
   await req.dbUser.save();
 
@@ -706,7 +736,7 @@ app.post('/api/wallet/deposit', authMiddleware, asyncHandler(async (req, res) =>
     return res.status(400).json({ success: false, error: 'Invalid deposit amount' });
   }
 
-  req.dbUser.balance += numAmount;
+  req.dbUser.balance = (req.dbUser.balance || 0) + numAmount;
   await req.dbUser.save();
 
   await Transaction.create({
@@ -731,7 +761,7 @@ app.post('/api/wallet/withdraw', authMiddleware, asyncHandler(async (req, res) =
     return res.status(400).json({ success: false, error: `الحد الأدنى للسحب هو $${minWithdrawal}` });
   }
 
-  if (req.dbUser.balance < numAmount) {
+  if ((req.dbUser.balance || 0) < numAmount) {
     return res.status(400).json({ success: false, error: 'رصيدك المتاح غير كافٍ' });
   }
 
@@ -749,7 +779,7 @@ app.post('/api/wallet/withdraw', authMiddleware, asyncHandler(async (req, res) =
     userId: req.dbUser._id,
     amount: numAmount,
     fee: 1,
-    netAmount: numAmount - 1,
+    netAmount: Math.max(0, numAmount - 1),
     address: req.dbUser.usdtTrc20Address,
     walletAddress: req.dbUser.usdtTrc20Address,
     status: 'Pending'
@@ -847,15 +877,14 @@ app.put('/api/admin/withdrawals/:id/status', authMiddleware, adminMiddleware, as
   const withdrawal = await Withdrawal.findById(req.params.id);
 
   if (!withdrawal) return res.status(404).json({ success: false, error: 'Withdrawal request not found' });
+  if (withdrawal.status !== 'Pending') return res.status(400).json({ success: false, error: 'Withdrawal request already processed' });
 
-  if (status === 'Rejected' && withdrawal.status !== 'Rejected') {
+  if (status === 'Rejected') {
     await User.findByIdAndUpdate(withdrawal.user || withdrawal.userId, {
       $inc: { balance: withdrawal.amount, pendingWithdrawal: -withdrawal.amount }
     });
     withdrawal.rejectionReason = rejectionReason || 'Rejected by Admin';
-  }
-
-  if (status === 'Paid' && withdrawal.status !== 'Paid') {
+  } else if (status === 'Paid') {
     await User.findByIdAndUpdate(withdrawal.user || withdrawal.userId, {
       $inc: { pendingWithdrawal: -withdrawal.amount, totalWithdrawn: withdrawal.amount }
     });
@@ -882,6 +911,18 @@ app.put('/api/admin/deposits/:id/status', authMiddleware, adminMiddleware, async
 
   if (status === 'Approved') {
     await User.findByIdAndUpdate(deposit.user || deposit.userId, { $inc: { balance: deposit.amount } });
+    
+    const targetUser = await User.findById(deposit.user || deposit.userId);
+    if (targetUser) {
+      await Transaction.create({
+        userId: targetUser.telegramId,
+        userRef: targetUser._id,
+        type: 'deposit',
+        amount: deposit.amount,
+        status: 'completed',
+        description: `Deposit approved (TXID: ${deposit.txid || deposit.requestId})`
+      });
+    }
   } else if (status === 'Rejected') {
     deposit.rejectionReason = rejectionReason || 'Verification failed';
   }
