@@ -6,55 +6,68 @@ const userSchema = new mongoose.Schema({
   firstName: { type: String, default: '' },
   lastName: { type: String, default: '' },
   languageCode: { type: String, default: 'en' },
-  role: { type: String, enum: ['publisher', 'advertiser', 'admin'], default: 'publisher', index: true },
-  balance: { type: Number, default: 0 },
-  createdAt: { type: Date, default: Date.now }
-}, { timestamps: true });
+  balance: { type: Number, default: 0, min: 0 },
+  adBalance: { type: Number, default: 0, min: 0 },
+  referralEarnings: { type: Number, default: 0, min: 0 },
+  referredBy: { type: String, default: null },
+  referralsCount: { type: Number, default: 0 },
+  isAdmin: { type: Boolean, default: false },
+  isBanned: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now },
+  lastActive: { type: Date, default: Date.now }
+});
 
-userSchema.index({ telegramId: 1, role: 1 });
-
-const linkSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-  originalUrl: { type: String, required: true },
-  shortCode: { type: String, required: true, unique: true, index: true },
-  viewsCount: { type: Number, default: 0 },
-  earnings: { type: Number, default: 0 },
-  isActive: { type: Boolean, default: true }
-}, { timestamps: true });
-
-linkSchema.index({ userId: 1, createdAt: -1 });
-
-const adSchema = new mongoose.Schema({
-  advertiserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+const channelSchema = new mongoose.Schema({
+  ownerId: { type: String, required: true, index: true },
+  channelUsername: { type: String, required: true, unique: true },
   title: { type: String, required: true },
-  content: { type: String, required: true },
-  targetUrl: { type: String, required: true },
-  budget: { type: Number, required: true },
-  cpm: { type: Number, required: true },
-  viewsDelivered: { type: Number, default: 0 },
-  status: { type: String, enum: ['pending', 'active', 'paused', 'completed'], default: 'active', index: true }
-}, { timestamps: true });
+  subscribers: { type: Number, default: 0 },
+  category: { type: String, default: 'general' },
+  pricePerPost: { type: Number, required: true, min: 0.1 },
+  status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+  totalEarnings: { type: Number, default: 0 },
+  createdAt: { type: Date, default: Date.now }
+});
 
-adSchema.index({ status: 1, cpm: -1 });
+const campaignSchema = new mongoose.Schema({
+  advertiserId: { type: String, required: true, index: true },
+  channelId: { type: mongoose.Schema.Types.ObjectId, ref: 'Channel', required: true },
+  title: { type: String, required: true },
+  adText: { type: String, required: true },
+  targetUrl: { type: String, required: true },
+  budget: { type: Number, required: true, min: 0.1 },
+  status: { type: String, enum: ['pending', 'active', 'completed', 'cancelled'], default: 'pending' },
+  createdAt: { type: Date, default: Date.now }
+});
 
 const transactionSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-  type: { type: String, enum: ['deposit', 'withdrawal', 'earning', 'ad_spend'], required: true, index: true },
+  userId: { type: String, required: true, index: true },
+  type: { type: String, enum: ['deposit', 'withdrawal', 'campaign_spend', 'channel_earn', 'referral_bonus'], required: true },
   amount: { type: Number, required: true },
-  status: { type: String, enum: ['pending', 'completed', 'failed'], default: 'completed' },
-  details: { type: String, default: '' }
-}, { timestamps: true });
+  status: { type: String, enum: ['pending', 'completed', 'rejected'], default: 'completed' },
+  details: { type: String, default: '' },
+  createdAt: { type: Date, default: Date.now }
+});
 
-transactionSchema.index({ userId: 1, createdAt: -1 });
+const securityLogSchema = new mongoose.Schema({
+  actorId: { type: String, required: true },
+  action: { type: String, required: true },
+  targetId: { type: String, default: '' },
+  details: { type: String, default: '' },
+  ip: { type: String, default: '' },
+  createdAt: { type: Date, default: Date.now }
+});
 
 const User = mongoose.model('User', userSchema);
-const Link = mongoose.model('Link', linkSchema);
-const Ad = mongoose.model('Ad', adSchema);
+const Channel = mongoose.model('Channel', channelSchema);
+const Campaign = mongoose.model('Campaign', campaignSchema);
 const Transaction = mongoose.model('Transaction', transactionSchema);
+const SecurityLog = mongoose.model('SecurityLog', securityLogSchema);
 
 module.exports = {
   User,
-  Link,
-  Ad,
-  Transaction
+  Channel,
+  Campaign,
+  Transaction,
+  SecurityLog
 };
