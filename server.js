@@ -17,17 +17,60 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('Connected to MongoDB'))
-  .catch(err => console.error('MongoDB connection error:', err));
+// ================= SERVERLESS-SAFE MONGODB CONNECTION =================
+let cached = global.mongooseCache;
+if (!cached) {
+  cached = global.mongooseCache = { conn: null, promise: null };
+}
+
+const connectDB = async () => {
+  const uri = process.env.MONGODB_URI;
+  if (!uri) {
+    throw new Error('MONGODB_URI environment variable is not defined');
+  }
+
+  if (cached.conn && mongoose.connection.readyState === 1) {
+    return cached.conn;
+  }
+
+  if (!cached.promise) {
+    const options = {
+      serverSelectionTimeoutMS: 8000,
+      socketTimeoutMS: 20000,
+      maxPoolSize: 10
+    };
+
+    cached.promise = mongoose.connect(uri, options).then((mongooseInstance) => {
+      console.log('Connected to MongoDB');
+      return mongooseInstance;
+    }).catch((err) => {
+      cached.promise = null;
+      console.error('MongoDB connection error:', err.message);
+      throw err;
+    });
+  }
+
+  cached.conn = await cached.promise;
+  return cached.conn;
+};
 
 const asyncHandler = (fn) => (req, res, next) => {
   Promise.resolve(fn(req, res, next)).catch(next);
 };
 
+const dbMiddleware = asyncHandler(async (req, res, next) => {
+  await connectDB();
+  next();
+});
+
 const logSecurityEvent = async (actorId, action, targetId, details, req) => {
   try {
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+    await connectDB();
+    const forwardedFor = req.headers['x-forwarded-for'];
+    const ip = Array.isArray(forwardedFor)
+      ? forwardedFor[0]
+      : (forwardedFor ? forwardedFor.split(',')[0].trim() : (req.socket?.remoteAddress || ''));
+
     await SecurityLog.create({
       actorId: String(actorId),
       action,
@@ -36,7 +79,7 @@ const logSecurityEvent = async (actorId, action, targetId, details, req) => {
       ip
     });
   } catch (error) {
-    console.error('Security log error:', error);
+    console.error('Security log error:', error.message);
   }
 };
 
@@ -63,7 +106,11 @@ const verifyTelegramWebAppData = (telegramInitData) => {
       .update(dataCheckString)
       .digest('hex');
 
-    if (calculatedHash !== hash) return null;
+    const hashBuf = Buffer.from(calculatedHash, 'utf8');
+    const expectedBuf = Buffer.from(hash, 'utf8');
+    if (hashBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(hashBuf, expectedBuf)) {
+      return null;
+    }
 
     const userStr = urlParams.get('user');
     const startParam = urlParams.get('start_param') || null;
@@ -79,6 +126,8 @@ const verifyTelegramWebAppData = (telegramInitData) => {
 };
 
 const authMiddleware = asyncHandler(async (req, res, next) => {
+  await connectDB();
+
   const initData = req.headers['x-telegram-init-data'];
   const verified = verifyTelegramWebAppData(initData);
 
@@ -89,7 +138,7 @@ const authMiddleware = asyncHandler(async (req, res, next) => {
 
   const tgUser = verified.user;
   const telegramId = String(tgUser.id);
-  const adminList = (process.env.ADMIN_IDS || '').split(',').map(id => id.trim());
+  const adminList = (process.env.ADMIN_IDS || '').split(',').map(id => id.trim()).filter(Boolean);
   const isAdmin = adminList.includes(telegramId);
 
   let user = await User.findOne({ telegramId });
@@ -97,8 +146,8 @@ const authMiddleware = asyncHandler(async (req, res, next) => {
   if (!user) {
     let referredBy = null;
     if (verified.startParam && verified.startParam.startsWith('ref_')) {
-      const refId = verified.startParam.replace('ref_', '');
-      if (refId !== telegramId) {
+      const refId = verified.startParam.replace('ref_', '').trim();
+      if (refId && refId !== telegramId) {
         const referrer = await User.findOne({ telegramId: refId });
         if (referrer) {
           referredBy = refId;
@@ -135,7 +184,7 @@ const authMiddleware = asyncHandler(async (req, res, next) => {
 });
 
 const adminMiddleware = asyncHandler(async (req, res, next) => {
-  const adminList = (process.env.ADMIN_IDS || '').split(',').map(id => id.trim());
+  const adminList = (process.env.ADMIN_IDS || '').split(',').map(id => id.trim()).filter(Boolean);
   if (!req.user || !req.user.isAdmin || !adminList.includes(req.user.telegramId)) {
     await logSecurityEvent(
       req.user ? req.user.telegramId : 'unknown',
@@ -148,6 +197,11 @@ const adminMiddleware = asyncHandler(async (req, res, next) => {
   }
   next();
 });
+
+// ================= HEALTH CHECK =================
+app.get('/api/health', dbMiddleware, asyncHandler(async (req, res) => {
+  res.json({ success: true, dbState: mongoose.connection.readyState });
+}));
 
 // ================= USER & HOME ROUTES =================
 app.get('/api/me', authMiddleware, asyncHandler(async (req, res) => {
@@ -204,7 +258,12 @@ app.post('/api/channels', authMiddleware, asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: 'Missing required fields' });
   }
 
-  const cleanUsername = channelUsername.replace('@', '').trim();
+  const cleanUsername = String(channelUsername).replace('@', '').trim().toLowerCase();
+  const parsedPrice = Number(pricePerPost);
+  if (!cleanUsername || Number.isNaN(parsedPrice) || parsedPrice < 0.1) {
+    return res.status(400).json({ success: false, message: 'Invalid channel username or price' });
+  }
+
   const existing = await Channel.findOne({ channelUsername: cleanUsername });
   if (existing) {
     return res.status(400).json({ success: false, message: 'Channel already registered' });
@@ -213,10 +272,10 @@ app.post('/api/channels', authMiddleware, asyncHandler(async (req, res) => {
   const channel = await Channel.create({
     ownerId: req.user.telegramId,
     channelUsername: cleanUsername,
-    title: title.trim(),
-    subscribers: Number(subscribers) || 0,
+    title: String(title).trim(),
+    subscribers: Math.max(0, Number(subscribers) || 0),
     category: category || 'general',
-    pricePerPost: Number(pricePerPost),
+    pricePerPost: parsedPrice,
     status: 'pending'
   });
 
@@ -243,20 +302,20 @@ app.post('/api/campaigns', authMiddleware, asyncHandler(async (req, res) => {
     return res.status(404).json({ success: false, message: 'Channel not available' });
   }
 
-  const cost = channel.pricePerPost;
+  const cost = Number(channel.pricePerPost);
   if (req.user.adBalance < cost) {
     return res.status(400).json({ success: false, message: 'Insufficient ad balance' });
   }
 
-  req.user.adBalance -= cost;
+  req.user.adBalance = Number((req.user.adBalance - cost).toFixed(2));
   await req.user.save();
 
   const campaign = await Campaign.create({
     advertiserId: req.user.telegramId,
     channelId: channel._id,
-    title: title.trim(),
-    adText: adText.trim(),
-    targetUrl: targetUrl.trim(),
+    title: String(title).trim(),
+    adText: String(adText).trim(),
+    targetUrl: String(targetUrl).trim(),
     budget: cost,
     status: 'pending'
   });
@@ -276,7 +335,7 @@ app.post('/api/campaigns', authMiddleware, asyncHandler(async (req, res) => {
 // ================= WALLET ROUTES =================
 app.post('/api/wallet/deposit', authMiddleware, asyncHandler(async (req, res) => {
   const amount = Number(req.body.amount);
-  if (!amount || amount < 1) {
+  if (!amount || Number.isNaN(amount) || amount < 1) {
     return res.status(400).json({ success: false, message: 'Minimum deposit is 1 USD' });
   }
 
@@ -294,9 +353,9 @@ app.post('/api/wallet/deposit', authMiddleware, asyncHandler(async (req, res) =>
 
 app.post('/api/wallet/withdraw', authMiddleware, asyncHandler(async (req, res) => {
   const amount = Number(req.body.amount);
-  const walletAddress = (req.body.walletAddress || '').trim();
+  const walletAddress = String(req.body.walletAddress || '').trim();
 
-  if (!amount || amount < 5 || !walletAddress) {
+  if (!amount || Number.isNaN(amount) || amount < 5 || !walletAddress) {
     return res.status(400).json({ success: false, message: 'Minimum withdrawal is $5 and wallet address is required' });
   }
 
@@ -304,7 +363,7 @@ app.post('/api/wallet/withdraw', authMiddleware, asyncHandler(async (req, res) =
     return res.status(400).json({ success: false, message: 'Insufficient earnings balance' });
   }
 
-  req.user.balance -= amount;
+  req.user.balance = Number((req.user.balance - amount).toFixed(2));
   await req.user.save();
 
   const tx = await Transaction.create({
@@ -375,10 +434,10 @@ app.post('/api/admin/transactions/:id/review', authMiddleware, adminMiddleware, 
   if (!targetUser) return res.status(404).json({ success: false, message: 'User not found' });
 
   if (tx.type === 'deposit' && action === 'completed') {
-    targetUser.adBalance += tx.amount;
+    targetUser.adBalance = Number((targetUser.adBalance + tx.amount).toFixed(2));
     await targetUser.save();
   } else if (tx.type === 'withdrawal' && action === 'rejected') {
-    targetUser.balance += Math.abs(tx.amount);
+    targetUser.balance = Number((targetUser.balance + Math.abs(tx.amount)).toFixed(2));
     await targetUser.save();
   }
 
@@ -398,42 +457,52 @@ app.post('/api/admin/campaigns/:id/complete', authMiddleware, adminMiddleware, a
   campaign.status = 'completed';
   await campaign.save();
 
-  const channelOwner = await User.findOne({ telegramId: campaign.channelId.ownerId });
-  if (channelOwner) {
-    channelOwner.balance += campaign.budget;
-    await channelOwner.save();
+  if (campaign.channelId) {
+    campaign.channelId.totalEarnings = Number(((campaign.channelId.totalEarnings || 0) + campaign.budget).toFixed(2));
+    await campaign.channelId.save();
 
-    await Transaction.create({
-      userId: channelOwner.telegramId,
-      type: 'channel_earn',
-      amount: campaign.budget,
-      status: 'completed',
-      details: `Ad completed on @${campaign.channelId.channelUsername}`
-    });
+    const channelOwner = await User.findOne({ telegramId: campaign.channelId.ownerId });
+    if (channelOwner) {
+      channelOwner.balance = Number((channelOwner.balance + campaign.budget).toFixed(2));
+      await channelOwner.save();
 
-    if (channelOwner.referredBy) {
-      const rate = Number(process.env.REFERRAL_COMMISSION_RATE) || 0.05;
-      const bonus = Number((campaign.budget * rate).toFixed(2));
-      const referrer = await User.findOne({ telegramId: channelOwner.referredBy });
-      if (referrer && bonus > 0) {
-        referrer.balance += bonus;
-        referrer.referralEarnings += bonus;
-        await referrer.save();
+      await Transaction.create({
+        userId: channelOwner.telegramId,
+        type: 'channel_earn',
+        amount: campaign.budget,
+        status: 'completed',
+        details: `Ad completed on @${campaign.channelId.channelUsername}`
+      });
 
-        await Transaction.create({
-          userId: referrer.telegramId,
-          type: 'referral_bonus',
-          amount: bonus,
-          status: 'completed',
-          details: `Referral commission from user ${channelOwner.telegramId}`
-        });
+      if (channelOwner.referredBy) {
+        const rate = Number(process.env.REFERRAL_COMMISSION_RATE) || 0.05;
+        const bonus = Number((campaign.budget * rate).toFixed(2));
+        const referrer = await User.findOne({ telegramId: channelOwner.referredBy });
+        if (referrer && bonus > 0) {
+          referrer.balance = Number((referrer.balance + bonus).toFixed(2));
+          referrer.referralEarnings = Number((referrer.referralEarnings + bonus).toFixed(2));
+          await referrer.save();
+
+          await Transaction.create({
+            userId: referrer.telegramId,
+            type: 'referral_bonus',
+            amount: bonus,
+            status: 'completed',
+            details: `Referral commission from user ${channelOwner.telegramId}`
+          });
+        }
       }
     }
   }
 
-  await logSecurityEvent(req.user.telegramId, 'ADMIN_CAMPAIGN_COMPLETED', campaign._id, `Campaign completed & funds released`, req);
+  await logSecurityEvent(req.user.telegramId, 'ADMIN_CAMPAIGN_COMPLETED', campaign._id, 'Campaign completed & funds released', req);
   res.json({ success: true, campaign });
 }));
+
+// ================= API 404 & ERROR HANDLERS =================
+app.use('/api', (req, res) => {
+  res.status(404).json({ success: false, message: 'API route not found' });
+});
 
 app.use((err, req, res, next) => {
   console.error('Server Error:', err);
@@ -447,9 +516,11 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Telega-Ads running on port ${PORT}`);
-});
+if (!process.env.VERCEL) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`Telega-Ads running on port ${PORT}`);
+  });
+}
 
 module.exports = app;
