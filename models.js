@@ -58,11 +58,11 @@ const securityLogSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-const User = mongoose.model('User', userSchema);
-const Channel = mongoose.model('Channel', channelSchema);
-const Campaign = mongoose.model('Campaign', campaignSchema);
-const Transaction = mongoose.model('Transaction', transactionSchema);
-const SecurityLog = mongoose.model('SecurityLog', securityLogSchema);
+const User = mongoose.models.User || mongoose.model('User', userSchema);
+const Channel = mongoose.models.Channel || mongoose.model('Channel', channelSchema);
+const Campaign = mongoose.models.Campaign || mongoose.model('Campaign', campaignSchema);
+const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
+const SecurityLog = mongoose.models.SecurityLog || mongoose.model('SecurityLog', securityLogSchema);
 
 module.exports = {
   User,
