@@ -1,11 +1,18 @@
 require('dotenv').config();
 const express = require('express');
-const mongoose = require('mongoose');
 const crypto = require('crypto');
 const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');
-const { User, Channel, Campaign, Transaction, SecurityLog } = require('./models');
+const {
+  admin,
+  db,
+  users,
+  channels,
+  campaigns,
+  transactions,
+  securityLogs
+} = require('./models');
 
 const app = express();
 
@@ -17,119 +24,80 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ================= SERVERLESS-SAFE MONGODB CONNECTION =================
-let cached = global.mongooseCache;
-if (!cached) {
-  cached = global.mongooseCache = { conn: null, promise: null };
-}
-
-const cleanUriString = (rawUri) => {
-  if (!rawUri || typeof rawUri !== 'string') return '';
-  let cleaned = rawUri.trim();
-  if (
-    (cleaned.startsWith('"') && cleaned.endsWith('"')) ||
-    (cleaned.startsWith("'") && cleaned.endsWith("'"))
-  ) {
-    cleaned = cleaned.slice(1, -1).trim();
-  }
-  // Ensure a database name exists before query string if omitted (e.g. "/?appName=...")
-  cleaned = cleaned.replace(/\/\?/, '/telega_ads?');
-  return cleaned;
-};
-
-const connectWithUri = async (uri) => {
-  const options = {
-    serverSelectionTimeoutMS: 8000,
-    socketTimeoutMS: 20000,
-    maxPoolSize: 10,
-    family: 4
-  };
-  return mongoose.connect(uri, options);
-};
-
-const connectDB = async () => {
-  const primaryUri = cleanUriString(process.env.MONGODB_URI);
-  const fallbackUri = cleanUriString(process.env.MONGODB_FALLBACK_URI);
-
-  if (!primaryUri && !fallbackUri) {
-    throw new Error('MONGODB_URI environment variable is not defined');
-  }
-
-  if (cached.conn && mongoose.connection.readyState === 1) {
-    return cached.conn;
-  }
-
-  if (!cached.promise) {
-    const uriToUse = primaryUri || fallbackUri;
-
-    cached.promise = connectWithUri(uriToUse)
-      .then((mongooseInstance) => {
-        console.log('Connected to MongoDB');
-        return mongooseInstance;
-      })
-      .catch(async (err) => {
-        const isSrvError =
-          err &&
-          (err.code === 'ENOTFOUND' ||
-            String(err.message || '').includes('querySrv') ||
-            String(err.syscall || '').includes('querySrv'));
-
-        if (isSrvError && fallbackUri && uriToUse !== fallbackUri) {
-          console.warn('SRV lookup failed, retrying with MONGODB_FALLBACK_URI...');
-          return connectWithUri(fallbackUri).then((mongooseInstance) => {
-            console.log('Connected to MongoDB via fallback URI');
-            return mongooseInstance;
-          });
-        }
-
-        cached.promise = null;
-        if (isSrvError) {
-          console.error(
-            'MongoDB DNS SRV error (querySrv ENOTFOUND). Verify cluster exists & is active in MongoDB Atlas, or set MONGODB_FALLBACK_URI using standard mongodb:// connection string.'
-          );
-        } else {
-          console.error('MongoDB connection error:', err.message);
-        }
-        throw err;
-      });
-  }
-
-  try {
-    cached.conn = await cached.promise;
-    return cached.conn;
-  } catch (err) {
-    cached.promise = null;
-    cached.conn = null;
-    throw err;
-  }
-};
+// Verify Firestore connectivity on startup without blocking serverless requests
+db.listCollections()
+  .then(() => console.log('Connected to Firebase Cloud Firestore'))
+  .catch(err => console.error('Firestore connection check error:', err));
 
 const asyncHandler = (fn) => (req, res, next) => {
   Promise.resolve(fn(req, res, next)).catch(next);
 };
 
-const dbMiddleware = asyncHandler(async (req, res, next) => {
-  await connectDB();
-  next();
-});
+const toIsoString = (val) => {
+  if (!val) return new Date().toISOString();
+  if (typeof val.toDate === 'function') return val.toDate().toISOString();
+  if (val instanceof Date) return val.toISOString();
+  return new Date(val).toISOString();
+};
+
+const serializeDoc = (docSnap, extraFields = {}) => {
+  if (!docSnap || !docSnap.exists) return null;
+  const data = docSnap.data() || {};
+  const obj = {
+    _id: docSnap.id,
+    id: docSnap.id,
+    ...data,
+    ...extraFields
+  };
+  if (obj.createdAt !== undefined) obj.createdAt = toIsoString(obj.createdAt);
+  if (obj.lastActive !== undefined) obj.lastActive = toIsoString(obj.lastActive);
+  return obj;
+};
+
+const serializeUser = (docSnap) => {
+  if (!docSnap || !docSnap.exists) return null;
+  const d = docSnap.data() || {};
+  return {
+    _id: docSnap.id,
+    id: docSnap.id,
+    telegramId: String(d.telegramId || docSnap.id),
+    username: d.username || '',
+    firstName: d.firstName || '',
+    lastName: d.lastName || '',
+    languageCode: d.languageCode || 'en',
+    balance: Number(d.balance ?? 0),
+    adBalance: Number(d.adBalance ?? 0),
+    referralEarnings: Number(d.referralEarnings ?? 0),
+    referredBy: d.referredBy ?? null,
+    referralsCount: Number(d.referralsCount ?? 0),
+    isAdmin: Boolean(d.isAdmin),
+    isBanned: Boolean(d.isBanned),
+    createdAt: toIsoString(d.createdAt),
+    lastActive: toIsoString(d.lastActive)
+  };
+};
+
+const sortDocsDesc = (docs, field = 'createdAt') => {
+  return [...docs].sort((a, b) => {
+    const aTime = new Date(toIsoString(a.data()?.[field])).getTime() || 0;
+    const bTime = new Date(toIsoString(b.data()?.[field])).getTime() || 0;
+    return bTime - aTime;
+  });
+};
 
 const logSecurityEvent = async (actorId, action, targetId, details, req) => {
   try {
-    await connectDB();
-    const forwardedFor = req.headers['x-forwarded-for'];
-    const ip = Array.isArray(forwardedFor)
-      ? forwardedFor[0]
-      : (forwardedFor ? forwardedFor.split(',')[0].trim() : (req.socket?.remoteAddress || ''));
-
-    await SecurityLog.create({
+    const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '';
+    await securityLogs.add({
       actorId: String(actorId),
-      action,
+      action: String(action),
       targetId: String(targetId || ''),
-      details,
-      ip
+      details: String(details || ''),
+      ip: String(ip),
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
   } catch (error) {
-    console.error('Security log error:', error.message);
+    console.error('Security log error:', error);
   }
 };
 
@@ -149,18 +117,14 @@ const verifyTelegramWebAppData = (telegramInitData) => {
     const dataCheckString = dataCheckArr.join('\n');
 
     const secretKey = crypto.createHmac('sha256', 'WebAppData')
-      .update(process.env.BOT_TOKEN.trim())
+      .update(process.env.BOT_TOKEN)
       .digest();
 
     const calculatedHash = crypto.createHmac('sha256', secretKey)
       .update(dataCheckString)
       .digest('hex');
 
-    const hashBuf = Buffer.from(calculatedHash, 'utf8');
-    const expectedBuf = Buffer.from(hash, 'utf8');
-    if (hashBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(hashBuf, expectedBuf)) {
-      return null;
-    }
+    if (calculatedHash !== hash) return null;
 
     const userStr = urlParams.get('user');
     const startParam = urlParams.get('start_param') || null;
@@ -175,9 +139,17 @@ const verifyTelegramWebAppData = (telegramInitData) => {
   }
 };
 
-const authMiddleware = asyncHandler(async (req, res, next) => {
-  await connectDB();
+const getUserByTelegramId = async (telegramId) => {
+  const idStr = String(telegramId);
+  const directDoc = await users.doc(idStr).get();
+  if (directDoc.exists) return directDoc;
 
+  const snap = await users.where('telegramId', '==', idStr).limit(1).get();
+  if (!snap.empty) return snap.docs[0];
+  return null;
+};
+
+const authMiddleware = asyncHandler(async (req, res, next) => {
   const initData = req.headers['x-telegram-init-data'];
   const verified = verifyTelegramWebAppData(initData);
 
@@ -191,45 +163,62 @@ const authMiddleware = asyncHandler(async (req, res, next) => {
   const adminList = (process.env.ADMIN_IDS || '').split(',').map(id => id.trim()).filter(Boolean);
   const isAdmin = adminList.includes(telegramId);
 
-  let user = await User.findOne({ telegramId });
+  let userDoc = await getUserByTelegramId(telegramId);
 
-  if (!user) {
+  if (!userDoc) {
     let referredBy = null;
     if (verified.startParam && verified.startParam.startsWith('ref_')) {
       const refId = verified.startParam.replace('ref_', '').trim();
       if (refId && refId !== telegramId) {
-        const referrer = await User.findOne({ telegramId: refId });
-        if (referrer) {
+        const referrerDoc = await getUserByTelegramId(refId);
+        if (referrerDoc) {
           referredBy = refId;
-          referrer.referralsCount = (referrer.referralsCount || 0) + 1;
-          await referrer.save();
+          await referrerDoc.ref.update({
+            referralsCount: admin.firestore.FieldValue.increment(1)
+          });
         }
       }
     }
 
-    user = await User.create({
+    const now = new Date();
+    const userRef = users.doc(telegramId);
+    await userRef.set({
       telegramId,
       username: tgUser.username || '',
       firstName: tgUser.first_name || '',
       lastName: tgUser.last_name || '',
       languageCode: tgUser.language_code === 'ar' ? 'ar' : 'en',
+      balance: 0,
+      adBalance: 0,
+      referralEarnings: 0,
+      referredBy,
+      referralsCount: 0,
       isAdmin,
-      referredBy
+      isBanned: false,
+      createdAt: now,
+      lastActive: now
     });
+    userDoc = await userRef.get();
   } else {
-    user.username = tgUser.username || user.username;
-    user.firstName = tgUser.first_name || user.firstName;
-    user.lastName = tgUser.last_name || user.lastName;
-    user.isAdmin = isAdmin;
-    user.lastActive = new Date();
-    await user.save();
+    const existingData = userDoc.data() || {};
+    await userDoc.ref.update({
+      username: tgUser.username || existingData.username || '',
+      firstName: tgUser.first_name || existingData.firstName || '',
+      lastName: tgUser.last_name || existingData.lastName || '',
+      isAdmin,
+      lastActive: new Date()
+    });
+    userDoc = await userDoc.ref.get();
   }
 
-  if (user.isBanned) {
+  const serialized = serializeUser(userDoc);
+
+  if (serialized.isBanned) {
     return res.status(403).json({ success: false, message: 'Account Suspended' });
   }
 
-  req.user = user;
+  req.user = serialized;
+  req.userRef = userDoc.ref;
   next();
 });
 
@@ -248,19 +237,18 @@ const adminMiddleware = asyncHandler(async (req, res, next) => {
   next();
 });
 
-// ================= HEALTH CHECK =================
-app.get('/api/health', dbMiddleware, asyncHandler(async (req, res) => {
-  res.json({ success: true, dbState: mongoose.connection.readyState });
-}));
-
 // ================= USER & HOME ROUTES =================
 app.get('/api/me', authMiddleware, asyncHandler(async (req, res) => {
-  const activeChannels = await Channel.countDocuments({ status: 'approved' });
-  const userChannels = await Channel.countDocuments({ ownerId: req.user.telegramId });
-  const userCampaigns = await Campaign.countDocuments({ advertiserId: req.user.telegramId });
-  const recentTransactions = await Transaction.find({ userId: req.user.telegramId })
-    .sort({ createdAt: -1 })
-    .limit(10);
+  const [approvedSnap, userChannelsSnap, userCampaignsSnap, userTxSnap] = await Promise.all([
+    channels.where('status', '==', 'approved').get(),
+    channels.where('ownerId', '==', req.user.telegramId).get(),
+    campaigns.where('advertiserId', '==', req.user.telegramId).get(),
+    transactions.where('userId', '==', req.user.telegramId).get()
+  ]);
+
+  const sortedTx = sortDocsDesc(userTxSnap.docs, 'createdAt')
+    .slice(0, 10)
+    .map(doc => serializeDoc(doc));
 
   res.json({
     success: true,
@@ -277,11 +265,11 @@ app.get('/api/me', authMiddleware, asyncHandler(async (req, res) => {
       isAdmin: req.user.isAdmin
     },
     stats: {
-      activeChannels,
-      userChannels,
-      userCampaigns
+      activeChannels: approvedSnap.size,
+      userChannels: userChannelsSnap.size,
+      userCampaigns: userCampaignsSnap.size
     },
-    transactions: recentTransactions
+    transactions: sortedTx
   });
 }));
 
@@ -290,15 +278,25 @@ app.post('/api/user/language', authMiddleware, asyncHandler(async (req, res) => 
   if (!['ar', 'en'].includes(lang)) {
     return res.status(400).json({ success: false, message: 'Unsupported language' });
   }
+  await req.userRef.update({ languageCode: lang });
   req.user.languageCode = lang;
-  await req.user.save();
   res.json({ success: true, languageCode: req.user.languageCode });
 }));
 
 // ================= CHANNELS ROUTES =================
 app.get('/api/channels', authMiddleware, asyncHandler(async (req, res) => {
-  const myChannels = await Channel.find({ ownerId: req.user.telegramId }).sort({ createdAt: -1 });
-  const marketplaceChannels = await Channel.find({ status: 'approved' }).sort({ subscribers: -1 });
+  const [myChannelsSnap, approvedChannelsSnap] = await Promise.all([
+    channels.where('ownerId', '==', req.user.telegramId).get(),
+    channels.where('status', '==', 'approved').get()
+  ]);
+
+  const myChannels = sortDocsDesc(myChannelsSnap.docs, 'createdAt')
+    .map(doc => serializeDoc(doc));
+
+  const marketplaceChannels = [...approvedChannelsSnap.docs]
+    .sort((a, b) => Number(b.data()?.subscribers || 0) - Number(a.data()?.subscribers || 0))
+    .map(doc => serializeDoc(doc));
+
   res.json({ success: true, myChannels, marketplaceChannels });
 }));
 
@@ -308,26 +306,32 @@ app.post('/api/channels', authMiddleware, asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: 'Missing required fields' });
   }
 
-  const cleanUsername = String(channelUsername).replace('@', '').trim().toLowerCase();
-  const parsedPrice = Number(pricePerPost);
-  if (!cleanUsername || Number.isNaN(parsedPrice) || parsedPrice < 0.1) {
-    return res.status(400).json({ success: false, message: 'Invalid channel username or price' });
+  const cleanUsername = String(channelUsername).replace('@', '').trim();
+  const numericPrice = Number(pricePerPost);
+  if (Number.isNaN(numericPrice) || numericPrice < 0.1) {
+    return res.status(400).json({ success: false, message: 'Invalid pricePerPost (minimum 0.1)' });
   }
 
-  const existing = await Channel.findOne({ channelUsername: cleanUsername });
-  if (existing) {
+  const existingSnap = await channels.where('channelUsername', '==', cleanUsername).limit(1).get();
+  if (!existingSnap.empty) {
     return res.status(400).json({ success: false, message: 'Channel already registered' });
   }
 
-  const channel = await Channel.create({
+  const newChannelRef = channels.doc();
+  await newChannelRef.set({
     ownerId: req.user.telegramId,
     channelUsername: cleanUsername,
     title: String(title).trim(),
-    subscribers: Math.max(0, Number(subscribers) || 0),
+    subscribers: Number(subscribers) || 0,
     category: category || 'general',
-    pricePerPost: parsedPrice,
-    status: 'pending'
+    pricePerPost: numericPrice,
+    status: 'pending',
+    totalEarnings: 0,
+    createdAt: new Date()
   });
+
+  const createdSnap = await newChannelRef.get();
+  const channel = serializeDoc(createdSnap);
 
   await logSecurityEvent(req.user.telegramId, 'CHANNEL_SUBMITTED', channel._id, `Channel @${cleanUsername} submitted`, req);
   res.json({ success: true, channel });
@@ -335,10 +339,44 @@ app.post('/api/channels', authMiddleware, asyncHandler(async (req, res) => {
 
 // ================= CAMPAIGNS (PROMOTION) ROUTES =================
 app.get('/api/campaigns', authMiddleware, asyncHandler(async (req, res) => {
-  const campaigns = await Campaign.find({ advertiserId: req.user.telegramId })
-    .populate('channelId', 'title channelUsername pricePerPost')
-    .sort({ createdAt: -1 });
-  res.json({ success: true, campaigns });
+  const userCampaignsSnap = await campaigns.where('advertiserId', '==', req.user.telegramId).get();
+  const sortedDocs = sortDocsDesc(userCampaignsSnap.docs, 'createdAt');
+
+  const uniqueChannelIds = [...new Set(
+    sortedDocs
+      .map(d => d.data()?.channelId)
+      .filter(Boolean)
+      .map(id => String(id))
+  )];
+
+  const channelMap = new Map();
+  if (uniqueChannelIds.length > 0) {
+    const refs = uniqueChannelIds.map(id => channels.doc(id));
+    const channelSnaps = await db.getAll(...refs);
+    for (const cSnap of channelSnaps) {
+      if (cSnap.exists) {
+        const cData = cSnap.data() || {};
+        channelMap.set(cSnap.id, {
+          _id: cSnap.id,
+          id: cSnap.id,
+          title: cData.title || '',
+          channelUsername: cData.channelUsername || '',
+          pricePerPost: Number(cData.pricePerPost ?? 0)
+        });
+      }
+    }
+  }
+
+  const formattedCampaigns = sortedDocs.map(doc => {
+    const rawChannelId = doc.data()?.channelId ? String(doc.data().channelId) : null;
+    const populatedChannel = rawChannelId && channelMap.has(rawChannelId)
+      ? channelMap.get(rawChannelId)
+      : rawChannelId;
+
+    return serializeDoc(doc, { channelId: populatedChannel });
+  });
+
+  res.json({ success: true, campaigns: formattedCampaigns });
 }));
 
 app.post('/api/campaigns', authMiddleware, asyncHandler(async (req, res) => {
@@ -347,55 +385,88 @@ app.post('/api/campaigns', authMiddleware, asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: 'Missing campaign fields' });
   }
 
-  const channel = await Channel.findById(channelId);
-  if (!channel || channel.status !== 'approved') {
+  const channelDoc = await channels.doc(String(channelId)).get();
+  if (!channelDoc.exists) {
     return res.status(404).json({ success: false, message: 'Channel not available' });
   }
 
-  const cost = Number(channel.pricePerPost);
+  const channelData = channelDoc.data() || {};
+  if (channelData.status !== 'approved') {
+    return res.status(404).json({ success: false, message: 'Channel not available' });
+  }
+
+  const cost = Number(channelData.pricePerPost);
   if (req.user.adBalance < cost) {
     return res.status(400).json({ success: false, message: 'Insufficient ad balance' });
   }
 
-  req.user.adBalance = Number((req.user.adBalance - cost).toFixed(2));
-  await req.user.save();
+  const newCampaignRef = campaigns.doc();
+  const newTxRef = transactions.doc();
+  const now = new Date();
 
-  const campaign = await Campaign.create({
-    advertiserId: req.user.telegramId,
-    channelId: channel._id,
-    title: String(title).trim(),
-    adText: String(adText).trim(),
-    targetUrl: String(targetUrl).trim(),
-    budget: cost,
-    status: 'pending'
+  await db.runTransaction(async (t) => {
+    const freshUserSnap = await t.get(req.userRef);
+    const freshUserData = freshUserSnap.data() || {};
+    const currentAdBalance = Number(freshUserData.adBalance ?? 0);
+
+    if (currentAdBalance < cost) {
+      const err = new Error('Insufficient ad balance');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    t.update(req.userRef, {
+      adBalance: currentAdBalance - cost
+    });
+
+    t.set(newCampaignRef, {
+      advertiserId: req.user.telegramId,
+      channelId: channelDoc.id,
+      title: String(title).trim(),
+      adText: String(adText).trim(),
+      targetUrl: String(targetUrl).trim(),
+      budget: cost,
+      status: 'pending',
+      createdAt: now
+    });
+
+    t.set(newTxRef, {
+      userId: req.user.telegramId,
+      type: 'campaign_spend',
+      amount: -cost,
+      status: 'completed',
+      details: `Ad campaign on @${channelData.channelUsername}`,
+      createdAt: now
+    });
   });
 
-  await Transaction.create({
-    userId: req.user.telegramId,
-    type: 'campaign_spend',
-    amount: -cost,
-    status: 'completed',
-    details: `Ad campaign on @${channel.channelUsername}`
-  });
+  const updatedAdBalance = Number((req.user.adBalance - cost).toFixed(4));
+  const createdCampaignSnap = await newCampaignRef.get();
+  const campaign = serializeDoc(createdCampaignSnap);
 
-  await logSecurityEvent(req.user.telegramId, 'CAMPAIGN_CREATED', campaign._id, `Spent ${cost} on @${channel.channelUsername}`, req);
-  res.json({ success: true, campaign, adBalance: req.user.adBalance });
+  await logSecurityEvent(req.user.telegramId, 'CAMPAIGN_CREATED', campaign._id, `Spent ${cost} on @${channelData.channelUsername}`, req);
+  res.json({ success: true, campaign, adBalance: updatedAdBalance });
 }));
 
 // ================= WALLET ROUTES =================
 app.post('/api/wallet/deposit', authMiddleware, asyncHandler(async (req, res) => {
   const amount = Number(req.body.amount);
-  if (!amount || Number.isNaN(amount) || amount < 1) {
+  if (!amount || amount < 1) {
     return res.status(400).json({ success: false, message: 'Minimum deposit is 1 USD' });
   }
 
-  const tx = await Transaction.create({
+  const txRef = transactions.doc();
+  await txRef.set({
     userId: req.user.telegramId,
     type: 'deposit',
     amount,
     status: 'pending',
-    details: 'Telegram Stars / Crypto Deposit Request'
+    details: 'Telegram Stars / Crypto Deposit Request',
+    createdAt: new Date()
   });
+
+  const txSnap = await txRef.get();
+  const tx = serializeDoc(txSnap);
 
   await logSecurityEvent(req.user.telegramId, 'DEPOSIT_REQUEST', tx._id, `Requested deposit of $${amount}`, req);
   res.json({ success: true, transaction: tx });
@@ -403,9 +474,9 @@ app.post('/api/wallet/deposit', authMiddleware, asyncHandler(async (req, res) =>
 
 app.post('/api/wallet/withdraw', authMiddleware, asyncHandler(async (req, res) => {
   const amount = Number(req.body.amount);
-  const walletAddress = String(req.body.walletAddress || '').trim();
+  const walletAddress = (req.body.walletAddress || '').trim();
 
-  if (!amount || Number.isNaN(amount) || amount < 5 || !walletAddress) {
+  if (!amount || amount < 5 || !walletAddress) {
     return res.status(400).json({ success: false, message: 'Minimum withdrawal is $5 and wallet address is required' });
   }
 
@@ -413,35 +484,107 @@ app.post('/api/wallet/withdraw', authMiddleware, asyncHandler(async (req, res) =
     return res.status(400).json({ success: false, message: 'Insufficient earnings balance' });
   }
 
-  req.user.balance = Number((req.user.balance - amount).toFixed(2));
-  await req.user.save();
+  const txRef = transactions.doc();
+  const now = new Date();
 
-  const tx = await Transaction.create({
-    userId: req.user.telegramId,
-    type: 'withdrawal',
-    amount: -amount,
-    status: 'pending',
-    details: `Withdraw to: ${walletAddress}`
+  await db.runTransaction(async (t) => {
+    const freshUserSnap = await t.get(req.userRef);
+    const freshUserData = freshUserSnap.data() || {};
+    const currentBalance = Number(freshUserData.balance ?? 0);
+
+    if (currentBalance < amount) {
+      const err = new Error('Insufficient earnings balance');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    t.update(req.userRef, {
+      balance: currentBalance - amount
+    });
+
+    t.set(txRef, {
+      userId: req.user.telegramId,
+      type: 'withdrawal',
+      amount: -amount,
+      status: 'pending',
+      details: `Withdraw to: ${walletAddress}`,
+      createdAt: now
+    });
   });
 
+  const updatedBalance = Number((req.user.balance - amount).toFixed(4));
+  const txSnap = await txRef.get();
+  const tx = serializeDoc(txSnap);
+
   await logSecurityEvent(req.user.telegramId, 'WITHDRAWAL_REQUEST', tx._id, `Requested withdrawal of $${amount} to ${walletAddress}`, req);
-  res.json({ success: true, balance: req.user.balance, transaction: tx });
+  res.json({ success: true, balance: updatedBalance, transaction: tx });
 }));
 
 // ================= ADMIN PROTECTED ROUTES =================
 app.get('/api/admin/dashboard', authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
-  const totalUsers = await User.countDocuments();
-  const pendingChannels = await Channel.find({ status: 'pending' }).sort({ createdAt: -1 });
-  const pendingTransactions = await Transaction.find({ status: 'pending' }).sort({ createdAt: -1 });
-  const pendingCampaigns = await Campaign.find({ status: 'pending' })
-    .populate('channelId', 'title channelUsername ownerId')
-    .sort({ createdAt: -1 });
-  const securityLogs = await SecurityLog.find().sort({ createdAt: -1 }).limit(30);
+  const [
+    allUsersSnap,
+    pendingChannelsSnap,
+    pendingTxSnap,
+    pendingCampaignsSnap,
+    allLogsSnap
+  ] = await Promise.all([
+    users.get(),
+    channels.where('status', '==', 'pending').get(),
+    transactions.where('status', '==', 'pending').get(),
+    campaigns.where('status', '==', 'pending').get(),
+    securityLogs.get()
+  ]);
+
+  const pendingChannels = sortDocsDesc(pendingChannelsSnap.docs, 'createdAt')
+    .map(doc => serializeDoc(doc));
+
+  const pendingTransactions = sortDocsDesc(pendingTxSnap.docs, 'createdAt')
+    .map(doc => serializeDoc(doc));
+
+  const sortedPendingCampaignDocs = sortDocsDesc(pendingCampaignsSnap.docs, 'createdAt');
+  const uniqueChannelIds = [...new Set(
+    sortedPendingCampaignDocs
+      .map(d => d.data()?.channelId)
+      .filter(Boolean)
+      .map(id => String(id))
+  )];
+
+  const channelMap = new Map();
+  if (uniqueChannelIds.length > 0) {
+    const refs = uniqueChannelIds.map(id => channels.doc(id));
+    const channelSnaps = await db.getAll(...refs);
+    for (const cSnap of channelSnaps) {
+      if (cSnap.exists) {
+        const cData = cSnap.data() || {};
+        channelMap.set(cSnap.id, {
+          _id: cSnap.id,
+          id: cSnap.id,
+          title: cData.title || '',
+          channelUsername: cData.channelUsername || '',
+          ownerId: cData.ownerId || ''
+        });
+      }
+    }
+  }
+
+  const pendingCampaigns = sortedPendingCampaignDocs.map(doc => {
+    const rawChannelId = doc.data()?.channelId ? String(doc.data().channelId) : null;
+    const populatedChannel = rawChannelId && channelMap.has(rawChannelId)
+      ? channelMap.get(rawChannelId)
+      : rawChannelId;
+
+    return serializeDoc(doc, { channelId: populatedChannel });
+  });
+
+  const formattedSecurityLogs = sortDocsDesc(allLogsSnap.docs, 'createdAt')
+    .slice(0, 30)
+    .map(doc => serializeDoc(doc));
 
   res.json({
     success: true,
     stats: {
-      totalUsers,
+      totalUsers: allUsersSnap.size,
       pendingChannelsCount: pendingChannels.length,
       pendingTransactionsCount: pendingTransactions.length,
       pendingCampaignsCount: pendingCampaigns.length
@@ -449,7 +592,7 @@ app.get('/api/admin/dashboard', authMiddleware, adminMiddleware, asyncHandler(as
     pendingChannels,
     pendingTransactions,
     pendingCampaigns,
-    securityLogs
+    securityLogs: formattedSecurityLogs
   });
 }));
 
@@ -459,11 +602,15 @@ app.post('/api/admin/channels/:id/review', authMiddleware, adminMiddleware, asyn
     return res.status(400).json({ success: false, message: 'Invalid action' });
   }
 
-  const channel = await Channel.findById(req.params.id);
-  if (!channel) return res.status(404).json({ success: false, message: 'Channel not found' });
+  const channelRef = channels.doc(String(req.params.id));
+  const channelSnap = await channelRef.get();
+  if (!channelSnap.exists) {
+    return res.status(404).json({ success: false, message: 'Channel not found' });
+  }
 
-  channel.status = action;
-  await channel.save();
+  await channelRef.update({ status: action });
+  const updatedSnap = await channelRef.get();
+  const channel = serializeDoc(updatedSnap);
 
   await logSecurityEvent(req.user.telegramId, `ADMIN_CHANNEL_${action.toUpperCase()}`, channel._id, `Channel @${channel.channelUsername} ${action}`, req);
   res.json({ success: true, channel });
@@ -475,99 +622,164 @@ app.post('/api/admin/transactions/:id/review', authMiddleware, adminMiddleware, 
     return res.status(400).json({ success: false, message: 'Invalid action' });
   }
 
-  const tx = await Transaction.findById(req.params.id);
-  if (!tx || tx.status !== 'pending') {
+  const txRef = transactions.doc(String(req.params.id));
+  const txSnap = await txRef.get();
+  if (!txSnap.exists || txSnap.data()?.status !== 'pending') {
     return res.status(404).json({ success: false, message: 'Pending transaction not found' });
   }
 
-  const targetUser = await User.findOne({ telegramId: tx.userId });
-  if (!targetUser) return res.status(404).json({ success: false, message: 'User not found' });
-
-  if (tx.type === 'deposit' && action === 'completed') {
-    targetUser.adBalance = Number((targetUser.adBalance + tx.amount).toFixed(2));
-    await targetUser.save();
-  } else if (tx.type === 'withdrawal' && action === 'rejected') {
-    targetUser.balance = Number((targetUser.balance + Math.abs(tx.amount)).toFixed(2));
-    await targetUser.save();
+  const txData = txSnap.data() || {};
+  const targetUserDoc = await getUserByTelegramId(txData.userId);
+  if (!targetUserDoc) {
+    return res.status(404).json({ success: false, message: 'User not found' });
   }
 
-  tx.status = action;
-  await tx.save();
+  await db.runTransaction(async (t) => {
+    const freshTxSnap = await t.get(txRef);
+    const freshTxData = freshTxSnap.data() || {};
+    if (!freshTxSnap.exists || freshTxData.status !== 'pending') {
+      const err = new Error('Pending transaction not found');
+      err.statusCode = 404;
+      throw err;
+    }
 
-  await logSecurityEvent(req.user.telegramId, `ADMIN_TX_${action.toUpperCase()}`, tx._id, `Transaction ${tx.type} ($${tx.amount}) marked ${action}`, req);
-  res.json({ success: true, transaction: tx });
+    const freshUserSnap = await t.get(targetUserDoc.ref);
+    const freshUserData = freshUserSnap.data() || {};
+    const txAmount = Number(freshTxData.amount || 0);
+
+    if (freshTxData.type === 'deposit' && action === 'completed') {
+      t.update(targetUserDoc.ref, {
+        adBalance: Number(freshUserData.adBalance ?? 0) + txAmount
+      });
+    } else if (freshTxData.type === 'withdrawal' && action === 'rejected') {
+      t.update(targetUserDoc.ref, {
+        balance: Number(freshUserData.balance ?? 0) + Math.abs(txAmount)
+      });
+    }
+
+    t.update(txRef, { status: action });
+  });
+
+  const updatedTxSnap = await txRef.get();
+  const transaction = serializeDoc(updatedTxSnap);
+
+  await logSecurityEvent(req.user.telegramId, `ADMIN_TX_${action.toUpperCase()}`, transaction._id, `Transaction ${transaction.type} ($${transaction.amount}) marked ${action}`, req);
+  res.json({ success: true, transaction });
 }));
 
 app.post('/api/admin/campaigns/:id/complete', authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
-  const campaign = await Campaign.findById(req.params.id).populate('channelId');
-  if (!campaign || campaign.status !== 'pending') {
+  const campaignRef = campaigns.doc(String(req.params.id));
+  const campaignSnap = await campaignRef.get();
+  if (!campaignSnap.exists || campaignSnap.data()?.status !== 'pending') {
     return res.status(404).json({ success: false, message: 'Pending campaign not found' });
   }
 
-  campaign.status = 'completed';
-  await campaign.save();
+  const campaignData = campaignSnap.data() || {};
+  const channelIdStr = campaignData.channelId ? String(campaignData.channelId) : '';
+  const channelDoc = channelIdStr ? await channels.doc(channelIdStr).get() : null;
+  if (!channelDoc || !channelDoc.exists) {
+    return res.status(404).json({ success: false, message: 'Associated channel not found' });
+  }
 
-  if (campaign.channelId) {
-    campaign.channelId.totalEarnings = Number(((campaign.channelId.totalEarnings || 0) + campaign.budget).toFixed(2));
-    await campaign.channelId.save();
+  const channelData = channelDoc.data() || {};
+  const ownerIdStr = String(channelData.ownerId || '');
+  const ownerDoc = ownerIdStr ? await getUserByTelegramId(ownerIdStr) : null;
 
-    const channelOwner = await User.findOne({ telegramId: campaign.channelId.ownerId });
-    if (channelOwner) {
-      channelOwner.balance = Number((channelOwner.balance + campaign.budget).toFixed(2));
-      await channelOwner.save();
-
-      await Transaction.create({
-        userId: channelOwner.telegramId,
-        type: 'channel_earn',
-        amount: campaign.budget,
-        status: 'completed',
-        details: `Ad completed on @${campaign.channelId.channelUsername}`
-      });
-
-      if (channelOwner.referredBy) {
-        const rate = Number(process.env.REFERRAL_COMMISSION_RATE) || 0.05;
-        const bonus = Number((campaign.budget * rate).toFixed(2));
-        const referrer = await User.findOne({ telegramId: channelOwner.referredBy });
-        if (referrer && bonus > 0) {
-          referrer.balance = Number((referrer.balance + bonus).toFixed(2));
-          referrer.referralEarnings = Number((referrer.referralEarnings + bonus).toFixed(2));
-          await referrer.save();
-
-          await Transaction.create({
-            userId: referrer.telegramId,
-            type: 'referral_bonus',
-            amount: bonus,
-            status: 'completed',
-            details: `Referral commission from user ${channelOwner.telegramId}`
-          });
-        }
+  let referrerDoc = null;
+  let bonus = 0;
+  if (ownerDoc) {
+    const ownerData = ownerDoc.data() || {};
+    if (ownerData.referredBy) {
+      const rate = Number(process.env.REFERRAL_COMMISSION_RATE) || 0.05;
+      bonus = Number((Number(campaignData.budget || 0) * rate).toFixed(2));
+      if (bonus > 0) {
+        referrerDoc = await getUserByTelegramId(String(ownerData.referredBy));
       }
     }
   }
 
-  await logSecurityEvent(req.user.telegramId, 'ADMIN_CAMPAIGN_COMPLETED', campaign._id, 'Campaign completed & funds released', req);
+  const now = new Date();
+  const earnTxRef = transactions.doc();
+  const refTxRef = transactions.doc();
+
+  await db.runTransaction(async (t) => {
+    const freshCampSnap = await t.get(campaignRef);
+    const freshCampData = freshCampSnap.data() || {};
+    if (!freshCampSnap.exists || freshCampData.status !== 'pending') {
+      const err = new Error('Pending campaign not found');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const budget = Number(freshCampData.budget || 0);
+    t.update(campaignRef, { status: 'completed' });
+
+    if (ownerDoc) {
+      const freshOwnerSnap = await t.get(ownerDoc.ref);
+      const freshOwnerData = freshOwnerSnap.data() || {};
+      t.update(ownerDoc.ref, {
+        balance: Number(freshOwnerData.balance ?? 0) + budget
+      });
+
+      t.set(earnTxRef, {
+        userId: String(freshOwnerData.telegramId || ownerDoc.id),
+        type: 'channel_earn',
+        amount: budget,
+        status: 'completed',
+        details: `Ad completed on @${channelData.channelUsername}`,
+        createdAt: now
+      });
+
+      if (referrerDoc && bonus > 0) {
+        const freshRefSnap = await t.get(referrerDoc.ref);
+        const freshRefData = freshRefSnap.data() || {};
+        t.update(referrerDoc.ref, {
+          balance: Number(freshRefData.balance ?? 0) + bonus,
+          referralEarnings: Number(freshRefData.referralEarnings ?? 0) + bonus
+        });
+
+        t.set(refTxRef, {
+          userId: String(freshRefData.telegramId || referrerDoc.id),
+          type: 'referral_bonus',
+          amount: bonus,
+          status: 'completed',
+          details: `Referral commission from user ${String(freshOwnerData.telegramId || ownerDoc.id)}`,
+          createdAt: now
+        });
+      }
+    }
+  });
+
+  const updatedCampSnap = await campaignRef.get();
+  const campaign = serializeDoc(updatedCampSnap, {
+    channelId: {
+      _id: channelDoc.id,
+      id: channelDoc.id,
+      title: channelData.title || '',
+      channelUsername: channelData.channelUsername || '',
+      ownerId: channelData.ownerId || ''
+    }
+  });
+
+  await logSecurityEvent(req.user.telegramId, 'ADMIN_CAMPAIGN_COMPLETED', campaign._id, `Campaign completed & funds released`, req);
   res.json({ success: true, campaign });
 }));
 
-// ================= API 404 & ERROR HANDLERS =================
-app.use('/api', (req, res) => {
-  res.status(404).json({ success: false, message: 'API route not found' });
-});
-
 app.use((err, req, res, next) => {
   console.error('Server Error:', err);
-  res.status(500).json({
+  const statusCode = err.statusCode || 500;
+  res.status(statusCode).json({
     success: false,
     message: err.message || 'Internal Server Error'
   });
 });
 
-app.use((req, res) => {
+app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+const PORT = process.env.PORT || 3000;
 if (!process.env.VERCEL) {
-  const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {
     console.log(`Telega-Ads running on port ${PORT}`);
   });
