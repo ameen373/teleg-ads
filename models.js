@@ -1,92 +1,61 @@
-const mongoose = require('mongoose');
+const admin = require('firebase-admin');
 
-const userSchema = new mongoose.Schema(
-  {
-    telegramId: { type: String, required: true, unique: true, index: true },
-    username: { type: String, default: '' },
-    firstName: { type: String, default: '' },
-    lastName: { type: String, default: '' },
-    languageCode: { type: String, enum: ['ar', 'en'], default: 'en' },
-    balance: { type: Number, default: 0, min: 0 },
-    adBalance: { type: Number, default: 0, min: 0 },
-    referralEarnings: { type: Number, default: 0, min: 0 },
-    referredBy: { type: String, default: null },
-    referralsCount: { type: Number, default: 0, min: 0 },
-    isAdmin: { type: Boolean, default: false },
-    isBanned: { type: Boolean, default: false },
-    lastActive: { type: Date, default: Date.now }
-  },
-  { timestamps: true }
-);
+function formatPrivateKey(rawKey) {
+  if (!rawKey) return '';
+  let key = String(rawKey).trim();
+  if (
+    (key.startsWith('"') && key.endsWith('"')) ||
+    (key.startsWith("'") && key.endsWith("'"))
+  ) {
+    key = key.slice(1, -1);
+  }
+  return key.replace(/\\n/g, '\n');
+}
 
-const channelSchema = new mongoose.Schema(
-  {
-    ownerId: { type: String, required: true, index: true },
-    channelUsername: { type: String, required: true, unique: true, lowercase: true, trim: true },
-    title: { type: String, required: true, trim: true },
-    subscribers: { type: Number, default: 0, min: 0 },
-    category: { type: String, default: 'general', trim: true },
-    pricePerPost: { type: Number, required: true, min: 0.1 },
-    status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending', index: true },
-    totalEarnings: { type: Number, default: 0, min: 0 }
-  },
-  { timestamps: true }
-);
+function initFirebaseAdmin() {
+  if (admin.apps.length > 0) {
+    return admin.app();
+  }
 
-const campaignSchema = new mongoose.Schema(
-  {
-    advertiserId: { type: String, required: true, index: true },
-    channelId: { type: mongoose.Schema.Types.ObjectId, ref: 'Channel', required: true, index: true },
-    title: { type: String, required: true, trim: true },
-    adText: { type: String, required: true, trim: true },
-    targetUrl: { type: String, required: true, trim: true },
-    budget: { type: Number, required: true, min: 0.1 },
-    status: {
-      type: String,
-      enum: ['pending', 'active', 'completed', 'cancelled'],
-      default: 'pending',
-      index: true
-    }
-  },
-  { timestamps: true }
-);
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const privateKey = formatPrivateKey(process.env.FIREBASE_PRIVATE_KEY);
 
-const transactionSchema = new mongoose.Schema(
-  {
-    userId: { type: String, required: true, index: true },
-    type: {
-      type: String,
-      enum: ['deposit', 'withdrawal', 'campaign_spend', 'channel_earn', 'referral_bonus'],
-      required: true
-    },
-    amount: { type: Number, required: true },
-    status: { type: String, enum: ['pending', 'completed', 'rejected'], default: 'completed', index: true },
-    details: { type: String, default: '' }
-  },
-  { timestamps: true }
-);
+  if (!projectId || !clientEmail || !privateKey) {
+    throw new Error(
+      'Missing Firebase Admin credentials: FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY are required.'
+    );
+  }
 
-const securityLogSchema = new mongoose.Schema(
-  {
-    actorId: { type: String, required: true, index: true },
-    action: { type: String, required: true },
-    targetId: { type: String, default: '' },
-    details: { type: String, default: '' },
-    ip: { type: String, default: '' }
-  },
-  { timestamps: true }
-);
+  return admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId,
+      clientEmail,
+      privateKey
+    })
+  });
+}
 
-const User = mongoose.models.User || mongoose.model('User', userSchema);
-const Channel = mongoose.models.Channel || mongoose.model('Channel', channelSchema);
-const Campaign = mongoose.models.Campaign || mongoose.model('Campaign', campaignSchema);
-const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
-const SecurityLog = mongoose.models.SecurityLog || mongoose.model('SecurityLog', securityLogSchema);
+initFirebaseAdmin();
+
+const db = admin.firestore();
+db.settings({ ignoreUndefinedProperties: true });
+
+const collections = {
+  users: db.collection('users'),
+  channels: db.collection('channels'),
+  campaigns: db.collection('campaigns'),
+  transactions: db.collection('transactions'),
+  securityLogs: db.collection('securityLogs')
+};
 
 module.exports = {
-  User,
-  Channel,
-  Campaign,
-  Transaction,
-  SecurityLog
+  admin,
+  db,
+  users: collections.users,
+  channels: collections.channels,
+  campaigns: collections.campaigns,
+  transactions: collections.transactions,
+  securityLogs: collections.securityLogs,
+  collections
 };
