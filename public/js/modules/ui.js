@@ -39,14 +39,35 @@
         btn.classList.toggle('active', btn.getAttribute('data-target') === targetId);
       });
 
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       this.haptic('light');
+    },
+
+    updateNavBadge(badgeId, count) {
+      const badge = document.getElementById(badgeId);
+      if (!badge) return;
+      const num = Number(count) || 0;
+      if (num > 0) {
+        badge.textContent = num > 99 ? '99+' : num;
+        badge.style.display = 'inline-block';
+      } else {
+        badge.style.display = 'none';
+      }
     },
 
     renderUserHeader(user) {
       const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || 'User';
       document.getElementById('user-name').textContent = fullName;
       document.getElementById('user-id').textContent = `ID: ${user.telegramId}`;
-      document.getElementById('user-avatar').textContent = fullName.charAt(0).toUpperCase();
+
+      const avatarEl = document.getElementById('user-avatar');
+      const tgPhoto = window.Telegram?.WebApp?.initDataUnsafe?.user?.photo_url || user.photoUrl;
+
+      if (tgPhoto) {
+        avatarEl.innerHTML = `<img src="${tgPhoto}" alt="${fullName}" />`;
+      } else {
+        avatarEl.textContent = fullName.charAt(0).toUpperCase();
+      }
     },
 
     renderHome(user, stats, transactions) {
@@ -55,6 +76,10 @@
       document.getElementById('stat-market-channels').textContent = stats.activeChannels;
       document.getElementById('stat-my-channels').textContent = stats.userChannels;
       document.getElementById('stat-my-campaigns').textContent = stats.userCampaigns;
+
+      // تحديث عدادات الإشعارات الذكية على الكبسولة السفلية
+      this.updateNavBadge('nav-badge-channels', stats.userChannels);
+      this.updateNavBadge('nav-badge-campaigns', stats.userCampaigns);
 
       const listEl = document.getElementById('home-transactions-list');
       if (!transactions || transactions.length === 0) {
