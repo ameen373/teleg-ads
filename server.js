@@ -23,16 +23,20 @@ if (!cached) {
   cached = global.mongooseCache = { conn: null, promise: null };
 }
 
+const getMongoUri = () => {
+  const candidate = process.env.MONGODB_URI || process.env.MONGO_URI || '';
+  return typeof candidate === 'string' ? candidate.trim() : '';
+};
+
 const connectDB = async () => {
-  const rawUri = process.env.MONGODB_URI;
-  const uri = typeof rawUri === 'string' ? rawUri.trim() : '';
+  const uri = getMongoUri();
 
   if (!uri) {
-    throw new Error('MONGODB_URI environment variable is not defined');
+    throw new Error('MONGODB_URI (or MONGO_URI) environment variable is not defined');
   }
 
   if (!uri.startsWith('mongodb://') && !uri.startsWith('mongodb+srv://')) {
-    throw new Error('MONGODB_URI must start with mongodb:// or mongodb+srv://');
+    throw new Error('MongoDB URI must start with mongodb:// or mongodb+srv://');
   }
 
   if (cached.conn && mongoose.connection.readyState === 1) {
