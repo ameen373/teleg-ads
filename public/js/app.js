@@ -52,9 +52,12 @@
       document.querySelectorAll('.nav-item').forEach((btn) => {
         btn.addEventListener('click', async () => {
           const target = btn.getAttribute('data-target');
+          if (!target) return;
+
           if (target === 'view-admin' && (!this.user || !this.user.isAdmin)) {
             return;
           }
+
           window.UI.switchView(target);
 
           if (target === 'view-channels') await window.ChannelsModule.load();
@@ -66,6 +69,8 @@
 
     bindLanguageToggle() {
       const toggleBtn = document.getElementById('lang-toggle-btn');
+      if (!toggleBtn) return;
+
       toggleBtn.addEventListener('click', async () => {
         const nextLang = window.I18n.currentLang === 'ar' ? 'en' : 'ar';
         window.I18n.setLanguage(nextLang);
