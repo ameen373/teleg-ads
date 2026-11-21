@@ -24,9 +24,15 @@ if (!cached) {
 }
 
 const connectDB = async () => {
-  const uri = process.env.MONGODB_URI;
+  const rawUri = process.env.MONGODB_URI;
+  const uri = typeof rawUri === 'string' ? rawUri.trim() : '';
+
   if (!uri) {
     throw new Error('MONGODB_URI environment variable is not defined');
+  }
+
+  if (!uri.startsWith('mongodb://') && !uri.startsWith('mongodb+srv://')) {
+    throw new Error('MONGODB_URI must start with mongodb:// or mongodb+srv://');
   }
 
   if (cached.conn && mongoose.connection.readyState === 1) {
@@ -35,7 +41,7 @@ const connectDB = async () => {
 
   if (!cached.promise) {
     const options = {
-      serverSelectionTimeoutMS: 8000,
+      serverSelectionTimeoutMS: 10000,
       socketTimeoutMS: 20000,
       maxPoolSize: 10
     };
@@ -62,6 +68,8 @@ const dbMiddleware = asyncHandler(async (req, res, next) => {
   await connectDB();
   next();
 });
+
+const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 
 const logSecurityEvent = async (actorId, action, targetId, details, req) => {
   try {
@@ -297,6 +305,10 @@ app.post('/api/campaigns', authMiddleware, asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: 'Missing campaign fields' });
   }
 
+  if (!isValidObjectId(channelId)) {
+    return res.status(400).json({ success: false, message: 'Invalid channel ID' });
+  }
+
   const channel = await Channel.findById(channelId);
   if (!channel || channel.status !== 'approved') {
     return res.status(404).json({ success: false, message: 'Channel not available' });
@@ -404,6 +416,10 @@ app.get('/api/admin/dashboard', authMiddleware, adminMiddleware, asyncHandler(as
 }));
 
 app.post('/api/admin/channels/:id/review', authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  if (!isValidObjectId(req.params.id)) {
+    return res.status(400).json({ success: false, message: 'Invalid channel ID' });
+  }
+
   const { action } = req.body;
   if (!['approved', 'rejected'].includes(action)) {
     return res.status(400).json({ success: false, message: 'Invalid action' });
@@ -420,6 +436,10 @@ app.post('/api/admin/channels/:id/review', authMiddleware, adminMiddleware, asyn
 }));
 
 app.post('/api/admin/transactions/:id/review', authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  if (!isValidObjectId(req.params.id)) {
+    return res.status(400).json({ success: false, message: 'Invalid transaction ID' });
+  }
+
   const { action } = req.body;
   if (!['completed', 'rejected'].includes(action)) {
     return res.status(400).json({ success: false, message: 'Invalid action' });
@@ -449,6 +469,10 @@ app.post('/api/admin/transactions/:id/review', authMiddleware, adminMiddleware, 
 }));
 
 app.post('/api/admin/campaigns/:id/complete', authMiddleware, adminMiddleware, asyncHandler(async (req, res) => {
+  if (!isValidObjectId(req.params.id)) {
+    return res.status(400).json({ success: false, message: 'Invalid campaign ID' });
+  }
+
   const campaign = await Campaign.findById(req.params.id).populate('channelId');
   if (!campaign || campaign.status !== 'pending') {
     return res.status(404).json({ success: false, message: 'Pending campaign not found' });
