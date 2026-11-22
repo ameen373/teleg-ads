@@ -1,5 +1,51 @@
-(function () {
+'use strict';
+
+function escapeHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+(function (window) {
+  function showBannerToast(message, type = 'info', bannerId = 'channels-feedback-banner') {
+    const box = document.getElementById(bannerId);
+    if (!box) {
+      return false;
+    }
+
+    box.className = `feedback-banner feedback-${type}`;
+    box.textContent = message;
+    box.classList.remove('hidden');
+    return true;
+  }
+
+  function clearBannerFeedback(bannerId = 'channels-feedback-banner') {
+    const box = document.getElementById(bannerId);
+    if (box) {
+      box.textContent = '';
+      box.className = 'feedback-banner hidden';
+    }
+  }
+
+  function getCampaignStatusBadge(status) {
+    if (status === 'active') {
+      return '<span class="status-badge badge-approved">🟢 نشطة</span>';
+    }
+    if (status === 'scheduled') {
+      return '<span class="status-badge badge-pending">🕒 مجدولة</span>';
+    }
+    if (status === 'paused') {
+      return '<span class="status-badge badge-warning">⏸ متوقفة (بحاجة لشحن/استئناف)</span>';
+    }
+    return `<span class="status-badge badge-neutral">${escapeHtml(status || 'غير معروف')}</span>`;
+  }
+
   const UI = {
+    escapeHtml,
+
     notify(message) {
       if (window.Telegram?.WebApp?.showAlert) {
         window.Telegram.WebApp.showAlert(message);
@@ -18,6 +64,20 @@
       const loader = document.getElementById('loader');
       if (loader) loader.classList.add('hidden');
     },
+
+    showToast(message, type = 'info', bannerId = 'channels-feedback-banner') {
+      return showBannerToast(message, type, bannerId);
+    },
+
+    toast(message, type = 'info', bannerId = 'channels-feedback-banner') {
+      return showBannerToast(message, type, bannerId);
+    },
+
+    clearFeedback(bannerId = 'channels-feedback-banner') {
+      clearBannerFeedback(bannerId);
+    },
+
+    getCampaignStatusBadge,
 
     switchView(targetId) {
       document.querySelectorAll('.view-section').forEach((sec) => {
@@ -56,7 +116,8 @@
     },
 
     renderUserHeader(user) {
-      const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || 'User';
+      const fullName =
+        [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username || 'User';
       document.getElementById('user-name').textContent = fullName;
       document.getElementById('user-id').textContent = `ID: ${user.telegramId}`;
 
@@ -64,7 +125,7 @@
       const tgPhoto = window.Telegram?.WebApp?.initDataUnsafe?.user?.photo_url || user.photoUrl;
 
       if (tgPhoto) {
-        avatarEl.innerHTML = `<img src="${tgPhoto}" alt="${fullName}" />`;
+        avatarEl.innerHTML = `<img src="${escapeHtml(tgPhoto)}" alt="${escapeHtml(fullName)}" />`;
       } else {
         avatarEl.textContent = fullName.charAt(0).toUpperCase();
       }
@@ -87,23 +148,36 @@
         return;
       }
 
-      listEl.innerHTML = transactions.map((tx) => {
-        const sign = tx.amount >= 0 ? '+' : '';
-        return `
+      listEl.innerHTML = transactions
+        .map((tx) => {
+          const sign = tx.amount >= 0 ? '+' : '';
+          return `
           <div class="list-item">
             <div class="item-main">
-              <span class="item-title">${tx.details || tx.type}</span>
-              <span class="item-sub">${new Date(tx.createdAt).toLocaleDateString()}</span>
+              <span class="item-title">${escapeHtml(tx.details || tx.type)}</span>
+              <span class="item-sub">${escapeHtml(new Date(tx.createdAt).toLocaleDateString())}</span>
             </div>
             <div style="text-align: end;">
               <div class="item-title">${sign}$${tx.amount.toFixed(2)}</div>
-              <span class="badge ${tx.status}">${window.I18n.t('status_' + tx.status)}</span>
+              <span class="badge ${escapeHtml(tx.status)}">${escapeHtml(window.I18n.t('status_' + tx.status))}</span>
             </div>
           </div>
         `;
-      }).join('');
-    }
+        })
+        .join('');
+    },
   };
 
   window.UI = UI;
-})();
+
+  window.TelegaUI = Object.assign({}, window.TelegaUI || {}, {
+    escapeHtml,
+    notify: (message) => UI.notify(message),
+    toast: (message, type = 'info', bannerId = 'channels-feedback-banner') =>
+      showBannerToast(message, type, bannerId),
+    showToast: (message, type = 'info', bannerId = 'channels-feedback-banner') =>
+      showBannerToast(message, type, bannerId),
+    clearFeedback: (bannerId = 'channels-feedback-banner') => clearBannerFeedback(bannerId),
+    getCampaignStatusBadge,
+  });
+})(window);
