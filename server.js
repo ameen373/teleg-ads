@@ -1,13 +1,11 @@
 require('dotenv').config();
 const express = require('express');
-const mongoose = require('mongoose');
 const crypto = require('crypto');
 const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');
 const fs = require('fs');
 const {
-  // Firebase Admin & Firestore
   admin,
   db,
   users: firestoreUsers,
@@ -15,24 +13,18 @@ const {
   campaigns: firestoreCampaigns,
   transactions: firestoreTransactions,
   securityLogs: firestoreSecurityLogs,
-
-  // Mongoose & Models
-  connectMongo,
-  Channel,
-  Referral,
-  Campaign,
-  Wallet,
-  Transaction,
-  PublishLog,
-  Notification,
-  BackupRecord,
   ALLOWED_LANGUAGES,
   ALLOWED_CATEGORIES
 } = require('./models');
 
+const firestoreReferrals = db.collection('referrals');
+const firestoreWallets = db.collection('wallets');
+const firestorePublishLogs = db.collection('publishLogs');
+const firestoreNotifications = db.collection('notifications');
+const firestoreBackups = db.collection('backups');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
-const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URI || '';
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
 const BOT_USERNAME = (process.env.BOT_USERNAME || 'adTelega_bot').replace(/^@/, '');
 const SYNC_INTERVAL_MS = Number(process.env.SYNC_INTERVAL_MS) || 300000;
@@ -52,31 +44,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 db.listCollections()
   .then(() => console.log('Connected to Firebase Cloud Firestore'))
   .catch((err) => console.error('Firestore connection check error:', err));
-
-let isMongoConnected = false;
-async function ensureMongoConnection() {
-  if (!MONGODB_URI) return false;
-  if (mongoose.connection.readyState === 1) {
-    isMongoConnected = true;
-    return true;
-  }
-  try {
-    await connectMongo(MONGODB_URI);
-    isMongoConnected = true;
-    console.log('Connected to MongoDB');
-    return true;
-  } catch (error) {
-    console.error('MongoDB connection error:', error.message);
-    return false;
-  }
-}
-
-app.use(async (req, res, next) => {
-  if (req.path.startsWith('/api') && MONGODB_URI) {
-    await ensureMongoConnection();
-  }
-  next();
-});
 
 const asyncHandler = (fn) => (req, res, next) => {
   Promise.resolve(fn(req, res, next)).catch(next);
@@ -101,7 +68,10 @@ const serializeDoc = (docSnap, extraFields = {}) => {
     ...extraFields
   };
   if (obj.createdAt !== undefined) obj.createdAt = toIsoString(obj.createdAt);
+  if (obj.updatedAt !== undefined) obj.updatedAt = toIsoString(obj.updatedAt);
   if (obj.lastActive !== undefined) obj.lastActive = toIsoString(obj.lastActive);
+  if (obj.lastSyncedAt !== undefined && obj.lastSyncedAt) obj.lastSyncedAt = toIsoString(obj.lastSyncedAt);
+  if (obj.scheduledAt !== undefined && obj.scheduledAt) obj.scheduledAt = toIsoString(obj.scheduledAt);
   return obj;
 };
 
@@ -135,6 +105,8 @@ const sortDocsDesc = (docs, field = 'createdAt') => {
     return bTime - aTime;
   });
 };
+
+const isValidDocId = (id) => typeof id === 'string' && id.trim().length > 0 && !id.includes('/');
 
 const logSecurityEvent = async (actorId, action, targetId, details, req) => {
   try {
@@ -292,14 +264,16 @@ const adminMiddleware = asyncHandler(async (req, res, next) => {
 
 async function createNotification(audience, category, title, message) {
   try {
-    if (mongoose.connection.readyState !== 1) return null;
-    return await Notification.create({
+    const docRef = await firestoreNotifications.add({
       audience: ['advertiser', 'publisher', 'admin'].includes(audience) ? audience : 'admin',
       category: ['channel', 'campaign', 'wallet', 'system'].includes(category) ? category : 'system',
       title: String(title).trim(),
       message: String(message).trim(),
-      isRead: false
+      isRead: false,
+      createdAt: new Date()
     });
+    const snap = await docRef.get();
+    return serializeDoc(snap);
   } catch (err) {
     console.error('Failed to create notification:', err.message);
     return null;
@@ -308,20 +282,41 @@ async function createNotification(audience, category, title, message) {
 
 async function runDatabaseBackup(reason = 'scheduled') {
   try {
-    const [channelsList, campaignsList, referralsList, walletList, transactionsList, publishLogsList, notificationsList] =
-      await Promise.all([
-        Channel.find().lean(),
-        Campaign.find().lean(),
-        Referral.find().lean(),
-        Wallet.find().lean(),
-        Transaction.find().lean(),
-        PublishLog.find().lean(),
-        Notification.find().lean()
-      ]);
+    const [
+      usersSnap,
+      channelsSnap,
+      campaignsSnap,
+      referralsSnap,
+      walletsSnap,
+      transactionsSnap,
+      publishLogsSnap,
+      notificationsSnap
+    ] = await Promise.all([
+      firestoreUsers.get(),
+      firestoreChannels.get(),
+      firestoreCampaigns.get(),
+      firestoreReferrals.get(),
+      firestoreWallets.get(),
+      firestoreTransactions.get(),
+      firestorePublishLogs.get(),
+      firestoreNotifications.get()
+    ]);
+
+    const mapSnap = (snap) => snap.docs.map((d) => serializeDoc(d));
+
+    const usersList = mapSnap(usersSnap);
+    const channelsList = mapSnap(channelsSnap);
+    const campaignsList = mapSnap(campaignsSnap);
+    const referralsList = mapSnap(referralsSnap);
+    const walletList = mapSnap(walletsSnap);
+    const transactionsList = mapSnap(transactionsSnap);
+    const publishLogsList = mapSnap(publishLogsSnap);
+    const notificationsList = mapSnap(notificationsSnap);
 
     const snapshot = {
       createdAt: new Date().toISOString(),
       reason,
+      users: usersList,
       channels: channelsList,
       campaigns: campaignsList,
       referrals: referralsList,
@@ -332,6 +327,7 @@ async function runDatabaseBackup(reason = 'scheduled') {
     };
 
     const totalRecords =
+      usersList.length +
       channelsList.length +
       campaignsList.length +
       referralsList.length +
@@ -341,7 +337,7 @@ async function runDatabaseBackup(reason = 'scheduled') {
       notificationsList.length;
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `telega_ads_backup_${timestamp}.json`;
+    const filename = `telega_ads_firestore_backup_${timestamp}.json`;
 
     try {
       const backupDir = path.join(__dirname, 'backups');
@@ -353,13 +349,14 @@ async function runDatabaseBackup(reason = 'scheduled') {
       console.error('Local backup file skipped:', fsErr.message);
     }
 
-    const record = await BackupRecord.create({
+    const docRef = await firestoreBackups.add({
       filename,
-      collectionsCount: 7,
+      collectionsCount: 8,
       totalRecords,
       status: 'completed',
-      note: `Backup (${reason})`,
-      snapshotData: snapshot
+      note: `Firestore Backup (${reason})`,
+      snapshotData: snapshot,
+      createdAt: new Date()
     });
 
     await createNotification(
@@ -369,31 +366,41 @@ async function runDatabaseBackup(reason = 'scheduled') {
       `Snapshot ${filename} saved with ${totalRecords} records.`
     );
 
-    return record;
+    const createdSnap = await docRef.get();
+    return serializeDoc(createdSnap);
   } catch (err) {
     console.error('Backup failed:', err.message);
-    return await BackupRecord.create({
+    const failRef = await firestoreBackups.add({
       filename: `backup_failed_${Date.now()}.json`,
       collectionsCount: 0,
       totalRecords: 0,
       status: 'failed',
-      note: err.message
+      note: err.message,
+      createdAt: new Date()
     });
+    const failSnap = await failRef.get();
+    return serializeDoc(failSnap);
   }
 }
 
 // ==================== WALLET & TELEGRAM HELPERS ====================
 
 async function getOrCreateWallet() {
-  let wallet = await Wallet.findOne({ ownerKey: DEFAULT_WALLET_KEY });
-  if (!wallet) {
-    wallet = await Wallet.create({
+  const docRef = firestoreWallets.doc(DEFAULT_WALLET_KEY);
+  const snap = await docRef.get();
+  if (!snap.exists) {
+    const now = new Date();
+    await docRef.set({
       ownerKey: DEFAULT_WALLET_KEY,
       advertiserBalance: 0,
-      publisherBalance: 0
+      publisherBalance: 0,
+      createdAt: now,
+      updatedAt: now
     });
+    const freshSnap = await docRef.get();
+    return serializeDoc(freshSnap);
   }
-  return wallet;
+  return serializeDoc(snap);
 }
 
 async function callTelegramApi(method, payload) {
@@ -445,7 +452,8 @@ function resolveButtonLabel(campaign) {
 }
 
 function buildBrandedAdText(campaign, channel) {
-  const refCode = channel && channel.referralCode ? channel.referralCode : `ch_${channel._id}`;
+  const channelId = channel._id || channel.id;
+  const refCode = channel && channel.referralCode ? channel.referralCode : `ch_${channelId}`;
   const refLink = `https://t.me/${BOT_USERNAME}?start=${encodeURIComponent(refCode)}`;
   const body = (campaign.adText || campaign.title || '').trim();
   const footer = `\n\nPowered by <a href="${refLink}">Telega.ads</a>`;
@@ -463,11 +471,12 @@ function computeNextPeakSlot() {
 }
 
 async function sendFreeIntroPost(channel) {
+  const channelId = channel._id || channel.id;
   if (channel.introPostSent) return false;
   const chatIdentifier = channel.chatId || channel.username;
   if (!chatIdentifier) return false;
 
-  const refParam = channel.referralCode || `ch_${channel._id}`;
+  const refParam = channel.referralCode || `ch_${channelId}`;
   const botLink = `https://t.me/${BOT_USERNAME}?start=${encodeURIComponent(refParam)}`;
 
   const introText = [
@@ -490,30 +499,37 @@ async function sendFreeIntroPost(channel) {
     }
   });
 
+  await firestoreChannels.doc(String(channelId)).update({
+    introPostSent: true,
+    updatedAt: new Date()
+  });
   channel.introPostSent = true;
-  await channel.save();
   return true;
 }
 
 async function dispatchCampaignToChannel(campaign, channel, existingEntry, options = {}) {
   const forceRepublish = Boolean(options.forceRepublish);
-  const dedupKey = `${campaign._id}_${channel._id}`;
+  const campaignId = campaign._id || campaign.id;
+  const channelId = channel._id || channel.id;
+  const dedupKey = `${campaignId}_${channelId}`;
 
-  const existingPublishedLog = await PublishLog.findOne({
-    dedupKey,
-    status: 'published'
-  });
+  const existingSnap = await firestorePublishLogs
+    .where('dedupKey', '==', dedupKey)
+    .where('status', '==', 'published')
+    .limit(1)
+    .get();
 
-  if (existingPublishedLog && !forceRepublish && existingEntry && existingEntry.messageId) {
-    await PublishLog.create({
+  if (!existingSnap.empty && !forceRepublish && existingEntry && existingEntry.messageId) {
+    await firestorePublishLogs.add({
       dedupKey: `${dedupKey}_dup_${Date.now()}_${crypto.randomBytes(2).toString('hex')}`,
-      campaignId: campaign._id,
+      campaignId,
       campaignTitle: campaign.title,
-      channelId: channel._id,
-      channelName: channel.name,
+      channelId,
+      channelName: channel.name || channel.title || '',
       messageId: existingEntry.messageId,
       status: 'duplicate_prevented',
-      details: 'Duplicate ad dispatch prevented automatically'
+      details: 'Duplicate ad dispatch prevented automatically',
+      createdAt: new Date()
     });
 
     return {
@@ -527,10 +543,11 @@ async function dispatchCampaignToChannel(campaign, channel, existingEntry, optio
   const btnUrl =
     campaign.targetUrl && campaign.targetUrl.trim()
       ? campaign.targetUrl.trim()
-      : `https://t.me/${BOT_USERNAME}?start=${encodeURIComponent(channel.referralCode || `ch_${channel._id}`)}`;
+      : `https://t.me/${BOT_USERNAME}?start=${encodeURIComponent(channel.referralCode || `ch_${channelId}`)}`;
 
   let sentMessageId = existingEntry && existingEntry.messageId ? existingEntry.messageId : null;
   const chatIdentifier = channel.chatId || channel.username;
+  const channelTitle = channel.name || channel.title || '';
 
   try {
     if (chatIdentifier && BOT_TOKEN && BOT_TOKEN !== 'your_telegram_bot_token_here') {
@@ -561,54 +578,52 @@ async function dispatchCampaignToChannel(campaign, channel, existingEntry, optio
       ? `${dedupKey}_res_${Date.now()}_${crypto.randomBytes(2).toString('hex')}`
       : dedupKey;
 
-    await PublishLog.findOneAndUpdate(
-      { dedupKey: logKey },
-      {
-        dedupKey: logKey,
-        campaignId: campaign._id,
-        campaignTitle: campaign.title,
-        channelId: channel._id,
-        channelName: channel.name,
-        messageId: sentMessageId,
-        status: 'published',
-        details: 'Published successfully with locked content',
-        publishedAt: new Date()
-      },
-      { upsert: true, new: true }
-    );
+    await firestorePublishLogs.doc(logKey).set({
+      dedupKey: logKey,
+      campaignId,
+      campaignTitle: campaign.title,
+      channelId,
+      channelName: channelTitle,
+      messageId: sentMessageId,
+      status: 'published',
+      details: 'Published successfully with locked content',
+      publishedAt: new Date(),
+      createdAt: new Date()
+    }, { merge: true });
 
     return {
       entry: {
-        channelId: channel._id,
-        channelName: channel.name,
+        channelId,
+        channelName: channelTitle,
         messageId: sentMessageId,
         views: existingEntry && existingEntry.views ? existingEntry.views : 0,
         earnings: existingEntry && existingEntry.earnings ? existingEntry.earnings : 0,
-        publisherRefCode: channel.referralCode || `ch_${channel._id}`,
+        publisherRefCode: channel.referralCode || `ch_${channelId}`,
         renderedAdText: renderedText,
         lockedContent: true,
         noForwarding: true,
-        publishedAt: new Date()
+        publishedAt: new Date().toISOString()
       },
       duplicatePrevented: false
     };
   } catch (sendErr) {
-    await PublishLog.create({
+    await firestorePublishLogs.add({
       dedupKey: `${dedupKey}_err_${Date.now()}_${crypto.randomBytes(2).toString('hex')}`,
-      campaignId: campaign._id,
+      campaignId,
       campaignTitle: campaign.title,
-      channelId: channel._id,
-      channelName: channel.name,
+      channelId,
+      channelName: channelTitle,
       messageId: sentMessageId,
       status: 'failed',
-      details: sendErr.message
+      details: sendErr.message,
+      createdAt: new Date()
     });
 
     await createNotification(
       'advertiser',
       'campaign',
       'Ad Dispatch Issue',
-      `Campaign "${campaign.title}" could not be delivered to ${channel.name}: ${sendErr.message}`
+      `Campaign "${campaign.title}" could not be delivered to ${channelTitle}: ${sendErr.message}`
     );
 
     throw sendErr;
@@ -616,8 +631,9 @@ async function dispatchCampaignToChannel(campaign, channel, existingEntry, optio
 }
 
 async function syncSingleChannel(channel) {
+  const channelId = channel._id || channel.id;
   const identifier = channel.chatId || channel.username;
-  if (!identifier) {
+  if (!identifier || !channelId) {
     return channel;
   }
 
@@ -626,16 +642,20 @@ async function syncSingleChannel(channel) {
     const isPublicChannel = chatInfo.type === 'channel' && Boolean(chatInfo.username);
 
     if (!isPublicChannel) {
-      channel.isPublic = false;
-      channel.approvalStatus = 'rejected';
-      channel.botAdded = false;
-      channel.botPermissionsOk = false;
-      channel.lastPermissionCheckAt = new Date();
-      channel.lastSyncedAt = new Date();
-      await channel.save();
-      return channel;
+      const updates = {
+        isPublic: false,
+        approvalStatus: 'rejected',
+        botAdded: false,
+        botPermissionsOk: false,
+        lastPermissionCheckAt: new Date(),
+        lastSyncedAt: new Date(),
+        updatedAt: new Date()
+      };
+      await firestoreChannels.doc(String(channelId)).update(updates);
+      return { ...channel, ...updates };
     }
 
+    let botAdded = Boolean(channel.botAdded);
     let permsOk = Boolean(channel.botAdded);
     try {
       const botMe = await callTelegramApi('getMe', {});
@@ -650,7 +670,7 @@ async function syncSingleChannel(channel) {
         (botMember.status === 'creator' ||
           (botMember.can_post_messages !== false && botMember.can_edit_messages !== false));
 
-      channel.botAdded = Boolean(activeAdmin);
+      botAdded = Boolean(activeAdmin);
       permsOk = Boolean(activeAdmin && canPost);
 
       if (!activeAdmin) {
@@ -658,61 +678,67 @@ async function syncSingleChannel(channel) {
           'publisher',
           'channel',
           'Bot Admin Removed',
-          `Bot @${BOT_USERNAME} is no longer an admin in channel ${channel.name} (${channel.username}).`
+          `Bot @${BOT_USERNAME} is no longer an admin in channel ${chatInfo.title || channel.name} (@${chatInfo.username}).`
         );
       }
     } catch (permErr) {
-      permsOk = Boolean(channel.botAdded);
+      permsOk = Boolean(botAdded);
     }
 
     const memberCount = await callTelegramApi('getChatMemberCount', { chat_id: chatInfo.id });
+    const subscribersCount = Number(memberCount) || 0;
+    const smartPrice = computeSmartPrice(subscribersCount, channel.price);
 
-    channel.isPublic = true;
-    channel.chatId = String(chatInfo.id);
-    channel.username = `@${chatInfo.username}`;
-    channel.name = chatInfo.title || channel.name;
-    channel.subscribersCount = Number(memberCount) || 0;
-    channel.botPermissionsOk = permsOk;
-    channel.lastPermissionCheckAt = new Date();
-    const smartPrice = computeSmartPrice(channel.subscribersCount, channel.price);
-    channel.price = smartPrice;
-    channel.pricePer1000Views = smartPrice;
-    channel.lastSyncedAt = new Date();
-
-    if (channel.approvalStatus !== 'rejected') {
-      const nextStatus = evaluateApprovalBySubscribers(channel.subscribersCount);
+    let approvalStatus = channel.approvalStatus || 'pending_review';
+    if (approvalStatus !== 'rejected') {
+      const nextStatus = evaluateApprovalBySubscribers(subscribersCount);
       if (nextStatus === 'approved') {
-        channel.approvalStatus = 'approved';
+        approvalStatus = 'approved';
       }
     }
 
-    if (!channel.referralCode) {
-      channel.referralCode = generateReferralCode();
-    }
+    const referralCode = channel.referralCode || generateReferralCode();
 
-    await channel.save();
+    const updates = {
+      isPublic: true,
+      chatId: String(chatInfo.id),
+      username: `@${chatInfo.username}`,
+      name: chatInfo.title || channel.name,
+      subscribersCount,
+      botAdded,
+      botPermissionsOk: permsOk,
+      lastPermissionCheckAt: new Date(),
+      price: smartPrice,
+      pricePer1000Views: smartPrice,
+      approvalStatus,
+      referralCode,
+      lastSyncedAt: new Date(),
+      updatedAt: new Date()
+    };
 
-    if (channel.approvalStatus === 'approved' && channel.botAdded && !channel.introPostSent) {
+    await firestoreChannels.doc(String(channelId)).update(updates);
+    const mergedChannel = { ...channel, ...updates };
+
+    if (mergedChannel.approvalStatus === 'approved' && mergedChannel.botAdded && !mergedChannel.introPostSent) {
       try {
-        await sendFreeIntroPost(channel);
+        await sendFreeIntroPost(mergedChannel);
       } catch (postErr) {
         console.error('Failed to send free intro post:', postErr.message);
       }
     }
 
-    return channel;
+    return mergedChannel;
   } catch (err) {
-    console.error(`Sync failed for channel ${channel.username}:`, err.message);
+    console.error(`Sync failed for channel ${channel.username || channelId}:`, err.message);
     return channel;
   }
 }
 
 async function syncAllChannels() {
   try {
-    if (mongoose.connection.readyState !== 1) return;
-    const channelsList = await Channel.find();
-    for (const ch of channelsList) {
-      await syncSingleChannel(ch);
+    const snap = await firestoreChannels.get();
+    for (const doc of snap.docs) {
+      await syncSingleChannel(serializeDoc(doc));
     }
   } catch (err) {
     console.error('Error during channels sync loop:', err.message);
@@ -721,19 +747,19 @@ async function syncAllChannels() {
 
 async function processDueScheduledCampaigns() {
   try {
-    if (mongoose.connection.readyState !== 1) return;
     const now = new Date();
-    const dueCampaigns = await Campaign.find({
-      status: 'scheduled',
-      scheduledAt: { $lte: now }
-    });
+    const snap = await firestoreCampaigns.where('status', '==', 'scheduled').get();
 
-    for (const camp of dueCampaigns) {
-      const targetChannels = await Channel.find({
-        _id: { $in: camp.selectedChannelIds || [] },
-        isPublic: { $ne: false },
-        approvalStatus: 'approved'
-      });
+    for (const doc of snap.docs) {
+      const camp = serializeDoc(doc);
+      const schedTime = camp.scheduledAt ? new Date(camp.scheduledAt) : null;
+      if (!schedTime || schedTime > now) continue;
+
+      const allChannelsSnap = await firestoreChannels.get();
+      const selectedSet = new Set((camp.selectedChannelIds || []).map(String));
+      const targetChannels = allChannelsSnap.docs
+        .map((d) => serializeDoc(d))
+        .filter((ch) => selectedSet.has(ch.id) && ch.isPublic !== false && ch.approvalStatus === 'approved');
 
       const logs = [];
       for (const ch of targetChannels) {
@@ -747,9 +773,11 @@ async function processDueScheduledCampaigns() {
         }
       }
 
-      camp.publishedChannels = logs;
-      camp.status = 'active';
-      await camp.save();
+      await firestoreCampaigns.doc(camp.id).update({
+        publishedChannels: logs,
+        status: 'active',
+        updatedAt: new Date()
+      });
     }
   } catch (err) {
     console.error('Error processing scheduled campaigns:', err.message);
@@ -767,19 +795,24 @@ async function processTelegramUpdate(update) {
       const isPublic = Boolean(chat.username);
       const formattedUsername = chat.username ? `@${chat.username}` : '';
 
+      const byChatSnap = await firestoreChannels.where('chatId', '==', String(chat.id)).limit(1).get();
+      let existingDoc = !byChatSnap.empty ? byChatSnap.docs[0] : null;
+      if (!existingDoc && formattedUsername) {
+        const byUserSnap = await firestoreChannels.where('username', '==', formattedUsername).limit(1).get();
+        if (!byUserSnap.empty) existingDoc = byUserSnap.docs[0];
+      }
+
       if (!isPublic) {
-        if (formattedUsername) {
-          await Channel.findOneAndUpdate(
-            { $or: [{ chatId: String(chat.id) }, { username: formattedUsername }] },
-            {
-              chatId: String(chat.id),
-              isPublic: false,
-              botAdded: false,
-              botPermissionsOk: false,
-              approvalStatus: 'rejected',
-              lastSyncedAt: new Date()
-            }
-          );
+        if (existingDoc) {
+          await existingDoc.ref.update({
+            chatId: String(chat.id),
+            isPublic: false,
+            botAdded: false,
+            botPermissionsOk: false,
+            approvalStatus: 'rejected',
+            lastSyncedAt: new Date(),
+            updatedAt: new Date()
+          });
         }
         return;
       }
@@ -798,15 +831,13 @@ async function processTelegramUpdate(update) {
         ? [actor.first_name, actor.last_name].filter(Boolean).join(' ')
         : '';
 
-      let existing = await Channel.findOne({
-        $or: [{ chatId: String(chat.id) }, { username: formattedUsername }]
-      });
-
       const autoApproval = evaluateApprovalBySubscribers(subscriberCount);
       const smartPrice = computeSmartPrice(subscriberCount, 1);
 
-      if (!existing && isAdminNow) {
-        existing = await Channel.create({
+      let channelObj = null;
+      if (!existingDoc && isAdminNow) {
+        const now = new Date();
+        const newRef = await firestoreChannels.add({
           name: chat.title || formattedUsername,
           username: formattedUsername,
           chatId: String(chat.id),
@@ -823,39 +854,49 @@ async function processTelegramUpdate(update) {
           pricePer1000Views: smartPrice,
           botAdded: true,
           botPermissionsOk: true,
-          lastPermissionCheckAt: new Date(),
-          lastSyncedAt: new Date()
+          introPostSent: false,
+          lastPermissionCheckAt: now,
+          lastSyncedAt: now,
+          createdAt: now,
+          updatedAt: now
         });
-      } else if (existing) {
-        existing.name = chat.title || existing.name;
-        existing.username = formattedUsername;
-        existing.chatId = String(chat.id);
-        existing.isPublic = true;
-        existing.subscribersCount = Number(subscriberCount) || existing.subscribersCount;
-        existing.botAdded = isAdminNow;
-        existing.botPermissionsOk = isAdminNow;
-        existing.lastPermissionCheckAt = new Date();
-        if (actorId && !existing.ownerTelegramId) {
-          existing.ownerTelegramId = actorId;
-          existing.ownerUsername = actorUsername;
-          existing.ownerName = actorName;
-        }
-        if (!existing.referralCode) {
-          existing.referralCode = generateReferralCode();
-        }
-        const updatedPrice = computeSmartPrice(existing.subscribersCount, existing.price);
-        existing.price = updatedPrice;
-        existing.pricePer1000Views = updatedPrice;
-        if (existing.approvalStatus !== 'rejected') {
-          existing.approvalStatus = evaluateApprovalBySubscribers(existing.subscribersCount);
-        }
-        existing.lastSyncedAt = new Date();
-        await existing.save();
+        channelObj = serializeDoc(await newRef.get());
+      } else if (existingDoc) {
+        const prev = existingDoc.data() || {};
+        const nextSubCount = Number(subscriberCount) || Number(prev.subscribersCount || 0);
+        const nextPrice = computeSmartPrice(nextSubCount, prev.price);
+        const nextApproval =
+          prev.approvalStatus === 'rejected'
+            ? 'rejected'
+            : evaluateApprovalBySubscribers(nextSubCount);
+
+        const updates = {
+          name: chat.title || prev.name,
+          username: formattedUsername,
+          chatId: String(chat.id),
+          isPublic: true,
+          subscribersCount: nextSubCount,
+          botAdded: isAdminNow,
+          botPermissionsOk: isAdminNow,
+          lastPermissionCheckAt: new Date(),
+          ownerTelegramId: prev.ownerTelegramId || actorId,
+          ownerUsername: prev.ownerUsername || actorUsername,
+          ownerName: prev.ownerName || actorName,
+          referralCode: prev.referralCode || generateReferralCode(),
+          price: nextPrice,
+          pricePer1000Views: nextPrice,
+          approvalStatus: nextApproval,
+          lastSyncedAt: new Date(),
+          updatedAt: new Date()
+        };
+
+        await existingDoc.ref.update(updates);
+        channelObj = serializeDoc(await existingDoc.ref.get());
       }
 
-      if (existing && existing.botAdded && existing.approvalStatus === 'approved' && !existing.introPostSent) {
+      if (channelObj && channelObj.botAdded && channelObj.approvalStatus === 'approved' && !channelObj.introPostSent) {
         try {
-          await sendFreeIntroPost(existing);
+          await sendFreeIntroPost(channelObj);
         } catch (err) {
           console.error('Intro post error:', err.message);
         }
@@ -875,30 +916,34 @@ async function processTelegramUpdate(update) {
       const commissionEligible = sourceRole !== 'advertiser';
 
       if (startParam && referredUser && commissionEligible) {
-        const publisherChannel = await Channel.findOne({ referralCode: startParam });
+        const chSnap = await firestoreChannels.where('referralCode', '==', startParam).limit(1).get();
+        const publisherChannel = !chSnap.empty ? serializeDoc(chSnap.docs[0]) : null;
         const publisherId = publisherChannel
-          ? publisherChannel.ownerTelegramId || String(publisherChannel._id)
+          ? publisherChannel.ownerTelegramId || publisherChannel.id
           : startParam;
 
-        if (publisherId && String(referredUser.id) !== publisherId) {
-          const alreadyReferred = await Referral.findOne({
-            publisherTelegramId: publisherId,
-            referredTelegramId: String(referredUser.id)
-          });
+        if (publisherId && String(referredUser.id) !== String(publisherId)) {
+          const existingRefSnap = await firestoreReferrals
+            .where('publisherTelegramId', '==', String(publisherId))
+            .where('referredTelegramId', '==', String(referredUser.id))
+            .limit(1)
+            .get();
 
-          if (!alreadyReferred) {
-            await Referral.create({
-              publisherTelegramId: publisherId,
-              channelId: publisherChannel ? publisherChannel._id : null,
+          if (existingRefSnap.empty) {
+            await firestoreReferrals.add({
+              publisherTelegramId: String(publisherId),
+              channelId: publisherChannel ? publisherChannel.id : null,
               referredTelegramId: String(referredUser.id),
               referredUsername: referredUser.username ? `@${referredUser.username}` : '',
               sourceRole,
-              commissionEligible: true
+              commissionEligible: true,
+              createdAt: new Date()
             });
 
             if (publisherChannel) {
-              publisherChannel.referralsCount = (publisherChannel.referralsCount || 0) + 1;
-              await publisherChannel.save();
+              await firestoreChannels.doc(publisherChannel.id).update({
+                referralsCount: admin.firestore.FieldValue.increment(1)
+              });
             }
           }
         }
@@ -966,23 +1011,36 @@ app.post('/api/user/language', authMiddleware, asyncHandler(async (req, res) => 
 // ==================== PUBLISH LOGS, NOTIFICATIONS, HEALTH & BACKUPS ====================
 
 app.get('/api/publish-logs', asyncHandler(async (req, res) => {
-  const logs = await PublishLog.find().sort({ createdAt: -1 }).limit(100);
+  const snap = await firestorePublishLogs.get();
+  const logs = sortDocsDesc(snap.docs, 'createdAt')
+    .slice(0, 100)
+    .map((d) => serializeDoc(d));
   res.json({ success: true, data: logs });
 }));
 
 app.get('/api/notifications', asyncHandler(async (req, res) => {
-  const notificationsList = await Notification.find().sort({ createdAt: -1 }).limit(60);
-  const unreadCount = await Notification.countDocuments({ isRead: false });
+  const snap = await firestoreNotifications.get();
+  const sorted = sortDocsDesc(snap.docs, 'createdAt');
+  const notificationsList = sorted.slice(0, 60).map((d) => serializeDoc(d));
+  const unreadCount = sorted.filter((d) => !d.data()?.isRead).length;
   res.json({ success: true, data: notificationsList, unreadCount });
 }));
 
 app.post('/api/notifications/read-all', asyncHandler(async (req, res) => {
-  await Notification.updateMany({ isRead: false }, { $set: { isRead: true } });
+  const snap = await firestoreNotifications.where('isRead', '==', false).get();
+  if (!snap.empty) {
+    const batch = db.batch();
+    snap.docs.forEach((doc) => {
+      batch.update(doc.ref, { isRead: true });
+    });
+    await batch.commit();
+  }
   res.json({ success: true });
 }));
 
 app.get('/api/system/health', asyncHandler(async (req, res) => {
-  const channelsList = mongoose.connection.readyState === 1 ? await Channel.find() : [];
+  const snap = await firestoreChannels.get();
+  const channelsList = snap.docs.map((d) => d.data() || {});
   const activeChannels = channelsList.filter((c) => c.botAdded && c.botPermissionsOk !== false);
   const botConfigured = Boolean(BOT_TOKEN && BOT_TOKEN !== 'your_telegram_bot_token_here');
 
@@ -990,8 +1048,8 @@ app.get('/api/system/health', asyncHandler(async (req, res) => {
     success: true,
     data: {
       serverStatus: 'healthy',
+      database: 'Firebase Cloud Firestore',
       firestoreConnected: Boolean(db),
-      mongoConnected: mongoose.connection.readyState === 1,
       botUsername: `@${BOT_USERNAME}`,
       botConfigured,
       startedAt: SERVER_STARTED_AT,
@@ -1003,26 +1061,23 @@ app.get('/api/system/health', asyncHandler(async (req, res) => {
 }));
 
 app.get('/api/system/backups', asyncHandler(async (req, res) => {
-  const backups = await BackupRecord.find()
-    .select('filename collectionsCount totalRecords status note createdAt')
-    .sort({ createdAt: -1 })
-    .limit(20);
+  const snap = await firestoreBackups.get();
+  const backups = sortDocsDesc(snap.docs, 'createdAt')
+    .slice(0, 20)
+    .map((d) => {
+      const item = serializeDoc(d);
+      const { snapshotData, ...meta } = item;
+      return meta;
+    });
   res.json({ success: true, data: backups });
 }));
 
 app.post('/api/system/backups', asyncHandler(async (req, res) => {
   const record = await runDatabaseBackup('manual');
+  const { snapshotData, ...meta } = record;
   res.status(201).json({
     success: true,
-    data: {
-      _id: record._id,
-      filename: record.filename,
-      collectionsCount: record.collectionsCount,
-      totalRecords: record.totalRecords,
-      status: record.status,
-      note: record.note,
-      createdAt: record.createdAt
-    }
+    data: meta
   });
 }));
 
@@ -1049,40 +1104,75 @@ app.post('/api/referrals/track', asyncHandler(async (req, res) => {
     });
   }
 
-  const channel = await Channel.findOne({ referralCode });
-  const publisherId = channel ? channel.ownerTelegramId || String(channel._id) : referralCode;
+  const chSnap = await firestoreChannels.where('referralCode', '==', String(referralCode)).limit(1).get();
+  const channel = !chSnap.empty ? serializeDoc(chSnap.docs[0]) : null;
+  const publisherId = channel ? channel.ownerTelegramId || channel.id : String(referralCode);
 
-  const existing = await Referral.findOne({
-    publisherTelegramId: publisherId,
-    referredTelegramId: String(referredTelegramId)
-  });
+  const existingSnap = await firestoreReferrals
+    .where('publisherTelegramId', '==', String(publisherId))
+    .where('referredTelegramId', '==', String(referredTelegramId))
+    .limit(1)
+    .get();
 
-  if (existing) {
-    return res.json({ success: true, duplicate: true, data: existing });
+  if (!existingSnap.empty) {
+    return res.json({ success: true, duplicate: true, data: serializeDoc(existingSnap.docs[0]) });
   }
 
-  const created = await Referral.create({
-    publisherTelegramId: publisherId,
-    channelId: channel ? channel._id : null,
+  const refDoc = await firestoreReferrals.add({
+    publisherTelegramId: String(publisherId),
+    channelId: channel ? channel.id : null,
     referredTelegramId: String(referredTelegramId),
     referredUsername: referredUsername ? String(referredUsername).trim() : '',
     sourceRole: 'publisher',
-    commissionEligible: true
+    commissionEligible: true,
+    createdAt: new Date()
   });
 
   if (channel) {
-    channel.referralsCount = (channel.referralsCount || 0) + 1;
-    await channel.save();
+    await firestoreChannels.doc(channel.id).update({
+      referralsCount: admin.firestore.FieldValue.increment(1)
+    });
   }
 
+  const created = serializeDoc(await refDoc.get());
   res.status(201).json({ success: true, duplicate: false, data: created });
 }));
 
 app.get('/api/referrals', asyncHandler(async (req, res) => {
-  const referralsList = await Referral.find({ commissionEligible: true, sourceRole: { $ne: 'advertiser' } })
-    .sort({ createdAt: -1 })
-    .populate('channelId', 'name username referralCode');
-  res.json({ success: true, data: referralsList });
+  const snap = await firestoreReferrals.where('commissionEligible', '==', true).get();
+  const filteredDocs = snap.docs.filter((d) => d.data()?.sourceRole !== 'advertiser');
+  const sorted = sortDocsDesc(filteredDocs, 'createdAt');
+
+  const uniqueChannelIds = [...new Set(
+    sorted.map((d) => d.data()?.channelId).filter(Boolean).map(String)
+  )];
+
+  const channelMap = new Map();
+  if (uniqueChannelIds.length > 0) {
+    const refs = uniqueChannelIds.map((cid) => firestoreChannels.doc(cid));
+    const channelSnaps = await db.getAll(...refs);
+    for (const cSnap of channelSnaps) {
+      if (cSnap.exists) {
+        const cData = cSnap.data() || {};
+        channelMap.set(cSnap.id, {
+          _id: cSnap.id,
+          id: cSnap.id,
+          name: cData.name || cData.title || '',
+          username: cData.username || cData.channelUsername || '',
+          referralCode: cData.referralCode || ''
+        });
+      }
+    }
+  }
+
+  const data = sorted.map((doc) => {
+    const cid = doc.data()?.channelId ? String(doc.data().channelId) : null;
+    return serializeDoc(doc, {
+      channelId: cid && channelMap.has(cid) ? channelMap.get(cid) : cid
+    });
+  });
+
+  res.json({ success: true, data });
 }));
 
 // ==================== MARKETPLACE & CHANNELS ROUTES ====================
@@ -1091,95 +1181,124 @@ app.get('/api/marketplace/channels', asyncHandler(async (req, res) => {
   const { search, language, category, maxPrice, openTargeting, favoritesOnly } = req.query;
   const isOpen = openTargeting === 'true';
 
-  const query = {
-    isPublic: { $ne: false },
-    approvalStatus: 'approved'
-  };
+  const snap = await firestoreChannels.where('approvalStatus', '==', 'approved').get();
+
+  let items = snap.docs
+    .map((d) => serializeDoc(d))
+    .filter((ch) => ch.isPublic !== false);
 
   if (!isOpen) {
     if (language && ALLOWED_LANGUAGES.includes(language)) {
-      query.language = language;
+      items = items.filter((ch) => ch.language === language);
     }
     if (category && ALLOWED_CATEGORIES.includes(category)) {
-      query.category = category;
+      items = items.filter((ch) => ch.category === category);
     }
   }
 
   if (maxPrice !== undefined && maxPrice !== '') {
     const priceNum = Number(maxPrice);
     if (!isNaN(priceNum)) {
-      query.pricePer1000Views = { $lte: priceNum };
+      items = items.filter((ch) => Number(ch.pricePer1000Views ?? ch.price ?? 0) <= priceNum);
     }
   }
 
   if (favoritesOnly === 'true') {
-    query.isFavorite = true;
+    items = items.filter((ch) => Boolean(ch.isFavorite));
   }
 
   if (search && String(search).trim()) {
-    const escaped = String(search).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    query.name = { $regex: escaped, $options: 'i' };
+    const term = String(search).trim().toLowerCase();
+    items = items.filter((ch) => String(ch.name || ch.title || '').toLowerCase().includes(term));
   }
 
-  const channelsList = await Channel.find(query)
-    .select('name photoUrl subscribersCount pricePer1000Views price language category isFavorite approvalStatus')
-    .sort({ isFavorite: -1, subscribersCount: -1 });
+  items.sort((a, b) => {
+    const favDiff = Number(Boolean(b.isFavorite)) - Number(Boolean(a.isFavorite));
+    if (favDiff !== 0) return favDiff;
+    return Number(b.subscribersCount || 0) - Number(a.subscribersCount || 0);
+  });
 
-  res.json({ success: true, data: channelsList });
+  const projected = items.map((ch) => ({
+    _id: ch._id,
+    id: ch.id,
+    name: ch.name || ch.title || '',
+    photoUrl: ch.photoUrl || '',
+    subscribersCount: Number(ch.subscribersCount || 0),
+    pricePer1000Views: Number(ch.pricePer1000Views ?? ch.price ?? 0),
+    price: Number(ch.price ?? ch.pricePer1000Views ?? 0),
+    language: ch.language || '',
+    category: ch.category || '',
+    isFavorite: Boolean(ch.isFavorite),
+    approvalStatus: ch.approvalStatus
+  }));
+
+  res.json({ success: true, data: projected });
 }));
 
 app.post('/api/channels/:id/favorite', asyncHandler(async (req, res) => {
   const { id } = req.params;
-  if (!mongoose.Types.ObjectId.isValid(id)) {
+  if (!isValidDocId(id)) {
     return res.status(400).json({ success: false, message: 'Invalid channel ID' });
   }
 
-  const channel = await Channel.findById(id);
-  if (!channel) {
+  const docRef = firestoreChannels.doc(String(id));
+  const snap = await docRef.get();
+  if (!snap.exists) {
     return res.status(404).json({ success: false, message: 'Channel not found' });
   }
 
-  channel.isFavorite = !channel.isFavorite;
-  await channel.save();
-  res.json({ success: true, data: channel });
+  const nextFav = !Boolean(snap.data()?.isFavorite);
+  await docRef.update({ isFavorite: nextFav, updatedAt: new Date() });
+  const updated = serializeDoc(await docRef.get());
+  res.json({ success: true, data: updated });
 }));
 
 app.post('/api/channels/:id/verify', asyncHandler(async (req, res) => {
   const { id } = req.params;
-  if (!mongoose.Types.ObjectId.isValid(id)) {
+  if (!isValidDocId(id)) {
     return res.status(400).json({ success: false, message: 'Invalid channel ID' });
   }
 
-  const channel = await Channel.findById(id);
-  if (!channel) {
+  const docRef = firestoreChannels.doc(String(id));
+  const snap = await docRef.get();
+  if (!snap.exists) {
     return res.status(404).json({ success: false, message: 'Channel not found' });
   }
 
-  const cleanUsername = channel.username.replace(/^@/, '');
-  if (!cleanUsername || channel.username.includes('+') || channel.username.includes('joinchat')) {
-    channel.isPublic = false;
-    channel.approvalStatus = 'rejected';
-    channel.botAdded = false;
-    channel.botPermissionsOk = false;
-    await channel.save();
+  let channel = serializeDoc(snap);
+  const rawUsername = String(channel.username || channel.channelUsername || '');
+  const cleanUsername = rawUsername.replace(/^@/, '');
+
+  if (!cleanUsername || rawUsername.includes('+') || rawUsername.includes('joinchat')) {
+    const rejUpdates = {
+      isPublic: false,
+      approvalStatus: 'rejected',
+      botAdded: false,
+      botPermissionsOk: false,
+      updatedAt: new Date()
+    };
+    await docRef.update(rejUpdates);
     return res.status(400).json({
       success: false,
       message: 'Private channels are not accepted. Only public channels are allowed.',
-      data: channel
+      data: { ...channel, ...rejUpdates }
     });
   }
 
   const chatInfo = await callTelegramApi('getChat', { chat_id: `@${cleanUsername}` });
   if (chatInfo.type !== 'channel' || !chatInfo.username) {
-    channel.isPublic = false;
-    channel.approvalStatus = 'rejected';
-    channel.botAdded = false;
-    channel.botPermissionsOk = false;
-    await channel.save();
+    const rejUpdates = {
+      isPublic: false,
+      approvalStatus: 'rejected',
+      botAdded: false,
+      botPermissionsOk: false,
+      updatedAt: new Date()
+    };
+    await docRef.update(rejUpdates);
     return res.status(400).json({
       success: false,
       message: 'Only public Telegram channels are accepted.',
-      data: channel
+      data: { ...channel, ...rejUpdates }
     });
   }
 
@@ -1207,17 +1326,21 @@ app.post('/api/channels/:id/verify', asyncHandler(async (req, res) => {
 
   const subscribersCount = await callTelegramApi('getChatMemberCount', { chat_id: chatInfo.id });
 
+  let ownerTelegramId = channel.ownerTelegramId || '';
+  let ownerUsername = channel.ownerUsername || '';
+  let ownerName = channel.ownerName || '';
+
   try {
     const admins = await callTelegramApi('getChatAdministrators', { chat_id: chatInfo.id });
     const promoter = admins.find(
       (adminMember) => adminMember.promoted_by && adminMember.user && adminMember.user.username === BOT_USERNAME
     );
-    if (promoter && promoter.promoted_by && !channel.ownerTelegramId) {
-      channel.ownerTelegramId = String(promoter.promoted_by.id);
-      channel.ownerUsername = promoter.promoted_by.username
+    if (promoter && promoter.promoted_by && !ownerTelegramId) {
+      ownerTelegramId = String(promoter.promoted_by.id);
+      ownerUsername = promoter.promoted_by.username
         ? `@${promoter.promoted_by.username}`
         : '';
-      channel.ownerName = [promoter.promoted_by.first_name, promoter.promoted_by.last_name]
+      ownerName = [promoter.promoted_by.first_name, promoter.promoted_by.last_name]
         .filter(Boolean)
         .join(' ');
     }
@@ -1225,23 +1348,30 @@ app.post('/api/channels/:id/verify', asyncHandler(async (req, res) => {
     // Ignore if unable to read administrators list
   }
 
-  channel.chatId = String(chatInfo.id);
-  channel.isPublic = true;
-  channel.name = chatInfo.title || channel.name;
-  channel.username = `@${chatInfo.username}`;
-  channel.subscribersCount = Number(subscribersCount) || 0;
-  channel.botAdded = true;
-  channel.botPermissionsOk = true;
-  channel.lastPermissionCheckAt = new Date();
-  const smartPrice = computeSmartPrice(channel.subscribersCount, channel.price);
-  channel.price = smartPrice;
-  channel.pricePer1000Views = smartPrice;
-  channel.approvalStatus = evaluateApprovalBySubscribers(channel.subscribersCount);
-  if (!channel.referralCode) {
-    channel.referralCode = generateReferralCode();
-  }
-  channel.lastSyncedAt = new Date();
-  await channel.save();
+  const subNum = Number(subscribersCount) || 0;
+  const smartPrice = computeSmartPrice(subNum, channel.price);
+  const updates = {
+    chatId: String(chatInfo.id),
+    isPublic: true,
+    name: chatInfo.title || channel.name,
+    username: `@${chatInfo.username}`,
+    subscribersCount: subNum,
+    botAdded: true,
+    botPermissionsOk: true,
+    lastPermissionCheckAt: new Date(),
+    ownerTelegramId,
+    ownerUsername,
+    ownerName,
+    price: smartPrice,
+    pricePer1000Views: smartPrice,
+    approvalStatus: evaluateApprovalBySubscribers(subNum),
+    referralCode: channel.referralCode || generateReferralCode(),
+    lastSyncedAt: new Date(),
+    updatedAt: new Date()
+  };
+
+  await docRef.update(updates);
+  channel = serializeDoc(await docRef.get());
 
   let introSentNow = false;
   if (channel.approvalStatus === 'approved' && !channel.introPostSent) {
@@ -1266,7 +1396,7 @@ app.post('/api/channels/:id/review', asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { decision } = req.body;
 
-  if (!mongoose.Types.ObjectId.isValid(id)) {
+  if (!isValidDocId(id)) {
     return res.status(400).json({ success: false, message: 'Invalid channel ID' });
   }
 
@@ -1274,17 +1404,19 @@ app.post('/api/channels/:id/review', asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: 'Decision must be approved or rejected' });
   }
 
-  const channel = await Channel.findById(id);
-  if (!channel) {
+  const docRef = firestoreChannels.doc(String(id));
+  const snap = await docRef.get();
+  if (!snap.exists) {
     return res.status(404).json({ success: false, message: 'Channel not found' });
   }
 
-  if (!channel.isPublic) {
+  let channel = serializeDoc(snap);
+  if (channel.isPublic === false) {
     return res.status(400).json({ success: false, message: 'Private channels cannot be approved' });
   }
 
-  channel.approvalStatus = decision;
-  await channel.save();
+  await docRef.update({ approvalStatus: decision, updatedAt: new Date() });
+  channel = serializeDoc(await docRef.get());
 
   let introSentNow = false;
   if (decision === 'approved' && channel.botAdded && !channel.introPostSent) {
@@ -1307,16 +1439,17 @@ app.post('/api/channels/:id/review', asyncHandler(async (req, res) => {
 
 app.post('/api/channels/:id/sync', asyncHandler(async (req, res) => {
   const { id } = req.params;
-  if (!mongoose.Types.ObjectId.isValid(id)) {
+  if (!isValidDocId(id)) {
     return res.status(400).json({ success: false, message: 'Invalid channel ID' });
   }
 
-  const channel = await Channel.findById(id);
-  if (!channel) {
+  const docRef = firestoreChannels.doc(String(id));
+  const snap = await docRef.get();
+  if (!snap.exists) {
     return res.status(404).json({ success: false, message: 'Channel not found' });
   }
 
-  const updated = await syncSingleChannel(channel);
+  const updated = await syncSingleChannel(serializeDoc(snap));
   res.json({ success: true, data: updated });
 }));
 
@@ -1340,7 +1473,8 @@ app.get('/api/channels', asyncHandler(async (req, res, next) => {
     });
   }
 
-  const channelsList = await Channel.find().sort({ createdAt: -1 });
+  const snap = await firestoreChannels.get();
+  const channelsList = sortDocsDesc(snap.docs, 'createdAt').map((doc) => serializeDoc(doc));
   res.json({ success: true, data: channelsList });
 }));
 
@@ -1365,6 +1499,7 @@ app.post('/api/channels', asyncHandler(async (req, res) => {
       }
 
       const newChannelRef = firestoreChannels.doc();
+      const now = new Date();
       await newChannelRef.set({
         ownerId: req.user.telegramId,
         channelUsername: cleanUsername,
@@ -1374,7 +1509,8 @@ app.post('/api/channels', asyncHandler(async (req, res) => {
         pricePerPost: numericPrice,
         status: 'pending',
         totalEarnings: 0,
-        createdAt: new Date()
+        createdAt: now,
+        updatedAt: now
       });
 
       const createdSnap = await newChannelRef.get();
@@ -1425,8 +1561,9 @@ app.post('/api/channels', asyncHandler(async (req, res) => {
   }
 
   const formattedUsername = rawUsername.startsWith('@') ? rawUsername : `@${rawUsername}`;
+  const now = new Date();
 
-  const channel = await Channel.create({
+  const docRef = await firestoreChannels.add({
     name: String(name).trim(),
     username: formattedUsername,
     photoUrl: photoUrl ? String(photoUrl).trim() : '',
@@ -1438,16 +1575,22 @@ app.post('/api/channels', asyncHandler(async (req, res) => {
     ownerName: ownerName ? String(ownerName).trim() : '',
     approvalStatus: 'pending_review',
     referralCode: generateReferralCode(),
+    referralsCount: 0,
+    introPostSent: false,
     language,
     category,
     price: chosenPrice,
     botAdded: Boolean(botAdded),
     botPermissionsOk: Boolean(botAdded),
-    lastPermissionCheckAt: new Date(),
-    lastSyncedAt: new Date()
+    lastPermissionCheckAt: now,
+    lastSyncedAt: now,
+    createdAt: now,
+    updatedAt: now
   });
 
-  const syncedChannel = await syncSingleChannel(channel);
+  const createdChannel = serializeDoc(await docRef.get());
+  const syncedChannel = await syncSingleChannel(createdChannel);
+
   await createNotification(
     'admin',
     'channel',
@@ -1474,11 +1617,17 @@ app.put('/api/channels/:id', asyncHandler(async (req, res) => {
     ownerUsername
   } = req.body;
 
-  if (!mongoose.Types.ObjectId.isValid(id)) {
+  if (!isValidDocId(id)) {
     return res.status(400).json({ success: false, message: 'Invalid channel ID' });
   }
 
-  const updateData = {};
+  const docRef = firestoreChannels.doc(String(id));
+  const snap = await docRef.get();
+  if (!snap.exists) {
+    return res.status(404).json({ success: false, message: 'Channel not found' });
+  }
+
+  const updateData = { updatedAt: new Date(), lastSyncedAt: new Date() };
   if (name !== undefined) updateData.name = String(name).trim();
   if (photoUrl !== undefined) updateData.photoUrl = String(photoUrl).trim();
   if (username !== undefined) {
@@ -1529,16 +1678,9 @@ app.put('/api/channels/:id', asyncHandler(async (req, res) => {
   if (ownerUsername !== undefined) {
     updateData.ownerUsername = String(ownerUsername).trim();
   }
-  updateData.lastSyncedAt = new Date();
 
-  const updatedChannel = await Channel.findByIdAndUpdate(id, updateData, {
-    new: true,
-    runValidators: true
-  });
-
-  if (!updatedChannel) {
-    return res.status(404).json({ success: false, message: 'Channel not found' });
-  }
+  await docRef.update(updateData);
+  const updatedChannel = serializeDoc(await docRef.get());
 
   if (
     updatedChannel.approvalStatus === 'approved' &&
@@ -1557,13 +1699,15 @@ app.put('/api/channels/:id', asyncHandler(async (req, res) => {
 
 app.delete('/api/channels/:id', asyncHandler(async (req, res) => {
   const { id } = req.params;
-  if (!mongoose.Types.ObjectId.isValid(id)) {
+  if (!isValidDocId(id)) {
     return res.status(400).json({ success: false, message: 'Invalid channel ID' });
   }
-  const deleted = await Channel.findByIdAndDelete(id);
-  if (!deleted) {
+  const docRef = firestoreChannels.doc(String(id));
+  const snap = await docRef.get();
+  if (!snap.exists) {
     return res.status(404).json({ success: false, message: 'Channel not found' });
   }
+  await docRef.delete();
   res.json({ success: true, message: 'Channel deleted' });
 }));
 
@@ -1573,7 +1717,7 @@ app.post('/api/campaigns/:id/track-views', asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { viewsDelta, channelId, eventId } = req.body;
 
-  if (!mongoose.Types.ObjectId.isValid(id)) {
+  if (!isValidDocId(id)) {
     return res.status(400).json({ success: false, message: 'Invalid campaign ID' });
   }
 
@@ -1584,9 +1728,9 @@ app.post('/api/campaigns/:id/track-views', asyncHandler(async (req, res) => {
 
   const txKey = eventId ? `view_${String(eventId).trim()}` : null;
   if (txKey) {
-    const alreadyCharged = await Transaction.findOne({ idempotencyKey: txKey });
-    if (alreadyCharged) {
-      const currentCampaign = await Campaign.findById(id);
+    const dupSnap = await firestoreTransactions.where('idempotencyKey', '==', `${txKey}_adv`).limit(1).get();
+    if (!dupSnap.empty) {
+      const currentCampaign = serializeDoc(await firestoreCampaigns.doc(String(id)).get());
       const currentWallet = await getOrCreateWallet();
       return res.json({
         success: true,
@@ -1601,11 +1745,13 @@ app.post('/api/campaigns/:id/track-views', asyncHandler(async (req, res) => {
     }
   }
 
-  const campaign = await Campaign.findById(id);
-  if (!campaign) {
+  const campRef = firestoreCampaigns.doc(String(id));
+  const campSnap = await campRef.get();
+  if (!campSnap.exists) {
     return res.status(404).json({ success: false, message: 'Campaign not found' });
   }
 
+  const campaign = serializeDoc(campSnap);
   if (campaign.status !== 'active') {
     return res.status(400).json({
       success: false,
@@ -1615,79 +1761,98 @@ app.post('/api/campaigns/:id/track-views', asyncHandler(async (req, res) => {
 
   const wallet = await getOrCreateWallet();
   const cpm = Number(campaign.maxPricePerPost) || 1;
-  const remainingBudget = Math.max(0, Number((campaign.budget - campaign.spentAmount).toFixed(4)));
+  const budgetVal = Number(campaign.budget || 0);
+  const spentVal = Number(campaign.spentAmount || 0);
+  const remainingBudget = Math.max(0, Number((budgetVal - spentVal).toFixed(4)));
   const maxAffordableByBudget = Math.floor((remainingBudget / cpm) * 1000);
-  const maxAffordableByWallet = Math.floor((wallet.advertiserBalance / cpm) * 1000);
+  const maxAffordableByWallet = Math.floor((Number(wallet.advertiserBalance || 0) / cpm) * 1000);
   const billableViews = Math.max(0, Math.min(delta, maxAffordableByBudget, maxAffordableByWallet));
 
   if (billableViews <= 0) {
-    campaign.status = 'paused';
-    await campaign.save();
+    await campRef.update({ status: 'paused', updatedAt: new Date() });
     await createNotification(
       'advertiser',
       'campaign',
       'Campaign Paused',
       `Campaign "${campaign.title}" was paused due to exhausted budget or wallet balance.`
     );
+    const pausedCamp = serializeDoc(await campRef.get());
     return res.status(400).json({
       success: false,
       message: 'Insufficient campaign budget or advertiser balance; campaign paused',
-      data: campaign
+      data: pausedCamp
     });
   }
 
   const chargeAmount = Number(((billableViews / 1000) * cpm).toFixed(4));
+  const nextAdvBal = Number(Math.max(0, Number(wallet.advertiserBalance || 0) - chargeAmount).toFixed(4));
+  const nextPubBal = Number((Number(wallet.publisherBalance || 0) + chargeAmount).toFixed(4));
 
-  wallet.advertiserBalance = Number(Math.max(0, wallet.advertiserBalance - chargeAmount).toFixed(4));
-  wallet.publisherBalance = Number((wallet.publisherBalance + chargeAmount).toFixed(4));
-  await wallet.save();
+  await firestoreWallets.doc(DEFAULT_WALLET_KEY).update({
+    advertiserBalance: nextAdvBal,
+    publisherBalance: nextPubBal,
+    updatedAt: new Date()
+  });
 
-  campaign.totalViews = (campaign.totalViews || 0) + billableViews;
-  campaign.spentAmount = Number((campaign.spentAmount + chargeAmount).toFixed(4));
+  const nextTotalViews = Number(campaign.totalViews || 0) + billableViews;
+  const nextSpentAmount = Number((spentVal + chargeAmount).toFixed(4));
+  const pubChannels = Array.isArray(campaign.publishedChannels) ? [...campaign.publishedChannels] : [];
 
-  if (campaign.publishedChannels && campaign.publishedChannels.length > 0) {
+  if (pubChannels.length > 0) {
     const targetIdx = channelId
-      ? campaign.publishedChannels.findIndex((p) => String(p.channelId) === String(channelId))
+      ? pubChannels.findIndex((p) => String(p.channelId) === String(channelId))
       : 0;
     const idx = targetIdx >= 0 ? targetIdx : 0;
-    campaign.publishedChannels[idx].views = (campaign.publishedChannels[idx].views || 0) + billableViews;
-    campaign.publishedChannels[idx].earnings = Number(
-      ((campaign.publishedChannels[idx].earnings || 0) + chargeAmount).toFixed(4)
-    );
+    pubChannels[idx] = {
+      ...pubChannels[idx],
+      views: Number(pubChannels[idx].views || 0) + billableViews,
+      earnings: Number((Number(pubChannels[idx].earnings || 0) + chargeAmount).toFixed(4))
+    };
   }
 
-  if (campaign.spentAmount >= campaign.budget || wallet.advertiserBalance <= 0) {
-    campaign.status = 'paused';
-  }
-  await campaign.save();
+  const nextStatus = nextSpentAmount >= budgetVal || nextAdvBal <= 0 ? 'paused' : campaign.status;
 
-  await Transaction.create({
-    idempotencyKey: txKey ? `${txKey}_adv` : undefined,
+  await campRef.update({
+    totalViews: nextTotalViews,
+    spentAmount: nextSpentAmount,
+    publishedChannels: pubChannels,
+    status: nextStatus,
+    updatedAt: new Date()
+  });
+
+  const now = new Date();
+  await firestoreTransactions.add({
+    idempotencyKey: txKey ? `${txKey}_adv` : null,
     walletRole: 'advertiser',
     type: 'ad_spend',
     amount: chargeAmount,
-    campaignId: campaign._id,
-    channelId: channelId && mongoose.Types.ObjectId.isValid(channelId) ? channelId : null,
-    note: `Live views (${billableViews}) on ${campaign.title}`
+    campaignId: campaign.id,
+    channelId: channelId && isValidDocId(String(channelId)) ? String(channelId) : null,
+    note: `Live views (${billableViews}) on ${campaign.title}`,
+    createdAt: now
   });
 
-  await Transaction.create({
-    idempotencyKey: txKey ? `${txKey}_pub` : undefined,
+  await firestoreTransactions.add({
+    idempotencyKey: txKey ? `${txKey}_pub` : null,
     walletRole: 'publisher',
     type: 'ad_earning',
     amount: chargeAmount,
-    campaignId: campaign._id,
-    channelId: channelId && mongoose.Types.ObjectId.isValid(channelId) ? channelId : null,
-    note: `Publisher earning from ${billableViews} views on ${campaign.title}`
+    campaignId: campaign.id,
+    channelId: channelId && isValidDocId(String(channelId)) ? String(channelId) : null,
+    note: `Publisher earning from ${billableViews} views on ${campaign.title}`,
+    createdAt: now
   });
+
+  const updatedCampaign = serializeDoc(await campRef.get());
+  const updatedWallet = await getOrCreateWallet();
 
   res.json({
     success: true,
     data: {
       billableViews,
       chargeAmount,
-      campaign,
-      wallet
+      campaign: updatedCampaign,
+      wallet: updatedWallet
     }
   });
 }));
@@ -1696,7 +1861,7 @@ app.post('/api/campaigns/:id/topup', asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { amount } = req.body;
 
-  if (!mongoose.Types.ObjectId.isValid(id)) {
+  if (!isValidDocId(id)) {
     return res.status(400).json({ success: false, message: 'Invalid campaign ID' });
   }
 
@@ -1705,25 +1870,28 @@ app.post('/api/campaigns/:id/topup', asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: 'Invalid top-up amount' });
   }
 
-  const campaign = await Campaign.findById(id);
-  if (!campaign) {
+  const campRef = firestoreCampaigns.doc(String(id));
+  const campSnap = await campRef.get();
+  if (!campSnap.exists) {
     return res.status(404).json({ success: false, message: 'Campaign not found' });
   }
 
+  const campaign = serializeDoc(campSnap);
   const wallet = await getOrCreateWallet();
-  if (wallet.advertiserBalance < addAmount) {
+  if (Number(wallet.advertiserBalance || 0) < addAmount) {
     return res.status(400).json({ success: false, message: 'Insufficient advertiser wallet balance' });
   }
 
-  campaign.budget = Number((campaign.budget + addAmount).toFixed(4));
-  await campaign.save();
+  const nextBudget = Number((Number(campaign.budget || 0) + addAmount).toFixed(4));
+  await campRef.update({ budget: nextBudget, updatedAt: new Date() });
 
-  await Transaction.create({
+  await firestoreTransactions.add({
     walletRole: 'advertiser',
     type: 'budget_topup',
     amount: addAmount,
-    campaignId: campaign._id,
-    note: `Budget top-up for ${campaign.title}`
+    campaignId: campaign.id,
+    note: `Budget top-up for ${campaign.title}`,
+    createdAt: new Date()
   });
 
   await createNotification(
@@ -1733,50 +1901,52 @@ app.post('/api/campaigns/:id/topup', asyncHandler(async (req, res) => {
     `Added ${addAmount.toFixed(2)}$ to campaign "${campaign.title}".`
   );
 
-  res.json({ success: true, data: { campaign, wallet } });
+  const updatedCampaign = serializeDoc(await campRef.get());
+  res.json({ success: true, data: { campaign: updatedCampaign, wallet } });
 }));
 
 app.post('/api/campaigns/:id/lifecycle', asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { action } = req.body;
 
-  if (!mongoose.Types.ObjectId.isValid(id)) {
+  if (!isValidDocId(id)) {
     return res.status(400).json({ success: false, message: 'Invalid campaign ID' });
   }
 
-  const campaign = await Campaign.findById(id);
-  if (!campaign) {
+  const campRef = firestoreCampaigns.doc(String(id));
+  const campSnap = await campRef.get();
+  if (!campSnap.exists) {
     return res.status(404).json({ success: false, message: 'Campaign not found' });
   }
 
+  const campaign = serializeDoc(campSnap);
+
   if (action === 'pause') {
-    campaign.status = 'paused';
-    await campaign.save();
+    await campRef.update({ status: 'paused', updatedAt: new Date() });
     await createNotification('advertiser', 'campaign', 'Campaign Paused', `Campaign "${campaign.title}" is now paused.`);
-    return res.json({ success: true, data: campaign });
+    return res.json({ success: true, data: serializeDoc(await campRef.get()) });
   }
 
   if (action === 'complete') {
-    campaign.status = 'completed';
-    await campaign.save();
+    await campRef.update({ status: 'completed', updatedAt: new Date() });
     await createNotification('advertiser', 'campaign', 'Campaign Completed', `Campaign "${campaign.title}" is marked completed.`);
-    return res.json({ success: true, data: campaign });
+    return res.json({ success: true, data: serializeDoc(await campRef.get()) });
   }
 
   if (action === 'resume') {
     const wallet = await getOrCreateWallet();
-    if (campaign.budget <= campaign.spentAmount || wallet.advertiserBalance <= 0) {
+    if (Number(campaign.budget || 0) <= Number(campaign.spentAmount || 0) || Number(wallet.advertiserBalance || 0) <= 0) {
       return res.status(400).json({
         success: false,
         message: 'Top up campaign budget and advertiser balance before resuming'
       });
     }
 
-    const channelsList = await Channel.find({
-      _id: { $in: campaign.selectedChannelIds || [] },
-      isPublic: { $ne: false },
-      approvalStatus: 'approved'
-    });
+    const allChannelsSnap = await firestoreChannels.get();
+    const selectedSet = new Set((campaign.selectedChannelIds || []).map(String));
+    const channelsList = allChannelsSnap.docs
+      .map((d) => serializeDoc(d))
+      .filter((ch) => selectedSet.has(ch.id) && ch.isPublic !== false && ch.approvalStatus === 'approved');
 
     const existingMap = new Map();
     (campaign.publishedChannels || []).forEach((p) => {
@@ -1786,7 +1956,7 @@ app.post('/api/campaigns/:id/lifecycle', asyncHandler(async (req, res) => {
     const logs = [];
     for (const ch of channelsList) {
       try {
-        const prev = existingMap.get(String(ch._id)) || null;
+        const prev = existingMap.get(String(ch.id)) || null;
         const result = await dispatchCampaignToChannel(campaign, ch, prev, { forceRepublish: true });
         if (result && result.entry) {
           logs.push(result.entry);
@@ -1796,11 +1966,13 @@ app.post('/api/campaigns/:id/lifecycle', asyncHandler(async (req, res) => {
       }
     }
 
-    campaign.publishedChannels = logs;
-    campaign.status = 'active';
-    await campaign.save();
+    await campRef.update({
+      publishedChannels: logs,
+      status: 'active',
+      updatedAt: new Date()
+    });
     await createNotification('advertiser', 'campaign', 'Campaign Resumed', `Campaign "${campaign.title}" resumed publishing.`);
-    return res.json({ success: true, data: campaign });
+    return res.json({ success: true, data: serializeDoc(await campRef.get()) });
   }
 
   return res.status(400).json({ success: false, message: 'Invalid lifecycle action' });
@@ -1830,9 +2002,9 @@ app.get('/api/campaigns', asyncHandler(async (req, res) => {
             channelMap.set(cSnap.id, {
               _id: cSnap.id,
               id: cSnap.id,
-              title: cData.title || '',
-              channelUsername: cData.channelUsername || '',
-              pricePerPost: Number(cData.pricePerPost ?? 0)
+              title: cData.title || cData.name || '',
+              channelUsername: cData.channelUsername || cData.username || '',
+              pricePerPost: Number(cData.pricePerPost ?? cData.price ?? 0)
             });
           }
         }
@@ -1851,7 +2023,8 @@ app.get('/api/campaigns', asyncHandler(async (req, res) => {
     });
   }
 
-  const campaignsList = await Campaign.find().sort({ updatedAt: -1 });
+  const snap = await firestoreCampaigns.get();
+  const campaignsList = sortDocsDesc(snap.docs, 'updatedAt').map((doc) => serializeDoc(doc));
   res.json({ success: true, data: campaignsList });
 }));
 
@@ -1906,7 +2079,8 @@ app.post('/api/campaigns', asyncHandler(async (req, res) => {
           targetUrl: String(targetUrl).trim(),
           budget: cost,
           status: 'pending',
-          createdAt: now
+          createdAt: now,
+          updatedAt: now
         });
 
         t.set(newTxRef, {
@@ -1977,10 +2151,11 @@ app.post('/api/campaigns', asyncHandler(async (req, res) => {
   }
 
   const validIds = Array.isArray(selectedChannelIds)
-    ? selectedChannelIds.filter((cid) => mongoose.Types.ObjectId.isValid(cid))
+    ? selectedChannelIds.filter((cid) => isValidDocId(String(cid))).map(String)
     : [];
 
-  const campaign = await Campaign.create({
+  const now = new Date();
+  const campRef = await firestoreCampaigns.add({
     title: String(title).trim(),
     adText: adText ? String(adText).trim() : '',
     mediaType: ['photo', 'video'].includes(mediaType) ? mediaType : 'none',
@@ -2002,15 +2177,19 @@ app.post('/api/campaigns', asyncHandler(async (req, res) => {
     scheduledAt: finalStatus === 'scheduled' ? computeNextPeakSlot() : null,
     selectedChannelIds: validIds,
     publishedChannels: [],
-    status: finalStatus
+    status: finalStatus,
+    createdAt: now,
+    updatedAt: now
   });
 
+  let campaign = serializeDoc(await campRef.get());
+
   if (finalStatus === 'active') {
-    const channelsList = await Channel.find({
-      _id: { $in: validIds },
-      isPublic: { $ne: false },
-      approvalStatus: 'approved'
-    });
+    const allChannelsSnap = await firestoreChannels.get();
+    const idSet = new Set(validIds);
+    const channelsList = allChannelsSnap.docs
+      .map((d) => serializeDoc(d))
+      .filter((ch) => idSet.has(ch.id) && ch.isPublic !== false && ch.approvalStatus === 'approved');
 
     const logs = [];
     for (const ch of channelsList) {
@@ -2023,8 +2202,8 @@ app.post('/api/campaigns', asyncHandler(async (req, res) => {
         console.error('Immediate dispatch failed:', err.message);
       }
     }
-    campaign.publishedChannels = logs;
-    await campaign.save();
+    await campRef.update({ publishedChannels: logs, updatedAt: new Date() });
+    campaign = serializeDoc(await campRef.get());
   }
 
   await createNotification(
@@ -2057,35 +2236,39 @@ app.put('/api/campaigns/:id', asyncHandler(async (req, res) => {
     status
   } = req.body;
 
-  if (!mongoose.Types.ObjectId.isValid(id)) {
+  if (!isValidDocId(id)) {
     return res.status(400).json({ success: false, message: 'Invalid campaign ID' });
   }
 
-  const campaign = await Campaign.findById(id);
-  if (!campaign) {
+  const campRef = firestoreCampaigns.doc(String(id));
+  const campSnap = await campRef.get();
+  if (!campSnap.exists) {
     return res.status(404).json({ success: false, message: 'Campaign not found' });
   }
 
-  if (title !== undefined) campaign.title = String(title).trim();
-  if (adText !== undefined) campaign.adText = String(adText).trim();
+  let campaign = serializeDoc(campSnap);
+  const updates = { updatedAt: new Date() };
+
+  if (title !== undefined) updates.title = String(title).trim();
+  if (adText !== undefined) updates.adText = String(adText).trim();
   if (mediaType !== undefined) {
-    campaign.mediaType = ['photo', 'video'].includes(mediaType) ? mediaType : 'none';
+    updates.mediaType = ['photo', 'video'].includes(mediaType) ? mediaType : 'none';
   }
-  if (mediaData !== undefined) campaign.mediaData = String(mediaData);
-  if (mediaName !== undefined) campaign.mediaName = String(mediaName).trim();
-  if (targetUrl !== undefined) campaign.targetUrl = String(targetUrl).trim();
+  if (mediaData !== undefined) updates.mediaData = String(mediaData);
+  if (mediaName !== undefined) updates.mediaName = String(mediaName).trim();
+  if (targetUrl !== undefined) updates.targetUrl = String(targetUrl).trim();
   if (buttonPreset !== undefined) {
-    campaign.buttonPreset = ['Open', 'View Offer', 'Join Channel', 'Custom'].includes(buttonPreset)
+    updates.buttonPreset = ['Open', 'View Offer', 'Join Channel', 'Custom'].includes(buttonPreset)
       ? buttonPreset
       : 'Open';
   }
-  if (customButtonText !== undefined) campaign.customButtonText = String(customButtonText).trim();
+  if (customButtonText !== undefined) updates.customButtonText = String(customButtonText).trim();
 
   if (budget !== undefined) {
     const bNum = Number(budget);
     if (!isNaN(bNum) && bNum >= 1) {
-      campaign.budget = bNum;
-      campaign.openTargeting = bNum > 1000;
+      updates.budget = bNum;
+      updates.openTargeting = bNum > 1000;
     }
   }
 
@@ -2093,14 +2276,14 @@ app.put('/api/campaigns/:id', asyncHandler(async (req, res) => {
     if (!ALLOWED_LANGUAGES.includes(targetLanguage)) {
       return res.status(400).json({ success: false, message: 'Invalid language' });
     }
-    campaign.targetLanguage = targetLanguage;
+    updates.targetLanguage = targetLanguage;
   }
 
   if (targetCategory !== undefined) {
     if (!ALLOWED_CATEGORIES.includes(targetCategory)) {
       return res.status(400).json({ success: false, message: 'Invalid category' });
     }
-    campaign.targetCategory = targetCategory;
+    updates.targetCategory = targetCategory;
   }
 
   if (maxPricePerPost !== undefined) {
@@ -2108,31 +2291,34 @@ app.put('/api/campaigns/:id', asyncHandler(async (req, res) => {
     if (isNaN(numericPrice) || numericPrice < 1 || numericPrice > 3) {
       return res.status(400).json({ success: false, message: 'Price must be between 1$ and 3$' });
     }
-    campaign.maxPricePerPost = numericPrice;
+    updates.maxPricePerPost = numericPrice;
   }
 
   if (scheduleMode !== undefined) {
-    campaign.scheduleMode = scheduleMode === 'peak' ? 'peak' : 'immediate';
+    updates.scheduleMode = scheduleMode === 'peak' ? 'peak' : 'immediate';
   }
 
   if (Array.isArray(selectedChannelIds)) {
-    campaign.selectedChannelIds = selectedChannelIds.filter((cid) =>
-      mongoose.Types.ObjectId.isValid(cid)
-    );
+    updates.selectedChannelIds = selectedChannelIds.filter((cid) => isValidDocId(String(cid))).map(String);
   }
+
+  const nextScheduleMode = updates.scheduleMode || campaign.scheduleMode;
+  const nextSelectedIds = updates.selectedChannelIds || campaign.selectedChannelIds || [];
 
   if (status !== undefined) {
     if (status === 'active') {
-      if (campaign.scheduleMode === 'peak') {
-        campaign.status = 'scheduled';
-        campaign.scheduledAt = computeNextPeakSlot();
+      if (nextScheduleMode === 'peak') {
+        updates.status = 'scheduled';
+        updates.scheduledAt = computeNextPeakSlot();
       } else {
-        campaign.status = 'active';
-        const channelsList = await Channel.find({
-          _id: { $in: campaign.selectedChannelIds || [] },
-          isPublic: { $ne: false },
-          approvalStatus: 'approved'
-        });
+        updates.status = 'active';
+        const mergedCamp = { ...campaign, ...updates };
+        const allChannelsSnap = await firestoreChannels.get();
+        const idSet = new Set(nextSelectedIds.map(String));
+        const channelsList = allChannelsSnap.docs
+          .map((d) => serializeDoc(d))
+          .filter((ch) => idSet.has(ch.id) && ch.isPublic !== false && ch.approvalStatus === 'approved');
+
         const existingMap = new Map();
         (campaign.publishedChannels || []).forEach((p) => {
           existingMap.set(String(p.channelId), p);
@@ -2140,8 +2326,8 @@ app.put('/api/campaigns/:id', asyncHandler(async (req, res) => {
         const logs = [];
         for (const ch of channelsList) {
           try {
-            const prev = existingMap.get(String(ch._id)) || null;
-            const result = await dispatchCampaignToChannel(campaign, ch, prev);
+            const prev = existingMap.get(String(ch.id)) || null;
+            const result = await dispatchCampaignToChannel(mergedCamp, ch, prev);
             if (result && result.entry) {
               logs.push(result.entry);
             }
@@ -2149,29 +2335,32 @@ app.put('/api/campaigns/:id', asyncHandler(async (req, res) => {
             console.error('Publish update dispatch error:', err.message);
           }
         }
-        campaign.publishedChannels = logs;
+        updates.publishedChannels = logs;
       }
     } else if (status === 'scheduled') {
-      campaign.status = 'scheduled';
-      campaign.scheduledAt = computeNextPeakSlot();
+      updates.status = 'scheduled';
+      updates.scheduledAt = computeNextPeakSlot();
     } else if (['paused', 'completed', 'draft'].includes(status)) {
-      campaign.status = status;
+      updates.status = status;
     }
   }
 
-  await campaign.save();
+  await campRef.update(updates);
+  campaign = serializeDoc(await campRef.get());
   res.json({ success: true, data: campaign });
 }));
 
 app.delete('/api/campaigns/:id', asyncHandler(async (req, res) => {
   const { id } = req.params;
-  if (!mongoose.Types.ObjectId.isValid(id)) {
+  if (!isValidDocId(id)) {
     return res.status(400).json({ success: false, message: 'Invalid campaign ID' });
   }
-  const deleted = await Campaign.findByIdAndDelete(id);
-  if (!deleted) {
+  const campRef = firestoreCampaigns.doc(String(id));
+  const snap = await campRef.get();
+  if (!snap.exists) {
     return res.status(404).json({ success: false, message: 'Campaign not found' });
   }
+  await campRef.delete();
   res.json({ success: true, message: 'Campaign deleted' });
 }));
 
@@ -2179,12 +2368,16 @@ app.delete('/api/campaigns/:id', asyncHandler(async (req, res) => {
 
 app.get('/api/wallet', asyncHandler(async (req, res) => {
   const wallet = await getOrCreateWallet();
-  const transactionsList = await Transaction.find().sort({ createdAt: -1 }).limit(50);
+  const txSnap = await firestoreTransactions.get();
+  const transactionsList = sortDocsDesc(txSnap.docs, 'createdAt')
+    .slice(0, 50)
+    .map((d) => serializeDoc(d));
+
   res.json({
     success: true,
     data: {
-      advertiserBalance: Number(wallet.advertiserBalance.toFixed(4)),
-      publisherBalance: Number(wallet.publisherBalance.toFixed(4)),
+      advertiserBalance: Number(Number(wallet.advertiserBalance || 0).toFixed(4)),
+      publisherBalance: Number(Number(wallet.publisherBalance || 0).toFixed(4)),
       transactions: transactionsList
     }
   });
@@ -2224,31 +2417,43 @@ app.post('/api/wallet/deposit', asyncHandler(async (req, res) => {
   }
 
   if (idempotencyKey) {
-    const existingTx = await Transaction.findOne({ idempotencyKey: String(idempotencyKey).trim() });
-    if (existingTx) {
+    const existingSnap = await firestoreTransactions
+      .where('idempotencyKey', '==', String(idempotencyKey).trim())
+      .limit(1)
+      .get();
+    if (!existingSnap.empty) {
       const walletNow = await getOrCreateWallet();
       return res.json({
         success: true,
         duplicatePrevented: true,
-        data: { wallet: walletNow, transaction: existingTx }
+        data: { wallet: walletNow, transaction: serializeDoc(existingSnap.docs[0]) }
       });
     }
   }
 
   const wallet = await getOrCreateWallet();
-  if (role === 'advertiser') {
-    wallet.advertiserBalance = Number((wallet.advertiserBalance + numericAmount).toFixed(4));
-  } else {
-    wallet.publisherBalance = Number((wallet.publisherBalance + numericAmount).toFixed(4));
-  }
-  await wallet.save();
+  const nextAdv =
+    role === 'advertiser'
+      ? Number((Number(wallet.advertiserBalance || 0) + numericAmount).toFixed(4))
+      : Number(wallet.advertiserBalance || 0);
+  const nextPub =
+    role === 'publisher'
+      ? Number((Number(wallet.publisherBalance || 0) + numericAmount).toFixed(4))
+      : Number(wallet.publisherBalance || 0);
 
-  const tx = await Transaction.create({
-    idempotencyKey: idempotencyKey ? String(idempotencyKey).trim() : undefined,
+  await firestoreWallets.doc(DEFAULT_WALLET_KEY).update({
+    advertiserBalance: nextAdv,
+    publisherBalance: nextPub,
+    updatedAt: new Date()
+  });
+
+  const txRef = await firestoreTransactions.add({
+    idempotencyKey: idempotencyKey ? String(idempotencyKey).trim() : null,
     walletRole: role,
     type: 'deposit',
     amount: numericAmount,
-    note: note ? String(note).trim() : 'Deposit'
+    note: note ? String(note).trim() : 'Deposit',
+    createdAt: new Date()
   });
 
   await createNotification(
@@ -2258,7 +2463,9 @@ app.post('/api/wallet/deposit', asyncHandler(async (req, res) => {
     `Deposited ${numericAmount.toFixed(2)}$ into ${role} wallet.`
   );
 
-  res.status(201).json({ success: true, data: { wallet, transaction: tx } });
+  const updatedWallet = await getOrCreateWallet();
+  const tx = serializeDoc(await txRef.get());
+  res.status(201).json({ success: true, data: { wallet: updatedWallet, transaction: tx } });
 }));
 
 app.post('/api/wallet/withdraw', asyncHandler(async (req, res) => {
@@ -2320,37 +2527,49 @@ app.post('/api/wallet/withdraw', asyncHandler(async (req, res) => {
   }
 
   if (idempotencyKey) {
-    const existingTx = await Transaction.findOne({ idempotencyKey: String(idempotencyKey).trim() });
-    if (existingTx) {
+    const existingSnap = await firestoreTransactions
+      .where('idempotencyKey', '==', String(idempotencyKey).trim())
+      .limit(1)
+      .get();
+    if (!existingSnap.empty) {
       const walletNow = await getOrCreateWallet();
       return res.json({
         success: true,
         duplicatePrevented: true,
-        data: { wallet: walletNow, transaction: existingTx }
+        data: { wallet: walletNow, transaction: serializeDoc(existingSnap.docs[0]) }
       });
     }
   }
 
   const wallet = await getOrCreateWallet();
+  let nextAdv = Number(wallet.advertiserBalance || 0);
+  let nextPub = Number(wallet.publisherBalance || 0);
+
   if (role === 'advertiser') {
-    if (wallet.advertiserBalance < numericAmount) {
+    if (nextAdv < numericAmount) {
       return res.status(400).json({ success: false, message: 'Insufficient advertiser balance' });
     }
-    wallet.advertiserBalance = Number((wallet.advertiserBalance - numericAmount).toFixed(4));
+    nextAdv = Number((nextAdv - numericAmount).toFixed(4));
   } else {
-    if (wallet.publisherBalance < numericAmount) {
+    if (nextPub < numericAmount) {
       return res.status(400).json({ success: false, message: 'Insufficient publisher balance' });
     }
-    wallet.publisherBalance = Number((wallet.publisherBalance - numericAmount).toFixed(4));
+    nextPub = Number((nextPub - numericAmount).toFixed(4));
   }
-  await wallet.save();
 
-  const tx = await Transaction.create({
-    idempotencyKey: idempotencyKey ? String(idempotencyKey).trim() : undefined,
+  await firestoreWallets.doc(DEFAULT_WALLET_KEY).update({
+    advertiserBalance: nextAdv,
+    publisherBalance: nextPub,
+    updatedAt: new Date()
+  });
+
+  const txRef = await firestoreTransactions.add({
+    idempotencyKey: idempotencyKey ? String(idempotencyKey).trim() : null,
     walletRole: role,
     type: 'withdraw',
     amount: numericAmount,
-    note: note ? String(note).trim() : 'Withdraw'
+    note: note ? String(note).trim() : 'Withdraw',
+    createdAt: new Date()
   });
 
   await createNotification(
@@ -2360,7 +2579,9 @@ app.post('/api/wallet/withdraw', asyncHandler(async (req, res) => {
     `Withdrew ${numericAmount.toFixed(2)}$ from ${role} wallet.`
   );
 
-  res.status(201).json({ success: true, data: { wallet, transaction: tx } });
+  const updatedWallet = await getOrCreateWallet();
+  const tx = serializeDoc(await txRef.get());
+  res.status(201).json({ success: true, data: { wallet: updatedWallet, transaction: tx } });
 }));
 
 // ==================== ADMIN PROTECTED ROUTES ====================
@@ -2452,7 +2673,7 @@ app.post('/api/admin/channels/:id/review', authMiddleware, adminMiddleware, asyn
     return res.status(404).json({ success: false, message: 'Channel not found' });
   }
 
-  await channelRef.update({ status: action });
+  await channelRef.update({ status: action, updatedAt: new Date() });
   const updatedSnap = await channelRef.get();
   const channel = serializeDoc(updatedSnap);
 
@@ -2556,7 +2777,7 @@ app.post('/api/admin/campaigns/:id/complete', authMiddleware, adminMiddleware, a
     }
 
     const budget = Number(freshCampData.budget || 0);
-    t.update(campaignRef, { status: 'completed' });
+    t.update(campaignRef, { status: 'completed', updatedAt: now });
 
     if (ownerDoc) {
       const freshOwnerSnap = await t.get(ownerDoc.ref);
@@ -2629,17 +2850,11 @@ if (!process.env.VERCEL) {
     console.log(`Telega-Ads running on port ${PORT}`);
   });
 
-  if (MONGODB_URI) {
-    ensureMongoConnection().then((connected) => {
-      if (connected) {
-        setInterval(syncAllChannels, SYNC_INTERVAL_MS);
-        setInterval(processDueScheduledCampaigns, 60000);
-        setInterval(() => {
-          runDatabaseBackup('interval').catch((e) => console.error(e));
-        }, BACKUP_INTERVAL_MS);
-      }
-    });
-  }
+  setInterval(syncAllChannels, SYNC_INTERVAL_MS);
+  setInterval(processDueScheduledCampaigns, 60000);
+  setInterval(() => {
+    runDatabaseBackup('interval').catch((e) => console.error(e));
+  }, BACKUP_INTERVAL_MS);
 }
 
 module.exports = app;
