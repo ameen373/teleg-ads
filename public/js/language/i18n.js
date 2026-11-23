@@ -1,59 +1,57 @@
 (function () {
-  const SUPPORTED_LANGS = ['ar', 'en'];
+  function resolveDictionaries() {
+    const arDict =
+      (typeof window !== 'undefined' && (window.AR_TRANSLATIONS || window.LANG_AR)) ||
+      (typeof AR_TRANSLATIONS !== 'undefined' ? AR_TRANSLATIONS : {});
+    const enDict =
+      (typeof window !== 'undefined' && (window.EN_TRANSLATIONS || window.LANG_EN)) ||
+      (typeof EN_TRANSLATIONS !== 'undefined' ? EN_TRANSLATIONS : {});
+    return { ar: arDict, en: enDict };
+  }
 
-  const I18n = {
-    currentLang: 'en',
+  const I18N = {
+    currentLang:
+      (typeof localStorage !== 'undefined' && localStorage.getItem('telega_lang')) || 'ar',
 
-    normalizeLang(raw) {
-      if (!raw || typeof raw !== 'string') return null;
-      const clean = raw.trim().toLowerCase();
-      if (clean === 'ar' || clean.startsWith('ar-') || clean.startsWith('ar_')) {
-        return 'ar';
-      }
-      if (clean === 'en' || clean.startsWith('en-') || clean.startsWith('en_')) {
-        return 'en';
-      }
-      return null;
+    get dictionaries() {
+      return resolveDictionaries();
     },
 
-    detectSmartLanguage(serverLang) {
-      // 1. لغة محفوظة مسبقاً في السيرفر (إن وجدت وصحيحة)
-      const fromServer = this.normalizeLang(serverLang);
-      if (fromServer) return fromServer;
-
-      // 2. لغة حساب المستخدم في تيليجرام
-      const tgLang = window.Telegram?.WebApp?.initDataUnsafe?.user?.language_code;
-      const fromTg = this.normalizeLang(tgLang);
-      if (fromTg) return fromTg;
-
-      // 3. لغات المتصفح / الجهاز
-      const browserLangs = Array.isArray(navigator.languages) && navigator.languages.length
-        ? navigator.languages
-        : [navigator.language];
-
-      for (const lang of browserLangs) {
-        const matched = this.normalizeLang(lang);
-        if (matched) return matched;
+    detectInitialLanguage(serverLang) {
+      const savedLang =
+        typeof localStorage !== 'undefined' ? localStorage.getItem('telega_lang') : null;
+      if (savedLang === 'ar' || savedLang === 'en') {
+        return savedLang;
       }
-
-      // 4. الافتراضي الإلزامي عند عدم التعرّف على اللغة: الإنجليزية
+      const tgUserLang =
+        typeof window !== 'undefined'
+          ? window.Telegram?.WebApp?.initDataUnsafe?.user?.language_code
+          : null;
+      const navLang = typeof navigator !== 'undefined' ? navigator.language : null;
+      const detected = serverLang || tgUserLang || navLang || 'ar';
+      if (String(detected).toLowerCase().startsWith('ar')) {
+        return 'ar';
+      }
       return 'en';
     },
 
-    setLanguage(lang) {
-      const resolved = SUPPORTED_LANGS.includes(lang) ? lang : 'en';
-      this.currentLang = resolved;
-      document.documentElement.lang = resolved;
-      document.documentElement.dir = resolved === 'ar' ? 'rtl' : 'ltr';
-      this.applyTranslations();
-    },
-
     t(key) {
-      const dict = this.currentLang === 'ar' ? (window.LANG_AR || {}) : (window.LANG_EN || {});
-      return dict[key] || window.LANG_EN?.[key] || key;
+      const dicts = resolveDictionaries();
+      const activeDict = dicts[this.currentLang] || dicts.ar || {};
+      const fallbackEn = dicts.en || {};
+      const fallbackAr = dicts.ar || {};
+      return activeDict[key] || fallbackEn[key] || fallbackAr[key] || key;
     },
 
-    applyTranslations() {
+    applyDirection() {
+      if (typeof document === 'undefined') return;
+      const htmlEl = document.documentElement;
+      htmlEl.lang = this.currentLang;
+      htmlEl.dir = this.currentLang === 'ar' ? 'rtl' : 'ltr';
+    },
+
+    translateDOM() {
+      if (typeof document === 'undefined') return;
       document.querySelectorAll('[data-i18n]').forEach((el) => {
         const key = el.getAttribute('data-i18n');
         el.textContent = this.t(key);
@@ -63,8 +61,35 @@
         const key = el.getAttribute('data-i18n-placeholder');
         el.placeholder = this.t(key);
       });
+    },
+
+    applyTranslations() {
+      this.translateDOM();
+    },
+
+    setLanguage(lang) {
+      if (lang !== 'ar' && lang !== 'en') return;
+      this.currentLang = lang;
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('telega_lang', lang);
+      }
+      this.applyDirection();
+      this.translateDOM();
+    },
+
+    toggleLanguage() {
+      const nextLang = this.currentLang === 'ar' ? 'en' : 'ar';
+      this.setLanguage(nextLang);
+      return nextLang;
     }
   };
 
-  window.I18n = I18n;
+  if (typeof window !== 'undefined') {
+    window.I18N = I18N;
+    window.I18n = I18N;
+  }
+
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = I18N;
+  }
 })();
