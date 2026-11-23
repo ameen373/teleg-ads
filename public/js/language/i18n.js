@@ -1,44 +1,56 @@
 (function () {
+  const SUPPORTED_LANGS = ['ar', 'en'];
+
   const I18n = {
     currentLang: 'en',
 
-    normalizeLang(code) {
-      if (!code) return null;
-      const clean = String(code).trim().toLowerCase();
-      if (clean === 'ar' || clean.startsWith('ar-')) return 'ar';
-      if (clean === 'en' || clean.startsWith('en-')) return 'en';
-      return 'en';
+    normalizeLang(raw) {
+      if (!raw || typeof raw !== 'string') return null;
+      const clean = raw.trim().toLowerCase();
+      if (clean === 'ar' || clean.startsWith('ar-') || clean.startsWith('ar_')) {
+        return 'ar';
+      }
+      if (clean === 'en' || clean.startsWith('en-') || clean.startsWith('en_')) {
+        return 'en';
+      }
+      return null;
     },
 
-    detectInitialLanguage(serverLang) {
-      const candidates = [
-        serverLang,
-        window.Telegram?.WebApp?.initDataUnsafe?.user?.language_code,
-        ...(Array.isArray(navigator.languages) ? navigator.languages : []),
-        navigator.language
-      ];
+    detectSmartLanguage(serverLang) {
+      // 1. لغة محفوظة مسبقاً في السيرفر (إن وجدت وصحيحة)
+      const fromServer = this.normalizeLang(serverLang);
+      if (fromServer) return fromServer;
 
-      for (const candidate of candidates) {
-        if (!candidate) continue;
-        const clean = String(candidate).trim().toLowerCase();
-        if (clean === 'ar' || clean.startsWith('ar-')) {
-          return 'ar';
-        }
+      // 2. لغة حساب المستخدم في تيليجرام
+      const tgLang = window.Telegram?.WebApp?.initDataUnsafe?.user?.language_code;
+      const fromTg = this.normalizeLang(tgLang);
+      if (fromTg) return fromTg;
+
+      // 3. لغات المتصفح / الجهاز
+      const browserLangs = Array.isArray(navigator.languages) && navigator.languages.length
+        ? navigator.languages
+        : [navigator.language];
+
+      for (const lang of browserLangs) {
+        const matched = this.normalizeLang(lang);
+        if (matched) return matched;
       }
 
+      // 4. الافتراضي الإلزامي عند عدم التعرّف على اللغة: الإنجليزية
       return 'en';
     },
 
     setLanguage(lang) {
-      this.currentLang = this.normalizeLang(lang) || 'en';
-      document.documentElement.lang = this.currentLang;
-      document.documentElement.dir = this.currentLang === 'ar' ? 'rtl' : 'ltr';
+      const resolved = SUPPORTED_LANGS.includes(lang) ? lang : 'en';
+      this.currentLang = resolved;
+      document.documentElement.lang = resolved;
+      document.documentElement.dir = resolved === 'ar' ? 'rtl' : 'ltr';
       this.applyTranslations();
     },
 
     t(key) {
-      const dict = this.currentLang === 'ar' ? window.LANG_AR : window.LANG_EN;
-      return dict?.[key] || window.LANG_EN?.[key] || key;
+      const dict = this.currentLang === 'ar' ? (window.LANG_AR || {}) : (window.LANG_EN || {});
+      return dict[key] || window.LANG_EN?.[key] || key;
     },
 
     applyTranslations() {
