@@ -1,8 +1,9 @@
-'use strict';
-
 const admin = require('firebase-admin');
+const mongoose = require('mongoose');
 
-let dbInstance = null;
+// ============================================================================
+// 1. Firebase Admin & Firestore Setup
+// ============================================================================
 
 function formatPrivateKey(rawKey) {
   if (!rawKey) return '';
@@ -25,583 +26,580 @@ function initFirebaseAdmin() {
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   const privateKey = formatPrivateKey(process.env.FIREBASE_PRIVATE_KEY);
 
-  if (projectId && clientEmail && privateKey) {
-    return admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId,
-        clientEmail,
-        privateKey,
-      }),
-    });
+  if (!projectId || !clientEmail || !privateKey) {
+    throw new Error(
+      'Missing Firebase Admin credentials: FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY are required.'
+    );
   }
 
-  if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-    return admin.initializeApp({
-      credential: admin.credential.applicationDefault(),
-    });
-  }
-
-  return admin.initializeApp();
+  return admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId,
+      clientEmail,
+      privateKey
+    })
+  });
 }
 
-function initFirestore() {
-  if (dbInstance) {
-    return dbInstance;
-  }
+initFirebaseAdmin();
 
-  initFirebaseAdmin();
-  const firestore = admin.firestore();
-  firestore.settings({ ignoreUndefinedProperties: true });
-  dbInstance = firestore;
-  return dbInstance;
-}
+const db = admin.firestore();
+db.settings({ ignoreUndefinedProperties: true });
 
-function getDb() {
-  return initFirestore();
-}
-
-const db = getDb();
-
-const SUPPORTED_LANGUAGES = [
-  { code: 'en', label: '🇬🇧 English' },
-  { code: 'zh', label: '🇨🇳 Chinese' },
-  { code: 'hi', label: '🇮🇳 Hindi' },
-  { code: 'es', label: '🇪🇸 Spanish' },
-  { code: 'ar', label: '🇸🇦 Arabic' },
-  { code: 'fr', label: '🇫🇷 French' },
-  { code: 'bn', label: '🇧🇩 Bengali' },
-  { code: 'pt', label: '🇵🇹 Portuguese' },
-  { code: 'id', label: '🇮🇩 Indonesian' },
-  { code: 'ur', label: '🇵🇰 Urdu' },
-  { code: 'ru', label: '🇷🇺 Russian' },
-  { code: 'de', label: '🇩🇪 German' },
-  { code: 'ja', label: '🇯🇵 Japanese' },
-  { code: 'pcm', label: '🇳🇬 Nigerian Pidgin' },
-  { code: 'mr', label: '🇮🇳 Marathi' },
-  { code: 'vi', label: '🇻🇳 Vietnamese' },
-  { code: 'te', label: '🇮🇳 Telugu' },
-  { code: 'sw', label: '🇰🇪 Swahili' },
-  { code: 'tr', label: '🇹🇷 Turkish' },
-];
-
-const SUPPORTED_CATEGORIES = [
-  '🎬 الترفيه',
-  '📰 الأخبار ووسائل الإعلام',
-  '🍿 الأفلام والمسلسلات',
-  '💄 الموضة والجمال',
-  '🎮 الألعاب',
-  '🎨 الفن والتصوير',
-  '🪙 العملات المشفرة',
-  '💻 التقنيات',
-  '📚 التعليم',
-  '🍳 الطبخ',
-  '🩺 الصحة',
-  '⚽ الرياضة',
-  '🌐 أخرى',
-];
-
-const MIN_PRICE = 1;
-const MAX_PRICE = 3;
-const AUTO_APPROVE_SUBSCRIBERS_THRESHOLD = 1000;
-
-const COLLECTIONS = {
-  USERS: 'users',
-  CHANNELS: 'channels',
-  CAMPAIGNS: 'campaigns',
-  CAMPAIGN_POSTS: 'campaign_posts',
-  TRANSACTIONS: 'transactions',
-  SECURITY_LOGS: 'security_logs',
-  LEGACY_SECURITY_LOGS: 'securityLogs',
+const firestoreCollections = {
+  users: db.collection('users'),
+  channels: db.collection('channels'),
+  campaigns: db.collection('campaigns'),
+  transactions: db.collection('transactions'),
+  securityLogs: db.collection('securityLogs')
 };
 
-const collections = {
-  users: db.collection(COLLECTIONS.USERS),
-  channels: db.collection(COLLECTIONS.CHANNELS),
-  campaigns: db.collection(COLLECTIONS.CAMPAIGNS),
-  campaignPosts: db.collection(COLLECTIONS.CAMPAIGN_POSTS),
-  transactions: db.collection(COLLECTIONS.TRANSACTIONS),
-  securityLogs: db.collection(COLLECTIONS.SECURITY_LOGS),
-  legacySecurityLogs: db.collection(COLLECTIONS.LEGACY_SECURITY_LOGS),
-};
+// ============================================================================
+// 2. Mongoose Constants & Schemas
+// ============================================================================
 
-function logSecurityEvent(eventType, details = {}) {
-  try {
-    const database = getDb();
-    const payload = {
-      eventType,
-      details,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    };
+const ALLOWED_LANGUAGES = [
+  'English',
+  'Chinese',
+  'Hindi',
+  'Spanish',
+  'Arabic',
+  'French',
+  'Bengali',
+  'Portuguese',
+  'Indonesian',
+  'Urdu',
+  'Russian',
+  'German',
+  'Japanese',
+  'Nigerian Pidgin',
+  'Marathi',
+  'Vietnamese',
+  'Telugu',
+  'Swahili',
+  'Turkish'
+];
 
-    const primaryWrite = database.collection(COLLECTIONS.SECURITY_LOGS).add(payload);
-    database.collection(COLLECTIONS.LEGACY_SECURITY_LOGS).add(payload).catch(() => {});
-    return primaryWrite;
-  } catch (err) {
-    console.error('[SECURITY_LOG_ERROR]', eventType, err.message);
-    return Promise.resolve();
-  }
-}
+const ALLOWED_CATEGORIES = [
+  'entertainment',
+  'news_media',
+  'movies_series',
+  'fashion_beauty',
+  'gaming',
+  'art_photography',
+  'crypto',
+  'technology',
+  'education',
+  'cooking',
+  'health',
+  'sports',
+  'other'
+];
 
-async function recordTransaction(txData = {}) {
-  try {
-    const database = getDb();
-    const ref = database.collection(COLLECTIONS.TRANSACTIONS).doc();
-    const record = {
-      transactionId: ref.id,
-      userId: txData.userId ? String(txData.userId) : null,
-      type: txData.type || 'adjustment',
-      amount: Number(txData.amount || 0),
-      balanceBefore: txData.balanceBefore !== undefined ? Number(txData.balanceBefore) : null,
-      balanceAfter: txData.balanceAfter !== undefined ? Number(txData.balanceAfter) : null,
-      meta: txData.meta || {},
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    };
-    await ref.set(record);
-    return { id: ref.id, ...record };
-  } catch (err) {
-    console.error('[TRANSACTION_LOG_ERROR]', err.message);
-    return null;
-  }
-}
-
-async function getOrCreateUser(telegramUser, referralCode = null) {
-  const database = getDb();
-  const userId = String(telegramUser.id);
-  const userRef = database.collection(COLLECTIONS.USERS).doc(userId);
-  const doc = await userRef.get();
-
-  const now = admin.firestore.FieldValue.serverTimestamp();
-  const baseProfile = {
-    telegramId: userId,
-    username: telegramUser.username || '',
-    firstName: telegramUser.first_name || '',
-    lastName: telegramUser.last_name || '',
-    languageCode: telegramUser.language_code || 'en',
-    updatedAt: now,
-  };
-
-  if (!doc.exists) {
-    let referredBy = null;
-    if (referralCode && String(referralCode).trim() !== '') {
-      const cleanRef = String(referralCode).trim();
-      if (cleanRef !== userId) {
-        const referrerDoc = await database.collection(COLLECTIONS.USERS).doc(cleanRef).get();
-        if (referrerDoc.exists) {
-          referredBy = cleanRef;
-        }
-      }
-    }
-
-    const newUser = {
-      ...baseProfile,
-      balance: 0,
-      referralEarnings: 0,
-      referralCount: 0,
-      referredBy,
-      createdAt: now,
-    };
-
-    await userRef.set(newUser);
-
-    if (referredBy) {
-      await database.collection(COLLECTIONS.USERS).doc(referredBy).update({
-        referralCount: admin.firestore.FieldValue.increment(1),
-        updatedAt: now,
-      });
-    }
-
-    const created = await userRef.get();
-    return { id: created.id, ...created.data(), isNewUser: true };
-  }
-
-  await userRef.set(baseProfile, { merge: true });
-  const updated = await userRef.get();
-  return { id: updated.id, ...updated.data(), isNewUser: false };
-}
-
-async function getUserById(userId) {
-  const database = getDb();
-  const doc = await database.collection(COLLECTIONS.USERS).doc(String(userId)).get();
-  if (!doc.exists) {
-    return null;
-  }
-  return { id: doc.id, ...doc.data() };
-}
-
-async function adjustUserBalance(userId, deltaAmount, txMeta = {}) {
-  const database = getDb();
-  const uid = String(userId);
-  const userRef = database.collection(COLLECTIONS.USERS).doc(uid);
-
-  let balanceBefore = 0;
-  const nextBalance = await database.runTransaction(async (tx) => {
-    const snap = await tx.get(userRef);
-    if (!snap.exists) {
-      throw new Error('USER_NOT_FOUND');
-    }
-    const currentBalance = Number(snap.data().balance || 0);
-    balanceBefore = currentBalance;
-    const computedNext = Number((currentBalance + Number(deltaAmount)).toFixed(4));
-    if (computedNext < 0) {
-      throw new Error('INSUFFICIENT_BALANCE');
-    }
-    tx.update(userRef, {
-      balance: computedNext,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-    return computedNext;
-  });
-
-  if (txMeta && txMeta.recordTx) {
-    await recordTransaction({
-      userId: uid,
-      type: txMeta.type || (Number(deltaAmount) >= 0 ? 'credit' : 'debit'),
-      amount: Number(deltaAmount),
-      balanceBefore,
-      balanceAfter: nextBalance,
-      meta: txMeta.meta || {},
-    });
-  }
-
-  return nextBalance;
-}
-
-async function upsertChannel(channelPayload) {
-  const database = getDb();
-  const chatId = String(channelPayload.chatId);
-  const channelRef = database.collection(COLLECTIONS.CHANNELS).doc(chatId);
-  const snap = await channelRef.get();
-  const now = admin.firestore.FieldValue.serverTimestamp();
-
-  const dataToSave = {
-    chatId,
-    ownerId: String(channelPayload.ownerId),
-    title: channelPayload.title,
-    username: channelPayload.username || '',
-    inviteLink: channelPayload.inviteLink || '',
-    subscribersCount: Number(channelPayload.subscribersCount || 0),
-    price: Number(channelPayload.price),
-    language: channelPayload.language,
-    category: channelPayload.category,
-    status: channelPayload.status,
-    promoPostPublished: Boolean(channelPayload.promoPostPublished),
-    promoMessageId: channelPayload.promoMessageId || null,
-    botIsAdmin: Boolean(channelPayload.botIsAdmin),
-    lastCheckedAt: now,
-    updatedAt: now,
-  };
-
-  if (!snap.exists) {
-    dataToSave.createdAt = now;
-    await channelRef.set(dataToSave);
-  } else {
-    await channelRef.set(dataToSave, { merge: true });
-  }
-
-  const updatedSnap = await channelRef.get();
-  return { id: updatedSnap.id, ...updatedSnap.data() };
-}
-
-async function syncChannelSmartMetadata(chatId, updates) {
-  const database = getDb();
-  const cid = String(chatId);
-  const channelRef = database.collection(COLLECTIONS.CHANNELS).doc(cid);
-  const snap = await channelRef.get();
-  if (!snap.exists) {
-    return null;
-  }
-
-  const patch = {
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    lastCheckedAt: admin.firestore.FieldValue.serverTimestamp(),
-  };
-
-  if (typeof updates.title === 'string' && updates.title.trim() !== '') {
-    patch.title = updates.title.trim();
-  }
-  if (typeof updates.username === 'string') {
-    patch.username = updates.username.trim();
-  }
-  if (typeof updates.subscribersCount === 'number' && !Number.isNaN(updates.subscribersCount)) {
-    patch.subscribersCount = updates.subscribersCount;
-  }
-  if (typeof updates.botIsAdmin === 'boolean') {
-    patch.botIsAdmin = updates.botIsAdmin;
-    if (!updates.botIsAdmin) {
-      patch.status = 'bot_removed';
-    }
-  }
-
-  await channelRef.update(patch);
-  const updated = await channelRef.get();
-  return { id: updated.id, ...updated.data() };
-}
-
-async function getChannelsByOwner(ownerId) {
-  const database = getDb();
-  const snapshot = await database
-    .collection(COLLECTIONS.CHANNELS)
-    .where('ownerId', '==', String(ownerId))
-    .get();
-
-  const items = [];
-  snapshot.forEach((doc) => {
-    items.push({ id: doc.id, ...doc.data() });
-  });
-  return items;
-}
-
-async function getChannelById(chatId) {
-  const database = getDb();
-  const doc = await database.collection(COLLECTIONS.CHANNELS).doc(String(chatId)).get();
-  if (!doc.exists) {
-    return null;
-  }
-  return { id: doc.id, ...doc.data() };
-}
-
-async function getPendingAdminChannels() {
-  const database = getDb();
-  const snapshot = await database
-    .collection(COLLECTIONS.CHANNELS)
-    .where('status', '==', 'pending_admin')
-    .get();
-
-  const items = [];
-  snapshot.forEach((doc) => {
-    items.push({ id: doc.id, ...doc.data() });
-  });
-  return items;
-}
-
-async function getMatchingApprovedChannels(targeting) {
-  const database = getDb();
-  const snapshot = await database
-    .collection(COLLECTIONS.CHANNELS)
-    .where('status', '==', 'approved')
-    .get();
-
-  const openTargeting = Boolean(targeting && targeting.openTargeting);
-  const minPrice = Number((targeting && targeting.minPrice) ?? MIN_PRICE);
-  const maxPrice = Number((targeting && targeting.maxPrice) ?? MAX_PRICE);
-  const language = (targeting && targeting.language) || null;
-  const category = (targeting && targeting.category) || null;
-
-  const matched = [];
-  snapshot.forEach((doc) => {
-    const ch = { id: doc.id, ...doc.data() };
-    if (!ch.botIsAdmin) {
-      return;
-    }
-    const chPrice = Number(ch.price || 0);
-    if (chPrice < minPrice || chPrice > maxPrice) {
-      return;
-    }
-    if (!openTargeting) {
-      if (language && ch.language !== language) {
-        return;
-      }
-      if (category && ch.category !== category) {
-        return;
-      }
-    }
-    matched.push(ch);
-  });
-
-  return matched;
-}
-
-async function createCampaign(campaignData) {
-  const database = getDb();
-  const now = admin.firestore.FieldValue.serverTimestamp();
-  const docRef = database.collection(COLLECTIONS.CAMPAIGNS).doc();
-
-  const targetingInput = campaignData.targeting || {};
-  const ctaInput = campaignData.ctaButton || {};
-
-  const record = {
-    campaignId: docRef.id,
-    advertiserId: String(campaignData.advertiserId),
-    title: campaignData.title,
-    text: campaignData.text,
-    mediaType: campaignData.mediaType || 'none',
-    mediaUrl: campaignData.mediaUrl || null,
-    mediaFileId: campaignData.mediaFileId || null,
-    targeting: {
-      openTargeting: Boolean(targetingInput.openTargeting),
-      minPrice: Number(targetingInput.minPrice ?? MIN_PRICE),
-      maxPrice: Number(targetingInput.maxPrice ?? MAX_PRICE),
-      language: targetingInput.language || null,
-      category: targetingInput.category || null,
+const channelSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true
     },
-    ctaButton: {
-      type: ctaInput.type || 'url',
-      label: ctaInput.label || '',
-      url: ctaInput.url || '',
+    username: {
+      type: String,
+      required: true,
+      trim: true
     },
-    scheduleType: campaignData.scheduleType || 'immediate',
-    scheduledAt: campaignData.scheduledAt || null,
-    status: campaignData.status || 'active',
-    budgetAllocated: Number(campaignData.budgetAllocated || 0),
-    budgetSpent: Number(campaignData.budgetSpent || 0),
-    stats: {
-      publishedCount: 0,
-      failedCount: 0,
-      clicksCount: 0,
+    photoUrl: {
+      type: String,
+      default: ''
     },
-    createdAt: now,
-    updatedAt: now,
-  };
-
-  await docRef.set(record);
-  const created = await docRef.get();
-  return { id: created.id, ...created.data() };
-}
-
-async function getCampaignById(campaignId) {
-  const database = getDb();
-  const doc = await database.collection(COLLECTIONS.CAMPAIGNS).doc(String(campaignId)).get();
-  if (!doc.exists) {
-    return null;
-  }
-  return { id: doc.id, ...doc.data() };
-}
-
-async function getCampaignsByAdvertiser(advertiserId) {
-  const database = getDb();
-  const snapshot = await database
-    .collection(COLLECTIONS.CAMPAIGNS)
-    .where('advertiserId', '==', String(advertiserId))
-    .get();
-
-  const items = [];
-  snapshot.forEach((doc) => {
-    items.push({ id: doc.id, ...doc.data() });
-  });
-  return items;
-}
-
-async function getDueCampaigns() {
-  const database = getDb();
-  const snapshot = await database
-    .collection(COLLECTIONS.CAMPAIGNS)
-    .where('status', 'in', ['active', 'scheduled'])
-    .get();
-
-  const nowMs = Date.now();
-  const due = [];
-  snapshot.forEach((doc) => {
-    const camp = { id: doc.id, ...doc.data() };
-    if (camp.status === 'scheduled' && camp.scheduledAt) {
-      const schedMs = new Date(camp.scheduledAt).getTime();
-      if (!Number.isNaN(schedMs) && schedMs <= nowMs) {
-        due.push(camp);
-      }
-    } else if (camp.status === 'active') {
-      due.push(camp);
+    chatId: {
+      type: String,
+      default: ''
+    },
+    isPublic: {
+      type: Boolean,
+      default: true
+    },
+    subscribersCount: {
+      type: Number,
+      default: 0
+    },
+    pricePer1000Views: {
+      type: Number,
+      default: 1,
+      min: 1,
+      max: 3
+    },
+    isFavorite: {
+      type: Boolean,
+      default: false
+    },
+    ownerTelegramId: {
+      type: String,
+      default: ''
+    },
+    ownerUsername: {
+      type: String,
+      default: ''
+    },
+    ownerName: {
+      type: String,
+      default: ''
+    },
+    approvalStatus: {
+      type: String,
+      enum: ['pending_review', 'approved', 'rejected'],
+      default: 'pending_review'
+    },
+    introPostSent: {
+      type: Boolean,
+      default: false
+    },
+    referralCode: {
+      type: String,
+      default: ''
+    },
+    referralsCount: {
+      type: Number,
+      default: 0
+    },
+    lastSyncedAt: {
+      type: Date,
+      default: Date.now
+    },
+    language: {
+      type: String,
+      required: true,
+      enum: ALLOWED_LANGUAGES
+    },
+    category: {
+      type: String,
+      required: true,
+      enum: ALLOWED_CATEGORIES
+    },
+    price: {
+      type: Number,
+      required: true,
+      min: 1,
+      max: 3
+    },
+    botAdded: {
+      type: Boolean,
+      default: false
+    },
+    botPermissionsOk: {
+      type: Boolean,
+      default: false
+    },
+    lastPermissionCheckAt: {
+      type: Date,
+      default: null
     }
-  });
-  return due;
-}
+  },
+  {
+    timestamps: true
+  }
+);
 
-async function recordCampaignPost(postRecord) {
-  const database = getDb();
-  const docId = `${postRecord.campaignId}_${postRecord.channelId}`;
-  const ref = database.collection(COLLECTIONS.CAMPAIGN_POSTS).doc(docId);
-  await ref.set(
-    {
-      ...postRecord,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+const referralSchema = new mongoose.Schema(
+  {
+    publisherTelegramId: {
+      type: String,
+      required: true,
+      trim: true
     },
-    { merge: true }
-  );
-  return docId;
+    channelId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Channel',
+      default: null
+    },
+    referredTelegramId: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    referredUsername: {
+      type: String,
+      default: ''
+    },
+    sourceRole: {
+      type: String,
+      enum: ['publisher', 'advertiser', 'user'],
+      default: 'user'
+    },
+    commissionEligible: {
+      type: Boolean,
+      default: true
+    }
+  },
+  {
+    timestamps: true
+  }
+);
+
+const campaignSchema = new mongoose.Schema(
+  {
+    title: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    adText: {
+      type: String,
+      default: '',
+      trim: true
+    },
+    mediaType: {
+      type: String,
+      enum: ['none', 'photo', 'video'],
+      default: 'none'
+    },
+    mediaData: {
+      type: String,
+      default: ''
+    },
+    mediaName: {
+      type: String,
+      default: ''
+    },
+    targetUrl: {
+      type: String,
+      default: '',
+      trim: true
+    },
+    buttonPreset: {
+      type: String,
+      enum: ['Open', 'View Offer', 'Join Channel', 'Custom'],
+      default: 'Open'
+    },
+    customButtonText: {
+      type: String,
+      default: '',
+      trim: true
+    },
+    budget: {
+      type: Number,
+      default: 50,
+      min: 0
+    },
+    spentAmount: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    totalViews: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    openTargeting: {
+      type: Boolean,
+      default: false
+    },
+    targetLanguage: {
+      type: String,
+      required: true,
+      enum: ALLOWED_LANGUAGES
+    },
+    targetCategory: {
+      type: String,
+      required: true,
+      enum: ALLOWED_CATEGORIES
+    },
+    maxPricePerPost: {
+      type: Number,
+      required: true,
+      min: 1,
+      max: 3
+    },
+    scheduleMode: {
+      type: String,
+      enum: ['immediate', 'peak'],
+      default: 'immediate'
+    },
+    scheduledAt: {
+      type: Date,
+      default: null
+    },
+    selectedChannelIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Channel'
+      }
+    ],
+    publishedChannels: [
+      {
+        channelId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Channel'
+        },
+        channelName: String,
+        messageId: Number,
+        views: {
+          type: Number,
+          default: 0
+        },
+        earnings: {
+          type: Number,
+          default: 0
+        },
+        publisherRefCode: String,
+        renderedAdText: String,
+        lockedContent: Boolean,
+        noForwarding: Boolean,
+        publishedAt: Date
+      }
+    ],
+    status: {
+      type: String,
+      enum: ['draft', 'scheduled', 'active', 'paused', 'completed'],
+      default: 'draft'
+    }
+  },
+  {
+    timestamps: true
+  }
+);
+
+const walletSchema = new mongoose.Schema(
+  {
+    ownerKey: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true
+    },
+    advertiserBalance: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    publisherBalance: {
+      type: Number,
+      default: 0,
+      min: 0
+    }
+  },
+  {
+    timestamps: true
+  }
+);
+
+const transactionSchema = new mongoose.Schema(
+  {
+    idempotencyKey: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true
+    },
+    walletRole: {
+      type: String,
+      enum: ['advertiser', 'publisher'],
+      required: true
+    },
+    type: {
+      type: String,
+      enum: ['deposit', 'withdraw', 'ad_spend', 'ad_earning', 'budget_topup'],
+      required: true
+    },
+    amount: {
+      type: Number,
+      required: true
+    },
+    campaignId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Campaign',
+      default: null
+    },
+    channelId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Channel',
+      default: null
+    },
+    note: {
+      type: String,
+      default: ''
+    }
+  },
+  {
+    timestamps: true
+  }
+);
+
+const publishLogSchema = new mongoose.Schema(
+  {
+    dedupKey: {
+      type: String,
+      unique: true,
+      required: true,
+      trim: true
+    },
+    campaignId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Campaign',
+      required: true
+    },
+    campaignTitle: {
+      type: String,
+      default: ''
+    },
+    channelId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Channel',
+      required: true
+    },
+    channelName: {
+      type: String,
+      default: ''
+    },
+    messageId: {
+      type: Number,
+      default: null
+    },
+    status: {
+      type: String,
+      enum: ['published', 'duplicate_prevented', 'failed'],
+      default: 'published'
+    },
+    details: {
+      type: String,
+      default: ''
+    },
+    publishedAt: {
+      type: Date,
+      default: Date.now
+    }
+  },
+  {
+    timestamps: true
+  }
+);
+
+const notificationSchema = new mongoose.Schema(
+  {
+    audience: {
+      type: String,
+      enum: ['advertiser', 'publisher', 'admin'],
+      default: 'admin'
+    },
+    category: {
+      type: String,
+      enum: ['channel', 'campaign', 'wallet', 'system'],
+      default: 'system'
+    },
+    title: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    message: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    isRead: {
+      type: Boolean,
+      default: false
+    }
+  },
+  {
+    timestamps: true
+  }
+);
+
+const backupRecordSchema = new mongoose.Schema(
+  {
+    filename: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    collectionsCount: {
+      type: Number,
+      default: 0
+    },
+    totalRecords: {
+      type: Number,
+      default: 0
+    },
+    status: {
+      type: String,
+      enum: ['completed', 'failed'],
+      default: 'completed'
+    },
+    note: {
+      type: String,
+      default: ''
+    },
+    snapshotData: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {}
+    }
+  },
+  {
+    timestamps: true
+  }
+);
+
+// ============================================================================
+// 3. Mongoose Models & Optional Connection Helper
+// ============================================================================
+
+const Channel = mongoose.models.Channel || mongoose.model('Channel', channelSchema);
+const Referral = mongoose.models.Referral || mongoose.model('Referral', referralSchema);
+const Campaign = mongoose.models.Campaign || mongoose.model('Campaign', campaignSchema);
+const Wallet = mongoose.models.Wallet || mongoose.model('Wallet', walletSchema);
+const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
+const PublishLog = mongoose.models.PublishLog || mongoose.model('PublishLog', publishLogSchema);
+const Notification = mongoose.models.Notification || mongoose.model('Notification', notificationSchema);
+const BackupRecord = mongoose.models.BackupRecord || mongoose.model('BackupRecord', backupRecordSchema);
+
+async function connectMongo(uri = process.env.MONGODB_URI || process.env.MONGO_URI) {
+  if (!uri) {
+    throw new Error('Missing MongoDB connection string: MONGODB_URI or MONGO_URI is required.');
+  }
+  if (mongoose.connection.readyState === 1) {
+    return mongoose.connection;
+  }
+  await mongoose.connect(uri);
+  return mongoose.connection;
 }
 
-async function getCampaignPost(campaignId, channelId) {
-  const database = getDb();
-  const docId = `${campaignId}_${channelId}`;
-  const doc = await database.collection(COLLECTIONS.CAMPAIGN_POSTS).doc(docId).get();
-  if (!doc.exists) {
-    return null;
-  }
-  return { id: doc.id, ...doc.data() };
-}
-
-async function incrementCampaignStats(campaignId, delta = {}) {
-  const database = getDb();
-  const ref = database.collection(COLLECTIONS.CAMPAIGNS).doc(String(campaignId));
-  const patch = {
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  };
-  if (delta.publishedCount) {
-    patch['stats.publishedCount'] = admin.firestore.FieldValue.increment(delta.publishedCount);
-  }
-  if (delta.failedCount) {
-    patch['stats.failedCount'] = admin.firestore.FieldValue.increment(delta.failedCount);
-  }
-  if (delta.clicksCount) {
-    patch['stats.clicksCount'] = admin.firestore.FieldValue.increment(delta.clicksCount);
-  }
-  if (delta.budgetSpent) {
-    patch.budgetSpent = admin.firestore.FieldValue.increment(Number(delta.budgetSpent));
-  }
-  await ref.update(patch);
-}
-
-async function updateCampaignStatus(campaignId, status, extraFields = {}) {
-  const database = getDb();
-  const ref = database.collection(COLLECTIONS.CAMPAIGNS).doc(String(campaignId));
-  await ref.update({
-    status,
-    ...extraFields,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+if (process.env.MONGODB_URI || process.env.MONGO_URI) {
+  connectMongo().catch((err) => {
+    console.error('MongoDB connection error:', err.message);
   });
-  const snap = await ref.get();
-  return snap.exists ? { id: snap.id, ...snap.data() } : null;
 }
+
+// ============================================================================
+// 4. Unified Exports
+// ============================================================================
 
 module.exports = {
-  // التوافق العكسي مع الملف القديم
+  // Firebase Admin & Firestore
   admin,
   db,
   formatPrivateKey,
   initFirebaseAdmin,
-  collections,
-  users: collections.users,
-  channels: collections.channels,
-  campaigns: collections.campaigns,
-  transactions: collections.transactions,
-  securityLogs: collections.securityLogs,
+  users: firestoreCollections.users,
+  channels: firestoreCollections.channels,
+  campaigns: firestoreCollections.campaigns,
+  transactions: firestoreCollections.transactions,
+  securityLogs: firestoreCollections.securityLogs,
+  collections: firestoreCollections,
 
-  // الثوابت والمجموعات الجديدة
-  COLLECTIONS,
-  SUPPORTED_LANGUAGES,
-  SUPPORTED_CATEGORIES,
-  MIN_PRICE,
-  MAX_PRICE,
-  AUTO_APPROVE_SUBSCRIBERS_THRESHOLD,
-
-  // الدوال الأساسية والجديدة
-  initFirestore,
-  getDb,
-  logSecurityEvent,
-  recordTransaction,
-  getOrCreateUser,
-  getUserById,
-  adjustUserBalance,
-  upsertChannel,
-  syncChannelSmartMetadata,
-  getChannelsByOwner,
-  getChannelById,
-  getPendingAdminChannels,
-  getMatchingApprovedChannels,
-  createCampaign,
-  getCampaignById,
-  getCampaignsByAdvertiser,
-  getDueCampaigns,
-  recordCampaignPost,
-  getCampaignPost,
-  incrementCampaignStats,
-  updateCampaignStatus,
+  // Mongoose & Models
+  mongoose,
+  connectMongo,
+  Channel,
+  Referral,
+  Campaign,
+  Wallet,
+  Transaction,
+  PublishLog,
+  Notification,
+  BackupRecord,
+  ALLOWED_LANGUAGES,
+  ALLOWED_CATEGORIES
 };
