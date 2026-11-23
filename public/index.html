@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title data-i18n="app.title">Telega.ads</title>
+  <title>Telega-Ads</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="/css/styles.css" />
 </head>
@@ -12,523 +12,85 @@
     <div class="tg-spinner"></div>
   </div>
 
-  <div id="app-shell" class="app-shell">
-    <header class="tg-header top-header">
-      <div class="header-user brand-block">
-        <div class="avatar" id="user-avatar">U</div>
-        <div class="user-meta">
-          <span class="user-name brand-logo" id="user-name">⚡ Telega.ads</span>
-          <span class="user-id brand-tag" id="user-id">ID: ---</span>
-        </div>
+  <header class="tg-header">
+    <div class="header-user">
+      <div class="avatar" id="user-avatar">U</div>
+      <div class="user-meta">
+        <span class="user-name" id="user-name">User</span>
+        <span class="user-sub" id="user-handle">@--- • ID: ---</span>
       </div>
-      <div class="header-actions">
-        <div id="user-session-badge" class="session-badge" data-i18n="session.active">مستخدم نشط</div>
-        <button id="lang-toggle-btn" class="lang-pill" type="button">AR / EN</button>
-      </div>
-    </header>
-
-    <main id="app-content" class="app-container main-content">
-      <!-- HOME SECTION -->
-      <section id="view-home" class="view-section app-section active" aria-labelledby="home-heading">
-        <div id="home-section" class="section-inner">
-          <h2 id="home-heading" class="visually-hidden" data-i18n="nav_home">الرئيسية</h2>
-          <div class="balance-card-grid">
-            <div class="tg-card balance-box">
-              <span class="card-label" data-i18n="earnings_balance">Earnings Balance</span>
-              <h2 class="card-value" id="home-earnings-balance">$0.00</h2>
-            </div>
-            <div class="tg-card balance-box">
-              <span class="card-label" data-i18n="ad_balance">Ad Balance</span>
-              <h2 class="card-value" id="home-ad-balance">$0.00</h2>
-            </div>
-          </div>
-
-          <div class="stats-row">
-            <div class="tg-card stat-pill">
-              <span class="stat-num" id="stat-market-channels">0</span>
-              <span class="stat-txt" data-i18n="market_channels">Active Channels</span>
-            </div>
-            <div class="tg-card stat-pill">
-              <span class="stat-num" id="stat-my-channels">0</span>
-              <span class="stat-txt" data-i18n="my_channels_count">My Channels</span>
-            </div>
-            <div class="tg-card stat-pill">
-              <span class="stat-num" id="stat-my-campaigns">0</span>
-              <span class="stat-txt" data-i18n="my_campaigns_count">Campaigns</span>
-            </div>
-          </div>
-
-          <div class="section-header">
-            <h3 data-i18n="recent_activity">Recent Activity</h3>
-          </div>
-          <div id="home-transactions-list" class="tg-list"></div>
-        </div>
-      </section>
-
-      <!-- CHANNELS SECTION -->
-      <section id="view-channels" class="view-section app-section" aria-labelledby="channels-heading">
-        <div id="channels-section" class="section-inner">
-          <div class="section-header-card">
-            <div class="section-title-row">
-              <div>
-                <h2 id="channels-heading" data-i18n="channels.title">قنواتي</h2>
-                <p class="section-subtitle" data-i18n="channels.subtitle">
-                  إدارة قنواتك، ربط البوت، وتحديث البيانات تلقائياً ويدوياً
-                </p>
-              </div>
-              <div class="channels-total-pill">
-                <span data-i18n="channels.totalLabel">إجمالي القنوات:</span>
-                <strong id="my-channels-count">0</strong>
-              </div>
-            </div>
-            <div id="channels-feedback-banner" class="feedback-banner hidden" role="status" aria-live="polite"></div>
-          </div>
-
-          <div class="panel-card add-channel-panel">
-            <div class="panel-heading">
-              <h3 data-i18n="channels.addHeading">إضافة قناة جديدة</h3>
-              <a
-                href="#"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="btn btn-bot-admin"
-                id="add-bot-admin-btn"
-              >
-                إضافة البوت كمسئول
-              </a>
-            </div>
-
-            <form id="add-channel-form" class="channel-form tg-card tg-form" novalidate>
-              <div class="form-group">
-                <label for="channel-input" data-i18n="channels.inputLabel">
-                  رابط القناة أو معرفها (@username أو ID)
-                </label>
-                <div class="input-action-row">
-                  <input
-                    type="text"
-                    id="channel-input"
-                    name="channelInput"
-                    data-i18n-placeholder="channels.inputPlaceholder"
-                    placeholder="مثال: https://t.me/my_channel أو @my_channel"
-                    required
-                  />
-                  <button type="button" id="verify-channel-btn" class="btn btn-outline" data-i18n="channels.verifyBtn">
-                    🔍 التحقق من القناة والبوت
-                  </button>
-                </div>
-              </div>
-
-              <!-- حقول التوافق العكسي للنموذج القديم -->
-              <div class="legacy-channel-fields hidden" aria-hidden="true">
-                <input type="text" id="ch-username" data-i18n-placeholder="channel_username_ph" placeholder="@channel_username" />
-                <input type="text" id="ch-title" data-i18n-placeholder="channel_title_ph" placeholder="Channel Title" />
-                <div class="form-row">
-                  <input type="number" id="ch-subs" data-i18n-placeholder="subscribers_ph" placeholder="Subscribers" min="1" />
-                  <input type="number" id="ch-price" data-i18n-placeholder="price_ph" placeholder="Price ($)" step="0.1" min="0.1" />
-                </div>
-              </div>
-
-              <div id="channel-verification-preview" class="hidden"></div>
-
-              <div class="form-grid-3">
-                <div class="form-group">
-                  <label for="channel-price-input" data-i18n="channels.priceLabel">
-                    سعر المنشور ($1 إلى $3)
-                  </label>
-                  <input
-                    type="number"
-                    id="channel-price-input"
-                    name="price"
-                    min="1"
-                    max="3"
-                    step="0.01"
-                    value="1"
-                    required
-                  />
-                </div>
-
-                <div class="form-group">
-                  <label for="channel-language-select" data-i18n="channels.languageLabel">
-                    لغة القناة
-                  </label>
-                  <select id="channel-language-select" name="language" required>
-                    <option value="" data-i18n="channels.selectLanguage">اختر اللغة</option>
-                  </select>
-                </div>
-
-                <div class="form-group">
-                  <label for="channel-category-select" data-i18n="channels.categoryLabel">
-                    تصنيف القناة
-                  </label>
-                  <select id="channel-category-select" name="category" required>
-                    <option value="" data-i18n="channels.selectCategory">اختر التصنيف</option>
-                  </select>
-                </div>
-              </div>
-
-              <button type="submit" id="submit-channel-btn" class="btn btn-primary tg-btn primary btn-block" data-i18n="channels.submitBtn">
-                حفظ وإضافة القناة
-              </button>
-            </form>
-          </div>
-
-          <div class="panel-card my-channels-panel">
-            <div class="panel-heading">
-              <h3 data-i18n="channels.linkedHeading">القنوات المرتبطة</h3>
-              <button type="button" id="refresh-all-channels-btn" class="btn btn-secondary btn-sm" data-i18n="channels.refreshBtn">
-                تحديث القائمة
-              </button>
-            </div>
-            <div id="my-channels-list" class="channels-list tg-list"></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- PROMOTION (CAMPAIGNS) SECTION -->
-      <section id="view-campaigns" class="view-section app-section" aria-label="الترويج والحملات الإعلانية">
-        <div id="campaigns-section" class="section-inner">
-          <div class="section-header-card">
-            <div class="section-title-row">
-              <div>
-                <h2 data-i18n="campaigns.title">الترويج والحملات الإعلانية</h2>
-                <p class="section-subtitle" data-i18n="campaigns.subtitle">
-                  إطلاق حملات مستهدفة بدقة، متابعة الإحصائيات، واستئناف الحملات تلقائياً
-                </p>
-              </div>
-              <div class="segmented-tabs" role="tablist">
-                <button type="button" id="tab-view-campaigns-btn" class="tab-btn active" role="tab" aria-selected="true">
-                  📊 عرض الحملات الإعلانية
-                </button>
-                <button type="button" id="tab-create-campaign-btn" class="tab-btn" role="tab" aria-selected="false">
-                  ➕ إنشاء حملة جديدة
-                </button>
-              </div>
-            </div>
-            <div id="campaigns-feedback-banner" class="feedback-banner hidden" role="status" aria-live="polite"></div>
-          </div>
-
-          <div id="campaigns-list-panel" class="panel-card">
-            <div class="panel-heading">
-              <h3 data-i18n="campaigns.listHeading">حملاتي الإعلانية وإحصائيات الأداء</h3>
-              <button type="button" id="refresh-campaigns-btn" class="btn btn-secondary btn-sm">
-                🔄 تحديث الإحصائيات
-              </button>
-            </div>
-            <div id="campaigns-list-container" class="campaigns-list"></div>
-            <div id="my-campaigns-list" class="tg-list"></div>
-          </div>
-
-          <div id="campaign-create-panel" class="panel-card hidden">
-            <div class="panel-heading">
-              <h3 data-i18n="campaigns.createHeading">إنشاء حملة إعلانية جديدة</h3>
-            </div>
-
-            <form id="create-campaign-form" class="campaign-form tg-card tg-form" novalidate>
-              <div class="form-group">
-                <label for="camp-channel-select" data-i18n="select_channel">القناة المستهدفة (اختياري)</label>
-                <select id="camp-channel-select">
-                  <option value="" data-i18n="select_channel">Select Target Channel...</option>
-                </select>
-              </div>
-
-              <div class="form-group">
-                <label for="campaign-title-input" data-i18n="campaigns.form.titleLabel">عنوان الحملة</label>
-                <input
-                  type="text"
-                  id="campaign-title-input"
-                  name="title"
-                  placeholder="مثال: عرض خاص على خدمات الذكاء الاصطناعي"
-                  required
-                />
-              </div>
-
-              <div class="form-group">
-                <label for="campaign-text-input" data-i18n="campaigns.form.textLabel">نص المنشور الإعلاني</label>
-                <textarea
-                  id="campaign-text-input"
-                  name="text"
-                  rows="4"
-                  placeholder="اكتب نص الإعلان الجذاب هنا..."
-                ></textarea>
-              </div>
-
-              <div class="form-group">
-                <label for="campaign-media-input" data-i18n="campaigns.form.mediaLabel">إضافة صورة أو فيديو من المعرض</label>
-                <div class="media-upload-row">
-                  <input type="file" id="campaign-media-input" accept="image/*,video/*" />
-                  <button type="button" id="clear-campaign-media-btn" class="btn btn-outline btn-sm">
-                    إزالة الوسائط
-                  </button>
-                </div>
-                <div id="campaign-media-filename" class="media-filename-hint">لم يتم اختيار ملف وسائط</div>
-              </div>
-
-              <div class="targeting-box">
-                <div class="targeting-header">
-                  <h4 data-i18n="campaigns.form.targetingHeading">استهداف القنوات</h4>
-                  <label class="checkbox-inline">
-                    <input type="checkbox" id="campaign-open-targeting" />
-                    <span>🌍 الاستهداف المفتوح (جميع القنوات بغض النظر عن التصنيف واللغة)</span>
-                  </label>
-                </div>
-
-                <div id="filtered-targeting-fields" class="form-grid-2">
-                  <div class="form-group">
-                    <label for="campaign-min-price">أقل سعر للقناة ($1)</label>
-                    <input type="number" id="campaign-min-price" min="1" max="3" step="0.01" value="1" />
-                  </div>
-
-                  <div class="form-group">
-                    <label for="campaign-max-price">أعلى سعر للقناة ($3)</label>
-                    <input type="number" id="campaign-max-price" min="1" max="3" step="0.01" value="3" />
-                  </div>
-
-                  <div class="form-group">
-                    <label for="campaign-language-select">حسب اللغة</label>
-                    <select id="campaign-language-select">
-                      <option value="">كل اللغات</option>
-                    </select>
-                  </div>
-
-                  <div class="form-group">
-                    <label for="campaign-category-select">حسب التصنيف</label>
-                    <select id="campaign-category-select">
-                      <option value="">كل التصنيفات</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <div class="form-grid-2">
-                <div class="form-group">
-                  <label for="campaign-cta-type">الأزرار التفاعلية</label>
-                  <select id="campaign-cta-type">
-                    <option value="open">Open</option>
-                    <option value="view_offer">View Offer</option>
-                    <option value="join_channel">Join Channel</option>
-                    <option value="custom">زر تفاعلي مخصص</option>
-                  </select>
-                </div>
-
-                <div class="form-group hidden" id="campaign-cta-custom-group">
-                  <label for="campaign-cta-custom-label">نص الزر التفاعلي المخصص</label>
-                  <input type="text" id="campaign-cta-custom-label" placeholder="مثال: اشترك الآن" />
-                </div>
-
-                <div class="form-group">
-                  <label for="campaign-cta-url">رابط الزر التفاعلي (https://...)</label>
-                  <input
-                    type="url"
-                    id="campaign-cta-url"
-                    placeholder="https://t.me/your_channel أو https://example.com"
-                    required
-                  />
-                </div>
-
-                <div class="form-group">
-                  <label for="campaign-budget-input">الميزانية المخصصة للحملة ($)</label>
-                  <input type="number" id="campaign-budget-input" min="1" step="0.5" value="10" />
-                </div>
-
-                <div class="form-group">
-                  <label for="campaign-schedule-type">النشر الفوري أو الجدولة</label>
-                  <select id="campaign-schedule-type">
-                    <option value="immediate">⚡ نشر فوري</option>
-                    <option value="peak">⏰ جدولة لأوقات الذروة</option>
-                    <option value="scheduled">📅 جدولة بتاريخ ووقت محدد</option>
-                  </select>
-                </div>
-
-                <div class="form-group hidden" id="campaign-schedule-time-group">
-                  <label for="campaign-scheduled-at">تاريخ ووقت النشر</label>
-                  <input type="datetime-local" id="campaign-scheduled-at" />
-                </div>
-              </div>
-
-              <div id="campaign-live-preview" class="campaign-preview-box"></div>
-
-              <button type="submit" id="submit-campaign-btn" class="btn btn-primary tg-btn primary btn-block">
-                🚀 إطلاق الحملة الإعلانية
-              </button>
-            </form>
-          </div>
-        </div>
-      </section>
-
-      <!-- WALLET SECTION -->
-      <section id="view-wallet" class="view-section app-section" aria-labelledby="wallet-heading">
-        <div id="wallet-section" class="section-inner">
-          <h2 id="wallet-heading" class="visually-hidden" data-i18n="nav_wallet">المحفظة</h2>
-          <div class="balance-card-grid">
-            <div class="tg-card balance-box">
-              <span class="card-label" data-i18n="earnings_balance">Earnings Balance</span>
-              <h2 class="card-value" id="wallet-earnings-balance">$0.00</h2>
-            </div>
-            <div class="tg-card balance-box">
-              <span class="card-label" data-i18n="ad_balance">Ad Balance</span>
-              <h2 class="card-value" id="wallet-ad-balance">$0.00</h2>
-            </div>
-          </div>
-
-          <div class="section-header">
-            <h3 data-i18n="deposit_funds">Deposit Ad Funds</h3>
-          </div>
-          <form id="deposit-form" class="tg-card tg-form">
-            <input type="number" id="deposit-amount" data-i18n-placeholder="amount_usd_ph" placeholder="Amount in USD (Min $1)" min="1" step="0.5" required />
-            <button type="submit" class="tg-btn primary" data-i18n="request_deposit">Request Deposit</button>
-          </form>
-
-          <div class="section-header">
-            <h3 data-i18n="withdraw_earnings">Withdraw Earnings</h3>
-          </div>
-          <form id="withdraw-form" class="tg-card tg-form">
-            <input type="number" id="withdraw-amount" data-i18n-placeholder="withdraw_amount_ph" placeholder="Amount in USD (Min $5)" min="5" step="0.5" required />
-            <input type="text" id="withdraw-address" data-i18n-placeholder="wallet_address_ph" placeholder="TON / USDT TRC20 Address" required />
-            <button type="submit" class="tg-btn secondary" data-i18n="request_withdraw">Withdraw</button>
-          </form>
-        </div>
-      </section>
-
-      <!-- REFERRAL SECTION -->
-      <section id="view-referral" class="view-section app-section" aria-labelledby="referral-heading">
-        <div id="referral-section" class="section-inner">
-          <h2 id="referral-heading" class="visually-hidden" data-i18n="nav_referral">الإحالة</h2>
-          <div class="tg-card referral-hero">
-            <h3 data-i18n="invite_friends">Invite Friends & Earn 5%</h3>
-            <p class="muted-text" data-i18n="referral_desc">Earn 5% lifetime commission from every ad completed on your invited friends' channels.</p>
-            <div class="ref-link-box">
-              <input type="text" id="referral-link-input" readonly />
-              <button type="button" id="copy-ref-btn" class="tg-btn primary" data-i18n="copy_link">Copy</button>
-            </div>
-          </div>
-
-          <div class="balance-card-grid">
-            <div class="tg-card balance-box">
-              <span class="card-label" data-i18n="invited_users">Invited Users</span>
-              <h2 class="card-value" id="ref-count">0</h2>
-            </div>
-            <div class="tg-card balance-box">
-              <span class="card-label" data-i18n="referral_earnings">Referral Earnings</span>
-              <h2 class="card-value" id="ref-earnings">$0.00</h2>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ADMIN SECTION (HIDDEN BY DEFAULT - SHOWN ONLY FOR VERIFIED ADMIN) -->
-      <section id="view-admin" class="view-section app-section" style="display: none;">
-        <div id="admin-section" class="section-inner">
-          <div class="section-header-card">
-            <div class="section-title-row">
-              <div>
-                <h2 data-i18n="admin_panel">لوحة الإدارة - مراجعة القنوات</h2>
-                <p class="section-subtitle">الموافقة أو الرفض للقنوات التي تملك أقل من 1000 مشترك مع نشر إعلان المنصة</p>
-              </div>
-              <div class="channels-total-pill">
-                <span>قيد المراجعة:</span>
-                <strong id="admin-pending-count">0</strong>
-              </div>
-            </div>
-            <div id="admin-feedback-banner" class="feedback-banner hidden" role="status" aria-live="polite"></div>
-          </div>
-
-          <div class="stats-row">
-            <div class="tg-card stat-pill">
-              <span class="stat-num" id="admin-total-users">0</span>
-              <span class="stat-txt" data-i18n="total_users">Users</span>
-            </div>
-            <div class="tg-card stat-pill">
-              <span class="stat-num" id="admin-pending-ch">0</span>
-              <span class="stat-txt" data-i18n="pending_channels">Channels</span>
-            </div>
-            <div class="tg-card stat-pill">
-              <span class="stat-num" id="admin-pending-tx">0</span>
-              <span class="stat-txt" data-i18n="pending_tx">Finance</span>
-            </div>
-          </div>
-
-          <div class="panel-card">
-            <div class="panel-heading">
-              <h3>القنوات المعلقة</h3>
-              <button type="button" id="refresh-admin-pending-btn" class="btn btn-secondary btn-sm">
-                🔄 تحديث القنوات المعلقة
-              </button>
-            </div>
-            <div id="admin-pending-channels-list" class="channels-list"></div>
-          </div>
-
-          <div class="section-header">
-            <h3 data-i18n="pending_channels">Pending Channels</h3>
-          </div>
-          <div id="admin-channels-list" class="tg-list"></div>
-
-          <div class="section-header">
-            <h3 data-i18n="pending_campaigns">Pending Campaigns</h3>
-          </div>
-          <div id="admin-campaigns-list" class="tg-list"></div>
-
-          <div class="section-header">
-            <h3 data-i18n="pending_tx">Pending Deposits & Withdrawals</h3>
-          </div>
-          <div id="admin-tx-list" class="tg-list"></div>
-
-          <div class="section-header">
-            <h3 data-i18n="security_logs">Security Audit Logs</h3>
-          </div>
-          <div id="admin-logs-list" class="tg-list"></div>
-        </div>
-      </section>
-    </main>
-
-    <!-- FLOATING GLASS PILL NAVIGATION BAR -->
-    <div class="bottom-nav-wrapper">
-      <nav class="tg-bottom-nav bottom-nav" id="bottom-nav" aria-label="التنقل الرئيسي">
-        <button class="nav-item nav-btn active" data-target="view-home" data-section="home-section" type="button">
-          <div class="nav-icon-wrap">
-            <svg viewBox="0 0 24 24"><path d="M12 3.19l7 6.11V20h-4v-6H9v6H5V9.3l7-6.11M12 1L2 9.73V22h8v-6h4v6h8V9.73L12 1z"/></svg>
-          </div>
-          <span class="nav-label" data-i18n="nav_home">Home</span>
-        </button>
-
-        <button class="nav-item nav-btn" data-target="view-channels" data-section="channels-section" type="button">
-          <div class="nav-icon-wrap">
-            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.02-1.96 1.25-5.54 3.69-.52.36-1 .53-1.42.52-.47-.01-1.37-.26-2.03-.48-.82-.27-1.47-.42-1.42-.88.03-.24.35-.49.96-.75 3.78-1.65 6.31-2.74 7.58-3.27 3.61-1.51 4.35-1.77 4.84-1.78.11 0 .35.03.5.16.13.1.17.24.18.34.02.07.02.21 0 .33z"/></svg>
-            <span class="nav-badge" id="nav-badge-channels" style="display: none;">0</span>
-          </div>
-          <span class="nav-label" data-i18n="nav_channels">Channels</span>
-        </button>
-
-        <button class="nav-item nav-btn" data-target="view-campaigns" data-section="campaigns-section" type="button">
-          <div class="nav-icon-wrap">
-            <svg viewBox="0 0 24 24"><path d="M18 11v2h4v-2h-4zm-2 6.61c.96.71 2.21 1.65 3.2 2.39.4-.53.8-1.07 1.2-1.6-.99-.74-2.24-1.68-3.2-2.4-.4.54-.8 1.08-1.2 1.61zM20.4 5.6c-.4-.53-.8-1.07-1.2-1.6-.99.74-2.24 1.68-3.2 2.4.4.53.8 1.07 1.2 1.6.96-.72 2.21-1.65 3.2-2.4zM4 9c-1.1 0-2 .9-2 2v2c0 1.1.9 2 2 2h1v4h2v-4h1l5 3V6L8 9H4zm11.5 3c0-1.33-.58-2.53-1.5-3.35v6.69c.92-.81 1.5-2.01 1.5-3.34z"/></svg>
-            <span class="nav-badge" id="nav-badge-campaigns" style="display: none;">0</span>
-          </div>
-          <span class="nav-label" data-i18n="nav_promote">Promote</span>
-        </button>
-
-        <button class="nav-item nav-btn" data-target="view-wallet" data-section="wallet-section" type="button">
-          <div class="nav-icon-wrap">
-            <svg viewBox="0 0 24 24"><path d="M21 18v1c0 1.1-.9 2-2 2H5c-1.11 0-2-.9-2-2V5c0-1.1.89-2 2-2h14c1.1 0 2 .9 2 2v1h-9c-1.11 0-2 .9-2 2v8c0 1.1.89 2 2 2h9zm-9-2h10V8H12v8zm4-2.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
-          </div>
-          <span class="nav-label" data-i18n="nav_wallet">Wallet</span>
-        </button>
-
-        <button class="nav-item nav-btn" data-target="view-referral" data-section="referral-section" type="button">
-          <div class="nav-icon-wrap">
-            <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-          </div>
-          <span class="nav-label" data-i18n="nav_referral">Referral</span>
-        </button>
-
-        <!-- ADMIN TAB HIDDEN COMPLETELY UNLESS USER IS VERIFIED ADMIN -->
-        <button class="nav-item nav-btn admin-only" id="nav-admin-btn" data-target="view-admin" data-section="admin-section" type="button" style="display: none;">
-          <div class="nav-icon-wrap">
-            <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
-          </div>
-          <span class="nav-label" data-i18n="nav_admin">Admin</span>
-        </button>
-      </nav>
     </div>
+    <button id="lang-toggle-btn" class="lang-pill" type="button">AR / EN</button>
+  </header>
+
+  <main id="app-content" class="app-container">
+    <!-- HOME SECTION -->
+    <section id="view-home" class="view-section active"></section>
+
+    <!-- CHANNELS SECTION -->
+    <section id="view-channels" class="view-section"></section>
+
+    <!-- PROMOTION (CAMPAIGNS) SECTION -->
+    <section id="view-campaigns" class="view-section"></section>
+
+    <!-- WALLET SECTION -->
+    <section id="view-wallet" class="view-section"></section>
+
+    <!-- REFERRAL SECTION -->
+    <section id="view-referral" class="view-section"></section>
+
+    <!-- ADMIN SECTION (HIDDEN BY DEFAULT - SHOWN ONLY FOR VERIFIED ADMIN) -->
+    <section id="view-admin" class="view-section" style="display: none;"></section>
+  </main>
+
+  <!-- FLOATING GLASS PILL NAVIGATION BAR -->
+  <div class="bottom-nav-wrapper">
+    <nav class="tg-bottom-nav" id="bottom-nav">
+      <button class="nav-item active" data-target="view-home" type="button">
+        <div class="nav-icon-wrap">
+          <svg viewBox="0 0 24 24"><path d="M12 3.19l7 6.11V20h-4v-6H9v6H5V9.3l7-6.11M12 1L2 9.73V22h8v-6h4v6h8V9.73L12 1z"/></svg>
+        </div>
+        <span class="nav-label" data-i18n="nav_home">Home</span>
+      </button>
+
+      <button class="nav-item" data-target="view-channels" type="button">
+        <div class="nav-icon-wrap">
+          <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.02-1.96 1.25-5.54 3.69-.52.36-1 .53-1.42.52-.47-.01-1.37-.26-2.03-.48-.82-.27-1.47-.42-1.42-.88.03-.24.35-.49.96-.75 3.78-1.65 6.31-2.74 7.58-3.27 3.61-1.51 4.35-1.77 4.84-1.78.11 0 .35.03.5.16.13.1.17.24.18.34.02.07.02.21 0 .33z"/></svg>
+          <span class="nav-badge" id="nav-badge-channels" style="display: none;">0</span>
+        </div>
+        <span class="nav-label" data-i18n="nav_channels">Channels</span>
+      </button>
+
+      <button class="nav-item" data-target="view-campaigns" type="button">
+        <div class="nav-icon-wrap">
+          <svg viewBox="0 0 24 24"><path d="M18 11v2h4v-2h-4zm-2 6.61c.96.71 2.21 1.65 3.2 2.39.4-.53.8-1.07 1.2-1.6-.99-.74-2.24-1.68-3.2-2.4-.4.54-.8 1.08-1.2 1.61zM20.4 5.6c-.4-.53-.8-1.07-1.2-1.6-.99.74-2.24 1.68-3.2 2.4.4.53.8 1.07 1.2 1.6.96-.72 2.21-1.65 3.2-2.4zM4 9c-1.1 0-2 .9-2 2v2c0 1.1.9 2 2 2h1v4h2v-4h1l5 3V6L8 9H4zm11.5 3c0-1.33-.58-2.53-1.5-3.35v6.69c.92-.81 1.5-2.01 1.5-3.34z"/></svg>
+          <span class="nav-badge" id="nav-badge-campaigns" style="display: none;">0</span>
+        </div>
+        <span class="nav-label" data-i18n="nav_promote">Promote</span>
+      </button>
+
+      <button class="nav-item" data-target="view-wallet" type="button">
+        <div class="nav-icon-wrap">
+          <svg viewBox="0 0 24 24"><path d="M21 18v1c0 1.1-.9 2-2 2H5c-1.11 0-2-.9-2-2V5c0-1.1.89-2 2-2h14c1.1 0 2 .9 2 2v1h-9c-1.11 0-2 .9-2 2v8c0 1.1.89 2 2 2h9zm-9-2h10V8H12v8zm4-2.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
+        </div>
+        <span class="nav-label" data-i18n="nav_wallet">Wallet</span>
+      </button>
+
+      <button class="nav-item" data-target="view-referral" type="button">
+        <div class="nav-icon-wrap">
+          <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+        </div>
+        <span class="nav-label" data-i18n="nav_referral">Referral</span>
+      </button>
+
+      <!-- ADMIN TAB HIDDEN COMPLETELY UNLESS USER IS VERIFIED ADMIN -->
+      <button class="nav-item" id="nav-admin-btn" data-target="view-admin" type="button" style="display: none;">
+        <div class="nav-icon-wrap">
+          <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+        </div>
+        <span class="nav-label" data-i18n="nav_admin">Admin</span>
+      </button>
+    </nav>
   </div>
 
   <script src="/js/language/ar.js"></script>
