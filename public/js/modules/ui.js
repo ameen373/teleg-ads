@@ -1,14 +1,18 @@
-// ==================== UI HELPERS, TABS, WIZARDS & PREVIEW ====================
+// ==================== UI HELPERS, WIZARDS & PREVIEW ====================
 (function () {
   function translateKey(key, fallback = '') {
     if (!key) return fallback;
-    if (window.I18n && typeof window.I18n.t === 'function') {
-      const val = window.I18n.t(key);
-      if (val !== undefined && val !== null) return val;
-    }
-    if (window.I18N && typeof window.I18N.t === 'function') {
-      const val = window.I18N.t(key);
-      if (val !== undefined && val !== null) return val;
+    try {
+      if (window.I18n && typeof window.I18n.t === 'function') {
+        const val = window.I18n.t(key);
+        if (val !== undefined && val !== null) return val;
+      }
+      if (window.I18N && typeof window.I18N.t === 'function') {
+        const val = window.I18N.t(key);
+        if (val !== undefined && val !== null) return val;
+      }
+    } catch (err) {
+      console.error(err);
     }
     return fallback || key;
   }
@@ -37,16 +41,24 @@
 
   const UI = {
     notify(message) {
-      if (window.Telegram?.WebApp?.showAlert) {
-        window.Telegram.WebApp.showAlert(message);
-      } else {
-        alert(message);
+      try {
+        if (window.Telegram?.WebApp?.showAlert) {
+          window.Telegram.WebApp.showAlert(message);
+        } else {
+          alert(message);
+        }
+      } catch (err) {
+        console.error(err);
       }
     },
 
     haptic(type = 'light') {
-      if (window.Telegram?.WebApp?.HapticFeedback) {
-        window.Telegram.WebApp.HapticFeedback.impactOccurred(type);
+      try {
+        if (window.Telegram?.WebApp?.HapticFeedback) {
+          window.Telegram.WebApp.HapticFeedback.impactOccurred(type);
+        }
+      } catch (err) {
+        console.error(err);
       }
     },
 
@@ -56,27 +68,31 @@
     },
 
     switchView(targetId) {
-      document.querySelectorAll('.view-section').forEach((sec) => {
-        sec.classList.remove('active');
-        if (sec.id === 'view-admin' && targetId !== 'view-admin') {
-          sec.style.display = 'none';
-        }
-      });
+      try {
+        document.querySelectorAll('.view-section').forEach((sec) => {
+          sec.classList.remove('active');
+          if (sec.id === 'view-admin' && targetId !== 'view-admin') {
+            sec.style.display = 'none';
+          }
+        });
 
-      const targetSection = document.getElementById(targetId);
-      if (targetSection) {
-        if (targetId === 'view-admin') {
-          targetSection.style.display = 'block';
+        const targetSection = document.getElementById(targetId);
+        if (targetSection) {
+          if (targetId === 'view-admin') {
+            targetSection.style.display = 'block';
+          }
+          targetSection.classList.add('active');
         }
-        targetSection.classList.add('active');
+
+        document.querySelectorAll('.nav-item').forEach((btn) => {
+          btn.classList.toggle('active', btn.getAttribute('data-target') === targetId);
+        });
+
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        this.haptic('light');
+      } catch (err) {
+        console.error(err);
       }
-
-      document.querySelectorAll('.nav-item').forEach((btn) => {
-        btn.classList.toggle('active', btn.getAttribute('data-target') === targetId);
-      });
-
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      this.haptic('light');
     },
 
     updateNavBadge(badgeId, count) {
@@ -279,25 +295,6 @@
       });
     },
 
-    switchMainTab(tab) {
-      const tabChannels = document.getElementById('tab-channels');
-      const tabPromotion = document.getElementById('tab-promotion');
-      const secChannels = document.getElementById('section-channels');
-      const secPromotion = document.getElementById('section-promotion');
-
-      if (tab === 'channels') {
-        tabChannels?.classList.add('active');
-        tabPromotion?.classList.remove('active');
-        secChannels?.classList.remove('hidden');
-        secPromotion?.classList.add('hidden');
-      } else {
-        tabPromotion?.classList.add('active');
-        tabChannels?.classList.remove('active');
-        secPromotion?.classList.remove('hidden');
-        secChannels?.classList.add('hidden');
-      }
-    },
-
     closeAllChannelPanels() {
       [
         'panel-bot-instructions',
@@ -496,7 +493,6 @@
   window.getTxTypeLabel = (type) => UI.getTxTypeLabel(type);
   window.setupPriceSelector = (pillsContainerId, inputId, onChangeCallback) =>
     UI.setupPriceSelector(pillsContainerId, inputId, onChangeCallback);
-  window.switchMainTab = (tab) => UI.switchMainTab(tab);
   window.closeAllChannelPanels = () => UI.closeAllChannelPanels();
   window.updateChannelWizardStep = (step) => UI.updateChannelWizardStep(step);
   window.resetChannelWizard = () => UI.resetChannelWizard();
