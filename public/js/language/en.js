@@ -71,6 +71,13 @@ const EN_TRANSLATIONS = {
   app_subtitle: 'Channel Management & Advertising Platform',
   lang_switch: 'العربية',
 
+  // Phase 3 App, Account & Smart Alerts
+  appTitle: 'Telega.ads - Phase 3',
+  appSubtitle: 'Advanced Protection, Smart Automation & Deep Analytics',
+  userIdLabel: 'User ID',
+  loadAccountBtn: 'Load Account',
+  smartAlertsTitle: 'Smart Alerts System',
+
   // My Channels Section
   channels_section_title: 'Manage My Channels',
   channels_section_desc: 'Click the buttons below to add a channel or view your channels and settings.',
@@ -82,6 +89,15 @@ const EN_TRANSLATIONS = {
   btn_toggle_referrals: 'Publisher Referrals',
   btn_toggle_wallet: 'Financial Wallets',
   btn_toggle_reliability: 'Reliability, Logs & Backups',
+
+  // Channels, Anti-Bot & Earnings
+  channelsSectionTitle: 'Channels, Anti-Bot & Earnings',
+  channelSubRuleNote: 'Rule: Minimum 1000 subscribers, blacklist check & Anti-Bot shield enabled.',
+  channelNameLabel: 'Channel Name',
+  channelSubsLabel: 'Subscribers Count',
+  channelPriceLabel: 'Ad Price ($)',
+  addChannelBtn: 'Add Channel',
+  channelsListTitle: 'My Channels & Independent Stats',
 
   // Bot Instructions Box
   bot_box_title: 'Instructions to Add Bot as Admin (@adTelega_bot)',
@@ -155,8 +171,11 @@ const EN_TRANSLATIONS = {
   referral_publisher: 'Publisher:',
   referral_user: 'Referred User:',
   referral_channel: 'Channel:',
+  referralTitle: 'Referral System (10% Earnings Share)',
+  referralTotalLabel: 'Total Referral Earnings',
+  referralLinkLabel: 'Your Referral Link',
 
-  // Wallets
+  // Wallets, Deposit, Withdrawal & Transactions
   wallet_panel_title: 'Advertiser & Publisher Wallets and Ledger',
   wallet_adv_balance: 'Advertiser Balance ($):',
   wallet_pub_balance: 'Publisher Balance ($):',
@@ -173,6 +192,25 @@ const EN_TRANSLATIONS = {
   tx_type_ad_spend: 'Ad Views Spend',
   tx_type_ad_earning: 'Publisher Views Earning',
   tx_type_budget_topup: 'Campaign Budget Top-up',
+  walletBalanceLabel: 'Wallet Balance (Advertiser)',
+  pendingEarningsLabel: 'Pending Earnings (24h Lock)',
+  availableEarningsLabel: 'Available to Withdraw',
+  depositTitle: 'Deposit via USDT - BEP20',
+  depositInstructions: 'Send at least $10.00 over USDT - BEP20 to the address below, then submit the transaction TXID.',
+  copyAddressBtn: 'Copy Address',
+  copiedText: 'Copied',
+  depositAmountLabel: 'Amount ($)',
+  txidLabel: 'Transaction Hash (TXID)',
+  submitDepositBtn: 'Submit Deposit Request',
+  withdrawTitle: 'Withdraw Earnings (USDT - TRC20)',
+  trc20SavedLabel: 'Saved TRC20 Wallet Address',
+  trc20AddressInputLabel: 'Save or Update USDT - TRC20 Address',
+  saveTrc20Btn: 'Save Address',
+  withdrawAmountLabel: 'Withdrawal Amount ($ - Min $30.00)',
+  withdrawAddressLabel: 'Destination Wallet Address (TRC20)',
+  submitWithdrawBtn: 'Confirm & Submit Withdrawal',
+  withdrawalsTrackerTitle: 'Step-by-Step Withdrawal Tracker',
+  transactionsTitle: 'Financial Transactions (Last 10)',
 
   // Reliability, Publish Logs, Notifications & Backups
   reliability_panel_title: 'Notifications, Publish Logs, System Health & Backups',
@@ -190,12 +228,26 @@ const EN_TRANSLATIONS = {
   btn_create_backup: 'Run Backup Now',
   no_backups: 'No backup records yet.',
 
-  // Promotion Section
+  // Promotion Section, Estimator & Atomic Settlement
   promo_section_title: 'Promotion & Ad Campaigns',
   promo_section_desc: 'Create your ad campaign step-by-step or view your saved campaigns and drafts.',
   btn_view_campaigns: 'View Ad Campaigns',
   btn_hide_campaigns: 'Hide Ad Campaigns',
   btn_create_campaign: '+ Create New Campaign',
+  estimatorTitle: 'CPM & ROI Estimator',
+  estimatorCpmLabel: 'CPM ($ per 1,000 views)',
+  estimatorCtrLabel: 'Estimated CTR (%)',
+  estimatorConvValLabel: 'Avg Conversion Value ($)',
+  runEstimateBtn: 'Calculate Estimate',
+  campaignTitleSection: 'Campaigns & Atomic Settlement',
+  campaignNameLabel: 'Campaign Title',
+  campaignBudgetLabel: 'Campaign Budget ($)',
+  targetingModeLabel: 'Targeting Mode',
+  targetingSpecificOption: 'Targeted Selection',
+  targetingOpenOption: 'Open Targeting (Requires budget greater than $1000)',
+  openTargetingHint: 'Rule: Open targeting is enabled only when budget is greater than $1000. Drafts auto-save while typing.',
+  createCampaignBtn: 'Create Campaign & Reserve Budget',
+  campaignsListTitle: 'Campaigns & Edit History',
 
   // Campaign Wizard
   wizard_campaign_title: 'Ad Campaign Creation Wizard',
@@ -274,6 +326,55 @@ const EN_TRANSLATIONS = {
   detail_published_channels: 'Published Channels:',
   policy_locked_badge: 'Locked Content (No Forwarding / No Tampering)',
 
+  // Support, Tickets & FAQ
+  supportTitle: 'Support & Tickets',
+  ticketSubjectLabel: 'Ticket Subject',
+  ticketMessageLabel: 'Message Details',
+  submitTicketBtn: 'Submit Ticket',
+  ticketsListTitle: 'My Tickets & Direct Replies',
+  faqTitle: 'Frequently Asked Questions (FAQ)',
+  faqQ1: 'How does the 24-hour earnings release cycle work?',
+  faqA1: 'Earnings and 10% referral commissions start in Pending Earnings and automatically move to Available Earnings after 24 hours.',
+  faqQ2: 'What are the withdrawal limits and fees?',
+  faqA2: 'Minimum withdrawal is $30.00 via USDT - TRC20 with a fixed $3.00 fee shown clearly before confirmation.',
+  faqQ3: 'What happens when a campaign is stopped or completed?',
+  faqA3: 'Remaining campaign budget is atomically refunded to the advertiser wallet using an ACID database transaction.',
+  faqQ4: 'How does the platform prevent view inflation and abuse?',
+  faqA4: 'Anti-Bot filters suspicious/rapid batches, blacklist words are enforced, and edit history + instant bans protect integrity.',
+
+  // Admin Control, Analytics & Protection
+  adminSectionTitle: 'Admin Control, Analytics & Protection',
+  adminKeyLabel: 'Admin Key',
+  loadAdminBtn: 'Load Admin Panel',
+  maintenanceToggleBtn: 'Toggle Maintenance Mode',
+  adminLiveDashboardTitle: 'Live Dashboard',
+  adminDailyReportTitle: 'Automated Daily Financial Report',
+  adminBanTitle: 'Instant Ban System (User / Channel / Advertiser)',
+  adminBlacklistTitle: 'Blacklist Words Management',
+  adminEmergencyStopTitle: 'Emergency Campaign Kill-Switch (All Channels)',
+  adminAdjustTitle: 'Manual Balance Adjustment',
+  adminTargetUserLabel: 'Target User ID',
+  adminAdjustModeLabel: 'Action',
+  adminAddOption: 'Credit Balance',
+  adminDeductOption: 'Debit Balance',
+  adminBucketLabel: 'Balance Bucket',
+  adminAmountLabel: 'Amount ($)',
+  adminReasonLabel: 'Reason (Required)',
+  adminApplyAdjustBtn: 'Apply Adjustment',
+  adminBroadcastTitle: 'Broadcast & Instant Alerts',
+  adminBroadcastTitleInputLabel: 'Alert Title',
+  adminBroadcastBodyLabel: 'Broadcast Message',
+  adminSendBroadcastBtn: 'Send Broadcast',
+  adminDepositsTitle: 'Deposit Requests Review',
+  adminWithdrawalsTitle: 'Withdrawal Requests Review & Steps',
+  adminTicketsTitle: 'Support Tickets & Direct Replies',
+  adminAuditLogsTitle: 'Suspicious Activity Audit Logs',
+  adminSecurityLogsTitle: 'Security & Audit Logs',
+
+  // Footer
+  footerNotice: 'Mandatory Telega.ads Footer - All rights reserved.',
+  footerReferralAnchorText: 'Join via Publisher Referral Link',
+
   // Categories (13)
   cat_entertainment: 'Entertainment',
   cat_news_media: 'News & Media',
@@ -315,6 +416,7 @@ const EN_TRANSLATIONS = {
 if (typeof window !== 'undefined') {
   window.EN_TRANSLATIONS = EN_TRANSLATIONS;
   window.LANG_EN = EN_TRANSLATIONS;
+  window.TELEGA_LANG_EN = EN_TRANSLATIONS;
 }
 
 if (typeof module !== 'undefined' && module.exports) {
