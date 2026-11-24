@@ -37,6 +37,25 @@ const SUPPORTED_CATEGORIES = [
   { value: 'other', key: 'cat_other' }
 ];
 
+const _urlParams = new URLSearchParams(window.location.search);
+const _urlRef = (_urlParams.get('ref') || '').trim();
+if (_urlRef) {
+  try {
+    localStorage.setItem('telega_referred_by', _urlRef);
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+function readStoredValue(storage, key, fallback) {
+  try {
+    const val = storage && typeof storage.getItem === 'function' ? storage.getItem(key) : null;
+    return val !== null && val !== undefined && val !== '' ? val : fallback;
+  } catch (err) {
+    return fallback;
+  }
+}
+
 const AppState = {
   channels: [],
   campaigns: [],
@@ -63,7 +82,21 @@ const AppState = {
   isCampaignsListOpen: false,
   expandedChannelIds: new Set(),
   editingChannelIds: new Set(),
-  expandedCampaignIds: new Set()
+  expandedCampaignIds: new Set(),
+  userId: readStoredValue(window.localStorage, 'telega_user_id', 'user_demo_01'),
+  referredBy: readStoredValue(window.localStorage, 'telega_referred_by', ''),
+  adminKey: readStoredValue(window.sessionStorage, 'telega_admin_key', ''),
+  walletAddress: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+  minDepositUsd: 10,
+  minWithdrawalUsd: 30,
+  withdrawalFeeUsd: 3,
+  withdrawalNetwork: 'USDT - TRC20',
+  minSubscribers: 1000,
+  openTargetingMinBudget: 1000,
+  maintenanceMode: false,
+  tickets: [],
+  broadcasts: [],
+  smartAlerts: []
 };
 
 window.SUPPORTED_LANGUAGES = SUPPORTED_LANGUAGES;
@@ -71,6 +104,9 @@ window.SUPPORTED_CATEGORIES = SUPPORTED_CATEGORIES;
 window.AppState = AppState;
 
 function getTranslateFn() {
+  if (window.TelegaI18n && typeof window.TelegaI18n.t === 'function') {
+    return (key) => window.TelegaI18n.t(key);
+  }
   if (window.I18n && typeof window.I18n.t === 'function') {
     return (key) => window.I18n.t(key);
   }
@@ -82,7 +118,11 @@ function getTranslateFn() {
 
 function notifyUser(message) {
   if (!message) return;
-  if (typeof window.showToast === 'function') {
+  if (window.UI && typeof window.UI.showNotice === 'function') {
+    window.UI.showNotice(message);
+  } else if (typeof window.showNotice === 'function') {
+    window.showNotice(message);
+  } else if (typeof window.showToast === 'function') {
     window.showToast(message);
   } else if (window.UI && typeof window.UI.notify === 'function') {
     window.UI.notify(message);
@@ -90,10 +130,10 @@ function notifyUser(message) {
 }
 
 function safeOn(elementId, eventName, handler) {
-  const el = document.getElementById(elementId);
-  if (!el || typeof handler !== 'function') return null;
-  el.addEventListener(eventName, handler);
-  return el;
+  const element = document.getElementById(elementId);
+  if (!element || typeof handler !== 'function') return null;
+  element.addEventListener(eventName, handler);
+  return element;
 }
 
 function updateToggleButtonsText() {
@@ -125,6 +165,11 @@ async function refreshAllRenderedViews() {
     if (typeof window.renderReliabilityPanel === 'function') window.renderReliabilityPanel();
     if (typeof window.renderMarketplaceChannels === 'function') window.renderMarketplaceChannels();
     if (typeof window.renderCampaigns === 'function') window.renderCampaigns();
+    if (window.UI && typeof window.UI.renderSmartAlerts === 'function') {
+      window.UI.renderSmartAlerts(AppState.smartAlerts);
+    } else if (typeof window.renderSmartAlerts === 'function') {
+      window.renderSmartAlerts(AppState.smartAlerts);
+    }
   } catch (err) {
     console.error(err);
   }
@@ -138,6 +183,148 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
   const App = {
     user: null,
     _initialized: false,
+
+    getContext() {
+      return {
+        state: AppState,
+        el: (id) => document.getElementById(id),
+        apiRequest: async (url, options, ctx) => {
+          if (window.Api && typeof window.Api.request === 'function') {
+            return window.Api.request(url, options, ctx);
+          }
+          const headers = Object.assign(
+            {
+              'Content-Type': 'application/json',
+              'x-user-id': AppState.userId
+            },
+            AppState.adminKey ? { 'x-admin-key': AppState.adminKey } : {},
+            (options && options.headers) || {}
+          );
+          const resp = await fetch(url, Object.assign({}, options, { headers }));
+          const data = await resp.json().catch(() => ({}));
+          if (!resp.ok || data.ok === false || data.success === false) {
+            const err = new Error(data.error || data.message || 'Request failed');
+            err.status = resp.status;
+            err.data = data;
+            throw err;
+          }
+          return data;
+        },
+        showNotice: (msg, isError) => {
+          if (window.UI && typeof window.UI.showNotice === 'function') {
+            window.UI.showNotice(msg, isError);
+          } else if (typeof window.showNotice === 'function') {
+            window.showNotice(msg, isError);
+          } else {
+            notifyUser(msg);
+          }
+        },
+        clearNotice: () => {
+          if (window.UI && typeof window.UI.clearNotice === 'function') {
+            window.UI.clearNotice();
+          } else if (typeof window.clearNotice === 'function') {
+            window.clearNotice();
+          }
+        },
+        renderMaintenanceBanner: (data) => {
+          if (window.UI && typeof window.UI.renderMaintenanceBanner === 'function') {
+            window.UI.renderMaintenanceBanner(data);
+          } else if (typeof window.renderMaintenanceBanner === 'function') {
+            window.renderMaintenanceBanner(data);
+          }
+        },
+        syncReferralLink: () => {
+          if (window.UI && typeof window.UI.syncReferralLink === 'function') {
+            window.UI.syncReferralLink(App.getContext());
+          } else if (typeof window.syncReferralLink === 'function') {
+            window.syncReferralLink(App.getContext());
+          }
+        },
+        saveDrafts: () => {
+          if (window.UI && typeof window.UI.saveDrafts === 'function') {
+            window.UI.saveDrafts(App.getContext());
+          } else if (typeof window.saveDrafts === 'function') {
+            window.saveDrafts(App.getContext());
+          }
+        },
+        restoreDrafts: () => {
+          if (window.UI && typeof window.UI.restoreDrafts === 'function') {
+            window.UI.restoreDrafts(App.getContext());
+          } else if (typeof window.restoreDrafts === 'function') {
+            window.restoreDrafts(App.getContext());
+          }
+        },
+        syncOpenTargetingRule: () => {
+          if (typeof window.handleBudgetTargetingState === 'function') {
+            window.handleBudgetTargetingState();
+          }
+          if (window.CampaignsModule && typeof window.CampaignsModule.syncOpenTargetingRule === 'function') {
+            window.CampaignsModule.syncOpenTargetingRule(App.getContext());
+          }
+        },
+        syncWithdrawalSummary: () => {
+          if (window.WalletModule && typeof window.WalletModule.syncWithdrawalSummary === 'function') {
+            window.WalletModule.syncWithdrawalSummary(App.getContext());
+          } else if (typeof window.syncWithdrawalSummary === 'function') {
+            window.syncWithdrawalSummary(App.getContext());
+          }
+        },
+        renderSmartAlerts: (alerts) => {
+          AppState.smartAlerts = Array.isArray(alerts) ? alerts : [];
+          if (window.UI && typeof window.UI.renderSmartAlerts === 'function') {
+            window.UI.renderSmartAlerts(AppState.smartAlerts);
+          } else if (typeof window.renderSmartAlerts === 'function') {
+            window.renderSmartAlerts(AppState.smartAlerts);
+          }
+        },
+        refreshWallet: async () => {
+          if (window.WalletModule && typeof window.WalletModule.refresh === 'function') {
+            await window.WalletModule.refresh(App.getContext());
+          } else if (typeof window.fetchWallet === 'function') {
+            await window.fetchWallet();
+          }
+          await App.refreshUserData().catch(() => {});
+        },
+        refreshCampaigns: async () => {
+          if (window.CampaignsModule && typeof window.CampaignsModule.load === 'function') {
+            await window.CampaignsModule.load(App.getContext());
+          } else if (typeof window.fetchCampaigns === 'function') {
+            await window.fetchCampaigns();
+          }
+        },
+        refreshChannels: async () => {
+          if (window.ChannelsModule && typeof window.ChannelsModule.load === 'function') {
+            await window.ChannelsModule.load(App.getContext());
+          } else if (typeof window.fetchChannels === 'function') {
+            await window.fetchChannels();
+          }
+        },
+        refreshTicketsAndBroadcasts: async () => {
+          const ctx = App.getContext();
+          if (window.UI && typeof window.UI.refreshTicketsAndBroadcasts === 'function') {
+            await window.UI.refreshTicketsAndBroadcasts(ctx);
+            return;
+          }
+          try {
+            const [tktRes, bcastRes] = await Promise.all([
+              ctx.apiRequest(`/api/tickets?userId=${encodeURIComponent(AppState.userId)}`, undefined, ctx).catch(() => ({ tickets: [] })),
+              ctx.apiRequest('/api/broadcasts', undefined, ctx).catch(() => ({ broadcasts: [] }))
+            ]);
+            AppState.tickets = Array.isArray(tktRes.tickets) ? tktRes.tickets : [];
+            AppState.broadcasts = Array.isArray(bcastRes.broadcasts) ? bcastRes.broadcasts : [];
+          } catch (err) {
+            console.error(err);
+          }
+        },
+        refreshAdminPanel: async () => {
+          if (window.AdminModule && typeof window.AdminModule.loadDashboard === 'function') {
+            await window.AdminModule.loadDashboard(App.getContext());
+          } else if (typeof window.fetchAdminOverview === 'function') {
+            await window.fetchAdminOverview();
+          }
+        }
+      };
+    },
 
     async init() {
       if (this._initialized) return;
@@ -154,7 +341,9 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
       }
 
       try {
-        if (window.I18n) {
+        if (window.TelegaI18n && typeof window.TelegaI18n.applyLanguage === 'function' && typeof window.TelegaI18n.getLang === 'function') {
+          window.TelegaI18n.applyLanguage(window.TelegaI18n.getLang());
+        } else if (window.I18n) {
           const initialLang = typeof window.I18n.detectInitialLanguage === 'function'
             ? window.I18n.detectInitialLanguage()
             : window.I18n.currentLang || 'ar';
@@ -170,6 +359,12 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
       }
 
       try {
+        const userIdInput = document.getElementById('userIdInput');
+        if (userIdInput) userIdInput.value = AppState.userId;
+
+        const adminKeyInput = document.getElementById('adminKeyInput');
+        if (adminKeyInput) adminKeyInput.value = AppState.adminKey;
+
         if (typeof window.populateDropdowns === 'function') {
           window.populateDropdowns();
         }
@@ -178,31 +373,91 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
         console.error(err);
       }
 
+      const ctx = this.getContext();
+      ctx.syncReferralLink();
+      ctx.restoreDrafts();
+      ctx.syncWithdrawalSummary();
+
       this.bindNavigation();
       this.bindLanguageToggle();
       this.bindProgressivePanelsAndWizards();
 
       try {
-        if (window.ChannelsModule && typeof window.ChannelsModule.init === 'function') {
-          window.ChannelsModule.init();
+        if (window.UI && typeof window.UI.bindEvents === 'function') {
+          window.UI.bindEvents(ctx);
         }
-        if (window.CampaignsModule && typeof window.CampaignsModule.init === 'function') {
-          window.CampaignsModule.init();
+        if (window.ChannelsModule) {
+          if (typeof window.ChannelsModule.init === 'function') window.ChannelsModule.init();
+          if (typeof window.ChannelsModule.bindEvents === 'function') window.ChannelsModule.bindEvents(ctx);
         }
-        if (window.WalletModule && typeof window.WalletModule.init === 'function') {
-          window.WalletModule.init();
+        if (window.CampaignsModule) {
+          if (typeof window.CampaignsModule.init === 'function') window.CampaignsModule.init();
+          if (typeof window.CampaignsModule.bindEvents === 'function') window.CampaignsModule.bindEvents(ctx);
+        }
+        if (window.WalletModule) {
+          if (typeof window.WalletModule.init === 'function') window.WalletModule.init();
+          if (typeof window.WalletModule.bindEvents === 'function') window.WalletModule.bindEvents(ctx);
+        }
+        if (window.AdminModule && typeof window.AdminModule.bindEvents === 'function') {
+          window.AdminModule.bindEvents(ctx);
         }
       } catch (err) {
         console.error(err);
       }
 
       try {
+        const cfg = await ctx.apiRequest('/api/config/rules', undefined, ctx).catch(() => null);
+        if (cfg) {
+          if (typeof cfg.maintenanceMode === 'boolean') {
+            AppState.maintenanceMode = cfg.maintenanceMode;
+            ctx.renderMaintenanceBanner(cfg);
+          }
+          if (cfg.rules) {
+            AppState.walletAddress = cfg.rules.WALLET_ADDRESS || AppState.walletAddress;
+            AppState.minDepositUsd = cfg.rules.MIN_DEPOSIT_USD || AppState.minDepositUsd;
+            AppState.minWithdrawalUsd = cfg.rules.MIN_WITHDRAWAL_USD || AppState.minWithdrawalUsd;
+            AppState.withdrawalFeeUsd =
+              typeof cfg.rules.WITHDRAWAL_FEE_USD === 'number'
+                ? cfg.rules.WITHDRAWAL_FEE_USD
+                : AppState.withdrawalFeeUsd;
+            AppState.withdrawalNetwork = cfg.rules.WITHDRAWAL_NETWORK || AppState.withdrawalNetwork;
+            AppState.minSubscribers = cfg.rules.MIN_CHANNEL_SUBSCRIBERS || AppState.minSubscribers;
+            AppState.openTargetingMinBudget =
+              cfg.rules.OPEN_TARGETING_MIN_BUDGET || AppState.openTargetingMinBudget;
+            ctx.syncWithdrawalSummary();
+            ctx.syncOpenTargetingRule();
+          }
+        }
+
+        if (AppState.userId) {
+          await ctx.apiRequest(
+            '/api/users/init',
+            {
+              method: 'POST',
+              body: JSON.stringify({ userId: AppState.userId, referredBy: AppState.referredBy })
+            },
+            ctx
+          ).catch(() => {});
+        }
+
         if (window.Api && typeof window.Api.getMe === 'function') {
           await this.refreshUserData();
           await Promise.all([
-            window.ChannelsModule?.load ? window.ChannelsModule.load() : Promise.resolve(),
-            window.CampaignsModule?.load ? window.CampaignsModule.load() : Promise.resolve()
+            window.ChannelsModule?.load ? window.ChannelsModule.load(ctx) : Promise.resolve(),
+            window.CampaignsModule?.load ? window.CampaignsModule.load(ctx) : Promise.resolve(),
+            ctx.refreshTicketsAndBroadcasts()
           ]);
+        } else {
+          await Promise.all([
+            ctx.refreshWallet(),
+            ctx.refreshCampaigns(),
+            ctx.refreshChannels(),
+            ctx.refreshTicketsAndBroadcasts()
+          ]);
+        }
+
+        if (AppState.adminKey) {
+          await ctx.refreshAdminPanel().catch(() => {});
         }
       } catch (err) {
         if (window.UI && typeof window.UI.notify === 'function') {
@@ -263,7 +518,7 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
             const target = btn.getAttribute('data-target');
             if (!target) return;
 
-            if (target === 'view-admin' && (!this.user || !this.user.isAdmin)) {
+            if (target === 'view-admin' && (!this.user || !this.user.isAdmin) && !AppState.adminKey) {
               return;
             }
 
@@ -271,14 +526,15 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
               window.UI.switchView(target);
             }
 
+            const ctx = this.getContext();
             if (target === 'view-channels' && window.ChannelsModule?.load) {
-              await window.ChannelsModule.load();
+              await window.ChannelsModule.load(ctx);
             }
             if (target === 'view-campaigns' && window.CampaignsModule?.load) {
-              await window.CampaignsModule.load();
+              await window.CampaignsModule.load(ctx);
             }
-            if (target === 'view-admin' && this.user?.isAdmin && window.AdminModule?.loadDashboard) {
-              await window.AdminModule.loadDashboard();
+            if (target === 'view-admin' && (this.user?.isAdmin || AppState.adminKey)) {
+              await ctx.refreshAdminPanel();
             }
           } catch (err) {
             console.error(err);
@@ -292,6 +548,11 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
       const t = getTranslateFn();
 
       try {
+        if (window.TelegaI18n && typeof window.TelegaI18n.getLang === 'function' && typeof window.TelegaI18n.applyLanguage === 'function') {
+          const nextLang = window.TelegaI18n.getLang() === 'ar' ? 'en' : 'ar';
+          window.TelegaI18n.applyLanguage(nextLang);
+        }
+
         if (window.I18n && typeof window.I18n.setLanguage === 'function') {
           const nextLang = window.I18n.currentLang === 'ar' ? 'en' : 'ar';
           window.I18n.setLanguage(nextLang);
