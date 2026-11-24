@@ -3,6 +3,10 @@
   function t(key, fallback = '') {
     if (!key) return fallback;
     try {
+      if (window.TelegaI18n && typeof window.TelegaI18n.t === 'function') {
+        const val = window.TelegaI18n.t(key);
+        if (val !== undefined && val !== null) return val;
+      }
       if (window.I18n && typeof window.I18n.t === 'function') {
         const val = window.I18n.t(key);
         if (val !== undefined && val !== null) return val;
@@ -35,7 +39,7 @@
   function esc(str) {
     if (typeof window.escapeHTML === 'function') return window.escapeHTML(str);
     if (window.UI && typeof window.UI.escapeHTML === 'function') return window.UI.escapeHTML(str);
-    if (!str) return '';
+    if (str === null || str === undefined) return '';
     return String(str)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
@@ -44,10 +48,75 @@
       .replace(/'/g, '&#39;');
   }
 
+  function getEl(id) {
+    return document.getElementById(id);
+  }
+
+  function showChannelNotice(message, isError = false) {
+    if (!message) return;
+    try {
+      if (window.UI && typeof window.UI.showNotice === 'function') {
+        window.UI.showNotice('channelNotice', message, isError);
+      } else if (typeof window.showNotice === 'function') {
+        window.showNotice('channelNotice', message, isError);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    toast(message);
+  }
+
+  function clearChannelNotice() {
+    try {
+      if (window.UI && typeof window.UI.clearNotice === 'function') {
+        window.UI.clearNotice('channelNotice');
+      } else if (typeof window.clearNotice === 'function') {
+        window.clearNotice('channelNotice');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
   function getState() {
     if (window.AppState) return window.AppState;
     if (typeof AppState !== 'undefined') return AppState;
     return null;
+  }
+
+  function buildContext(ctx) {
+    if (ctx && ctx.state) return ctx;
+    if (window.App && typeof window.App.getContext === 'function') {
+      return window.App.getContext();
+    }
+    const state = getState();
+    return {
+      state,
+      el: getEl,
+      apiRequest: async (url, options = {}) => sendRequest(url, options.method || 'GET', options.body ? JSON.parse(options.body) : undefined, options.headers),
+      showNotice: (_targetOrMsg, msgOrErr, maybeErr) => {
+        if (typeof maybeErr === 'boolean') {
+          showChannelNotice(msgOrErr, maybeErr);
+        } else {
+          showChannelNotice(_targetOrMsg, Boolean(msgOrErr));
+        }
+      },
+      clearNotice: () => clearChannelNotice(),
+      refreshWallet: async () => {
+        if (window.WalletModule && typeof window.WalletModule.refresh === 'function') {
+          await window.WalletModule.refresh();
+        } else if (typeof window.fetchWallet === 'function') {
+          await window.fetchWallet();
+        }
+      },
+      refreshAdminPanel: async () => {
+        if (window.AdminModule && typeof window.AdminModule.loadDashboard === 'function') {
+          await window.AdminModule.loadDashboard();
+        } else if (typeof window.fetchAdminOverview === 'function') {
+          await window.fetchAdminOverview();
+        }
+      }
+    };
   }
 
   function getLanguages() {
@@ -85,41 +154,65 @@
     return t('status_pending_review', status || 'pending');
   }
 
-  async function sendRequest(url, method, body) {
+  async function sendRequest(url, method, body, extraHeaders = {}) {
     try {
-      if (typeof window.apiSend === 'function') {
+      const state = getState();
+      const userId = extraHeaders['x-user-id'] || state?.userId || '';
+      const adminKey = extraHeaders['x-admin-key'] || state?.adminKey || '';
+
+      if (typeof window.apiSend === 'function' && !userId && !adminKey) {
         return await window.apiSend(url, method, body);
       }
-      if (window.Api && typeof window.Api.send === 'function') {
+      if (window.Api && typeof window.Api.send === 'function' && !userId && !adminKey) {
         return await window.Api.send(url, method, body);
       }
+
+      const headers = Object.assign(
+        {},
+        window.Api?.getInitData ? { 'x-telegram-init-data': window.Api.getInitData() } : {},
+        userId ? { 'x-user-id': userId } : {},
+        adminKey ? { 'x-admin-key': adminKey } : {},
+        extraHeaders
+      );
+
       const options = {
         method,
-        headers: {
-          ...(window.Api?.getInitData ? { 'x-telegram-init-data': window.Api.getInitData() } : {})
-        }
+        headers
       };
+
       if (body !== undefined) {
-        options.headers['Content-Type'] = 'application/json';
-        options.body = JSON.stringify(body);
+        headers['Content-Type'] = 'application/json';
+        options.body = typeof body === 'string' ? body : JSON.stringify(body);
       }
+
       const res = await fetch(url, options);
-      return await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false || data.success === false) {
+        const err = new Error(data.error || data.message || 'Request failed');
+        err.status = res.status;
+        err.data = data;
+        throw err;
+      }
+      return data;
     } catch (err) {
       console.error(err);
       throw err;
     }
   }
 
-  async function refreshChannelsList() {
+  async function refreshChannelsList(ctx) {
     try {
+      const activeCtx = buildContext(ctx);
+      if (typeof activeCtx.apiRequest === 'function' && activeCtx.state?.userId) {
+        await refreshChannels(activeCtx);
+      }
       if (typeof window.fetchChannels === 'function') {
         await window.fetchChannels();
       } else if (window.Api && typeof window.Api.fetchChannels === 'function') {
         await window.Api.fetchChannels();
       }
       if (window.ChannelsModule && typeof window.ChannelsModule.load === 'function') {
-        await window.ChannelsModule.load();
+        await window.ChannelsModule.load(activeCtx);
       }
     } catch (err) {
       console.error(err);
@@ -127,12 +220,12 @@
   }
 
   async function saveNewChannel() {
-    const nameEl = document.getElementById('ch-name') || document.getElementById('ch-title');
-    const usernameEl = document.getElementById('ch-username');
-    const langEl = document.getElementById('ch-language');
-    const catEl = document.getElementById('ch-category');
-    const priceEl = document.getElementById('ch-price-input') || document.getElementById('ch-price');
-    const botAddedEl = document.getElementById('ch-bot-added');
+    const nameEl = getEl('ch-name') || getEl('ch-title');
+    const usernameEl = getEl('ch-username');
+    const langEl = getEl('ch-language');
+    const catEl = getEl('ch-category');
+    const priceEl = getEl('ch-price-input') || getEl('ch-price');
+    const botAddedEl = getEl('ch-bot-added');
 
     const name = nameEl ? nameEl.value.trim() : '';
     const username = usernameEl ? usernameEl.value.trim() : '';
@@ -179,10 +272,10 @@
           window.UI.resetChannelWizard();
         }
 
-        document.getElementById('panel-add-channel')?.classList.add('hidden');
+        getEl('panel-add-channel')?.classList.add('hidden');
         const state = getState();
         if (state) state.isChannelsListOpen = true;
-        document.getElementById('panel-channels-list')?.classList.remove('hidden');
+        getEl('panel-channels-list')?.classList.remove('hidden');
 
         if (typeof window.updateToggleButtonsText === 'function') {
           window.updateToggleButtonsText();
@@ -203,7 +296,7 @@
 
   async function verifyChannelAutoLink(id) {
     try {
-      const json = await sendRequest(`/api/channels/${id}/verify`, 'POST');
+      const json = await sendRequest(`/api/channels/${encodeURIComponent(id)}/verify`, 'POST');
       if (json && json.success) {
         toast(t('msg_channel_verified'));
         await refreshChannelsList();
@@ -218,7 +311,7 @@
 
   async function syncChannelNow(id) {
     try {
-      const json = await sendRequest(`/api/channels/${id}/sync`, 'POST');
+      const json = await sendRequest(`/api/channels/${encodeURIComponent(id)}/sync`, 'POST');
       if (json && json.success) {
         toast(t('msg_channel_synced'));
         await refreshChannelsList();
@@ -232,10 +325,10 @@
   }
 
   async function updateChannelSettings(id) {
-    const langEl = document.getElementById(`edit-ch-lang-${id}`);
-    const catEl = document.getElementById(`edit-ch-cat-${id}`);
-    const priceEl = document.getElementById(`edit-ch-price-${id}`);
-    const botEl = document.getElementById(`edit-ch-bot-${id}`);
+    const langEl = getEl(`edit-ch-lang-${id}`);
+    const catEl = getEl(`edit-ch-cat-${id}`);
+    const priceEl = getEl(`edit-ch-price-${id}`);
+    const botEl = getEl(`edit-ch-bot-${id}`);
 
     const language = langEl ? langEl.value : 'English';
     const category = catEl ? catEl.value : 'other';
@@ -248,7 +341,7 @@
     }
 
     try {
-      const json = await sendRequest(`/api/channels/${id}`, 'PUT', {
+      const json = await sendRequest(`/api/channels/${encodeURIComponent(id)}`, 'PUT', {
         language,
         category,
         price,
@@ -272,7 +365,7 @@
 
   async function deleteChannel(id) {
     try {
-      const json = await sendRequest(`/api/channels/${id}`, 'DELETE');
+      const json = await sendRequest(`/api/channels/${encodeURIComponent(id)}`, 'DELETE');
       if (json && json.success) {
         const state = getState();
         if (state) {
@@ -290,8 +383,122 @@
     }
   }
 
+  async function refreshChannels(ctx) {
+    const activeCtx = buildContext(ctx);
+    const state = activeCtx.state;
+    const container = getEl('channelsList');
+    if (!container) return;
+
+    try {
+      const query = state?.userId ? `?userId=${encodeURIComponent(state.userId)}` : '';
+      const data = await activeCtx.apiRequest(`/api/channels${query}`, undefined, activeCtx);
+      const channels = Array.isArray(data?.channels) ? data.channels : [];
+
+      if (state) {
+        state.channels = channels;
+      }
+
+      if (channels.length === 0) {
+        container.innerHTML = '<div class="list-row"><span class="stat-label">لا توجد قنوات مسجلة بعد.</span></div>';
+        return;
+      }
+
+      container.innerHTML = channels
+        .map((ch) => {
+          const safeId = esc(ch.id || ch._id);
+          const historyHtml = (ch.editHistory || [])
+            .map((h) => `<div>• [${esc(h.at || '')}] ${esc(h.action)}: ${esc(JSON.stringify(h.details || {}))}</div>`)
+            .join('');
+
+          return `
+            <div class="list-row">
+              <div style="width:100%;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                  <div>
+                    <strong>${esc(ch.name)}</strong> <span class="stat-label">(${safeId})</span>
+                    <div class="stat-label">المشتركون: ${esc(ch.subscribers || ch.subscribersCount || 0)} | السعر: $${Number(ch.price || 0).toFixed(2)}</div>
+                    <div class="stat-label">مشاهدات حقيقية: ${esc(ch.viewsCount || 0)} | مفلترة Anti-Bot: ${esc(ch.filteredBotViews || 0)} | الأرباح: $${Number(ch.earnedTotal || 0).toFixed(2)}</div>
+                  </div>
+                  <div class="actions-inline">
+                    <span class="badge badge-${esc(ch.status || '')}">${esc(ch.status || '')}</span>
+                    <button type="button" class="btn-secondary" data-stat-id="${safeId}">+1000 مشاهدة / +25$</button>
+                    <button type="button" class="btn-warning" data-bot-test-id="${safeId}">اختبار تضخيم (60000 مشاهدة)</button>
+                  </div>
+                </div>
+                <div class="history-box">
+                  <strong>سجل التعديلات الزمني:</strong>
+                  ${historyHtml}
+                </div>
+              </div>
+            </div>
+          `;
+        })
+        .join('');
+
+      container.querySelectorAll('[data-stat-id]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          clearChannelNotice();
+          try {
+            const targetId = btn.getAttribute('data-stat-id');
+            const res = await activeCtx.apiRequest(
+              `/api/channels/${encodeURIComponent(targetId)}/record-stats`,
+              {
+                method: 'POST',
+                body: JSON.stringify({ views: 1000, earnings: 25 })
+              },
+              activeCtx
+            );
+            showChannelNotice(
+              `تم اعتماد ${res.validViews} مشاهدة و $${Number(res.validEarnings || 0).toFixed(2)} أرباح معلقة.`,
+              false
+            );
+            await Promise.all([
+              refreshChannels(activeCtx),
+              activeCtx.refreshWallet ? activeCtx.refreshWallet(activeCtx) : Promise.resolve()
+            ]);
+          } catch (err) {
+            showChannelNotice(err.message, true);
+          }
+        });
+      });
+
+      container.querySelectorAll('[data-bot-test-id]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          clearChannelNotice();
+          try {
+            const targetId = btn.getAttribute('data-bot-test-id');
+            const res = await activeCtx.apiRequest(
+              `/api/channels/${encodeURIComponent(targetId)}/record-stats`,
+              {
+                method: 'POST',
+                body: JSON.stringify({ views: 60000, earnings: 150 })
+              },
+              activeCtx
+            );
+            showChannelNotice(
+              `Anti-Bot: تم قبول ${res.validViews} مشاهدة وفلترة ${res.botFilteredViews} مشاهدة مشبوهة.`,
+              false
+            );
+            await Promise.all([
+              refreshChannels(activeCtx),
+              activeCtx.refreshWallet ? activeCtx.refreshWallet(activeCtx) : Promise.resolve()
+            ]);
+            if (state?.adminKey && activeCtx.refreshAdminPanel) {
+              await activeCtx.refreshAdminPanel(activeCtx);
+            }
+          } catch (err) {
+            showChannelNotice(err.message, true);
+          }
+        });
+      });
+    } catch (err) {
+      console.error(err);
+      throw err;
+    }
+  }
+
   function renderChannels() {
-    const container = document.getElementById('channels-container');
+    const container = getEl('channels-container');
     if (!container) return;
 
     try {
@@ -334,7 +541,7 @@
               ? 'badge-rejected'
               : 'badge-draft';
 
-          const ownerDisplay = ch.ownerUsername || ch.ownerName || ch.ownerTelegramId || '-';
+          const ownerDisplay = ch.ownerUsername || ch.ownerName || ch.ownerTelegramId || ch.ownerId || '-';
           const safeId = esc(ch._id);
 
           return `
@@ -342,7 +549,7 @@
               <div class="item-summary">
                 <div class="item-title-group">
                   <span class="item-title">${esc(ch.name)}</span>
-                  <span class="item-subtitle">${esc(ch.username)}</span>
+                  <span class="item-subtitle">${esc(ch.username || '')}</span>
                   <span class="badge badge-price">${esc(ch.price)}$</span>
                   <span class="badge ${statusBadgeClass}">${esc(getApprovalText(ch.approvalStatus))}</span>
                 </div>
@@ -359,10 +566,10 @@
                     !isEditing
                       ? `
                     <div class="detail-grid">
-                      <div class="detail-row"><span class="label">${esc(t('detail_language'))}</span><strong>${esc(ch.language)}</strong></div>
-                      <div class="detail-row"><span class="label">${esc(t('detail_category'))}</span><strong>${esc(getCatLabel(ch.category))}</strong></div>
+                      <div class="detail-row"><span class="label">${esc(t('detail_language'))}</span><strong>${esc(ch.language || '-')}</strong></div>
+                      <div class="detail-row"><span class="label">${esc(t('detail_category'))}</span><strong>${esc(getCatLabel(ch.category) || '-')}</strong></div>
                       <div class="detail-row"><span class="label">${esc(t('detail_price'))}</span><strong>${esc(ch.price)}$</strong></div>
-                      <div class="detail-row"><span class="label">${esc(t('detail_subscribers'))}</span><strong>${esc(ch.subscribersCount || 0)}</strong></div>
+                      <div class="detail-row"><span class="label">${esc(t('detail_subscribers'))}</span><strong>${esc(ch.subscribersCount ?? ch.subscribers ?? 0)}</strong></div>
                       <div class="detail-row"><span class="label">${esc(t('detail_channel_type'))}</span><strong>${esc(ch.isPublic !== false ? t('type_public') : t('type_private'))}</strong></div>
                       <div class="detail-row"><span class="label">${esc(t('detail_owner'))}</span><strong>${esc(ownerDisplay)}</strong></div>
                       <div class="detail-row"><span class="label">${esc(t('detail_intro_post'))}</span><strong>${esc(ch.introPostSent ? t('intro_sent_yes') : t('intro_sent_no'))}</strong></div>
@@ -448,20 +655,58 @@
     }
   }
 
+  function bindEvents(ctx) {
+    const activeCtx = buildContext(ctx);
+    const state = activeCtx.state;
+    const form = getEl('channelForm');
+    if (!form) return;
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearChannelNotice();
+      try {
+        const name = getEl('channelNameInput')?.value.trim() || '';
+        const subscribers = Number(getEl('channelSubsInput')?.value || 0);
+        const price = Number(getEl('channelPriceInput')?.value || 0);
+
+        await activeCtx.apiRequest(
+          '/api/channels',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              userId: state?.userId,
+              name,
+              subscribers,
+              price,
+              referredBy: state?.referredBy || ''
+            })
+          },
+          activeCtx
+        );
+
+        if (getEl('channelNameInput')) getEl('channelNameInput').value = '';
+        showChannelNotice('تمت إضافة القناة بنجاح.', false);
+        await refreshChannels(activeCtx);
+      } catch (err) {
+        showChannelNotice(err.message, true);
+      }
+    });
+  }
+
   const ChannelsModule = {
     init() {
-      const form = document.getElementById('add-channel-form');
+      const form = getEl('add-channel-form');
       if (!form) return;
 
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         try {
-          const usernameInput = document.getElementById('ch-username-legacy') || document.getElementById('ch-username');
-          const priceInput = document.getElementById('ch-price-legacy') || document.getElementById('ch-price');
+          const usernameInput = getEl('ch-username-legacy') || getEl('ch-username');
+          const priceInput = getEl('ch-price-legacy') || getEl('ch-price');
           const payload = {
             channelUsername: usernameInput ? usernameInput.value : '',
-            title: document.getElementById('ch-title')?.value || '',
-            subscribers: document.getElementById('ch-subs')?.value || 0,
+            title: getEl('ch-title')?.value || '',
+            subscribers: getEl('ch-subs')?.value || 0,
             pricePerPost: priceInput ? priceInput.value : 0
           };
           await window.Api.addChannel(payload);
@@ -484,7 +729,12 @@
       });
     },
 
-    async load() {
+    async load(ctx) {
+      const activeCtx = buildContext(ctx);
+      if (activeCtx.state?.userId && getEl('channelsList')) {
+        await refreshChannels(activeCtx).catch(() => {});
+      }
+
       if (!window.Api || typeof window.Api.getChannels !== 'function') return;
       try {
         const data = await window.Api.getChannels();
@@ -512,7 +762,7 @@
     },
 
     renderMyChannels(channels) {
-      const listEl = document.getElementById('my-channels-list');
+      const listEl = getEl('my-channels-list');
       if (!listEl) return;
 
       try {
@@ -549,7 +799,10 @@
     deleteChannel,
     renderChannels,
     toggleChannelDetails,
-    toggleEditChannel
+    toggleEditChannel,
+    refreshChannels,
+    bindEvents,
+    bindChannelEvents: bindEvents
   };
 
   window.ChannelsModule = ChannelsModule;
@@ -563,4 +816,6 @@
   window.renderChannels = renderChannels;
   window.toggleChannelDetails = toggleChannelDetails;
   window.toggleEditChannel = toggleEditChannel;
+  window.refreshChannels = refreshChannels;
+  window.bindChannelEvents = bindEvents;
 })();
