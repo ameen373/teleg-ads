@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Telega.ads</title>
+  <title>Telega-Ads</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="/css/styles.css" />
 </head>
@@ -31,7 +31,7 @@
   </header>
 
   <main id="app-content" class="app-container container">
-    <!-- ==================== LEGACY HOME VIEW ==================== -->
+    <!-- ==================== HOME SECTION ==================== -->
     <section id="view-home" class="view-section active">
       <div class="balance-card-grid">
         <div class="tg-card balance-box">
@@ -63,10 +63,121 @@
         <h3 data-i18n="recent_activity">Recent Activity</h3>
       </div>
       <div id="home-transactions-list" class="tg-list"></div>
+
+      <div class="section-header">
+        <h3 data-i18n="notifications_title">الإشعارات التلقائية</h3>
+        <button type="button" id="btn-mark-notifications-read" class="btn btn-secondary btn-sm" data-i18n="btn_mark_read">تحديد الكل كمقروء</button>
+      </div>
+      <div id="notifications-list" class="tg-list tx-list"></div>
     </section>
 
-    <!-- ==================== LEGACY CHANNELS VIEW ==================== -->
+    <!-- ==================== CHANNELS SECTION ==================== -->
     <section id="view-channels" class="view-section">
+      <div class="section-header">
+        <h3 data-i18n="channels_section_title">إدارة قنواتي</h3>
+        <p data-i18n="channels_section_desc">اضغط على الأزرار أدناه لإضافة قناة أو عرض قنواتك وإعداداتها.</p>
+      </div>
+
+      <div class="action-bar">
+        <button id="btn-open-add-channel" class="btn btn-primary" type="button" data-i18n="btn_add_new_channel">+ إضافة قناة جديدة</button>
+        <button id="btn-toggle-channels-list" class="btn btn-secondary" type="button" data-i18n="btn_toggle_channels_list">عرض قائمة قنواتي</button>
+        <button id="btn-toggle-bot-box" class="btn btn-secondary" type="button" data-i18n="btn_bot_permissions">إضافة البوت كمسؤول وصلاحيات البوت</button>
+      </div>
+
+      <!-- Progressive Panel: Bot Admin & Permissions Instructions -->
+      <div id="panel-bot-instructions" class="progressive-panel hidden">
+        <div class="panel-header">
+          <h3 data-i18n="bot_box_title">تعليمات إضافة البوت كمسؤول (@adTelega_bot)</h3>
+          <button id="btn-close-bot-box" class="btn btn-secondary btn-sm" type="button" data-i18n="btn_close">إغلاق</button>
+        </div>
+        <div class="bot-box-content">
+          <p data-i18n="bot_box_step1">1. افتح إعدادات قناتك العامة في تيليجرام وانتقل إلى "المشرفون" (Administrators). القنوات الخاصة غير مقبولة.</p>
+          <p data-i18n="bot_box_step2">2. اضغط على "إضافة مشرف" وابحث عن معرف البوت التالي:</p>
+          <div class="bot-handle-row">
+            <span class="bot-handle">@adTelega_bot</span>
+            <button id="btn-copy-bot" class="btn btn-primary btn-sm" type="button" data-i18n="btn_copy_bot">نسخ معرف البوت</button>
+            <a href="https://t.me/adTelega_bot" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" data-i18n="btn_open_bot_tg">فتح البوت في تيليجرام</a>
+          </div>
+          <p><strong data-i18n="bot_perms_title">الصلاحيات المطلوبة للبوت:</strong></p>
+          <ul class="perms-list">
+            <li data-i18n="bot_perm_post">نشر الرسائل (Post Messages) - لنشر الإعلانات المجدولة والمنشور التعريفي المجاني.</li>
+            <li data-i18n="bot_perm_edit">تعديل الرسائل (Edit Messages) - لتحديث حالة الإعلان عند الحاجة.</li>
+            <li data-i18n="bot_perm_delete">حذف الرسائل (Delete Messages) - لحذف الإعلان بعد انتهاء مدته.</li>
+            <li data-i18n="bot_perm_info">معلومات القناة (Channel Info) - للتحقق من وجود البوت، عدد المشتركين، وتحديث البيانات.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Progressive Panel: Add Channel Step-by-Step Wizard -->
+      <div id="panel-add-channel" class="progressive-panel hidden">
+        <div class="panel-header">
+          <h3 data-i18n="wizard_channel_title">إضافة قناة جديدة</h3>
+          <button id="btn-cancel-channel-wizard" class="btn btn-secondary btn-sm" type="button" data-i18n="btn_cancel">إلغاء</button>
+        </div>
+
+        <div class="step-indicator">
+          <div id="ch-badge-1" class="step-badge active" data-i18n="step_1_label">الخطوة 1: بيانات القناة</div>
+          <div id="ch-badge-2" class="step-badge" data-i18n="step_2_label">الخطوة 2: اللغة والتصنيف</div>
+          <div id="ch-badge-3" class="step-badge" data-i18n="step_3_label">الخطوة 3: السعر وصلاحية البوت</div>
+        </div>
+
+        <!-- Step 1 -->
+        <div id="ch-step-1" class="wizard-step">
+          <div class="form-group">
+            <label for="ch-name" data-i18n="label_channel_name">اسم القناة</label>
+            <input type="text" id="ch-name" class="form-control" data-i18n-placeholder="placeholder_channel_name" />
+          </div>
+          <div class="form-group">
+            <label for="ch-username" data-i18n="label_channel_username">معرف القناة العامة (@username)</label>
+            <input type="text" id="ch-username" class="form-control" dir="ltr" data-i18n-placeholder="placeholder_channel_username" />
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div id="ch-step-2" class="wizard-step hidden">
+          <div class="form-group">
+            <label for="ch-language" data-i18n="label_channel_lang">لغة القناة (19 لغة مدعومة)</label>
+            <select id="ch-language" class="form-control"></select>
+          </div>
+          <div class="form-group">
+            <label for="ch-category" data-i18n="label_channel_cat">تصنيف القناة (13 تصنيفاً)</label>
+            <select id="ch-category" class="form-control"></select>
+          </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div id="ch-step-3" class="wizard-step hidden">
+          <div class="form-group">
+            <label data-i18n="label_channel_price">تحديد سعر الإعلان في القناة (من 1$ إلى 3$)</label>
+            <div class="price-selector" id="ch-price-pills">
+              <button type="button" class="price-pill selected" data-price="1">1$</button>
+              <button type="button" class="price-pill" data-price="1.5">1.5$</button>
+              <button type="button" class="price-pill" data-price="2">2$</button>
+              <button type="button" class="price-pill" data-price="2.5">2.5$</button>
+              <button type="button" class="price-pill" data-price="3">3$</button>
+              <input type="number" id="ch-price-input" class="form-control price-custom-input" min="1" max="3" step="0.1" value="1" />
+            </div>
+          </div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="ch-bot-added" />
+            <label for="ch-bot-added" data-i18n="label_bot_confirmed">أؤكد أنني أضفت البوت @adTelega_bot كمسؤول بالصلاحيات المطلوبة</label>
+          </div>
+        </div>
+
+        <div class="wizard-footer">
+          <button type="button" id="btn-ch-prev" class="btn btn-secondary hidden" data-i18n="btn_prev">السابق</button>
+          <div>
+            <button type="button" id="btn-ch-next" class="btn btn-primary" data-i18n="btn_next">التالي</button>
+            <button type="button" id="btn-ch-save" class="btn btn-success hidden" data-i18n="btn_save_channel">حفظ القناة</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Progressive Panel: Channels List -->
+      <div id="panel-channels-list" class="progressive-panel hidden">
+        <div id="channels-container" class="items-list"></div>
+      </div>
+
       <div class="section-header">
         <h3 data-i18n="add_new_channel">Add Your Channel</h3>
       </div>
@@ -86,8 +197,155 @@
       <div id="my-channels-list" class="tg-list"></div>
     </section>
 
-    <!-- ==================== LEGACY CAMPAIGNS VIEW ==================== -->
+    <!-- ==================== PROMOTION (CAMPAIGNS) SECTION ==================== -->
     <section id="view-campaigns" class="view-section">
+      <div class="section-header">
+        <h2 data-i18n="promo_section_title">قسم الترويج والحملات الإعلانية</h2>
+        <p data-i18n="promo_section_desc">أنشئ حملتك الإعلانية خطوة بخطوة أو استعرض حملاتك ومسوداتك المحفوظة.</p>
+      </div>
+
+      <div class="action-bar">
+        <button id="btn-open-create-campaign" class="btn btn-primary" type="button" data-i18n="btn_create_campaign">+ إنشاء حملة جديدة</button>
+        <button id="btn-toggle-campaigns-list" class="btn btn-secondary" type="button" data-i18n="btn_view_campaigns">عرض الحملات الإعلانية</button>
+      </div>
+
+      <!-- Progressive Panel: Create / Edit Draft Campaign Wizard -->
+      <div id="panel-campaign-wizard" class="progressive-panel hidden">
+        <div class="panel-header">
+          <h3 id="campaign-wizard-heading" data-i18n="wizard_campaign_title">معالج إنشاء حملة إعلانية</h3>
+          <button id="btn-cancel-campaign-wizard" class="btn btn-secondary btn-sm" type="button" data-i18n="btn_cancel">إلغاء</button>
+        </div>
+
+        <div class="step-indicator">
+          <div id="camp-badge-1" class="step-badge active" data-i18n="camp_step_1">الخطوة 1: المحتوى والوسائط والزر</div>
+          <div id="camp-badge-2" class="step-badge" data-i18n="camp_step_2">الخطوة 2: الاستهداف والميزانية والجدولة</div>
+          <div id="camp-badge-3" class="step-badge" data-i18n="camp_step_3">الخطوة 3: القنوات الموثقة والمعاينة</div>
+        </div>
+
+        <!-- Campaign Step 1 -->
+        <div id="camp-step-1" class="wizard-step">
+          <div class="form-group">
+            <label for="camp-title" data-i18n="label_camp_title">عنوان الحملة</label>
+            <input type="text" id="camp-title" class="form-control" data-i18n-placeholder="placeholder_camp_title" />
+          </div>
+          <div class="form-group">
+            <label for="camp-text" data-i18n="label_camp_text">نص المنشور الإعلاني</label>
+            <textarea id="camp-text" class="form-control" data-i18n-placeholder="placeholder_camp_text"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="camp-media-file" data-i18n="label_camp_media">إرفاق صورة أو فيديو من المعرض</label>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <input type="file" id="camp-media-file" class="form-control" accept="image/*,video/*" style="flex:1;" />
+              <button type="button" id="btn-clear-media" class="btn btn-secondary btn-sm hidden" data-i18n="btn_clear_media">إزالة المرفق</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="camp-btn-preset" data-i18n="label_camp_button_preset">الأزرار التفاعلية</label>
+            <select id="camp-btn-preset" class="form-control">
+              <option value="Open" data-i18n="opt_btn_open">Open</option>
+              <option value="View Offer" data-i18n="opt_btn_view_offer">View Offer</option>
+              <option value="Join Channel" data-i18n="opt_btn_join_channel">Join Channel</option>
+              <option value="Custom" data-i18n="opt_btn_custom">زر تفاعلي مخصص</option>
+            </select>
+          </div>
+          <div id="camp-custom-btn-group" class="form-group hidden">
+            <label for="camp-custom-btn" data-i18n="label_camp_custom_btn">نص الزر التفاعلي المخصص</label>
+            <input type="text" id="camp-custom-btn" class="form-control" data-i18n-placeholder="placeholder_custom_btn" />
+          </div>
+          <div class="form-group">
+            <label for="camp-url" data-i18n="label_camp_url">رابط التوجيه (اختياري)</label>
+            <input type="url" id="camp-url" class="form-control" dir="ltr" data-i18n-placeholder="placeholder_camp_url" />
+          </div>
+        </div>
+
+        <!-- Campaign Step 2 -->
+        <div id="camp-step-2" class="wizard-step hidden">
+          <div class="form-group">
+            <label for="camp-budget" data-i18n="label_camp_budget">ميزانية الحملة ($)</label>
+            <input type="number" id="camp-budget" class="form-control" min="1" step="1" value="50" />
+          </div>
+
+          <div id="open-targeting-banner" class="open-targeting-alert hidden" data-i18n="open_targeting_banner">
+            🌍 الاستهداف المفتوح مفعل تلقائياً: الميزانية أكبر من 1000$، سيتم بث الإعلان في جميع القنوات بغض النظر عن التصنيف واللغة.
+          </div>
+
+          <div id="targeted-filters-box">
+            <div class="form-group">
+              <label for="camp-language" data-i18n="label_camp_lang">لغة القنوات المستهدفة</label>
+              <select id="camp-language" class="form-control"></select>
+            </div>
+            <div class="form-group">
+              <label for="camp-category" data-i18n="label_camp_cat">تصنيف القنوات المستهدفة</label>
+              <select id="camp-category" class="form-control"></select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label data-i18n="label_camp_price">السعر لكل 1000 مشاهدة (1$ - 3$)</label>
+            <div class="price-selector" id="camp-price-pills">
+              <button type="button" class="price-pill selected" data-price="1">1$</button>
+              <button type="button" class="price-pill" data-price="1.5">1.5$</button>
+              <button type="button" class="price-pill" data-price="2">2$</button>
+              <button type="button" class="price-pill" data-price="2.5">2.5$</button>
+              <button type="button" class="price-pill" data-price="3">3$</button>
+              <input type="number" id="camp-price-input" class="form-control price-custom-input" min="1" max="3" step="0.1" value="1" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="camp-schedule-mode" data-i18n="label_camp_schedule">توقيت النشر</label>
+            <select id="camp-schedule-mode" class="form-control">
+              <option value="immediate" data-i18n="opt_schedule_immediate">نشر فوري</option>
+              <option value="peak" data-i18n="opt_schedule_peak">جدولة لأوقات الذروة</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Campaign Step 3 -->
+        <div id="camp-step-3" class="wizard-step hidden">
+          <div class="marketplace-box">
+            <h4 data-i18n="marketplace_title">سوق القنوات الموثقة</h4>
+            <p style="font-size:0.84rem; color:var(--text-muted);" data-i18n="marketplace_desc">
+              اختر القنوات الموثقة للنشر فيها. لأسباب حماية الخصوصية، لا يمكن الدخول المباشر إلى القنوات عبر واجهة الترويج.
+            </p>
+            <div class="marketplace-toolbar">
+              <input type="text" id="mkt-search-input" class="form-control" data-i18n-placeholder="placeholder_search_channel" />
+              <button type="button" id="btn-mkt-favorites" class="btn btn-secondary btn-sm" data-i18n="btn_favorites_only">المفضلة فقط</button>
+            </div>
+            <div id="marketplace-channels-list"></div>
+            <p style="margin-top:8px; font-size:0.88rem; font-weight:600;">
+              <span data-i18n="selected_channels_count">القنوات المختارة للنشر:</span>
+              <span id="selected-channels-counter">0</span>
+            </p>
+          </div>
+
+          <div class="preview-box">
+            <h4 style="margin-bottom:8px;" data-i18n="live_preview_title">معاينة حية للإعلان قبل النشر</h4>
+            <div id="live-preview-media"></div>
+            <div id="live-preview-text" class="preview-body-text"></div>
+            <div class="preview-footer-brand">Powered by Telega.ads</div>
+            <span id="live-preview-cta" class="preview-cta-btn">Open</span>
+            <p class="policy-note" data-i18n="preview_footer_note">
+              ذيل إجباري: Powered by Telega.ads (مع حقن رابط إحالة الناشر كـ Hyperlink). يُمنع على الناشر مشاركة الإعلان أو التلاعب بمحتواه أو شروطه، ولا تُحتسب عمولة إحالة من المعلنين.
+            </p>
+          </div>
+        </div>
+
+        <div class="wizard-footer">
+          <button type="button" id="btn-camp-prev" class="btn btn-secondary hidden" data-i18n="btn_prev">السابق</button>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button type="button" id="btn-camp-save-draft" class="btn btn-warning" data-i18n="btn_save_draft">حفظ كمسودة</button>
+            <button type="button" id="btn-camp-next" class="btn btn-primary" data-i18n="btn_next">التالي</button>
+            <button type="button" id="btn-camp-publish" class="btn btn-success hidden" data-i18n="btn_publish_campaign">نشر / جدولة الحملة</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Progressive Panel: Campaigns List -->
+      <div id="panel-campaigns-list" class="progressive-panel hidden">
+        <div id="campaigns-container" class="items-list"></div>
+      </div>
+
       <div class="section-header">
         <h3 data-i18n="create_campaign">Launch Ad Campaign</h3>
       </div>
@@ -107,7 +365,7 @@
       <div id="my-campaigns-list" class="tg-list"></div>
     </section>
 
-    <!-- ==================== LEGACY WALLET VIEW ==================== -->
+    <!-- ==================== WALLET SECTION ==================== -->
     <section id="view-wallet" class="view-section">
       <div class="balance-card-grid">
         <div class="tg-card balance-box">
@@ -118,6 +376,48 @@
           <span class="card-label" data-i18n="ad_balance">Ad Balance</span>
           <h2 class="card-value" id="wallet-ad-balance">$0.00</h2>
         </div>
+      </div>
+
+      <div class="action-bar">
+        <button id="btn-toggle-wallet" class="btn btn-secondary" type="button" data-i18n="btn_toggle_wallet">المحافظ المالية</button>
+      </div>
+
+      <!-- Progressive Panel: Advertiser & Publisher Wallets -->
+      <div id="panel-wallet" class="progressive-panel hidden">
+        <div class="panel-header">
+          <h3 data-i18n="wallet_panel_title">محفظة المعلن والناشر والحركات المالية</h3>
+          <button id="btn-close-wallet" class="btn btn-secondary btn-sm" type="button" data-i18n="btn_close">إغلاق</button>
+        </div>
+
+        <div class="wallet-balances-grid">
+          <div class="wallet-balance-card">
+            <div data-i18n="wallet_adv_balance">رصيد محفظة المعلن ($):</div>
+            <div id="wallet-adv-balance" class="amount">0.00$</div>
+          </div>
+          <div class="wallet-balance-card">
+            <div data-i18n="wallet_pub_balance">رصيد محفظة الناشر ($):</div>
+            <div id="wallet-pub-balance" class="amount">0.00$</div>
+          </div>
+        </div>
+
+        <div class="wallet-actions-row">
+          <div class="form-group" style="margin-bottom:0; flex:1; min-width:160px;">
+            <label for="wallet-role-select" data-i18n="wallet_role_label">المحفظة:</label>
+            <select id="wallet-role-select" class="form-control">
+              <option value="advertiser" data-i18n="wallet_role_adv">محفظة المعلن</option>
+              <option value="publisher" data-i18n="wallet_role_pub">محفظة الناشر</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:0; width:150px;">
+            <label for="wallet-amount-input" data-i18n="wallet_amount_label">المبلغ ($)</label>
+            <input type="number" id="wallet-amount-input" class="form-control" min="0.1" step="0.1" value="50" />
+          </div>
+          <button type="button" id="btn-wallet-deposit" class="btn btn-success" data-i18n="btn_wallet_deposit">إيداع</button>
+          <button type="button" id="btn-wallet-withdraw" class="btn btn-danger" data-i18n="btn_wallet_withdraw">سحب</button>
+        </div>
+
+        <h4 style="margin-top:12px;" data-i18n="wallet_tx_title">سجل الحركات المالية</h4>
+        <div id="wallet-tx-list" class="tx-list"></div>
       </div>
 
       <div class="section-header">
@@ -138,7 +438,7 @@
       </form>
     </section>
 
-    <!-- ==================== LEGACY REFERRAL VIEW ==================== -->
+    <!-- ==================== REFERRAL SECTION ==================== -->
     <section id="view-referral" class="view-section">
       <div class="tg-card referral-hero">
         <h3 data-i18n="invite_friends">Invite Friends & Earn 5%</h3>
@@ -159,9 +459,22 @@
           <h2 class="card-value" id="ref-earnings">$0.00</h2>
         </div>
       </div>
+
+      <div class="action-bar">
+        <button id="btn-toggle-referrals" class="btn btn-secondary" type="button" data-i18n="btn_toggle_referrals">إحالات الناشر</button>
+      </div>
+
+      <!-- Progressive Panel: Publisher Referrals -->
+      <div id="panel-referrals" class="progressive-panel hidden">
+        <div class="panel-header">
+          <h3 data-i18n="referrals_title">سجل إحالات الناشرين</h3>
+          <button id="btn-close-referrals" class="btn btn-secondary btn-sm" type="button" data-i18n="btn_close">إغلاق</button>
+        </div>
+        <div id="referrals-container" class="items-list"></div>
+      </div>
     </section>
 
-    <!-- ==================== LEGACY ADMIN VIEW ==================== -->
+    <!-- ==================== ADMIN SECTION (HIDDEN BY DEFAULT - SHOWN ONLY FOR VERIFIED ADMIN) ==================== -->
     <section id="view-admin" class="view-section" style="display: none;">
       <div class="section-header">
         <h3 data-i18n="admin_panel">Admin Control Center</h3>
@@ -178,6 +491,46 @@
         <div class="tg-card stat-pill">
           <span class="stat-num" id="admin-pending-tx">0</span>
           <span class="stat-txt" data-i18n="pending_tx">Finance</span>
+        </div>
+      </div>
+
+      <div class="action-bar">
+        <button id="btn-toggle-admin-queue" class="btn btn-secondary" type="button" data-i18n="btn_toggle_admin_queue">قائمة المراجعة الإدارية</button>
+        <button id="btn-toggle-reliability" class="btn btn-secondary" type="button" data-i18n="btn_toggle_reliability">الموثوقية والسجلات والنسخ الاحتياطي</button>
+      </div>
+
+      <!-- Progressive Panel: Admin Approval / Rejection Queue (< 1000 Subscribers) -->
+      <div id="panel-admin-queue" class="progressive-panel hidden">
+        <div class="panel-header">
+          <h3 data-i18n="admin_queue_title">قائمة الموافقة أو الرفض الإدارية (أقل من 1000 مشترك)</h3>
+          <button id="btn-close-admin-queue" class="btn btn-secondary btn-sm" type="button" data-i18n="btn_close">إغلاق</button>
+        </div>
+        <div id="admin-queue-container" class="items-list"></div>
+      </div>
+
+      <!-- Progressive Panel: Reliability, Publish Logs & Backups -->
+      <div id="panel-reliability" class="progressive-panel hidden">
+        <div class="panel-header">
+          <h3 data-i18n="reliability_panel_title">الإشعارات، سجل النشر، مراقبة النظام، والنسخ الاحتياطي</h3>
+          <button id="btn-close-reliability" class="btn btn-secondary btn-sm" type="button" data-i18n="btn_close">إغلاق</button>
+        </div>
+
+        <div class="sub-block">
+          <strong data-i18n="health_title">حالة الخادم والبوت:</strong>
+          <div id="system-health-box" class="detail-grid" style="margin-top:8px; margin-bottom:0;"></div>
+        </div>
+
+        <div class="sub-block">
+          <strong data-i18n="publish_logs_title">سجل عمليات النشر وحماية التكرار</strong>
+          <div id="publish-logs-list" class="tx-list"></div>
+        </div>
+
+        <div class="sub-block" style="margin-bottom:0;">
+          <div class="sub-block-header">
+            <strong data-i18n="backups_title">النسخ الاحتياطي لقاعدة البيانات</strong>
+            <button type="button" id="btn-run-backup" class="btn btn-primary btn-sm" data-i18n="btn_create_backup">إنشاء نسخة احتياطية الآن</button>
+          </div>
+          <div id="backups-list" class="tx-list"></div>
         </div>
       </div>
 
@@ -200,369 +553,6 @@
         <h3 data-i18n="security_logs">Security Audit Logs</h3>
       </div>
       <div id="admin-logs-list" class="tg-list"></div>
-    </section>
-
-    <!-- ==================== NEW WORKSPACE: MY CHANNELS & PROMOTION ==================== -->
-    <section id="view-workspace" class="view-section">
-      <!-- Main Navigation Tabs -->
-      <nav class="main-nav">
-        <button id="tab-channels" class="nav-tab active" type="button" data-i18n="tab_my_channels">قنواتي</button>
-        <button id="tab-promotion" class="nav-tab" type="button" data-i18n="tab_promotion">الترويج</button>
-      </nav>
-
-      <!-- SECTION 1: MY CHANNELS -->
-      <div id="section-channels" class="section-card">
-        <div class="section-header">
-          <h2 data-i18n="channels_section_title">إدارة قنواتي</h2>
-          <p data-i18n="channels_section_desc">اضغط على الأزرار أدناه لإضافة قناة أو عرض قنواتك وإعداداتها.</p>
-        </div>
-
-        <!-- Primary Progressive Buttons -->
-        <div class="action-bar">
-          <button id="btn-open-add-channel" class="btn btn-primary" type="button" data-i18n="btn_add_new_channel">+ إضافة قناة جديدة</button>
-          <button id="btn-toggle-channels-list" class="btn btn-secondary" type="button" data-i18n="btn_toggle_channels_list">عرض قائمة قنواتي</button>
-          <button id="btn-toggle-bot-box" class="btn btn-secondary" type="button" data-i18n="btn_bot_permissions">إضافة البوت كمسؤول وصلاحيات البوت</button>
-          <button id="btn-toggle-admin-queue" class="btn btn-secondary" type="button" data-i18n="btn_toggle_admin_queue">قائمة المراجعة الإدارية</button>
-          <button id="btn-toggle-referrals" class="btn btn-secondary" type="button" data-i18n="btn_toggle_referrals">إحالات الناشر</button>
-          <button id="btn-toggle-wallet" class="btn btn-secondary" type="button" data-i18n="btn_toggle_wallet">المحافظ المالية</button>
-          <button id="btn-toggle-reliability" class="btn btn-secondary" type="button" data-i18n="btn_toggle_reliability">الموثوقية والسجلات والنسخ الاحتياطي</button>
-        </div>
-
-        <!-- Progressive Panel 1: Bot Admin & Permissions Instructions -->
-        <div id="panel-bot-instructions" class="progressive-panel hidden">
-          <div class="panel-header">
-            <h3 data-i18n="bot_box_title">تعليمات إضافة البوت كمسؤول (@adTelega_bot)</h3>
-            <button id="btn-close-bot-box" class="btn btn-secondary btn-sm" type="button" data-i18n="btn_close">إغلاق</button>
-          </div>
-          <div class="bot-box-content">
-            <p data-i18n="bot_box_step1">1. افتح إعدادات قناتك العامة في تيليجرام وانتقل إلى "المشرفون" (Administrators). القنوات الخاصة غير مقبولة.</p>
-            <p data-i18n="bot_box_step2">2. اضغط على "إضافة مشرف" وابحث عن معرف البوت التالي:</p>
-            <div class="bot-handle-row">
-              <span class="bot-handle">@adTelega_bot</span>
-              <button id="btn-copy-bot" class="btn btn-primary btn-sm" type="button" data-i18n="btn_copy_bot">نسخ معرف البوت</button>
-              <a href="https://t.me/adTelega_bot" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" data-i18n="btn_open_bot_tg">فتح البوت في تيليجرام</a>
-            </div>
-            <p><strong data-i18n="bot_perms_title">الصلاحيات المطلوبة للبوت:</strong></p>
-            <ul class="perms-list">
-              <li data-i18n="bot_perm_post">نشر الرسائل (Post Messages) - لنشر الإعلانات المجدولة والمنشور التعريفي المجاني.</li>
-              <li data-i18n="bot_perm_edit">تعديل الرسائل (Edit Messages) - لتحديث حالة الإعلان عند الحاجة.</li>
-              <li data-i18n="bot_perm_delete">حذف الرسائل (Delete Messages) - لحذف الإعلان بعد انتهاء مدته.</li>
-              <li data-i18n="bot_perm_info">معلومات القناة (Channel Info) - للتحقق من وجود البوت، عدد المشتركين، وتحديث البيانات.</li>
-            </ul>
-          </div>
-        </div>
-
-        <!-- Progressive Panel 2: Add Channel Step-by-Step Wizard -->
-        <div id="panel-add-channel" class="progressive-panel hidden">
-          <div class="panel-header">
-            <h3 data-i18n="wizard_channel_title">إضافة قناة جديدة</h3>
-            <button id="btn-cancel-channel-wizard" class="btn btn-secondary btn-sm" type="button" data-i18n="btn_cancel">إلغاء</button>
-          </div>
-
-          <div class="step-indicator">
-            <div id="ch-badge-1" class="step-badge active" data-i18n="step_1_label">الخطوة 1: بيانات القناة</div>
-            <div id="ch-badge-2" class="step-badge" data-i18n="step_2_label">الخطوة 2: اللغة والتصنيف</div>
-            <div id="ch-badge-3" class="step-badge" data-i18n="step_3_label">الخطوة 3: السعر وصلاحية البوت</div>
-          </div>
-
-          <!-- Step 1 -->
-          <div id="ch-step-1" class="wizard-step">
-            <div class="form-group">
-              <label for="ch-name" data-i18n="label_channel_name">اسم القناة</label>
-              <input type="text" id="ch-name" class="form-control" data-i18n-placeholder="placeholder_channel_name" />
-            </div>
-            <div class="form-group">
-              <label for="ch-username" data-i18n="label_channel_username">معرف القناة العامة (@username)</label>
-              <input type="text" id="ch-username" class="form-control" dir="ltr" data-i18n-placeholder="placeholder_channel_username" />
-            </div>
-          </div>
-
-          <!-- Step 2 -->
-          <div id="ch-step-2" class="wizard-step hidden">
-            <div class="form-group">
-              <label for="ch-language" data-i18n="label_channel_lang">لغة القناة (19 لغة مدعومة)</label>
-              <select id="ch-language" class="form-control"></select>
-            </div>
-            <div class="form-group">
-              <label for="ch-category" data-i18n="label_channel_cat">تصنيف القناة (13 تصنيفاً)</label>
-              <select id="ch-category" class="form-control"></select>
-            </div>
-          </div>
-
-          <!-- Step 3 -->
-          <div id="ch-step-3" class="wizard-step hidden">
-            <div class="form-group">
-              <label data-i18n="label_channel_price">تحديد سعر الإعلان في القناة (من 1$ إلى 3$)</label>
-              <div class="price-selector" id="ch-price-pills">
-                <button type="button" class="price-pill selected" data-price="1">1$</button>
-                <button type="button" class="price-pill" data-price="1.5">1.5$</button>
-                <button type="button" class="price-pill" data-price="2">2$</button>
-                <button type="button" class="price-pill" data-price="2.5">2.5$</button>
-                <button type="button" class="price-pill" data-price="3">3$</button>
-                <input type="number" id="ch-price-input" class="form-control price-custom-input" min="1" max="3" step="0.1" value="1" />
-              </div>
-            </div>
-            <div class="checkbox-row">
-              <input type="checkbox" id="ch-bot-added" />
-              <label for="ch-bot-added" data-i18n="label_bot_confirmed">أؤكد أنني أضفت البوت @adTelega_bot كمسؤول بالصلاحيات المطلوبة</label>
-            </div>
-          </div>
-
-          <div class="wizard-footer">
-            <button type="button" id="btn-ch-prev" class="btn btn-secondary hidden" data-i18n="btn_prev">السابق</button>
-            <div>
-              <button type="button" id="btn-ch-next" class="btn btn-primary" data-i18n="btn_next">التالي</button>
-              <button type="button" id="btn-ch-save" class="btn btn-success hidden" data-i18n="btn_save_channel">حفظ القناة</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Progressive Panel 3: Channels List -->
-        <div id="panel-channels-list" class="progressive-panel hidden">
-          <div id="channels-container" class="items-list"></div>
-        </div>
-
-        <!-- Progressive Panel 4: Admin Approval / Rejection Queue (< 1000 Subscribers) -->
-        <div id="panel-admin-queue" class="progressive-panel hidden">
-          <div class="panel-header">
-            <h3 data-i18n="admin_queue_title">قائمة الموافقة أو الرفض الإدارية (أقل من 1000 مشترك)</h3>
-            <button id="btn-close-admin-queue" class="btn btn-secondary btn-sm" type="button" data-i18n="btn_close">إغلاق</button>
-          </div>
-          <div id="admin-queue-container" class="items-list"></div>
-        </div>
-
-        <!-- Progressive Panel 5: Publisher Referrals -->
-        <div id="panel-referrals" class="progressive-panel hidden">
-          <div class="panel-header">
-            <h3 data-i18n="referrals_title">سجل إحالات الناشرين</h3>
-            <button id="btn-close-referrals" class="btn btn-secondary btn-sm" type="button" data-i18n="btn_close">إغلاق</button>
-          </div>
-          <div id="referrals-container" class="items-list"></div>
-        </div>
-
-        <!-- Progressive Panel 6: Advertiser & Publisher Wallets -->
-        <div id="panel-wallet" class="progressive-panel hidden">
-          <div class="panel-header">
-            <h3 data-i18n="wallet_panel_title">محفظة المعلن والناشر والحركات المالية</h3>
-            <button id="btn-close-wallet" class="btn btn-secondary btn-sm" type="button" data-i18n="btn_close">إغلاق</button>
-          </div>
-
-          <div class="wallet-balances-grid">
-            <div class="wallet-balance-card">
-              <div data-i18n="wallet_adv_balance">رصيد محفظة المعلن ($):</div>
-              <div id="wallet-adv-balance" class="amount">0.00$</div>
-            </div>
-            <div class="wallet-balance-card">
-              <div data-i18n="wallet_pub_balance">رصيد محفظة الناشر ($):</div>
-              <div id="wallet-pub-balance" class="amount">0.00$</div>
-            </div>
-          </div>
-
-          <div class="wallet-actions-row">
-            <div class="form-group" style="margin-bottom:0; flex:1; min-width:160px;">
-              <label for="wallet-role-select" data-i18n="wallet_role_label">المحفظة:</label>
-              <select id="wallet-role-select" class="form-control">
-                <option value="advertiser" data-i18n="wallet_role_adv">محفظة المعلن</option>
-                <option value="publisher" data-i18n="wallet_role_pub">محفظة الناشر</option>
-              </select>
-            </div>
-            <div class="form-group" style="margin-bottom:0; width:150px;">
-              <label for="wallet-amount-input" data-i18n="wallet_amount_label">المبلغ ($)</label>
-              <input type="number" id="wallet-amount-input" class="form-control" min="0.1" step="0.1" value="50" />
-            </div>
-            <button type="button" id="btn-wallet-deposit" class="btn btn-success" data-i18n="btn_wallet_deposit">إيداع</button>
-            <button type="button" id="btn-wallet-withdraw" class="btn btn-danger" data-i18n="btn_wallet_withdraw">سحب</button>
-          </div>
-
-          <h4 style="margin-top:12px;" data-i18n="wallet_tx_title">سجل الحركات المالية</h4>
-          <div id="wallet-tx-list" class="tx-list"></div>
-        </div>
-
-        <!-- Progressive Panel 7: Reliability, Notifications, Publish Logs & Backups -->
-        <div id="panel-reliability" class="progressive-panel hidden">
-          <div class="panel-header">
-            <h3 data-i18n="reliability_panel_title">الإشعارات، سجل النشر، مراقبة النظام، والنسخ الاحتياطي</h3>
-            <button id="btn-close-reliability" class="btn btn-secondary btn-sm" type="button" data-i18n="btn_close">إغلاق</button>
-          </div>
-
-          <div class="sub-block">
-            <strong data-i18n="health_title">حالة الخادم والبوت:</strong>
-            <div id="system-health-box" class="detail-grid" style="margin-top:8px; margin-bottom:0;"></div>
-          </div>
-
-          <div class="sub-block">
-            <div class="sub-block-header">
-              <strong data-i18n="notifications_title">الإشعارات التلقائية</strong>
-              <button type="button" id="btn-mark-notifications-read" class="btn btn-secondary btn-sm" data-i18n="btn_mark_read">تحديد الكل كمقروء</button>
-            </div>
-            <div id="notifications-list" class="tx-list"></div>
-          </div>
-
-          <div class="sub-block">
-            <strong data-i18n="publish_logs_title">سجل عمليات النشر وحماية التكرار</strong>
-            <div id="publish-logs-list" class="tx-list"></div>
-          </div>
-
-          <div class="sub-block" style="margin-bottom:0;">
-            <div class="sub-block-header">
-              <strong data-i18n="backups_title">النسخ الاحتياطي لقاعدة البيانات</strong>
-              <button type="button" id="btn-run-backup" class="btn btn-primary btn-sm" data-i18n="btn_create_backup">إنشاء نسخة احتياطية الآن</button>
-            </div>
-            <div id="backups-list" class="tx-list"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- SECTION 2: PROMOTION -->
-      <div id="section-promotion" class="section-card hidden">
-        <div class="section-header">
-          <h2 data-i18n="promo_section_title">قسم الترويج والحملات الإعلانية</h2>
-          <p data-i18n="promo_section_desc">أنشئ حملتك الإعلانية خطوة بخطوة أو استعرض حملاتك ومسوداتك المحفوظة.</p>
-        </div>
-
-        <!-- Primary Progressive Buttons -->
-        <div class="action-bar">
-          <button id="btn-open-create-campaign" class="btn btn-primary" type="button" data-i18n="btn_create_campaign">+ إنشاء حملة جديدة</button>
-          <button id="btn-toggle-campaigns-list" class="btn btn-secondary" type="button" data-i18n="btn_view_campaigns">عرض الحملات الإعلانية</button>
-        </div>
-
-        <!-- Progressive Panel 1: Create / Edit Draft Campaign Wizard -->
-        <div id="panel-campaign-wizard" class="progressive-panel hidden">
-          <div class="panel-header">
-            <h3 id="campaign-wizard-heading" data-i18n="wizard_campaign_title">معالج إنشاء حملة إعلانية</h3>
-            <button id="btn-cancel-campaign-wizard" class="btn btn-secondary btn-sm" type="button" data-i18n="btn_cancel">إلغاء</button>
-          </div>
-
-          <div class="step-indicator">
-            <div id="camp-badge-1" class="step-badge active" data-i18n="camp_step_1">الخطوة 1: المحتوى والوسائط والزر</div>
-            <div id="camp-badge-2" class="step-badge" data-i18n="camp_step_2">الخطوة 2: الاستهداف والميزانية والجدولة</div>
-            <div id="camp-badge-3" class="step-badge" data-i18n="camp_step_3">الخطوة 3: القنوات الموثقة والمعاينة</div>
-          </div>
-
-          <!-- Campaign Step 1 -->
-          <div id="camp-step-1" class="wizard-step">
-            <div class="form-group">
-              <label for="camp-title" data-i18n="label_camp_title">عنوان الحملة</label>
-              <input type="text" id="camp-title" class="form-control" data-i18n-placeholder="placeholder_camp_title" />
-            </div>
-            <div class="form-group">
-              <label for="camp-text" data-i18n="label_camp_text">نص المنشور الإعلاني</label>
-              <textarea id="camp-text" class="form-control" data-i18n-placeholder="placeholder_camp_text"></textarea>
-            </div>
-            <div class="form-group">
-              <label for="camp-media-file" data-i18n="label_camp_media">إرفاق صورة أو فيديو من المعرض</label>
-              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                <input type="file" id="camp-media-file" class="form-control" accept="image/*,video/*" style="flex:1;" />
-                <button type="button" id="btn-clear-media" class="btn btn-secondary btn-sm hidden" data-i18n="btn_clear_media">إزالة المرفق</button>
-              </div>
-            </div>
-            <div class="form-group">
-              <label for="camp-btn-preset" data-i18n="label_camp_button_preset">الأزرار التفاعلية</label>
-              <select id="camp-btn-preset" class="form-control">
-                <option value="Open" data-i18n="opt_btn_open">Open</option>
-                <option value="View Offer" data-i18n="opt_btn_view_offer">View Offer</option>
-                <option value="Join Channel" data-i18n="opt_btn_join_channel">Join Channel</option>
-                <option value="Custom" data-i18n="opt_btn_custom">زر تفاعلي مخصص</option>
-              </select>
-            </div>
-            <div id="camp-custom-btn-group" class="form-group hidden">
-              <label for="camp-custom-btn" data-i18n="label_camp_custom_btn">نص الزر التفاعلي المخصص</label>
-              <input type="text" id="camp-custom-btn" class="form-control" data-i18n-placeholder="placeholder_custom_btn" />
-            </div>
-            <div class="form-group">
-              <label for="camp-url" data-i18n="label_camp_url">رابط التوجيه (اختياري)</label>
-              <input type="url" id="camp-url" class="form-control" dir="ltr" data-i18n-placeholder="placeholder_camp_url" />
-            </div>
-          </div>
-
-          <!-- Campaign Step 2 -->
-          <div id="camp-step-2" class="wizard-step hidden">
-            <div class="form-group">
-              <label for="camp-budget" data-i18n="label_camp_budget">ميزانية الحملة ($)</label>
-              <input type="number" id="camp-budget" class="form-control" min="1" step="1" value="50" />
-            </div>
-
-            <div id="open-targeting-banner" class="open-targeting-alert hidden" data-i18n="open_targeting_banner">
-              🌍 الاستهداف المفتوح مفعل تلقائياً: الميزانية أكبر من 1000$، سيتم بث الإعلان في جميع القنوات بغض النظر عن التصنيف واللغة.
-            </div>
-
-            <div id="targeted-filters-box">
-              <div class="form-group">
-                <label for="camp-language" data-i18n="label_camp_lang">لغة القنوات المستهدفة</label>
-                <select id="camp-language" class="form-control"></select>
-              </div>
-              <div class="form-group">
-                <label for="camp-category" data-i18n="label_camp_cat">تصنيف القنوات المستهدفة</label>
-                <select id="camp-category" class="form-control"></select>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label data-i18n="label_camp_price">السعر لكل 1000 مشاهدة (1$ - 3$)</label>
-              <div class="price-selector" id="camp-price-pills">
-                <button type="button" class="price-pill selected" data-price="1">1$</button>
-                <button type="button" class="price-pill" data-price="1.5">1.5$</button>
-                <button type="button" class="price-pill" data-price="2">2$</button>
-                <button type="button" class="price-pill" data-price="2.5">2.5$</button>
-                <button type="button" class="price-pill" data-price="3">3$</button>
-                <input type="number" id="camp-price-input" class="form-control price-custom-input" min="1" max="3" step="0.1" value="1" />
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label for="camp-schedule-mode" data-i18n="label_camp_schedule">توقيت النشر</label>
-              <select id="camp-schedule-mode" class="form-control">
-                <option value="immediate" data-i18n="opt_schedule_immediate">نشر فوري</option>
-                <option value="peak" data-i18n="opt_schedule_peak">جدولة لأوقات الذروة</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Campaign Step 3 -->
-          <div id="camp-step-3" class="wizard-step hidden">
-            <div class="marketplace-box">
-              <h4 data-i18n="marketplace_title">سوق القنوات الموثقة</h4>
-              <p style="font-size:0.84rem; color:var(--text-muted);" data-i18n="marketplace_desc">
-                اختر القنوات الموثقة للنشر فيها. لأسباب حماية الخصوصية، لا يمكن الدخول المباشر إلى القنوات عبر واجهة الترويج.
-              </p>
-              <div class="marketplace-toolbar">
-                <input type="text" id="mkt-search-input" class="form-control" data-i18n-placeholder="placeholder_search_channel" />
-                <button type="button" id="btn-mkt-favorites" class="btn btn-secondary btn-sm" data-i18n="btn_favorites_only">المفضلة فقط</button>
-              </div>
-              <div id="marketplace-channels-list"></div>
-              <p style="margin-top:8px; font-size:0.88rem; font-weight:600;">
-                <span data-i18n="selected_channels_count">القنوات المختارة للنشر:</span>
-                <span id="selected-channels-counter">0</span>
-              </p>
-            </div>
-
-            <div class="preview-box">
-              <h4 style="margin-bottom:8px;" data-i18n="live_preview_title">معاينة حية للإعلان قبل النشر</h4>
-              <div id="live-preview-media"></div>
-              <div id="live-preview-text" class="preview-body-text"></div>
-              <div class="preview-footer-brand">Powered by Telega.ads</div>
-              <span id="live-preview-cta" class="preview-cta-btn">Open</span>
-              <p class="policy-note" data-i18n="preview_footer_note">
-                ذيل إجباري: Powered by Telega.ads (مع حقن رابط إحالة الناشر كـ Hyperlink). يُمنع على الناشر مشاركة الإعلان أو التلاعب بمحتواه أو شروطه، ولا تُحتسب عمولة إحالة من المعلنين.
-              </p>
-            </div>
-          </div>
-
-          <div class="wizard-footer">
-            <button type="button" id="btn-camp-prev" class="btn btn-secondary hidden" data-i18n="btn_prev">السابق</button>
-            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-              <button type="button" id="btn-camp-save-draft" class="btn btn-warning" data-i18n="btn_save_draft">حفظ كمسودة</button>
-              <button type="button" id="btn-camp-next" class="btn btn-primary" data-i18n="btn_next">التالي</button>
-              <button type="button" id="btn-camp-publish" class="btn btn-success hidden" data-i18n="btn_publish_campaign">نشر / جدولة الحملة</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Progressive Panel 2: Campaigns List -->
-        <div id="panel-campaigns-list" class="progressive-panel hidden">
-          <div id="campaigns-container" class="items-list"></div>
-        </div>
-      </div>
     </section>
   </main>
 
@@ -606,13 +596,6 @@
           <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
         </div>
         <span class="nav-label" data-i18n="nav_referral">Referral</span>
-      </button>
-
-      <button class="nav-item" data-target="view-workspace" type="button">
-        <div class="nav-icon-wrap">
-          <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
-        </div>
-        <span class="nav-label" data-i18n="nav_workspace">Workspace</span>
       </button>
 
       <!-- ADMIN TAB HIDDEN COMPLETELY UNLESS USER IS VERIFIED ADMIN -->
