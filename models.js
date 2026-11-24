@@ -1,8 +1,12 @@
 const admin = require('firebase-admin');
+const path = require('path');
+const fs = require('fs');
 
 // ============================================================================
 // 1. Firebase Admin & Firestore Setup
 // ============================================================================
+
+let dbInstance = null;
 
 function formatPrivateKey(rawKey) {
   if (!rawKey) return '';
@@ -22,53 +26,113 @@ function initFirebaseAdmin() {
       return admin.app();
     }
 
+    const serviceAccountPath = path.join(__dirname, 'serviceAccountKey.json');
     const projectId = process.env.FIREBASE_PROJECT_ID;
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     const privateKey = formatPrivateKey(process.env.FIREBASE_PRIVATE_KEY);
 
-    if (!projectId || !clientEmail || !privateKey) {
-      throw new Error(
-        'Missing Firebase Admin credentials: FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY are required.'
-      );
+    if (projectId && clientEmail && privateKey) {
+      return admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId,
+          clientEmail,
+          privateKey
+        })
+      });
+    }
+
+    if (fs.existsSync(serviceAccountPath)) {
+      const serviceAccount = require(serviceAccountPath);
+      return admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+      });
     }
 
     return admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId,
-        clientEmail,
-        privateKey
-      })
+      credential: admin.credential.applicationDefault()
     });
   } catch (err) {
-    console.error(err);
+    console.error('[Firebase Init Error]:', err);
     throw err;
   }
 }
 
-initFirebaseAdmin();
+function initFirebase() {
+  if (dbInstance) {
+    return dbInstance;
+  }
+  initFirebaseAdmin();
+  dbInstance = admin.firestore();
+  return dbInstance;
+}
 
-const db = admin.firestore();
+const db = initFirebase();
 db.settings({ ignoreUndefinedProperties: true });
 
 const FieldValue = admin.firestore.FieldValue;
 const Timestamp = admin.firestore.Timestamp;
 
+const COLLECTIONS = Object.freeze({
+  USERS: 'users',
+  DEPOSITS: 'deposits',
+  WITHDRAWALS: 'withdrawals',
+  TRANSACTIONS: 'transactions',
+  CAMPAIGNS: 'campaigns',
+  CHANNELS: 'channels',
+  REFERRALS: 'referrals',
+  WALLETS: 'wallets',
+  EARNINGS_LOCKS: 'earningsLocks',
+  TICKETS: 'tickets',
+  BROADCASTS: 'broadcasts',
+  SYSTEM_CONFIG: 'systemConfig',
+  PUBLISH_LOGS: 'publishLogs',
+  NOTIFICATIONS: 'notifications',
+  BACKUP_RECORDS: 'backupRecords',
+  SECURITY_LOGS: 'securityLogs',
+  AUDIT_LOGS: 'auditLogs',
+  SMART_ALERTS: 'smartAlerts'
+});
+
 const collections = {
-  users: db.collection('users'),
-  channels: db.collection('channels'),
-  referrals: db.collection('referrals'),
-  campaigns: db.collection('campaigns'),
-  wallets: db.collection('wallets'),
-  transactions: db.collection('transactions'),
-  publishLogs: db.collection('publishLogs'),
-  notifications: db.collection('notifications'),
-  backupRecords: db.collection('backupRecords'),
-  securityLogs: db.collection('securityLogs')
+  users: db.collection(COLLECTIONS.USERS),
+  deposits: db.collection(COLLECTIONS.DEPOSITS),
+  withdrawals: db.collection(COLLECTIONS.WITHDRAWALS),
+  channels: db.collection(COLLECTIONS.CHANNELS),
+  referrals: db.collection(COLLECTIONS.REFERRALS),
+  campaigns: db.collection(COLLECTIONS.CAMPAIGNS),
+  wallets: db.collection(COLLECTIONS.WALLETS),
+  transactions: db.collection(COLLECTIONS.TRANSACTIONS),
+  earningsLocks: db.collection(COLLECTIONS.EARNINGS_LOCKS),
+  tickets: db.collection(COLLECTIONS.TICKETS),
+  broadcasts: db.collection(COLLECTIONS.BROADCASTS),
+  systemConfig: db.collection(COLLECTIONS.SYSTEM_CONFIG),
+  publishLogs: db.collection(COLLECTIONS.PUBLISH_LOGS),
+  notifications: db.collection(COLLECTIONS.NOTIFICATIONS),
+  backupRecords: db.collection(COLLECTIONS.BACKUP_RECORDS),
+  securityLogs: db.collection(COLLECTIONS.SECURITY_LOGS),
+  auditLogs: db.collection(COLLECTIONS.AUDIT_LOGS),
+  smartAlerts: db.collection(COLLECTIONS.SMART_ALERTS)
 };
 
 // ============================================================================
-// 2. Constants & Validation Helpers
+// 2. Constants, Rules & Validation Helpers
 // ============================================================================
+
+const RULES = Object.freeze({
+  MIN_DEPOSIT_USD: Number(process.env.MIN_DEPOSIT_USD) || 10,
+  MIN_WITHDRAWAL_USD: Number(process.env.MIN_WITHDRAWAL_USD) || 30,
+  WITHDRAWAL_FEE_USD: Number(process.env.WITHDRAWAL_FEE_USD) || 3,
+  WITHDRAWAL_NETWORK: process.env.WITHDRAWAL_NETWORK || 'USDT - TRC20',
+  REFERRAL_COMMISSION_RATE: Number(process.env.REFERRAL_COMMISSION_RATE) || 0.10,
+  MIN_CHANNEL_SUBSCRIBERS: Number(process.env.MIN_CHANNEL_SUBSCRIBERS) || 1000,
+  OPEN_TARGETING_MIN_BUDGET: Number(process.env.OPEN_TARGETING_MIN_BUDGET) || 1000,
+  EARNINGS_RELEASE_HOURS: Number(process.env.EARNINGS_RELEASE_HOURS) || 24,
+  ANTI_BOT_MAX_VIEWS_PER_BATCH: Number(process.env.ANTI_BOT_MAX_VIEWS_PER_BATCH) || 25000,
+  ANTI_BOT_MIN_INTERVAL_SEC: Number(process.env.ANTI_BOT_MIN_INTERVAL_SEC) || 10,
+  BUDGET_LOW_ALERT_RATIO: Number(process.env.BUDGET_LOW_ALERT_RATIO) || 0.15,
+  NETWORK: process.env.DEPOSIT_NETWORK || 'USDT - BEP20',
+  WALLET_ADDRESS: process.env.USDT_BEP20_ADDRESS || '0x742d35Cc6634C0532925a3b844Bc454e4438f44e'
+});
 
 const ALLOWED_LANGUAGES = [
   'English',
@@ -108,6 +172,7 @@ const ALLOWED_CATEGORIES = [
   'other'
 ];
 
+const USER_ROLES = ['user', 'admin'];
 const CHANNEL_APPROVAL_STATUSES = ['pending_review', 'approved', 'rejected'];
 const CAMPAIGN_STATUSES = ['draft', 'scheduled', 'active', 'paused', 'completed'];
 const CAMPAIGN_MEDIA_TYPES = ['none', 'photo', 'video'];
@@ -115,11 +180,26 @@ const CAMPAIGN_BUTTON_PRESETS = ['Open', 'View Offer', 'Join Channel', 'Custom']
 const CAMPAIGN_SCHEDULE_MODES = ['immediate', 'peak'];
 const REFERRAL_SOURCE_ROLES = ['publisher', 'advertiser', 'user'];
 const WALLET_ROLES = ['advertiser', 'publisher'];
-const TRANSACTION_TYPES = ['deposit', 'withdraw', 'ad_spend', 'ad_earning', 'budget_topup'];
+const TRANSACTION_TYPES = [
+  'deposit',
+  'withdraw',
+  'withdrawal',
+  'ad_spend',
+  'ad_earning',
+  'earnings',
+  'settlement',
+  'referral',
+  'budget_topup',
+  'manual_adjustment'
+];
+const TRANSACTION_STATUSES = ['pending', 'processing', 'completed', 'rejected', 'released'];
 const PUBLISH_LOG_STATUSES = ['published', 'duplicate_prevented', 'failed'];
 const NOTIFICATION_AUDIENCES = ['advertiser', 'publisher', 'admin'];
 const NOTIFICATION_CATEGORIES = ['channel', 'campaign', 'wallet', 'system'];
 const BACKUP_STATUSES = ['completed', 'failed'];
+const AUDIT_ENTITY_TYPES = ['user', 'channel', 'advertiser', 'campaign', 'views'];
+const AUDIT_SEVERITIES = ['low', 'medium', 'high'];
+const SMART_ALERT_CATEGORIES = ['budget_low', 'earnings_ready', 'anti_bot', 'content_block'];
 
 function assertOneOf(value, allowedList, fieldName) {
   if (!allowedList.includes(value)) {
@@ -129,15 +209,110 @@ function assertOneOf(value, allowedList, fieldName) {
 
 function clampNumber(value, min, max, fallback = min) {
   const num = Number(value);
-  if (Number.isNaN(num)) return fallback;
+  if (!Number.isFinite(num)) return fallback;
   if (typeof min === 'number' && num < min) return min;
   if (typeof max === 'number' && num > max) return max;
   return num;
 }
 
+function roundMoney(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 0;
+  return Math.round(num * 100) / 100;
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
 // ============================================================================
 // 3. Firestore Document Builders & Helpers
 // ============================================================================
+
+function createDefaultUser(userId, role = 'user', referredBy = null) {
+  if (!userId || !String(userId).trim()) {
+    throw new Error('userId is required to create default user.');
+  }
+  const cleanUserId = String(userId).trim();
+  const normalizedRole = role === 'admin' ? 'admin' : 'user';
+  const cleanReferrer =
+    referredBy && String(referredBy).trim() !== cleanUserId
+      ? String(referredBy).trim()
+      : null;
+
+  const timestamp = nowIso();
+  return {
+    id: cleanUserId,
+    role: normalizedRole,
+    walletBalance: 0,
+    pendingEarnings: 0,
+    availableEarnings: 0,
+    trc20Address: '',
+    referredBy: cleanReferrer,
+    referralEarningsTotal: 0,
+    banned: false,
+    banReason: '',
+    createdAt: timestamp,
+    updatedAt: timestamp
+  };
+}
+
+function buildUserDoc(input = {}, { isUpdate = false } = {}) {
+  const data = {};
+
+  if (!isUpdate || input.id !== undefined) {
+    if (!input.id || !String(input.id).trim()) {
+      throw new Error('User id is required.');
+    }
+    data.id = String(input.id).trim();
+  }
+
+  if (input.role !== undefined || !isUpdate) {
+    const normalizedRole = input.role === 'admin' ? 'admin' : 'user';
+    assertOneOf(normalizedRole, USER_ROLES, 'role');
+    data.role = normalizedRole;
+  }
+
+  if (input.walletBalance !== undefined || !isUpdate) {
+    data.walletBalance = roundMoney(clampNumber(input.walletBalance, 0, Infinity, 0));
+  }
+
+  if (input.pendingEarnings !== undefined || !isUpdate) {
+    data.pendingEarnings = roundMoney(clampNumber(input.pendingEarnings, 0, Infinity, 0));
+  }
+
+  if (input.availableEarnings !== undefined || !isUpdate) {
+    data.availableEarnings = roundMoney(clampNumber(input.availableEarnings, 0, Infinity, 0));
+  }
+
+  if (input.trc20Address !== undefined || !isUpdate) {
+    data.trc20Address = input.trc20Address ? String(input.trc20Address).trim() : '';
+  }
+
+  if (input.referredBy !== undefined || !isUpdate) {
+    const ref = input.referredBy ? String(input.referredBy).trim() : null;
+    data.referredBy = ref && ref !== data.id ? ref : null;
+  }
+
+  if (input.referralEarningsTotal !== undefined || !isUpdate) {
+    data.referralEarningsTotal = roundMoney(clampNumber(input.referralEarningsTotal, 0, Infinity, 0));
+  }
+
+  if (input.banned !== undefined || !isUpdate) {
+    data.banned = Boolean(input.banned ?? false);
+  }
+
+  if (input.banReason !== undefined || !isUpdate) {
+    data.banReason = input.banReason ? String(input.banReason).trim() : '';
+  }
+
+  if (!isUpdate) {
+    data.createdAt = input.createdAt || nowIso();
+  }
+  data.updatedAt = nowIso();
+
+  return data;
+}
 
 function buildChannelDoc(input = {}, { isUpdate = false } = {}) {
   const data = {};
@@ -163,7 +338,7 @@ function buildChannelDoc(input = {}, { isUpdate = false } = {}) {
     data.subscribersCount = clampNumber(input.subscribersCount, 0, Infinity, 0);
   }
   if (input.pricePer1000Views !== undefined || !isUpdate) {
-    data.pricePer1000Views = clampNumber(input.pricePer1000Views, 1, 3, 1);
+    data.pricePer1000Views = roundMoney(clampNumber(input.pricePer1000Views, 1, 3, 1));
   }
   if (input.isFavorite !== undefined || !isUpdate) data.isFavorite = Boolean(input.isFavorite ?? false);
   if (input.ownerTelegramId !== undefined || !isUpdate) data.ownerTelegramId = input.ownerTelegramId ?? '';
@@ -201,7 +376,7 @@ function buildChannelDoc(input = {}, { isUpdate = false } = {}) {
     if (input.price === undefined || input.price === null || Number.isNaN(Number(input.price))) {
       throw new Error('Channel price is required.');
     }
-    data.price = clampNumber(input.price, 1, 3);
+    data.price = roundMoney(clampNumber(input.price, 1, 3));
   }
 
   if (input.botAdded !== undefined || !isUpdate) data.botAdded = Boolean(input.botAdded ?? false);
@@ -300,10 +475,10 @@ function buildCampaignDoc(input = {}, { isUpdate = false } = {}) {
   }
 
   if (input.budget !== undefined || !isUpdate) {
-    data.budget = clampNumber(input.budget, 0, Infinity, 50);
+    data.budget = roundMoney(clampNumber(input.budget, 0, Infinity, 50));
   }
   if (input.spentAmount !== undefined || !isUpdate) {
-    data.spentAmount = clampNumber(input.spentAmount, 0, Infinity, 0);
+    data.spentAmount = roundMoney(clampNumber(input.spentAmount, 0, Infinity, 0));
   }
   if (input.totalViews !== undefined || !isUpdate) {
     data.totalViews = clampNumber(input.totalViews, 0, Infinity, 0);
@@ -330,7 +505,7 @@ function buildCampaignDoc(input = {}, { isUpdate = false } = {}) {
     ) {
       throw new Error('maxPricePerPost is required.');
     }
-    data.maxPricePerPost = clampNumber(input.maxPricePerPost, 1, 3);
+    data.maxPricePerPost = roundMoney(clampNumber(input.maxPricePerPost, 1, 3));
   }
 
   if (input.scheduleMode !== undefined || !isUpdate) {
@@ -376,11 +551,11 @@ function buildWalletDoc(input = {}, { isUpdate = false } = {}) {
   }
 
   if (input.advertiserBalance !== undefined || !isUpdate) {
-    data.advertiserBalance = clampNumber(input.advertiserBalance, 0, Infinity, 0);
+    data.advertiserBalance = roundMoney(clampNumber(input.advertiserBalance, 0, Infinity, 0));
   }
 
   if (input.publisherBalance !== undefined || !isUpdate) {
-    data.publisherBalance = clampNumber(input.publisherBalance, 0, Infinity, 0);
+    data.publisherBalance = roundMoney(clampNumber(input.publisherBalance, 0, Infinity, 0));
   }
 
   if (!isUpdate) {
@@ -391,14 +566,56 @@ function buildWalletDoc(input = {}, { isUpdate = false } = {}) {
   return data;
 }
 
+function buildTransactionRecord(payload = {}) {
+  if (!payload.userId || !String(payload.userId).trim()) {
+    throw new Error('Transaction userId is required.');
+  }
+  if (!payload.type) {
+    throw new Error('Transaction type is required.');
+  }
+  assertOneOf(payload.type, TRANSACTION_TYPES, 'type');
+
+  const status = payload.status || 'completed';
+  assertOneOf(status, TRANSACTION_STATUSES, 'status');
+
+  const record = {
+    userId: String(payload.userId).trim(),
+    type: payload.type,
+    amount: roundMoney(payload.amount),
+    status,
+    note: payload.note ? String(payload.note) : '',
+    txid: payload.txid ? String(payload.txid).trim() : null,
+    createdAt: payload.createdAt || nowIso()
+  };
+
+  if (payload.id !== undefined && payload.id !== null) {
+    record.id = String(payload.id).trim();
+  }
+  if (payload.campaignId !== undefined) record.campaignId = payload.campaignId ?? null;
+  if (payload.channelId !== undefined) record.channelId = payload.channelId ?? null;
+  if (payload.idempotencyKey !== undefined) {
+    record.idempotencyKey = payload.idempotencyKey ? String(payload.idempotencyKey).trim() : null;
+  }
+
+  return record;
+}
+
 function buildTransactionDoc(input = {}, { isUpdate = false } = {}) {
   const data = {};
+
+  if (input.id !== undefined) {
+    data.id = input.id ? String(input.id).trim() : null;
+  }
+
+  if (input.userId !== undefined) {
+    data.userId = input.userId ? String(input.userId).trim() : null;
+  }
 
   if (input.idempotencyKey !== undefined || !isUpdate) {
     data.idempotencyKey = input.idempotencyKey ? String(input.idempotencyKey).trim() : null;
   }
 
-  if (!isUpdate || input.walletRole !== undefined) {
+  if (input.walletRole !== undefined) {
     assertOneOf(input.walletRole, WALLET_ROLES, 'walletRole');
     data.walletRole = input.walletRole;
   }
@@ -412,7 +629,17 @@ function buildTransactionDoc(input = {}, { isUpdate = false } = {}) {
     if (input.amount === undefined || input.amount === null || Number.isNaN(Number(input.amount))) {
       throw new Error('Transaction amount is required.');
     }
-    data.amount = Number(input.amount);
+    data.amount = roundMoney(input.amount);
+  }
+
+  if (input.status !== undefined || !isUpdate) {
+    const status = input.status ?? 'completed';
+    assertOneOf(status, TRANSACTION_STATUSES, 'status');
+    data.status = status;
+  }
+
+  if (input.txid !== undefined || !isUpdate) {
+    data.txid = input.txid ? String(input.txid).trim() : null;
   }
 
   if (input.campaignId !== undefined || !isUpdate) data.campaignId = input.campaignId ?? null;
@@ -563,6 +790,89 @@ function buildBackupRecordDoc(input = {}, { isUpdate = false } = {}) {
   return data;
 }
 
+function buildSecurityLogRecord(payload = {}) {
+  if (!payload.action || !String(payload.action).trim()) {
+    throw new Error('Security log action is required.');
+  }
+
+  const record = {
+    actorId: payload.actorId ? String(payload.actorId).trim() : 'system',
+    actorRole: payload.actorRole ? String(payload.actorRole).trim() : 'system',
+    action: String(payload.action).trim(),
+    targetId: payload.targetId ? String(payload.targetId).trim() : null,
+    details: payload.details && typeof payload.details === 'object' ? payload.details : {},
+    ip: payload.ip ? String(payload.ip).trim() : null,
+    createdAt: payload.createdAt || nowIso()
+  };
+
+  if (payload.id !== undefined && payload.id !== null) {
+    record.id = String(payload.id).trim();
+  }
+
+  return record;
+}
+
+function buildAuditLogRecord(payload = {}) {
+  if (!payload.entityType) {
+    throw new Error('Audit log entityType is required.');
+  }
+  assertOneOf(payload.entityType, AUDIT_ENTITY_TYPES, 'entityType');
+
+  if (!payload.entityId || !String(payload.entityId).trim()) {
+    throw new Error('Audit log entityId is required.');
+  }
+
+  const severity = payload.severity || 'medium';
+  assertOneOf(severity, AUDIT_SEVERITIES, 'severity');
+
+  const record = {
+    entityType: payload.entityType,
+    entityId: String(payload.entityId).trim(),
+    severity,
+    reason: payload.reason ? String(payload.reason).trim() : '',
+    meta: payload.meta && typeof payload.meta === 'object' ? payload.meta : {},
+    createdAt: payload.createdAt || nowIso()
+  };
+
+  if (payload.id !== undefined && payload.id !== null) {
+    record.id = String(payload.id).trim();
+  }
+
+  return record;
+}
+
+function buildSmartAlertRecord(payload = {}) {
+  if (!payload.userId || !String(payload.userId).trim()) {
+    throw new Error('Smart alert userId is required.');
+  }
+  if (!payload.category) {
+    throw new Error('Smart alert category is required.');
+  }
+  assertOneOf(payload.category, SMART_ALERT_CATEGORIES, 'category');
+
+  if (!payload.title || !String(payload.title).trim()) {
+    throw new Error('Smart alert title is required.');
+  }
+  if (!payload.message || !String(payload.message).trim()) {
+    throw new Error('Smart alert message is required.');
+  }
+
+  const record = {
+    userId: String(payload.userId).trim(),
+    category: payload.category,
+    title: String(payload.title).trim(),
+    message: String(payload.message).trim(),
+    read: Boolean(payload.read ?? false),
+    createdAt: payload.createdAt || nowIso()
+  };
+
+  if (payload.id !== undefined && payload.id !== null) {
+    record.id = String(payload.id).trim();
+  }
+
+  return record;
+}
+
 // ============================================================================
 // 4. Exports
 // ============================================================================
@@ -575,23 +885,35 @@ module.exports = {
   Timestamp,
   formatPrivateKey,
   initFirebaseAdmin,
+  initFirebase,
+  COLLECTIONS,
   collections,
 
   // Direct Collection Shortcuts
   users: collections.users,
+  deposits: collections.deposits,
+  withdrawals: collections.withdrawals,
   channels: collections.channels,
   referrals: collections.referrals,
   campaigns: collections.campaigns,
   wallets: collections.wallets,
   transactions: collections.transactions,
+  earningsLocks: collections.earningsLocks,
+  tickets: collections.tickets,
+  broadcasts: collections.broadcasts,
+  systemConfig: collections.systemConfig,
   publishLogs: collections.publishLogs,
   notifications: collections.notifications,
   backupRecords: collections.backupRecords,
   securityLogs: collections.securityLogs,
+  auditLogs: collections.auditLogs,
+  smartAlerts: collections.smartAlerts,
 
-  // Constants & Validators
+  // Constants, Rules & Validators
+  RULES,
   ALLOWED_LANGUAGES,
   ALLOWED_CATEGORIES,
+  USER_ROLES,
   CHANNEL_APPROVAL_STATUSES,
   CAMPAIGN_STATUSES,
   CAMPAIGN_MEDIA_TYPES,
@@ -600,20 +922,32 @@ module.exports = {
   REFERRAL_SOURCE_ROLES,
   WALLET_ROLES,
   TRANSACTION_TYPES,
+  TRANSACTION_STATUSES,
   PUBLISH_LOG_STATUSES,
   NOTIFICATION_AUDIENCES,
   NOTIFICATION_CATEGORIES,
   BACKUP_STATUSES,
+  AUDIT_ENTITY_TYPES,
+  AUDIT_SEVERITIES,
+  SMART_ALERT_CATEGORIES,
   assertOneOf,
   clampNumber,
+  roundMoney,
+  nowIso,
 
-  // Firestore Document Builders
+  // Firestore Document Builders & Record Helpers
+  createDefaultUser,
+  buildUserDoc,
   buildChannelDoc,
   buildReferralDoc,
   buildCampaignDoc,
   buildWalletDoc,
   buildTransactionDoc,
+  buildTransactionRecord,
   buildPublishLogDoc,
   buildNotificationDoc,
-  buildBackupRecordDoc
+  buildBackupRecordDoc,
+  buildSecurityLogRecord,
+  buildAuditLogRecord,
+  buildSmartAlertRecord
 };
