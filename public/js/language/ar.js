@@ -71,6 +71,13 @@ const AR_TRANSLATIONS = {
   app_subtitle: 'منصة إدارة القنوات والحملات الإعلانية',
   lang_switch: 'English',
 
+  // Phase 3 App, Account & Smart Alerts
+  appTitle: 'Telega.ads - المرحلة الثالثة',
+  appSubtitle: 'الحماية المتقدمة، الأتمتة الذكية، والتحليلات العميقة',
+  userIdLabel: 'معرف المستخدم',
+  loadAccountBtn: 'تحميل الحساب',
+  smartAlertsTitle: 'نظام التنبيهات الذكية',
+
   // My Channels Section
   channels_section_title: 'إدارة قنواتي',
   channels_section_desc: 'اضغط على الأزرار أدناه لإضافة قناة أو عرض قنواتك وإعداداتها.',
@@ -82,6 +89,15 @@ const AR_TRANSLATIONS = {
   btn_toggle_referrals: 'إحالات الناشر',
   btn_toggle_wallet: 'المحافظ المالية',
   btn_toggle_reliability: 'الموثوقية والسجلات والنسخ الاحتياطي',
+
+  // Channels, Anti-Bot & Earnings
+  channelsSectionTitle: 'القنوات، Anti-Bot، وإحصائيات الأرباح',
+  channelSubRuleNote: 'شرط القبول: الحد الأدنى 1000 مشترك، مع فحص الكلمات المحظورة ومحرك Anti-Bot.',
+  channelNameLabel: 'اسم القناة',
+  channelSubsLabel: 'عدد المشتركين',
+  channelPriceLabel: 'سعر الإعلان ($)',
+  addChannelBtn: 'إضافة القناة',
+  channelsListTitle: 'قنواتي وإحصائياتها المستقلة',
 
   // Bot Instructions Box
   bot_box_title: 'تعليمات إضافة البوت كمسؤول (@adTelega_bot)',
@@ -155,8 +171,11 @@ const AR_TRANSLATIONS = {
   referral_publisher: 'الناشر:',
   referral_user: 'المستخدم المحال:',
   referral_channel: 'القناة:',
+  referralTitle: 'نظام الإحالة (عمولة 10% من الأرباح)',
+  referralTotalLabel: 'إجمالي أرباح الإحالة',
+  referralLinkLabel: 'رابط الإحالة الخاص بك',
 
-  // Wallets
+  // Wallets, Deposit, Withdrawal & Transactions
   wallet_panel_title: 'محفظة المعلن والناشر والحركات المالية',
   wallet_adv_balance: 'رصيد محفظة المعلن ($):',
   wallet_pub_balance: 'رصيد محفظة الناشر ($):',
@@ -173,6 +192,25 @@ const AR_TRANSLATIONS = {
   tx_type_ad_spend: 'خصم مشاهدات إعلان',
   tx_type_ad_earning: 'أرباح ناشر من المشاهدات',
   tx_type_budget_topup: 'شحن ميزانية حملة',
+  walletBalanceLabel: 'رصيد المحفظة (المعلنين)',
+  pendingEarningsLabel: 'أرباح معلقة (قيد التحقق 24 ساعة)',
+  availableEarningsLabel: 'أرباح قابلة للسحب',
+  depositTitle: 'إيداع عبر USDT - BEP20',
+  depositInstructions: 'أرسل مبلغاً لا يقل عن 10.00$ عبر شبكة USDT - BEP20 إلى العنوان التالي ثم أدخل رقم المعاملة TXID.',
+  copyAddressBtn: 'نسخ العنوان',
+  copiedText: 'تم النسخ',
+  depositAmountLabel: 'المبلغ ($)',
+  txidLabel: 'رقم المعاملة (TXID)',
+  submitDepositBtn: 'إرسال طلب الإيداع',
+  withdrawTitle: 'طلب سحب الأرباح (USDT - TRC20)',
+  trc20SavedLabel: 'عنوان محفظة TRC20 المحفوظ',
+  trc20AddressInputLabel: 'حفظ أو تعديل عنوان محفظة USDT - TRC20',
+  saveTrc20Btn: 'حفظ العنوان',
+  withdrawAmountLabel: 'مبلغ السحب ($ - الحد الأدنى 30.00$)',
+  withdrawAddressLabel: 'عنوان محفظة الاستلام (TRC20)',
+  submitWithdrawBtn: 'تأكيد وإرسال طلب السحب',
+  withdrawalsTrackerTitle: 'تتبع طلبات السحب خطوة بخطوة',
+  transactionsTitle: 'سجل المعاملات المالية (آخر 10 معاملات)',
 
   // Reliability, Publish Logs, Notifications & Backups
   reliability_panel_title: 'الإشعارات، سجل النشر، مراقبة النظام، والنسخ الاحتياطي',
@@ -190,12 +228,26 @@ const AR_TRANSLATIONS = {
   btn_create_backup: 'إنشاء نسخة احتياطية الآن',
   no_backups: 'لا توجد نسخ احتياطية مسجلة بعد.',
 
-  // Promotion Section
+  // Promotion Section, Estimator & Atomic Settlement
   promo_section_title: 'قسم الترويج والحملات الإعلانية',
   promo_section_desc: 'أنشئ حملتك الإعلانية خطوة بخطوة أو استعرض حملاتك ومسوداتك المحفوظة.',
   btn_view_campaigns: 'عرض الحملات الإعلانية',
   btn_hide_campaigns: 'إخفاء الحملات الإعلانية',
   btn_create_campaign: '+ إنشاء حملة جديدة',
+  estimatorTitle: 'محاكي التسعير والعائد التقديري (CPM & ROI Estimator)',
+  estimatorCpmLabel: 'تكلفة الألف ظهور CPM ($)',
+  estimatorCtrLabel: 'نسبة النقر التقديرية CTR (%)',
+  estimatorConvValLabel: 'متوسط قيمة التحويل ($)',
+  runEstimateBtn: 'احسب التقدير',
+  campaignTitleSection: 'الحملات الإعلانية والتسوية الذرية',
+  campaignNameLabel: 'عنوان الحملة',
+  campaignBudgetLabel: 'ميزانية الحملة ($)',
+  targetingModeLabel: 'نوع الاستهداف',
+  targetingSpecificOption: 'استهداف محدد',
+  targetingOpenOption: 'استهداف مفتوح (يتطلب ميزانية أكبر من 1000$)',
+  openTargetingHint: 'ملاحظة: الاستهداف المفتوح متاح فقط عندما تكون الميزانية أكبر من 1000$. يتم حفظ المسودة تلقائياً أثناء الكتابة.',
+  createCampaignBtn: 'إنشاء الحملة وحجز الميزانية',
+  campaignsListTitle: 'قائمة الحملات وسجل التعديلات الزمني',
 
   // Campaign Wizard
   wizard_campaign_title: 'معالج إنشاء حملة إعلانية',
@@ -274,6 +326,55 @@ const AR_TRANSLATIONS = {
   detail_published_channels: 'القنوات المنشور بها:',
   policy_locked_badge: 'محتوى مقفل (بدون إعادة توجيه أو تعديل)',
 
+  // Support, Tickets & FAQ
+  supportTitle: 'الدعم الفني ونظام التذاكر',
+  ticketSubjectLabel: 'موضوع التذكرة',
+  ticketMessageLabel: 'تفاصيل الرسالة',
+  submitTicketBtn: 'إرسال التذكرة',
+  ticketsListTitle: 'تذاكري والردود المباشرة',
+  faqTitle: 'الأسئلة الشائعة (FAQ)',
+  faqQ1: 'كيف تعمل دورة تحرير الأرباح خلال 24 ساعة؟',
+  faqA1: 'تُضاف الأرباح وعمولات الإحالة (10%) أولاً إلى الرصيد المعلق، ثم تتحول تلقائياً إلى الرصيد القابل للسحب بعد مرور 24 ساعة.',
+  faqQ2: 'ما هي شروط السحب والرسوم المطبقة؟',
+  faqA2: 'الحد الأدنى للسحب 30.00$ عبر شبكة USDT - TRC20 مع خصم رسوم ثابتة قدرها 3.00$ توضح قبل التأكيد.',
+  faqQ3: 'ماذا يحدث عند إيقاف أو إنهاء حملة إعلانية؟',
+  faqA3: 'تُعاد الميزانية المتبقية تلقائياً إلى رصيد محفظة المعلن ضمن معاملة قاعدة بيانات ذرية (ACID) لمنع التكرار.',
+  faqQ4: 'كيف يحمي النظام المشاهدات والحملات من التلاعب؟',
+  faqA4: 'يعمل محرك Anti-Bot لفلترة المشاهدات المشبوهة، وتفحص القائمة السوداء النصوص، مع سجل تعديلات زمني وحظر فوري عند الحاجة.',
+
+  // Admin Control, Analytics & Protection
+  adminSectionTitle: 'لوحة التحكم الإدارية، التحليلات، والحماية',
+  adminKeyLabel: 'مفتاح الإدارة (Admin Key)',
+  loadAdminBtn: 'دخول الإدارة',
+  maintenanceToggleBtn: 'تبديل وضع الصيانة',
+  adminLiveDashboardTitle: 'لوحة المؤشرات الحية (Live Dashboard)',
+  adminDailyReportTitle: 'التقرير المالي اليومي الآلي',
+  adminBanTitle: 'نظام الحظر الفوري (مستخدم / قناة / معلن)',
+  adminBlacklistTitle: 'إدارة القائمة السوداء للكلمات (Blacklist Words)',
+  adminEmergencyStopTitle: 'إيقاف / حذف إعلان طارئ فوراً من جميع القنوات',
+  adminAdjustTitle: 'تعديل رصيد مستخدم يدوياً',
+  adminTargetUserLabel: 'معرف المستخدم المستهدف',
+  adminAdjustModeLabel: 'العملية',
+  adminAddOption: 'إضافة رصيد',
+  adminDeductOption: 'خصم رصيد',
+  adminBucketLabel: 'نوع الرصيد',
+  adminAmountLabel: 'المبلغ ($)',
+  adminReasonLabel: 'السبب (إجباري)',
+  adminApplyAdjustBtn: 'تنفيذ التعديل المالي',
+  adminBroadcastTitle: 'الإرسال الجماعي (Broadcast) والتنبيهات الفورية',
+  adminBroadcastTitleInputLabel: 'عنوان التنبيه',
+  adminBroadcastBodyLabel: 'نص الرسالة الجماعية',
+  adminSendBroadcastBtn: 'إرسال التنبيه الجماعي',
+  adminDepositsTitle: 'طلبات الإيداع للمراجعة',
+  adminWithdrawalsTitle: 'طلبات السحب للمراجعة وإدارة المراحل',
+  adminTicketsTitle: 'تذاكر الدعم الفني والرد المباشر',
+  adminAuditLogsTitle: 'سجل العمليات المشبوهة (Audit Logs)',
+  adminSecurityLogsTitle: 'سجلات الأمان والعمليات الحساسة',
+
+  // Footer
+  footerNotice: 'التذييل الإجباري لمنصة Telega.ads - جميع الحقوق محفوظة.',
+  footerReferralAnchorText: 'انضم عبر رابط إحالة الناشر',
+
   // Categories (13)
   cat_entertainment: 'الترفيه',
   cat_news_media: 'الأخبار ووسائل الإعلام',
@@ -315,6 +416,7 @@ const AR_TRANSLATIONS = {
 if (typeof window !== 'undefined') {
   window.AR_TRANSLATIONS = AR_TRANSLATIONS;
   window.LANG_AR = AR_TRANSLATIONS;
+  window.TELEGA_LANG_AR = AR_TRANSLATIONS;
 }
 
 if (typeof module !== 'undefined' && module.exports) {
