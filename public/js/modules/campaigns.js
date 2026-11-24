@@ -3,6 +3,10 @@
   function t(key, fallback = '') {
     if (!key) return fallback;
     try {
+      if (window.TelegaI18n && typeof window.TelegaI18n.t === 'function') {
+        const val = window.TelegaI18n.t(key);
+        if (val !== undefined && val !== null) return val;
+      }
       if (window.I18n && typeof window.I18n.t === 'function') {
         const val = window.I18n.t(key);
         if (val !== undefined && val !== null) return val;
@@ -35,7 +39,7 @@
   function esc(str) {
     if (typeof window.escapeHTML === 'function') return window.escapeHTML(str);
     if (window.UI && typeof window.UI.escapeHTML === 'function') return window.UI.escapeHTML(str);
-    if (!str) return '';
+    if (str === null || str === undefined) return '';
     return String(str)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
@@ -44,10 +48,76 @@
       .replace(/'/g, '&#39;');
   }
 
+  function getEl(id) {
+    return document.getElementById(id);
+  }
+
+  function showCampaignNotice(message, isError = false) {
+    if (!message) return;
+    try {
+      if (window.UI && typeof window.UI.showNotice === 'function') {
+        window.UI.showNotice('campaignNotice', message, isError);
+      } else if (typeof window.showNotice === 'function') {
+        window.showNotice('campaignNotice', message, isError);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    toast(message);
+  }
+
+  function clearCampaignNotice() {
+    try {
+      if (window.UI && typeof window.UI.clearNotice === 'function') {
+        window.UI.clearNotice('campaignNotice');
+      } else if (typeof window.clearNotice === 'function') {
+        window.clearNotice('campaignNotice');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  function persistDrafts(ctx) {
+    try {
+      if (window.UI && typeof window.UI.saveDrafts === 'function') {
+        window.UI.saveDrafts(ctx);
+      } else if (typeof window.saveDrafts === 'function') {
+        window.saveDrafts(ctx);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
   function getState() {
     if (window.AppState) return window.AppState;
     if (typeof AppState !== 'undefined') return AppState;
     return null;
+  }
+
+  function buildContext(ctx) {
+    if (ctx && ctx.state) return ctx;
+    if (window.App && typeof window.App.getContext === 'function') {
+      return window.App.getContext();
+    }
+    const state = getState();
+    return {
+      state,
+      el: getEl,
+      apiRequest: async (url, options = {}) =>
+        sendRequest(url, options.method || 'GET', options.body ? JSON.parse(options.body) : undefined, options.headers),
+      showNotice: (_targetOrMsg, msgOrErr, maybeErr) => {
+        if (typeof maybeErr === 'boolean') {
+          showCampaignNotice(msgOrErr, maybeErr);
+        } else {
+          showCampaignNotice(_targetOrMsg, Boolean(msgOrErr));
+        }
+      },
+      clearNotice: () => clearCampaignNotice(),
+      refreshWallet: async () => refreshWalletData(),
+      refreshCampaigns: async () => refreshCampaignsList()
+    };
   }
 
   function getCatLabel(catValue) {
@@ -68,50 +138,77 @@
     return t(`status_${status}`, status || 'draft');
   }
 
-  async function sendRequest(url, method, body) {
+  async function sendRequest(url, method, body, extraHeaders = {}) {
     try {
-      if (typeof window.apiSend === 'function') {
+      const state = getState();
+      const userId = extraHeaders['x-user-id'] || state?.userId || '';
+      const adminKey = extraHeaders['x-admin-key'] || state?.adminKey || '';
+
+      if (typeof window.apiSend === 'function' && !userId && !adminKey) {
         return await window.apiSend(url, method, body);
       }
-      if (window.Api && typeof window.Api.send === 'function') {
+      if (window.Api && typeof window.Api.send === 'function' && !userId && !adminKey) {
         return await window.Api.send(url, method, body);
       }
+
+      const headers = Object.assign(
+        {},
+        window.Api?.getInitData ? { 'x-telegram-init-data': window.Api.getInitData() } : {},
+        userId ? { 'x-user-id': userId } : {},
+        adminKey ? { 'x-admin-key': adminKey } : {},
+        extraHeaders
+      );
+
       const options = {
         method,
-        headers: {
-          ...(window.Api?.getInitData ? { 'x-telegram-init-data': window.Api.getInitData() } : {})
-        }
+        headers
       };
+
       if (body !== undefined) {
-        options.headers['Content-Type'] = 'application/json';
-        options.body = JSON.stringify(body);
+        headers['Content-Type'] = 'application/json';
+        options.body = typeof body === 'string' ? body : JSON.stringify(body);
       }
+
       const res = await fetch(url, options);
-      return await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false || data.success === false) {
+        const err = new Error(data.error || data.message || 'Request failed');
+        err.status = res.status;
+        err.data = data;
+        throw err;
+      }
+      return data;
     } catch (err) {
       console.error(err);
       throw err;
     }
   }
 
-  async function refreshCampaignsList() {
+  async function refreshCampaignsList(ctx) {
     try {
+      const activeCtx = buildContext(ctx);
+      if (typeof activeCtx.apiRequest === 'function' && getEl('campaignsList')) {
+        await refreshCampaigns(activeCtx).catch(() => {});
+      }
       if (typeof window.fetchCampaigns === 'function') {
         await window.fetchCampaigns();
       } else if (window.Api && typeof window.Api.fetchCampaigns === 'function') {
         await window.Api.fetchCampaigns();
       }
       if (window.CampaignsModule && typeof window.CampaignsModule.load === 'function') {
-        await window.CampaignsModule.load();
+        await window.CampaignsModule.load(activeCtx);
       }
     } catch (err) {
       console.error(err);
     }
   }
 
-  async function refreshWalletData() {
+  async function refreshWalletData(ctx) {
     try {
-      if (typeof window.fetchWallet === 'function') {
+      const activeCtx = buildContext(ctx);
+      if (window.WalletModule && typeof window.WalletModule.refresh === 'function') {
+        await window.WalletModule.refresh(activeCtx);
+      } else if (typeof window.fetchWallet === 'function') {
         await window.fetchWallet();
       } else if (window.Api && typeof window.Api.fetchWallet === 'function') {
         await window.Api.fetchWallet();
@@ -133,19 +230,173 @@
     }
   }
 
+  function syncOpenTargetingRule(ctx) {
+    try {
+      const activeCtx = buildContext(ctx);
+      const budgetInput = getEl('campaignBudgetInput');
+      const selectEl = getEl('campaignTargetingSelect');
+      if (!budgetInput || !selectEl) return;
+
+      const budgetVal = Number(budgetInput.value || 0);
+      const minBudget = Number(activeCtx.state?.openTargetingMinBudget ?? 1000);
+      const openOption = selectEl.querySelector('option[value="open"]');
+      const allowed = budgetVal > minBudget;
+
+      if (openOption) {
+        openOption.disabled = !allowed;
+      }
+      if (!allowed && selectEl.value === 'open') {
+        selectEl.value = 'specific';
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function refreshCampaigns(ctx) {
+    const activeCtx = buildContext(ctx);
+    const container = getEl('campaignsList');
+    if (!container) return;
+
+    try {
+      const data = await activeCtx.apiRequest('/api/campaigns', undefined, activeCtx);
+      const campaigns = Array.isArray(data?.campaigns) ? data.campaigns : [];
+
+      if (activeCtx.state) {
+        activeCtx.state.campaigns = campaigns;
+      }
+
+      if (campaigns.length === 0) {
+        container.innerHTML = '<div class="list-row"><span class="stat-label">لا توجد حملات حالياً.</span></div>';
+        return;
+      }
+
+      container.innerHTML = campaigns
+        .map((c) => {
+          const safeId = esc(c.id || c._id);
+          const isOpenAction = c.status === 'active' && !c.settled;
+          const historyHtml = (c.editHistory || [])
+            .map((h) => `<div>• [${esc(h.at || '')}] ${esc(h.action)}: ${esc(JSON.stringify(h.details || {}))}</div>`)
+            .join('');
+
+          return `
+            <div class="list-row">
+              <div style="width:100%;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                  <div>
+                    <strong>${esc(c.title)}</strong> <span class="stat-label">(${safeId})</span>
+                    <div class="stat-label">الميزانية الكلية: $${Number(c.budget || 0).toFixed(2)} | المتبقي: $${Number(c.remainingBudget ?? c.budget ?? 0).toFixed(2)}</div>
+                    <div class="stat-label">الاستهداف: ${c.targetingMode === 'open' ? 'مفتوح (>1000$)' : 'محدد'}</div>
+                  </div>
+                  <div class="actions-inline">
+                    <span class="badge badge-${esc(c.status || '')}">${esc(c.status || '')}</span>
+                    ${
+                      isOpenAction
+                        ? `<button type="button" class="btn-secondary" data-spend-id="${safeId}">صرف 50$</button>
+                           <button type="button" class="btn-secondary" data-edit-cmp-id="${safeId}">تعديل العنوان</button>
+                           <button type="button" class="btn-warning" data-settle-id="${safeId}" data-settle-action="stop">إيقاف وتسوية</button>
+                           <button type="button" class="btn-success" data-settle-id="${safeId}" data-settle-action="complete">إنهاء وتسوية</button>`
+                        : ''
+                    }
+                  </div>
+                </div>
+                <div class="history-box">
+                  <strong>سجل التعديلات الزمني:</strong>
+                  ${historyHtml}
+                </div>
+              </div>
+            </div>
+          `;
+        })
+        .join('');
+
+      container.querySelectorAll('[data-spend-id]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          clearCampaignNotice();
+          try {
+            const targetId = btn.getAttribute('data-spend-id');
+            await activeCtx.apiRequest(
+              `/api/campaigns/${encodeURIComponent(targetId)}/spend`,
+              {
+                method: 'POST',
+                body: JSON.stringify({ amount: 50 })
+              },
+              activeCtx
+            );
+            showCampaignNotice('تم تسجيل صرف 50$ من الميزانية المتبقية.', false);
+            await Promise.all([refreshCampaigns(activeCtx), refreshWalletData(activeCtx)]);
+          } catch (err) {
+            showCampaignNotice(err.message, true);
+          }
+        });
+      });
+
+      container.querySelectorAll('[data-edit-cmp-id]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          clearCampaignNotice();
+          const newTitle = prompt('أدخل العنوان الجديد للحملة:');
+          if (!newTitle) return;
+          try {
+            const targetId = btn.getAttribute('data-edit-cmp-id');
+            await activeCtx.apiRequest(
+              `/api/campaigns/${encodeURIComponent(targetId)}`,
+              {
+                method: 'PATCH',
+                body: JSON.stringify({ title: newTitle })
+              },
+              activeCtx
+            );
+            showCampaignNotice('تم تحديث عنوان الحملة وتوثيقه في سجل التعديلات.', false);
+            await refreshCampaigns(activeCtx);
+          } catch (err) {
+            showCampaignNotice(err.message, true);
+          }
+        });
+      });
+
+      container.querySelectorAll('[data-settle-id]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          clearCampaignNotice();
+          try {
+            const targetId = btn.getAttribute('data-settle-id');
+            const action = btn.getAttribute('data-settle-action');
+            const res = await activeCtx.apiRequest(
+              `/api/campaigns/${encodeURIComponent(targetId)}/settle`,
+              {
+                method: 'POST',
+                body: JSON.stringify({ action })
+              },
+              activeCtx
+            );
+            showCampaignNotice(
+              `تمت التسوية الذرية وإعادة $${Number(res.refundAmount || 0).toFixed(2)} إلى المحفظة.`,
+              false
+            );
+            await Promise.all([refreshCampaigns(activeCtx), refreshWalletData(activeCtx)]);
+          } catch (err) {
+            showCampaignNotice(err.message, true);
+          }
+        });
+      });
+    } catch (err) {
+      console.error(err);
+      throw err;
+    }
+  }
+
   async function submitCampaign(status) {
     const state = getState();
-    const title = document.getElementById('camp-title')?.value.trim() || '';
-    const adText = document.getElementById('camp-text')?.value.trim() || '';
-    const targetUrl = document.getElementById('camp-url')?.value.trim() || '';
-    const buttonPreset = document.getElementById('camp-btn-preset')?.value || 'Open';
-    const customButtonText = document.getElementById('camp-custom-btn')?.value.trim() || '';
-    const budgetVal = parseFloat(document.getElementById('camp-budget')?.value || '');
+    const title = getEl('camp-title')?.value.trim() || '';
+    const adText = getEl('camp-text')?.value.trim() || '';
+    const targetUrl = getEl('camp-url')?.value.trim() || '';
+    const buttonPreset = getEl('camp-btn-preset')?.value || 'Open';
+    const customButtonText = getEl('camp-custom-btn')?.value.trim() || '';
+    const budgetVal = parseFloat(getEl('camp-budget')?.value || '');
     const budget = Number.isFinite(budgetVal) && budgetVal > 0 ? budgetVal : 50;
-    const targetLanguage = document.getElementById('camp-language')?.value || 'English';
-    const targetCategory = document.getElementById('camp-category')?.value || 'other';
-    const maxPricePerPost = parseFloat(document.getElementById('camp-price-input')?.value || '');
-    const scheduleMode = document.getElementById('camp-schedule-mode')?.value || 'immediate';
+    const targetLanguage = getEl('camp-language')?.value || 'English';
+    const targetCategory = getEl('camp-category')?.value || 'other';
+    const maxPricePerPost = parseFloat(getEl('camp-price-input')?.value || '');
+    const scheduleMode = getEl('camp-schedule-mode')?.value || 'immediate';
     const selectedChannelIds = state?.selectedChannelIds ? Array.from(state.selectedChannelIds) : [];
 
     if (!title) {
@@ -183,7 +434,7 @@
 
     try {
       const editingId = state?.editingCampaignId || null;
-      const url = editingId ? `/api/campaigns/${editingId}` : '/api/campaigns';
+      const url = editingId ? `/api/campaigns/${encodeURIComponent(editingId)}` : '/api/campaigns';
       const method = editingId ? 'PUT' : 'POST';
 
       const json = await sendRequest(url, method, payload);
@@ -197,9 +448,9 @@
           window.UI.resetCampaignWizard();
         }
 
-        document.getElementById('panel-campaign-wizard')?.classList.add('hidden');
+        getEl('panel-campaign-wizard')?.classList.add('hidden');
         if (state) state.isCampaignsListOpen = true;
-        document.getElementById('panel-campaigns-list')?.classList.remove('hidden');
+        getEl('panel-campaigns-list')?.classList.remove('hidden');
 
         if (typeof window.updateToggleButtonsText === 'function') {
           window.updateToggleButtonsText();
@@ -220,7 +471,7 @@
 
   async function simulateCampaignViews(id, viewsDelta) {
     try {
-      const json = await sendRequest(`/api/campaigns/${id}/track-views`, 'POST', {
+      const json = await sendRequest(`/api/campaigns/${encodeURIComponent(id)}/track-views`, 'POST', {
         viewsDelta: Number(viewsDelta) || 1000,
         eventId: `evt_${id}_${Date.now()}`
       });
@@ -239,7 +490,7 @@
 
   async function topUpCampaignBudget(id, amount) {
     try {
-      const json = await sendRequest(`/api/campaigns/${id}/topup`, 'POST', {
+      const json = await sendRequest(`/api/campaigns/${encodeURIComponent(id)}/topup`, 'POST', {
         amount: Number(amount) || 25
       });
       if (json && json.success) {
@@ -257,7 +508,7 @@
 
   async function changeCampaignLifecycle(id, action) {
     try {
-      const json = await sendRequest(`/api/campaigns/${id}/lifecycle`, 'POST', { action });
+      const json = await sendRequest(`/api/campaigns/${encodeURIComponent(id)}/lifecycle`, 'POST', { action });
       if (json && json.success) {
         toast(t('msg_lifecycle_updated'));
         await refreshCampaignsList();
@@ -285,22 +536,20 @@
         state.mediaName = camp.mediaName || '';
       }
 
-      const headingEl = document.getElementById('campaign-wizard-heading');
+      const headingEl = getEl('campaign-wizard-heading');
       if (headingEl) headingEl.textContent = t('wizard_campaign_edit_title');
 
       const setVal = (elId, val) => {
-        const el = document.getElementById(elId);
-        if (el) el.value = val;
+        const target = getEl(elId);
+        if (target) target.value = val;
       };
 
       setVal('camp-title', camp.title || '');
       setVal('camp-text', camp.adText || '');
-      document.getElementById('btn-clear-media')?.classList.toggle('hidden', !(state?.mediaData));
+      getEl('btn-clear-media')?.classList.toggle('hidden', !state?.mediaData);
       setVal('camp-btn-preset', camp.buttonPreset || 'Open');
       setVal('camp-custom-btn', camp.customButtonText || '');
-      document
-        .getElementById('camp-custom-btn-group')
-        ?.classList.toggle('hidden', camp.buttonPreset !== 'Custom');
+      getEl('camp-custom-btn-group')?.classList.toggle('hidden', camp.buttonPreset !== 'Custom');
       setVal('camp-url', camp.targetUrl || '');
       setVal('camp-budget', camp.budget || 50);
       setVal('camp-language', camp.targetLanguage || 'English');
@@ -333,7 +582,7 @@
         window.UI.updateCampaignWizardStep(1);
       }
 
-      const wizardPanel = document.getElementById('panel-campaign-wizard');
+      const wizardPanel = getEl('panel-campaign-wizard');
       if (wizardPanel) {
         wizardPanel.classList.remove('hidden');
         wizardPanel.scrollIntoView({ behavior: 'smooth' });
@@ -345,7 +594,7 @@
 
   async function deleteCampaign(id) {
     try {
-      const json = await sendRequest(`/api/campaigns/${id}`, 'DELETE');
+      const json = await sendRequest(`/api/campaigns/${encodeURIComponent(id)}`, 'DELETE');
       if (json && json.success) {
         const state = getState();
         state?.expandedCampaignIds?.delete(id);
@@ -392,7 +641,7 @@
 
   async function toggleMarketplaceFavorite(id) {
     try {
-      const json = await sendRequest(`/api/channels/${id}/favorite`, 'POST');
+      const json = await sendRequest(`/api/channels/${encodeURIComponent(id)}/favorite`, 'POST');
       if (json && json.success) {
         toast(t('msg_favorite_toggled'));
         await refreshMarketplaceData();
@@ -406,8 +655,8 @@
   }
 
   function renderMarketplaceChannels() {
-    const container = document.getElementById('marketplace-channels-list');
-    const counterEl = document.getElementById('selected-channels-counter');
+    const container = getEl('marketplace-channels-list');
+    const counterEl = getEl('selected-channels-counter');
     try {
       const state = getState();
       const selectedSet = state?.selectedChannelIds || new Set();
@@ -466,7 +715,7 @@
   }
 
   function renderCampaigns() {
-    const container = document.getElementById('campaigns-container');
+    const container = getEl('campaigns-container');
     if (!container) return;
 
     try {
@@ -602,20 +851,95 @@
     }
   }
 
+  function bindEvents(ctx) {
+    const activeCtx = buildContext(ctx);
+    const state = activeCtx.state;
+
+    const budgetInput = getEl('campaignBudgetInput');
+    if (budgetInput) {
+      budgetInput.addEventListener('input', () => syncOpenTargetingRule(activeCtx));
+      syncOpenTargetingRule(activeCtx);
+    }
+
+    const estimatorForm = getEl('estimatorForm');
+    if (estimatorForm) {
+      estimatorForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const resultBox = getEl('estimatorResultBox');
+        try {
+          const budget = Number(getEl('campaignBudgetInput')?.value || 500);
+          const cpm = Number(getEl('estimatorCpmInput')?.value || 2.5);
+          const expectedCtrPercent = Number(getEl('estimatorCtrInput')?.value || 3.5);
+          const avgConversionValue = Number(getEl('estimatorConvValInput')?.value || 12);
+
+          const res = await activeCtx.apiRequest(
+            '/api/campaigns/estimate',
+            {
+              method: 'POST',
+              body: JSON.stringify({ budget, cpm, expectedCtrPercent, avgConversionValue })
+            },
+            activeCtx
+          );
+          const est = res.estimate || {};
+          if (resultBox) {
+            resultBox.innerHTML = `
+              <div><strong>الوصول / المشاهدات التقديرية:</strong> ${esc(est.estimatedImpressions ?? 0)}</div>
+              <div><strong>النقرات التقديرية:</strong> ${esc(est.estimatedClicks ?? 0)}</div>
+              <div><strong>العائد الإجمالي التقديري:</strong> $${Number(est.estimatedGrossReturn || 0).toFixed(2)}</div>
+              <div><strong>صافي الربح التقديري:</strong> $${Number(est.estimatedNetProfit || 0).toFixed(2)}</div>
+              <div><strong>العائد على الاستثمار ROI:</strong> ${Number(est.estimatedRoiPercent || 0).toFixed(2)}%</div>
+              <div><strong>الاستهداف المفتوح (>1000$):</strong> ${est.openTargetingEligible ? 'متاح' : 'غير متاح'}</div>
+            `;
+          }
+        } catch (err) {
+          if (resultBox) resultBox.textContent = err.message;
+        }
+      });
+    }
+
+    const campaignForm = getEl('campaignForm');
+    if (campaignForm) {
+      campaignForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        clearCampaignNotice();
+        try {
+          const title = getEl('campaignTitleInput')?.value.trim() || '';
+          const budget = Number(getEl('campaignBudgetInput')?.value || 0);
+          const targetingMode = getEl('campaignTargetingSelect')?.value || 'specific';
+
+          await activeCtx.apiRequest(
+            '/api/campaigns',
+            {
+              method: 'POST',
+              body: JSON.stringify({ userId: state?.userId, title, budget, targetingMode })
+            },
+            activeCtx
+          );
+          if (getEl('campaignTitleInput')) getEl('campaignTitleInput').value = '';
+          persistDrafts(activeCtx);
+          showCampaignNotice('تم إنشاء الحملة وحجز الميزانية بنجاح.', false);
+          await Promise.all([refreshCampaigns(activeCtx), refreshWalletData(activeCtx)]);
+        } catch (err) {
+          showCampaignNotice(err.message, true);
+        }
+      });
+    }
+  }
+
   const CampaignsModule = {
     init() {
-      const form = document.getElementById('create-campaign-form');
+      const form = getEl('create-campaign-form');
       if (!form) return;
 
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         try {
-          const titleEl = document.getElementById('camp-title-legacy') || document.getElementById('camp-title');
-          const textEl = document.getElementById('camp-text-legacy') || document.getElementById('camp-text');
-          const urlEl = document.getElementById('camp-url-legacy') || document.getElementById('camp-url');
+          const titleEl = getEl('camp-title-legacy') || getEl('camp-title');
+          const textEl = getEl('camp-text-legacy') || getEl('camp-text');
+          const urlEl = getEl('camp-url-legacy') || getEl('camp-url');
 
           const payload = {
-            channelId: document.getElementById('camp-channel-select')?.value || '',
+            channelId: getEl('camp-channel-select')?.value || '',
             title: titleEl ? titleEl.value : '',
             adText: textEl ? textEl.value : '',
             targetUrl: urlEl ? urlEl.value : ''
@@ -641,7 +965,7 @@
     },
 
     populateChannelSelect(channels) {
-      const select = document.getElementById('camp-channel-select');
+      const select = getEl('camp-channel-select');
       if (!select) return;
 
       try {
@@ -662,8 +986,13 @@
       }
     },
 
-    async load() {
-      const listEl = document.getElementById('my-campaigns-list');
+    async load(ctx) {
+      const activeCtx = buildContext(ctx);
+      if (getEl('campaignsList')) {
+        await refreshCampaigns(activeCtx).catch(() => {});
+      }
+
+      const listEl = getEl('my-campaigns-list');
       if (!window.Api || typeof window.Api.getCampaigns !== 'function') return;
 
       try {
@@ -711,7 +1040,11 @@
     toggleMarketplaceSelection,
     toggleMarketplaceFavorite,
     renderMarketplaceChannels,
-    renderCampaigns
+    renderCampaigns,
+    syncOpenTargetingRule,
+    refreshCampaigns,
+    bindEvents,
+    bindCampaignEvents: bindEvents
   };
 
   window.CampaignsModule = CampaignsModule;
@@ -728,4 +1061,7 @@
   window.toggleMarketplaceFavorite = toggleMarketplaceFavorite;
   window.renderMarketplaceChannels = renderMarketplaceChannels;
   window.renderCampaigns = renderCampaigns;
+  window.syncOpenTargetingRule = syncOpenTargetingRule;
+  window.refreshCampaigns = refreshCampaigns;
+  window.bindCampaignEvents = bindEvents;
 })();
