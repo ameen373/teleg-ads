@@ -202,32 +202,6 @@ body {
   }
 }
 
-/* Workspace Tabs */
-.main-nav {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 18px;
-}
-
-.nav-tab {
-  padding: 11px 16px;
-  border: 1px solid var(--border);
-  background: var(--card-bg);
-  color: var(--text-main);
-  font-size: 0.96rem;
-  font-weight: 600;
-  border-radius: var(--radius);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.nav-tab.active {
-  background: var(--primary);
-  color: #ffffff;
-  border-color: var(--primary);
-}
-
 /* Cards & Panels */
 .tg-card,
 .section-card {
