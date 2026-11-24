@@ -115,15 +115,19 @@ function updateToggleButtonsText() {
 }
 
 async function refreshAllRenderedViews() {
-  if (typeof window.populateDropdowns === 'function') window.populateDropdowns();
-  updateToggleButtonsText();
-  if (typeof window.renderChannels === 'function') window.renderChannels();
-  if (typeof window.renderAdminQueue === 'function') window.renderAdminQueue();
-  if (typeof window.renderReferrals === 'function') window.renderReferrals();
-  if (typeof window.renderWallet === 'function') window.renderWallet();
-  if (typeof window.renderReliabilityPanel === 'function') window.renderReliabilityPanel();
-  if (typeof window.renderMarketplaceChannels === 'function') window.renderMarketplaceChannels();
-  if (typeof window.renderCampaigns === 'function') window.renderCampaigns();
+  try {
+    if (typeof window.populateDropdowns === 'function') window.populateDropdowns();
+    updateToggleButtonsText();
+    if (typeof window.renderChannels === 'function') window.renderChannels();
+    if (typeof window.renderAdminQueue === 'function') window.renderAdminQueue();
+    if (typeof window.renderReferrals === 'function') window.renderReferrals();
+    if (typeof window.renderWallet === 'function') window.renderWallet();
+    if (typeof window.renderReliabilityPanel === 'function') window.renderReliabilityPanel();
+    if (typeof window.renderMarketplaceChannels === 'function') window.renderMarketplaceChannels();
+    if (typeof window.renderCampaigns === 'function') window.renderCampaigns();
+  } catch (err) {
+    console.error(err);
+  }
 }
 
 window.updateToggleButtonsText = updateToggleButtonsText;
@@ -139,41 +143,57 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
       if (this._initialized) return;
       this._initialized = true;
 
-      const tg = window.Telegram?.WebApp;
-      if (tg) {
-        tg.ready();
-        tg.expand();
-      }
-
-      if (window.I18n) {
-        const initialLang = typeof window.I18n.detectInitialLanguage === 'function'
-          ? window.I18n.detectInitialLanguage()
-          : window.I18n.currentLang || 'ar';
-        if (typeof window.I18n.setLanguage === 'function') {
-          window.I18n.setLanguage(initialLang);
+      try {
+        const tg = window.Telegram?.WebApp;
+        if (tg) {
+          if (typeof tg.ready === 'function') tg.ready();
+          if (typeof tg.expand === 'function') tg.expand();
         }
-      } else if (window.I18N) {
-        if (typeof window.I18N.applyDirection === 'function') window.I18N.applyDirection();
-        if (typeof window.I18N.translateDOM === 'function') window.I18N.translateDOM();
+      } catch (err) {
+        console.error(err);
       }
 
-      if (typeof window.populateDropdowns === 'function') {
-        window.populateDropdowns();
+      try {
+        if (window.I18n) {
+          const initialLang = typeof window.I18n.detectInitialLanguage === 'function'
+            ? window.I18n.detectInitialLanguage()
+            : window.I18n.currentLang || 'ar';
+          if (typeof window.I18n.setLanguage === 'function') {
+            window.I18n.setLanguage(initialLang);
+          }
+        } else if (window.I18N) {
+          if (typeof window.I18N.applyDirection === 'function') window.I18N.applyDirection();
+          if (typeof window.I18N.translateDOM === 'function') window.I18N.translateDOM();
+        }
+      } catch (err) {
+        console.error(err);
       }
-      updateToggleButtonsText();
+
+      try {
+        if (typeof window.populateDropdowns === 'function') {
+          window.populateDropdowns();
+        }
+        updateToggleButtonsText();
+      } catch (err) {
+        console.error(err);
+      }
 
       this.bindNavigation();
       this.bindLanguageToggle();
       this.bindProgressivePanelsAndWizards();
 
-      if (window.ChannelsModule && typeof window.ChannelsModule.init === 'function') {
-        window.ChannelsModule.init();
-      }
-      if (window.CampaignsModule && typeof window.CampaignsModule.init === 'function') {
-        window.CampaignsModule.init();
-      }
-      if (window.WalletModule && typeof window.WalletModule.init === 'function') {
-        window.WalletModule.init();
+      try {
+        if (window.ChannelsModule && typeof window.ChannelsModule.init === 'function') {
+          window.ChannelsModule.init();
+        }
+        if (window.CampaignsModule && typeof window.CampaignsModule.init === 'function') {
+          window.CampaignsModule.init();
+        }
+        if (window.WalletModule && typeof window.WalletModule.init === 'function') {
+          window.WalletModule.init();
+        }
+      } catch (err) {
+        console.error(err);
       }
 
       try {
@@ -199,95 +219,103 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
 
     async refreshUserData() {
       if (!window.Api || typeof window.Api.getMe !== 'function') return;
-      const data = await window.Api.getMe();
-      this.user = data.user;
+      try {
+        const data = await window.Api.getMe();
+        this.user = data?.user || null;
+        if (!this.user) return;
 
-      if (window.I18n) {
-        const syncedLang = typeof window.I18n.detectInitialLanguage === 'function'
-          ? window.I18n.detectInitialLanguage(this.user.languageCode)
-          : this.user.languageCode || window.I18n.currentLang;
-        if (typeof window.I18n.setLanguage === 'function') {
-          window.I18n.setLanguage(syncedLang);
+        if (window.I18n) {
+          const syncedLang = typeof window.I18n.detectInitialLanguage === 'function'
+            ? window.I18n.detectInitialLanguage(this.user.languageCode)
+            : this.user.languageCode || window.I18n.currentLang;
+          if (typeof window.I18n.setLanguage === 'function') {
+            window.I18n.setLanguage(syncedLang);
+          }
         }
-      }
 
-      if (window.UI && typeof window.UI.renderUserHeader === 'function') {
-        window.UI.renderUserHeader(this.user);
-      }
-      if (window.UI && typeof window.UI.renderHome === 'function') {
-        window.UI.renderHome(this.user, data.stats, data.transactions);
-      }
-      if (window.WalletModule && typeof window.WalletModule.render === 'function') {
-        window.WalletModule.render(this.user);
-      }
+        if (window.UI && typeof window.UI.renderUserHeader === 'function') {
+          window.UI.renderUserHeader(this.user);
+        }
+        if (window.UI && typeof window.UI.renderHome === 'function') {
+          window.UI.renderHome(this.user, data.stats, data.transactions);
+        }
+        if (window.WalletModule && typeof window.WalletModule.render === 'function') {
+          window.WalletModule.render(this.user);
+        }
 
-      if (
-        this.user?.isAdmin === true &&
-        window.AdminModule &&
-        typeof window.AdminModule.enableAdminAccess === 'function'
-      ) {
-        window.AdminModule.enableAdminAccess();
+        if (
+          this.user?.isAdmin === true &&
+          window.AdminModule &&
+          typeof window.AdminModule.enableAdminAccess === 'function'
+        ) {
+          window.AdminModule.enableAdminAccess();
+        }
+      } catch (err) {
+        console.error(err);
+        throw err;
       }
     },
 
     bindNavigation() {
       document.querySelectorAll('.nav-item').forEach((btn) => {
         btn.addEventListener('click', async () => {
-          const target = btn.getAttribute('data-target');
-          if (!target) return;
+          try {
+            const target = btn.getAttribute('data-target');
+            if (!target) return;
 
-          if (target === 'view-admin' && (!this.user || !this.user.isAdmin)) {
-            return;
-          }
+            if (target === 'view-admin' && (!this.user || !this.user.isAdmin)) {
+              return;
+            }
 
-          if (window.UI && typeof window.UI.switchView === 'function') {
-            window.UI.switchView(target);
-          }
+            if (window.UI && typeof window.UI.switchView === 'function') {
+              window.UI.switchView(target);
+            }
 
-          if (target === 'view-channels' && window.ChannelsModule?.load) {
-            await window.ChannelsModule.load();
-          }
-          if (target === 'view-campaigns' && window.CampaignsModule?.load) {
-            await window.CampaignsModule.load();
-          }
-          if (target === 'view-admin' && this.user?.isAdmin && window.AdminModule?.loadDashboard) {
-            await window.AdminModule.loadDashboard();
+            if (target === 'view-channels' && window.ChannelsModule?.load) {
+              await window.ChannelsModule.load();
+            }
+            if (target === 'view-campaigns' && window.CampaignsModule?.load) {
+              await window.CampaignsModule.load();
+            }
+            if (target === 'view-admin' && this.user?.isAdmin && window.AdminModule?.loadDashboard) {
+              await window.AdminModule.loadDashboard();
+            }
+          } catch (err) {
+            console.error(err);
+            notifyUser(err.message);
           }
         });
-      });
-
-      safeOn('tab-channels', 'click', () => {
-        if (typeof window.switchMainTab === 'function') window.switchMainTab('channels');
-      });
-      safeOn('tab-promotion', 'click', () => {
-        if (typeof window.switchMainTab === 'function') window.switchMainTab('promotion');
       });
     },
 
     async handleLanguageSwitch() {
       const t = getTranslateFn();
 
-      if (window.I18n && typeof window.I18n.setLanguage === 'function') {
-        const nextLang = window.I18n.currentLang === 'ar' ? 'en' : 'ar';
-        window.I18n.setLanguage(nextLang);
-        if (window.UI && typeof window.UI.haptic === 'function') {
-          window.UI.haptic('light');
-        }
-        try {
-          if (window.Api && typeof window.Api.updateLanguage === 'function') {
-            await window.Api.updateLanguage(nextLang);
-            await this.refreshUserData();
+      try {
+        if (window.I18n && typeof window.I18n.setLanguage === 'function') {
+          const nextLang = window.I18n.currentLang === 'ar' ? 'en' : 'ar';
+          window.I18n.setLanguage(nextLang);
+          if (window.UI && typeof window.UI.haptic === 'function') {
+            window.UI.haptic('light');
           }
-        } catch (err) {
-          console.error(err);
+          try {
+            if (window.Api && typeof window.Api.updateLanguage === 'function') {
+              await window.Api.updateLanguage(nextLang);
+              await this.refreshUserData();
+            }
+          } catch (err) {
+            console.error(err);
+          }
+        } else if (window.I18N && typeof window.I18N.toggleLanguage === 'function') {
+          window.I18N.toggleLanguage();
         }
-      } else if (window.I18N && typeof window.I18N.toggleLanguage === 'function') {
-        window.I18N.toggleLanguage();
-      }
 
-      await refreshAllRenderedViews();
-      if (!window.I18n && typeof window.showToast === 'function') {
-        window.showToast(t('msg_lang_updated') || 'Language updated');
+        await refreshAllRenderedViews();
+        if (!window.I18n && typeof window.showToast === 'function') {
+          window.showToast(t('msg_lang_updated') || 'Language updated');
+        }
+      } catch (err) {
+        console.error(err);
       }
     },
 
@@ -306,18 +334,26 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
     bindProgressivePanelsAndWizards() {
       const t = getTranslateFn();
       const closePanels = () => {
-        if (typeof window.closeAllChannelPanels === 'function') {
-          window.closeAllChannelPanels();
+        try {
+          if (typeof window.closeAllChannelPanels === 'function') {
+            window.closeAllChannelPanels();
+          }
+        } catch (err) {
+          console.error(err);
         }
       };
 
-      if (typeof window.setupPriceSelector === 'function') {
-        window.setupPriceSelector('ch-price-pills', 'ch-price-input', null);
-        window.setupPriceSelector('camp-price-pills', 'camp-price-input', () => {
-          if (AppState.campaignStep === 3 && typeof window.fetchMarketplaceChannels === 'function') {
-            window.fetchMarketplaceChannels();
-          }
-        });
+      try {
+        if (typeof window.setupPriceSelector === 'function') {
+          window.setupPriceSelector('ch-price-pills', 'ch-price-input', null);
+          window.setupPriceSelector('camp-price-pills', 'camp-price-input', () => {
+            if (AppState.campaignStep === 3 && typeof window.fetchMarketplaceChannels === 'function') {
+              window.fetchMarketplaceChannels();
+            }
+          });
+        }
+      } catch (err) {
+        console.error(err);
       }
 
       // Bot Instructions Progressive Toggle
@@ -333,23 +369,30 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
         document.getElementById('panel-bot-instructions')?.classList.add('hidden');
       });
 
-      safeOn('btn-copy-bot', 'click', () => {
-        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-          navigator.clipboard.writeText('@adTelega_bot').then(() => {
+      safeOn('btn-copy-bot', 'click', async () => {
+        try {
+          if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            await navigator.clipboard.writeText('@adTelega_bot');
             notifyUser(t('msg_copied'));
-          });
+          }
+        } catch (err) {
+          console.error(err);
         }
       });
 
       // Admin Review Queue Progressive Toggle
       safeOn('btn-toggle-admin-queue', 'click', async () => {
-        const panel = document.getElementById('panel-admin-queue');
-        if (!panel) return;
-        const isHidden = panel.classList.contains('hidden');
-        closePanels();
-        if (isHidden) {
-          panel.classList.remove('hidden');
-          if (typeof window.fetchChannels === 'function') await window.fetchChannels();
+        try {
+          const panel = document.getElementById('panel-admin-queue');
+          if (!panel) return;
+          const isHidden = panel.classList.contains('hidden');
+          closePanels();
+          if (isHidden) {
+            panel.classList.remove('hidden');
+            if (typeof window.fetchChannels === 'function') await window.fetchChannels();
+          }
+        } catch (err) {
+          console.error(err);
         }
       });
 
@@ -359,13 +402,17 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
 
       // Referrals Progressive Toggle
       safeOn('btn-toggle-referrals', 'click', async () => {
-        const panel = document.getElementById('panel-referrals');
-        if (!panel) return;
-        const isHidden = panel.classList.contains('hidden');
-        closePanels();
-        if (isHidden) {
-          panel.classList.remove('hidden');
-          if (typeof window.fetchReferrals === 'function') await window.fetchReferrals();
+        try {
+          const panel = document.getElementById('panel-referrals');
+          if (!panel) return;
+          const isHidden = panel.classList.contains('hidden');
+          closePanels();
+          if (isHidden) {
+            panel.classList.remove('hidden');
+            if (typeof window.fetchReferrals === 'function') await window.fetchReferrals();
+          }
+        } catch (err) {
+          console.error(err);
         }
       });
 
@@ -373,15 +420,19 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
         document.getElementById('panel-referrals')?.classList.add('hidden');
       });
 
-      // Wallets Progressive Toggle (Stage 4)
+      // Wallets Progressive Toggle
       safeOn('btn-toggle-wallet', 'click', async () => {
-        const panel = document.getElementById('panel-wallet');
-        if (!panel) return;
-        const isHidden = panel.classList.contains('hidden');
-        closePanels();
-        if (isHidden) {
-          panel.classList.remove('hidden');
-          if (typeof window.fetchWallet === 'function') await window.fetchWallet();
+        try {
+          const panel = document.getElementById('panel-wallet');
+          if (!panel) return;
+          const isHidden = panel.classList.contains('hidden');
+          closePanels();
+          if (isHidden) {
+            panel.classList.remove('hidden');
+            if (typeof window.fetchWallet === 'function') await window.fetchWallet();
+          }
+        } catch (err) {
+          console.error(err);
         }
       });
 
@@ -389,27 +440,39 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
         document.getElementById('panel-wallet')?.classList.add('hidden');
       });
 
-      safeOn('btn-wallet-deposit', 'click', () => {
-        if (typeof window.handleWalletOperation === 'function') {
-          window.handleWalletOperation('deposit');
+      safeOn('btn-wallet-deposit', 'click', async () => {
+        try {
+          if (typeof window.handleWalletOperation === 'function') {
+            await window.handleWalletOperation('deposit');
+          }
+        } catch (err) {
+          console.error(err);
         }
       });
 
-      safeOn('btn-wallet-withdraw', 'click', () => {
-        if (typeof window.handleWalletOperation === 'function') {
-          window.handleWalletOperation('withdraw');
+      safeOn('btn-wallet-withdraw', 'click', async () => {
+        try {
+          if (typeof window.handleWalletOperation === 'function') {
+            await window.handleWalletOperation('withdraw');
+          }
+        } catch (err) {
+          console.error(err);
         }
       });
 
-      // Reliability Progressive Toggle (Stage 5)
+      // Reliability Progressive Toggle
       safeOn('btn-toggle-reliability', 'click', async () => {
-        const panel = document.getElementById('panel-reliability');
-        if (!panel) return;
-        const isHidden = panel.classList.contains('hidden');
-        closePanels();
-        if (isHidden) {
-          panel.classList.remove('hidden');
-          if (typeof window.fetchReliabilityData === 'function') await window.fetchReliabilityData();
+        try {
+          const panel = document.getElementById('panel-reliability');
+          if (!panel) return;
+          const isHidden = panel.classList.contains('hidden');
+          closePanels();
+          if (isHidden) {
+            panel.classList.remove('hidden');
+            if (typeof window.fetchReliabilityData === 'function') await window.fetchReliabilityData();
+          }
+        } catch (err) {
+          console.error(err);
         }
       });
 
@@ -417,15 +480,23 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
         document.getElementById('panel-reliability')?.classList.add('hidden');
       });
 
-      safeOn('btn-mark-notifications-read', 'click', () => {
-        if (typeof window.markNotificationsRead === 'function') {
-          window.markNotificationsRead();
+      safeOn('btn-mark-notifications-read', 'click', async () => {
+        try {
+          if (typeof window.markNotificationsRead === 'function') {
+            await window.markNotificationsRead();
+          }
+        } catch (err) {
+          console.error(err);
         }
       });
 
-      safeOn('btn-run-backup', 'click', () => {
-        if (typeof window.createManualBackup === 'function') {
-          window.createManualBackup();
+      safeOn('btn-run-backup', 'click', async () => {
+        try {
+          if (typeof window.createManualBackup === 'function') {
+            await window.createManualBackup();
+          }
+        } catch (err) {
+          console.error(err);
         }
       });
 
@@ -470,22 +541,30 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
         }
       });
 
-      safeOn('btn-ch-save', 'click', () => {
-        if (typeof window.saveNewChannel === 'function') window.saveNewChannel();
+      safeOn('btn-ch-save', 'click', async () => {
+        try {
+          if (typeof window.saveNewChannel === 'function') await window.saveNewChannel();
+        } catch (err) {
+          console.error(err);
+        }
       });
 
       // Toggle Channels List (Progressive)
       safeOn('btn-toggle-channels-list', 'click', async () => {
-        AppState.isChannelsListOpen = !AppState.isChannelsListOpen;
-        const panel = document.getElementById('panel-channels-list');
-        if (panel) panel.classList.toggle('hidden', !AppState.isChannelsListOpen);
-        updateToggleButtonsText();
-        if (AppState.isChannelsListOpen && typeof window.fetchChannels === 'function') {
-          await window.fetchChannels();
+        try {
+          AppState.isChannelsListOpen = !AppState.isChannelsListOpen;
+          const panel = document.getElementById('panel-channels-list');
+          if (panel) panel.classList.toggle('hidden', !AppState.isChannelsListOpen);
+          updateToggleButtonsText();
+          if (AppState.isChannelsListOpen && typeof window.fetchChannels === 'function') {
+            await window.fetchChannels();
+          }
+        } catch (err) {
+          console.error(err);
         }
       });
 
-      // Stage 3 Campaign Listeners
+      // Campaign Listeners
       safeOn('camp-title', 'input', () => {
         if (typeof window.updateLivePreview === 'function') window.updateLivePreview();
       });
@@ -519,6 +598,9 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
           document.getElementById('btn-clear-media')?.classList.remove('hidden');
           if (typeof window.updateLivePreview === 'function') window.updateLivePreview();
         };
+        reader.onerror = () => {
+          console.error(reader.error);
+        };
         reader.readAsDataURL(file);
       });
 
@@ -532,39 +614,59 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
         if (typeof window.updateLivePreview === 'function') window.updateLivePreview();
       });
 
-      safeOn('camp-budget', 'input', () => {
-        if (typeof window.handleBudgetTargetingState === 'function') {
-          window.handleBudgetTargetingState();
-        }
-        if (AppState.campaignStep === 3 && typeof window.fetchMarketplaceChannels === 'function') {
-          window.fetchMarketplaceChannels();
-        }
-      });
-
-      safeOn('camp-language', 'change', () => {
-        if (AppState.campaignStep === 3 && typeof window.fetchMarketplaceChannels === 'function') {
-          window.fetchMarketplaceChannels();
+      safeOn('camp-budget', 'input', async () => {
+        try {
+          if (typeof window.handleBudgetTargetingState === 'function') {
+            window.handleBudgetTargetingState();
+          }
+          if (AppState.campaignStep === 3 && typeof window.fetchMarketplaceChannels === 'function') {
+            await window.fetchMarketplaceChannels();
+          }
+        } catch (err) {
+          console.error(err);
         }
       });
 
-      safeOn('camp-category', 'change', () => {
-        if (AppState.campaignStep === 3 && typeof window.fetchMarketplaceChannels === 'function') {
-          window.fetchMarketplaceChannels();
+      safeOn('camp-language', 'change', async () => {
+        try {
+          if (AppState.campaignStep === 3 && typeof window.fetchMarketplaceChannels === 'function') {
+            await window.fetchMarketplaceChannels();
+          }
+        } catch (err) {
+          console.error(err);
         }
       });
 
-      safeOn('mkt-search-input', 'input', () => {
-        if (typeof window.fetchMarketplaceChannels === 'function') {
-          window.fetchMarketplaceChannels();
+      safeOn('camp-category', 'change', async () => {
+        try {
+          if (AppState.campaignStep === 3 && typeof window.fetchMarketplaceChannels === 'function') {
+            await window.fetchMarketplaceChannels();
+          }
+        } catch (err) {
+          console.error(err);
         }
       });
 
-      safeOn('btn-mkt-favorites', 'click', (e) => {
-        AppState.favoritesOnlyFilter = !AppState.favoritesOnlyFilter;
-        e.currentTarget.classList.toggle('btn-primary', AppState.favoritesOnlyFilter);
-        e.currentTarget.classList.toggle('btn-secondary', !AppState.favoritesOnlyFilter);
-        if (typeof window.fetchMarketplaceChannels === 'function') {
-          window.fetchMarketplaceChannels();
+      safeOn('mkt-search-input', 'input', async () => {
+        try {
+          if (typeof window.fetchMarketplaceChannels === 'function') {
+            await window.fetchMarketplaceChannels();
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      });
+
+      safeOn('btn-mkt-favorites', 'click', async (e) => {
+        try {
+          AppState.favoritesOnlyFilter = !AppState.favoritesOnlyFilter;
+          e.currentTarget.classList.toggle('btn-primary', AppState.favoritesOnlyFilter);
+          e.currentTarget.classList.toggle('btn-secondary', !AppState.favoritesOnlyFilter);
+          if (typeof window.fetchMarketplaceChannels === 'function') {
+            await window.fetchMarketplaceChannels();
+          }
+        } catch (err) {
+          console.error(err);
         }
       });
 
@@ -605,22 +707,34 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
         }
       });
 
-      safeOn('btn-camp-save-draft', 'click', () => {
-        if (typeof window.submitCampaign === 'function') window.submitCampaign('draft');
+      safeOn('btn-camp-save-draft', 'click', async () => {
+        try {
+          if (typeof window.submitCampaign === 'function') await window.submitCampaign('draft');
+        } catch (err) {
+          console.error(err);
+        }
       });
 
-      safeOn('btn-camp-publish', 'click', () => {
-        if (typeof window.submitCampaign === 'function') window.submitCampaign('active');
+      safeOn('btn-camp-publish', 'click', async () => {
+        try {
+          if (typeof window.submitCampaign === 'function') await window.submitCampaign('active');
+        } catch (err) {
+          console.error(err);
+        }
       });
 
       // Toggle Campaigns List (Progressive)
       safeOn('btn-toggle-campaigns-list', 'click', async () => {
-        AppState.isCampaignsListOpen = !AppState.isCampaignsListOpen;
-        const panel = document.getElementById('panel-campaigns-list');
-        if (panel) panel.classList.toggle('hidden', !AppState.isCampaignsListOpen);
-        updateToggleButtonsText();
-        if (AppState.isCampaignsListOpen && typeof window.fetchCampaigns === 'function') {
-          await window.fetchCampaigns();
+        try {
+          AppState.isCampaignsListOpen = !AppState.isCampaignsListOpen;
+          const panel = document.getElementById('panel-campaigns-list');
+          if (panel) panel.classList.toggle('hidden', !AppState.isCampaignsListOpen);
+          updateToggleButtonsText();
+          if (AppState.isCampaignsListOpen && typeof window.fetchCampaigns === 'function') {
+            await window.fetchCampaigns();
+          }
+        } catch (err) {
+          console.error(err);
         }
       });
     }
