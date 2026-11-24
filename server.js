@@ -29,7 +29,7 @@ const BOT_TOKEN = process.env.BOT_TOKEN || '';
 const BOT_USERNAME = (process.env.BOT_USERNAME || 'adTelega_bot').replace(/^@/, '');
 const SYNC_INTERVAL_MS = Number(process.env.SYNC_INTERVAL_MS) || 300000;
 const BACKUP_INTERVAL_MS = Number(process.env.BACKUP_INTERVAL_MS) || 21600000;
-const DEFAULT_WALLET_KEY = 'default_workspace';
+const DEFAULT_WALLET_KEY = 'default_account';
 const SERVER_STARTED_AT = new Date();
 
 app.use(helmet({
@@ -52,10 +52,14 @@ const asyncHandler = (fn) => (req, res, next) => {
 // ==================== FIRESTORE HELPERS ====================
 
 const toIsoString = (val) => {
-  if (!val) return new Date().toISOString();
-  if (typeof val.toDate === 'function') return val.toDate().toISOString();
-  if (val instanceof Date) return val.toISOString();
-  return new Date(val).toISOString();
+  try {
+    if (!val) return new Date().toISOString();
+    if (typeof val.toDate === 'function') return val.toDate().toISOString();
+    if (val instanceof Date) return val.toISOString();
+    return new Date(val).toISOString();
+  } catch (err) {
+    return new Date().toISOString();
+  }
 };
 
 const serializeDoc = (docSnap, extraFields = {}) => {
@@ -370,16 +374,21 @@ async function runDatabaseBackup(reason = 'scheduled') {
     return serializeDoc(createdSnap);
   } catch (err) {
     console.error('Backup failed:', err.message);
-    const failRef = await firestoreBackups.add({
-      filename: `backup_failed_${Date.now()}.json`,
-      collectionsCount: 0,
-      totalRecords: 0,
-      status: 'failed',
-      note: err.message,
-      createdAt: new Date()
-    });
-    const failSnap = await failRef.get();
-    return serializeDoc(failSnap);
+    try {
+      const failRef = await firestoreBackups.add({
+        filename: `backup_failed_${Date.now()}.json`,
+        collectionsCount: 0,
+        totalRecords: 0,
+        status: 'failed',
+        note: err.message,
+        createdAt: new Date()
+      });
+      const failSnap = await failRef.get();
+      return serializeDoc(failSnap);
+    } catch (logErr) {
+      console.error('Failed to write backup failure record:', logErr.message);
+      return null;
+    }
   }
 }
 
@@ -785,179 +794,185 @@ async function processDueScheduledCampaigns() {
 }
 
 async function processTelegramUpdate(update) {
-  if (update.my_chat_member) {
-    const mcm = update.my_chat_member;
-    const chat = mcm.chat;
-    const actor = mcm.from;
-    const newStatus = mcm.new_chat_member ? mcm.new_chat_member.status : '';
+  try {
+    if (!update || typeof update !== 'object') return;
 
-    if (chat && chat.type === 'channel') {
-      const isPublic = Boolean(chat.username);
-      const formattedUsername = chat.username ? `@${chat.username}` : '';
+    if (update.my_chat_member) {
+      const mcm = update.my_chat_member;
+      const chat = mcm.chat;
+      const actor = mcm.from;
+      const newStatus = mcm.new_chat_member ? mcm.new_chat_member.status : '';
 
-      const byChatSnap = await firestoreChannels.where('chatId', '==', String(chat.id)).limit(1).get();
-      let existingDoc = !byChatSnap.empty ? byChatSnap.docs[0] : null;
-      if (!existingDoc && formattedUsername) {
-        const byUserSnap = await firestoreChannels.where('username', '==', formattedUsername).limit(1).get();
-        if (!byUserSnap.empty) existingDoc = byUserSnap.docs[0];
-      }
+      if (chat && chat.type === 'channel') {
+        const isPublic = Boolean(chat.username);
+        const formattedUsername = chat.username ? `@${chat.username}` : '';
 
-      if (!isPublic) {
-        if (existingDoc) {
-          await existingDoc.ref.update({
+        const byChatSnap = await firestoreChannels.where('chatId', '==', String(chat.id)).limit(1).get();
+        let existingDoc = !byChatSnap.empty ? byChatSnap.docs[0] : null;
+        if (!existingDoc && formattedUsername) {
+          const byUserSnap = await firestoreChannels.where('username', '==', formattedUsername).limit(1).get();
+          if (!byUserSnap.empty) existingDoc = byUserSnap.docs[0];
+        }
+
+        if (!isPublic) {
+          if (existingDoc) {
+            await existingDoc.ref.update({
+              chatId: String(chat.id),
+              isPublic: false,
+              botAdded: false,
+              botPermissionsOk: false,
+              approvalStatus: 'rejected',
+              lastSyncedAt: new Date(),
+              updatedAt: new Date()
+            });
+          }
+          return;
+        }
+
+        const isAdminNow = newStatus === 'administrator' || newStatus === 'creator';
+        let subscriberCount = 0;
+        try {
+          subscriberCount = await callTelegramApi('getChatMemberCount', { chat_id: chat.id });
+        } catch (e) {
+          subscriberCount = 0;
+        }
+
+        const actorId = actor ? String(actor.id) : '';
+        const actorUsername = actor && actor.username ? `@${actor.username}` : '';
+        const actorName = actor
+          ? [actor.first_name, actor.last_name].filter(Boolean).join(' ')
+          : '';
+
+        const autoApproval = evaluateApprovalBySubscribers(subscriberCount);
+        const smartPrice = computeSmartPrice(subscriberCount, 1);
+
+        let channelObj = null;
+        if (!existingDoc && isAdminNow) {
+          const now = new Date();
+          const newRef = await firestoreChannels.add({
+            name: chat.title || formattedUsername,
+            username: formattedUsername,
             chatId: String(chat.id),
-            isPublic: false,
-            botAdded: false,
-            botPermissionsOk: false,
-            approvalStatus: 'rejected',
+            isPublic: true,
+            subscribersCount: Number(subscriberCount) || 0,
+            ownerTelegramId: actorId,
+            ownerUsername: actorUsername,
+            ownerName: actorName,
+            approvalStatus: autoApproval,
+            referralCode: generateReferralCode(),
+            language: 'Arabic',
+            category: 'other',
+            price: smartPrice,
+            pricePer1000Views: smartPrice,
+            botAdded: true,
+            botPermissionsOk: true,
+            introPostSent: false,
+            lastPermissionCheckAt: now,
+            lastSyncedAt: now,
+            createdAt: now,
+            updatedAt: now
+          });
+          channelObj = serializeDoc(await newRef.get());
+        } else if (existingDoc) {
+          const prev = existingDoc.data() || {};
+          const nextSubCount = Number(subscriberCount) || Number(prev.subscribersCount || 0);
+          const nextPrice = computeSmartPrice(nextSubCount, prev.price);
+          const nextApproval =
+            prev.approvalStatus === 'rejected'
+              ? 'rejected'
+              : evaluateApprovalBySubscribers(nextSubCount);
+
+          const updates = {
+            name: chat.title || prev.name,
+            username: formattedUsername,
+            chatId: String(chat.id),
+            isPublic: true,
+            subscribersCount: nextSubCount,
+            botAdded: isAdminNow,
+            botPermissionsOk: isAdminNow,
+            lastPermissionCheckAt: new Date(),
+            ownerTelegramId: prev.ownerTelegramId || actorId,
+            ownerUsername: prev.ownerUsername || actorUsername,
+            ownerName: prev.ownerName || actorName,
+            referralCode: prev.referralCode || generateReferralCode(),
+            price: nextPrice,
+            pricePer1000Views: nextPrice,
+            approvalStatus: nextApproval,
             lastSyncedAt: new Date(),
             updatedAt: new Date()
-          });
+          };
+
+          await existingDoc.ref.update(updates);
+          channelObj = serializeDoc(await existingDoc.ref.get());
         }
-        return;
-      }
 
-      const isAdminNow = newStatus === 'administrator' || newStatus === 'creator';
-      let subscriberCount = 0;
-      try {
-        subscriberCount = await callTelegramApi('getChatMemberCount', { chat_id: chat.id });
-      } catch (e) {
-        subscriberCount = 0;
-      }
-
-      const actorId = actor ? String(actor.id) : '';
-      const actorUsername = actor && actor.username ? `@${actor.username}` : '';
-      const actorName = actor
-        ? [actor.first_name, actor.last_name].filter(Boolean).join(' ')
-        : '';
-
-      const autoApproval = evaluateApprovalBySubscribers(subscriberCount);
-      const smartPrice = computeSmartPrice(subscriberCount, 1);
-
-      let channelObj = null;
-      if (!existingDoc && isAdminNow) {
-        const now = new Date();
-        const newRef = await firestoreChannels.add({
-          name: chat.title || formattedUsername,
-          username: formattedUsername,
-          chatId: String(chat.id),
-          isPublic: true,
-          subscribersCount: Number(subscriberCount) || 0,
-          ownerTelegramId: actorId,
-          ownerUsername: actorUsername,
-          ownerName: actorName,
-          approvalStatus: autoApproval,
-          referralCode: generateReferralCode(),
-          language: 'Arabic',
-          category: 'other',
-          price: smartPrice,
-          pricePer1000Views: smartPrice,
-          botAdded: true,
-          botPermissionsOk: true,
-          introPostSent: false,
-          lastPermissionCheckAt: now,
-          lastSyncedAt: now,
-          createdAt: now,
-          updatedAt: now
-        });
-        channelObj = serializeDoc(await newRef.get());
-      } else if (existingDoc) {
-        const prev = existingDoc.data() || {};
-        const nextSubCount = Number(subscriberCount) || Number(prev.subscribersCount || 0);
-        const nextPrice = computeSmartPrice(nextSubCount, prev.price);
-        const nextApproval =
-          prev.approvalStatus === 'rejected'
-            ? 'rejected'
-            : evaluateApprovalBySubscribers(nextSubCount);
-
-        const updates = {
-          name: chat.title || prev.name,
-          username: formattedUsername,
-          chatId: String(chat.id),
-          isPublic: true,
-          subscribersCount: nextSubCount,
-          botAdded: isAdminNow,
-          botPermissionsOk: isAdminNow,
-          lastPermissionCheckAt: new Date(),
-          ownerTelegramId: prev.ownerTelegramId || actorId,
-          ownerUsername: prev.ownerUsername || actorUsername,
-          ownerName: prev.ownerName || actorName,
-          referralCode: prev.referralCode || generateReferralCode(),
-          price: nextPrice,
-          pricePer1000Views: nextPrice,
-          approvalStatus: nextApproval,
-          lastSyncedAt: new Date(),
-          updatedAt: new Date()
-        };
-
-        await existingDoc.ref.update(updates);
-        channelObj = serializeDoc(await existingDoc.ref.get());
-      }
-
-      if (channelObj && channelObj.botAdded && channelObj.approvalStatus === 'approved' && !channelObj.introPostSent) {
-        try {
-          await sendFreeIntroPost(channelObj);
-        } catch (err) {
-          console.error('Intro post error:', err.message);
-        }
-      }
-    }
-  }
-
-  if (update.message && update.message.text) {
-    const msg = update.message;
-    const text = msg.text.trim();
-    if (text.startsWith('/start')) {
-      const parts = text.split(/\s+/);
-      const startParam = parts[1] || '';
-      const referredUser = msg.from;
-      const isAdvertiser = text.toLowerCase().includes('adv');
-      const sourceRole = isAdvertiser ? 'advertiser' : 'publisher';
-      const commissionEligible = sourceRole !== 'advertiser';
-
-      if (startParam && referredUser && commissionEligible) {
-        const chSnap = await firestoreChannels.where('referralCode', '==', startParam).limit(1).get();
-        const publisherChannel = !chSnap.empty ? serializeDoc(chSnap.docs[0]) : null;
-        const publisherId = publisherChannel
-          ? publisherChannel.ownerTelegramId || publisherChannel.id
-          : startParam;
-
-        if (publisherId && String(referredUser.id) !== String(publisherId)) {
-          const existingRefSnap = await firestoreReferrals
-            .where('publisherTelegramId', '==', String(publisherId))
-            .where('referredTelegramId', '==', String(referredUser.id))
-            .limit(1)
-            .get();
-
-          if (existingRefSnap.empty) {
-            await firestoreReferrals.add({
-              publisherTelegramId: String(publisherId),
-              channelId: publisherChannel ? publisherChannel.id : null,
-              referredTelegramId: String(referredUser.id),
-              referredUsername: referredUser.username ? `@${referredUser.username}` : '',
-              sourceRole,
-              commissionEligible: true,
-              createdAt: new Date()
-            });
-
-            if (publisherChannel) {
-              await firestoreChannels.doc(publisherChannel.id).update({
-                referralsCount: admin.firestore.FieldValue.increment(1)
-              });
-            }
+        if (channelObj && channelObj.botAdded && channelObj.approvalStatus === 'approved' && !channelObj.introPostSent) {
+          try {
+            await sendFreeIntroPost(channelObj);
+          } catch (err) {
+            console.error('Intro post error:', err.message);
           }
         }
       }
+    }
 
-      try {
-        await callTelegramApi('sendMessage', {
-          chat_id: msg.chat.id,
-          text: 'مرحباً بك في منصة Telega.ads لإدارة القنوات والحملات الإعلانية.'
-        });
-      } catch (err) {
-        console.error('Failed to reply to /start:', err.message);
+    if (update.message && update.message.text) {
+      const msg = update.message;
+      const text = msg.text.trim();
+      if (text.startsWith('/start')) {
+        const parts = text.split(/\s+/);
+        const startParam = parts[1] || '';
+        const referredUser = msg.from;
+        const isAdvertiser = text.toLowerCase().includes('adv');
+        const sourceRole = isAdvertiser ? 'advertiser' : 'publisher';
+        const commissionEligible = sourceRole !== 'advertiser';
+
+        if (startParam && referredUser && commissionEligible) {
+          const chSnap = await firestoreChannels.where('referralCode', '==', startParam).limit(1).get();
+          const publisherChannel = !chSnap.empty ? serializeDoc(chSnap.docs[0]) : null;
+          const publisherId = publisherChannel
+            ? publisherChannel.ownerTelegramId || publisherChannel.id
+            : startParam;
+
+          if (publisherId && String(referredUser.id) !== String(publisherId)) {
+            const existingRefSnap = await firestoreReferrals
+              .where('publisherTelegramId', '==', String(publisherId))
+              .where('referredTelegramId', '==', String(referredUser.id))
+              .limit(1)
+              .get();
+
+            if (existingRefSnap.empty) {
+              await firestoreReferrals.add({
+                publisherTelegramId: String(publisherId),
+                channelId: publisherChannel ? publisherChannel.id : null,
+                referredTelegramId: String(referredUser.id),
+                referredUsername: referredUser.username ? `@${referredUser.username}` : '',
+                sourceRole,
+                commissionEligible: true,
+                createdAt: new Date()
+              });
+
+              if (publisherChannel) {
+                await firestoreChannels.doc(publisherChannel.id).update({
+                  referralsCount: admin.firestore.FieldValue.increment(1)
+                });
+              }
+            }
+          }
+        }
+
+        try {
+          await callTelegramApi('sendMessage', {
+            chat_id: msg.chat.id,
+            text: 'مرحباً بك في منصة Telega.ads لإدارة القنوات والحملات الإعلانية.'
+          });
+        } catch (err) {
+          console.error('Failed to reply to /start:', err.message);
+        }
       }
     }
+  } catch (err) {
+    console.error('Error processing Telegram update:', err.message);
   }
 }
 
@@ -1074,6 +1089,9 @@ app.get('/api/system/backups', asyncHandler(async (req, res) => {
 
 app.post('/api/system/backups', asyncHandler(async (req, res) => {
   const record = await runDatabaseBackup('manual');
+  if (!record) {
+    return res.status(500).json({ success: false, message: 'Failed to create backup record' });
+  }
   const { snapshotData, ...meta } = record;
   res.status(201).json({
     success: true,
@@ -1453,7 +1471,7 @@ app.post('/api/channels/:id/sync', asyncHandler(async (req, res) => {
   res.json({ success: true, data: updated });
 }));
 
-app.get('/api/channels', asyncHandler(async (req, res, next) => {
+app.get('/api/channels', asyncHandler(async (req, res) => {
   const hasInitData = Boolean(req.headers['x-telegram-init-data']);
   if (hasInitData) {
     return authMiddleware(req, res, async () => {
