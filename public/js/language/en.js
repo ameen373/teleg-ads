@@ -5,7 +5,6 @@ const EN_TRANSLATIONS = {
   nav_promote: 'Promote',
   nav_wallet: 'Wallet',
   nav_referral: 'Referral',
-  nav_workspace: 'Workspace',
   nav_admin: 'Admin',
 
   // Legacy Balances, Stats & Activity
@@ -67,12 +66,10 @@ const EN_TRANSLATIONS = {
   status_rejected: 'Rejected',
   status_completed: 'Completed',
 
-  // New Header & Workspace Tabs
+  // Header & App Metadata
   app_title: 'Telega.ads',
   app_subtitle: 'Channel Management & Advertising Platform',
   lang_switch: 'العربية',
-  tab_my_channels: 'My Channels',
-  tab_promotion: 'Promotion',
 
   // My Channels Section
   channels_section_title: 'Manage My Channels',
