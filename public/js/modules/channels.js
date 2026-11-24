@@ -2,25 +2,33 @@
 (function () {
   function t(key, fallback = '') {
     if (!key) return fallback;
-    if (window.I18n && typeof window.I18n.t === 'function') {
-      const val = window.I18n.t(key);
-      if (val !== undefined && val !== null) return val;
-    }
-    if (window.I18N && typeof window.I18N.t === 'function') {
-      const val = window.I18N.t(key);
-      if (val !== undefined && val !== null) return val;
+    try {
+      if (window.I18n && typeof window.I18n.t === 'function') {
+        const val = window.I18n.t(key);
+        if (val !== undefined && val !== null) return val;
+      }
+      if (window.I18N && typeof window.I18N.t === 'function') {
+        const val = window.I18N.t(key);
+        if (val !== undefined && val !== null) return val;
+      }
+    } catch (err) {
+      console.error(err);
     }
     return fallback || key;
   }
 
   function toast(message) {
     if (!message) return;
-    if (typeof window.showToast === 'function') {
-      window.showToast(message);
-    } else if (window.UI && typeof window.UI.showToast === 'function') {
-      window.UI.showToast(message);
-    } else if (window.UI && typeof window.UI.notify === 'function') {
-      window.UI.notify(message);
+    try {
+      if (typeof window.showToast === 'function') {
+        window.showToast(message);
+      } else if (window.UI && typeof window.UI.showToast === 'function') {
+        window.UI.showToast(message);
+      } else if (window.UI && typeof window.UI.notify === 'function') {
+        window.UI.notify(message);
+      }
+    } catch (err) {
+      console.error(err);
     }
   }
 
@@ -78,38 +86,43 @@
   }
 
   async function sendRequest(url, method, body) {
-    if (typeof window.apiSend === 'function') {
-      return window.apiSend(url, method, body);
-    }
-    if (window.Api && typeof window.Api.send === 'function') {
-      return window.Api.send(url, method, body);
-    }
-    const options = {
-      method,
-      headers: {
-        ...(window.Api?.getInitData ? { 'x-telegram-init-data': window.Api.getInitData() } : {})
+    try {
+      if (typeof window.apiSend === 'function') {
+        return await window.apiSend(url, method, body);
       }
-    };
-    if (body !== undefined) {
-      options.headers['Content-Type'] = 'application/json';
-      options.body = JSON.stringify(body);
+      if (window.Api && typeof window.Api.send === 'function') {
+        return await window.Api.send(url, method, body);
+      }
+      const options = {
+        method,
+        headers: {
+          ...(window.Api?.getInitData ? { 'x-telegram-init-data': window.Api.getInitData() } : {})
+        }
+      };
+      if (body !== undefined) {
+        options.headers['Content-Type'] = 'application/json';
+        options.body = JSON.stringify(body);
+      }
+      const res = await fetch(url, options);
+      return await res.json();
+    } catch (err) {
+      console.error(err);
+      throw err;
     }
-    const res = await fetch(url, options);
-    return res.json();
   }
 
   async function refreshChannelsList() {
-    if (typeof window.fetchChannels === 'function') {
-      await window.fetchChannels();
-    } else if (window.Api && typeof window.Api.fetchChannels === 'function') {
-      await window.Api.fetchChannels();
-    }
-    if (window.ChannelsModule && typeof window.ChannelsModule.load === 'function') {
-      try {
-        await window.ChannelsModule.load();
-      } catch (err) {
-        console.error(err);
+    try {
+      if (typeof window.fetchChannels === 'function') {
+        await window.fetchChannels();
+      } else if (window.Api && typeof window.Api.fetchChannels === 'function') {
+        await window.Api.fetchChannels();
       }
+      if (window.ChannelsModule && typeof window.ChannelsModule.load === 'function') {
+        await window.ChannelsModule.load();
+      }
+    } catch (err) {
+      console.error(err);
     }
   }
 
@@ -183,6 +196,7 @@
         toast((json && json.message) || t('msg_fill_required'));
       }
     } catch (err) {
+      console.error(err);
       toast(err.message);
     }
   }
@@ -197,6 +211,7 @@
         toast((json && json.message) || t('msg_fill_required'));
       }
     } catch (err) {
+      console.error(err);
       toast(err.message);
     }
   }
@@ -211,6 +226,7 @@
         toast(json.message);
       }
     } catch (err) {
+      console.error(err);
       toast(err.message);
     }
   }
@@ -245,8 +261,11 @@
         }
         toast(t('msg_channel_updated'));
         await refreshChannelsList();
+      } else if (json && json.message) {
+        toast(json.message);
       }
     } catch (err) {
+      console.error(err);
       toast(err.message);
     }
   }
@@ -262,8 +281,11 @@
         }
         toast(t('msg_channel_deleted'));
         await refreshChannelsList();
+      } else if (json && json.message) {
+        toast(json.message);
       }
     } catch (err) {
+      console.error(err);
       toast(err.message);
     }
   }
@@ -272,185 +294,202 @@
     const container = document.getElementById('channels-container');
     if (!container) return;
 
-    const state = getState();
-    const channels = state && Array.isArray(state.channels) ? state.channels : [];
+    try {
+      const state = getState();
+      const channels = state && Array.isArray(state.channels) ? state.channels : [];
 
-    if (!channels.length) {
-      container.innerHTML = `<div class="empty-state">${esc(t('no_channels', t('no_data')))}</div>`;
-      return;
-    }
+      if (!channels.length) {
+        container.innerHTML = `<div class="empty-state">${esc(t('no_channels', t('no_data')))}</div>`;
+        return;
+      }
 
-    const languages = getLanguages();
-    const categories = getCategories();
+      const languages = getLanguages();
+      const categories = getCategories();
 
-    container.innerHTML = channels
-      .map((ch) => {
-        const isExpanded = Boolean(state?.expandedChannelIds?.has(ch._id));
-        const isEditing = Boolean(state?.editingChannelIds?.has(ch._id));
+      container.innerHTML = channels
+        .map((ch) => {
+          const isExpanded = Boolean(state?.expandedChannelIds?.has(ch._id));
+          const isEditing = Boolean(state?.editingChannelIds?.has(ch._id));
 
-        const langOptions = languages
-          .map(
-            (l) =>
-              `<option value="${esc(l)}" ${l === ch.language ? 'selected' : ''}>${esc(l)}</option>`
-          )
-          .join('');
+          const langOptions = languages
+            .map(
+              (l) =>
+                `<option value="${esc(l)}" ${l === ch.language ? 'selected' : ''}>${esc(l)}</option>`
+            )
+            .join('');
 
-        const catOptions = categories
-          .map(
-            (c) =>
-              `<option value="${esc(c.value)}" ${c.value === ch.category ? 'selected' : ''}>${esc(
-                t(c.key, c.value)
-              )}</option>`
-          )
-          .join('');
+          const catOptions = categories
+            .map(
+              (c) =>
+                `<option value="${esc(c.value)}" ${c.value === ch.category ? 'selected' : ''}>${esc(
+                  t(c.key, c.value)
+                )}</option>`
+            )
+            .join('');
 
-        const statusBadgeClass =
-          ch.approvalStatus === 'approved'
-            ? 'badge-active'
-            : ch.approvalStatus === 'rejected'
-            ? 'badge-rejected'
-            : 'badge-draft';
+          const statusBadgeClass =
+            ch.approvalStatus === 'approved'
+              ? 'badge-active'
+              : ch.approvalStatus === 'rejected'
+              ? 'badge-rejected'
+              : 'badge-draft';
 
-        const ownerDisplay = ch.ownerUsername || ch.ownerName || ch.ownerTelegramId || '-';
-        const safeId = esc(ch._id);
+          const ownerDisplay = ch.ownerUsername || ch.ownerName || ch.ownerTelegramId || '-';
+          const safeId = esc(ch._id);
 
-        return `
-          <div class="item-card">
-            <div class="item-summary">
-              <div class="item-title-group">
-                <span class="item-title">${esc(ch.name)}</span>
-                <span class="item-subtitle">${esc(ch.username)}</span>
-                <span class="badge badge-price">${esc(ch.price)}$</span>
-                <span class="badge ${statusBadgeClass}">${esc(getApprovalText(ch.approvalStatus))}</span>
+          return `
+            <div class="item-card">
+              <div class="item-summary">
+                <div class="item-title-group">
+                  <span class="item-title">${esc(ch.name)}</span>
+                  <span class="item-subtitle">${esc(ch.username)}</span>
+                  <span class="badge badge-price">${esc(ch.price)}$</span>
+                  <span class="badge ${statusBadgeClass}">${esc(getApprovalText(ch.approvalStatus))}</span>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="toggleChannelDetails('${safeId}')">
+                  ${esc(isExpanded ? t('btn_hide_details') : t('btn_show_details'))}
+                </button>
               </div>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="toggleChannelDetails('${safeId}')">
-                ${esc(isExpanded ? t('btn_hide_details') : t('btn_show_details'))}
-              </button>
+
+              ${
+                isExpanded
+                  ? `
+                <div class="item-details">
+                  ${
+                    !isEditing
+                      ? `
+                    <div class="detail-grid">
+                      <div class="detail-row"><span class="label">${esc(t('detail_language'))}</span><strong>${esc(ch.language)}</strong></div>
+                      <div class="detail-row"><span class="label">${esc(t('detail_category'))}</span><strong>${esc(getCatLabel(ch.category))}</strong></div>
+                      <div class="detail-row"><span class="label">${esc(t('detail_price'))}</span><strong>${esc(ch.price)}$</strong></div>
+                      <div class="detail-row"><span class="label">${esc(t('detail_subscribers'))}</span><strong>${esc(ch.subscribersCount || 0)}</strong></div>
+                      <div class="detail-row"><span class="label">${esc(t('detail_channel_type'))}</span><strong>${esc(ch.isPublic !== false ? t('type_public') : t('type_private'))}</strong></div>
+                      <div class="detail-row"><span class="label">${esc(t('detail_owner'))}</span><strong>${esc(ownerDisplay)}</strong></div>
+                      <div class="detail-row"><span class="label">${esc(t('detail_intro_post'))}</span><strong>${esc(ch.introPostSent ? t('intro_sent_yes') : t('intro_sent_no'))}</strong></div>
+                      <div class="detail-row"><span class="label">${esc(t('detail_referrals'))}</span><strong>${esc(ch.referralsCount || 0)}</strong></div>
+                      <div class="detail-row"><span class="label">${esc(t('detail_bot_status'))}</span><strong>${esc(
+                          ch.botAdded ? t('bot_status_ok') : t('bot_status_pending')
+                        )}</strong></div>
+                      <div class="detail-row"><span class="label">${esc(t('detail_bot_perms'))}</span><strong>${esc(
+                          ch.botPermissionsOk !== false ? t('perms_ok') : t('perms_warn')
+                        )}</strong></div>
+                    </div>
+                    <div class="detail-actions">
+                      <button type="button" class="btn btn-secondary btn-sm" onclick="verifyChannelAutoLink('${safeId}')">${esc(t('btn_verify_channel'))}</button>
+                      <button type="button" class="btn btn-secondary btn-sm" onclick="syncChannelNow('${safeId}')">${esc(t('btn_sync_channel'))}</button>
+                      <button type="button" class="btn btn-primary btn-sm" onclick="toggleEditChannel('${safeId}')">${esc(t('btn_edit_settings'))}</button>
+                      <button type="button" class="btn btn-danger btn-sm" onclick="deleteChannel('${safeId}')">${esc(t('btn_delete'))}</button>
+                    </div>
+                  `
+                      : `
+                    <div class="form-group">
+                      <label>${esc(t('label_channel_lang'))}</label>
+                      <select id="edit-ch-lang-${safeId}" class="form-control">${langOptions}</select>
+                    </div>
+                    <div class="form-group">
+                      <label>${esc(t('label_channel_cat'))}</label>
+                      <select id="edit-ch-cat-${safeId}" class="form-control">${catOptions}</select>
+                    </div>
+                    <div class="form-group">
+                      <label>${esc(t('label_channel_price'))}</label>
+                      <input type="number" id="edit-ch-price-${safeId}" class="form-control" min="1" max="3" step="0.1" value="${esc(ch.price)}" />
+                    </div>
+                    <div class="checkbox-row" style="margin-bottom: 12px;">
+                      <input type="checkbox" id="edit-ch-bot-${safeId}" ${ch.botAdded ? 'checked' : ''} />
+                      <label for="edit-ch-bot-${safeId}">${esc(t('label_bot_confirmed'))}</label>
+                    </div>
+                    <div class="detail-actions">
+                      <button type="button" class="btn btn-success btn-sm" onclick="updateChannelSettings('${safeId}')">${esc(t('btn_save_changes'))}</button>
+                      <button type="button" class="btn btn-secondary btn-sm" onclick="toggleEditChannel('${safeId}')">${esc(t('btn_cancel'))}</button>
+                    </div>
+                  `
+                  }
+                </div>
+              `
+                  : ''
+              }
             </div>
-
-            ${
-              isExpanded
-                ? `
-              <div class="item-details">
-                ${
-                  !isEditing
-                    ? `
-                  <div class="detail-grid">
-                    <div class="detail-row"><span class="label">${esc(t('detail_language'))}</span><strong>${esc(ch.language)}</strong></div>
-                    <div class="detail-row"><span class="label">${esc(t('detail_category'))}</span><strong>${esc(getCatLabel(ch.category))}</strong></div>
-                    <div class="detail-row"><span class="label">${esc(t('detail_price'))}</span><strong>${esc(ch.price)}$</strong></div>
-                    <div class="detail-row"><span class="label">${esc(t('detail_subscribers'))}</span><strong>${esc(ch.subscribersCount || 0)}</strong></div>
-                    <div class="detail-row"><span class="label">${esc(t('detail_channel_type'))}</span><strong>${esc(ch.isPublic !== false ? t('type_public') : t('type_private'))}</strong></div>
-                    <div class="detail-row"><span class="label">${esc(t('detail_owner'))}</span><strong>${esc(ownerDisplay)}</strong></div>
-                    <div class="detail-row"><span class="label">${esc(t('detail_intro_post'))}</span><strong>${esc(ch.introPostSent ? t('intro_sent_yes') : t('intro_sent_no'))}</strong></div>
-                    <div class="detail-row"><span class="label">${esc(t('detail_referrals'))}</span><strong>${esc(ch.referralsCount || 0)}</strong></div>
-                    <div class="detail-row"><span class="label">${esc(t('detail_bot_status'))}</span><strong>${esc(
-                        ch.botAdded ? t('bot_status_ok') : t('bot_status_pending')
-                      )}</strong></div>
-                    <div class="detail-row"><span class="label">${esc(t('detail_bot_perms'))}</span><strong>${esc(
-                        ch.botPermissionsOk !== false ? t('perms_ok') : t('perms_warn')
-                      )}</strong></div>
-                  </div>
-                  <div class="detail-actions">
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="verifyChannelAutoLink('${safeId}')">${esc(t('btn_verify_channel'))}</button>
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="syncChannelNow('${safeId}')">${esc(t('btn_sync_channel'))}</button>
-                    <button type="button" class="btn btn-primary btn-sm" onclick="toggleEditChannel('${safeId}')">${esc(t('btn_edit_settings'))}</button>
-                    <button type="button" class="btn btn-danger btn-sm" onclick="deleteChannel('${safeId}')">${esc(t('btn_delete'))}</button>
-                  </div>
-                `
-                    : `
-                  <div class="form-group">
-                    <label>${esc(t('label_channel_lang'))}</label>
-                    <select id="edit-ch-lang-${safeId}" class="form-control">${langOptions}</select>
-                  </div>
-                  <div class="form-group">
-                    <label>${esc(t('label_channel_cat'))}</label>
-                    <select id="edit-ch-cat-${safeId}" class="form-control">${catOptions}</select>
-                  </div>
-                  <div class="form-group">
-                    <label>${esc(t('label_channel_price'))}</label>
-                    <input type="number" id="edit-ch-price-${safeId}" class="form-control" min="1" max="3" step="0.1" value="${esc(ch.price)}" />
-                  </div>
-                  <div class="checkbox-row" style="margin-bottom: 12px;">
-                    <input type="checkbox" id="edit-ch-bot-${safeId}" ${ch.botAdded ? 'checked' : ''} />
-                    <label for="edit-ch-bot-${safeId}">${esc(t('label_bot_confirmed'))}</label>
-                  </div>
-                  <div class="detail-actions">
-                    <button type="button" class="btn btn-success btn-sm" onclick="updateChannelSettings('${safeId}')">${esc(t('btn_save_changes'))}</button>
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="toggleEditChannel('${safeId}')">${esc(t('btn_cancel'))}</button>
-                  </div>
-                `
-                }
-              </div>
-            `
-                : ''
-            }
-          </div>
-        `;
-      })
-      .join('');
+          `;
+        })
+        .join('');
+    } catch (err) {
+      console.error(err);
+    }
   }
 
   function toggleChannelDetails(id) {
-    const state = getState();
-    if (!state) return;
-    if (state.expandedChannelIds?.has(id)) {
-      state.expandedChannelIds.delete(id);
-      state.editingChannelIds?.delete(id);
-    } else {
-      state.expandedChannelIds?.add(id);
+    try {
+      const state = getState();
+      if (!state) return;
+      if (state.expandedChannelIds?.has(id)) {
+        state.expandedChannelIds.delete(id);
+        state.editingChannelIds?.delete(id);
+      } else {
+        state.expandedChannelIds?.add(id);
+      }
+      renderChannels();
+    } catch (err) {
+      console.error(err);
     }
-    renderChannels();
   }
 
   function toggleEditChannel(id) {
-    const state = getState();
-    if (!state || !state.editingChannelIds) return;
-    if (state.editingChannelIds.has(id)) {
-      state.editingChannelIds.delete(id);
-    } else {
-      state.editingChannelIds.add(id);
+    try {
+      const state = getState();
+      if (!state || !state.editingChannelIds) return;
+      if (state.editingChannelIds.has(id)) {
+        state.editingChannelIds.delete(id);
+      } else {
+        state.editingChannelIds.add(id);
+      }
+      renderChannels();
+    } catch (err) {
+      console.error(err);
     }
-    renderChannels();
   }
 
   const ChannelsModule = {
     init() {
       const form = document.getElementById('add-channel-form');
-      if (form) {
-        form.addEventListener('submit', async (e) => {
-          e.preventDefault();
-          try {
-            const payload = {
-              channelUsername: document.getElementById('ch-username')?.value || '',
-              title: document.getElementById('ch-title')?.value || '',
-              subscribers: document.getElementById('ch-subs')?.value || 0,
-              pricePerPost: document.getElementById('ch-price')?.value || 0
-            };
-            await window.Api.addChannel(payload);
-            form.reset();
-            if (window.UI && typeof window.UI.haptic === 'function') {
-              window.UI.haptic('medium');
-            }
-            await this.load();
-            if (window.App && typeof window.App.refreshUserData === 'function') {
-              await window.App.refreshUserData();
-            }
-          } catch (err) {
-            if (window.UI && typeof window.UI.notify === 'function') {
-              window.UI.notify(err.message);
-            } else {
-              toast(err.message);
-            }
+      if (!form) return;
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+          const usernameInput = document.getElementById('ch-username-legacy') || document.getElementById('ch-username');
+          const priceInput = document.getElementById('ch-price-legacy') || document.getElementById('ch-price');
+          const payload = {
+            channelUsername: usernameInput ? usernameInput.value : '',
+            title: document.getElementById('ch-title')?.value || '',
+            subscribers: document.getElementById('ch-subs')?.value || 0,
+            pricePerPost: priceInput ? priceInput.value : 0
+          };
+          await window.Api.addChannel(payload);
+          form.reset();
+          if (window.UI && typeof window.UI.haptic === 'function') {
+            window.UI.haptic('medium');
           }
-        });
-      }
+          await this.load();
+          if (window.App && typeof window.App.refreshUserData === 'function') {
+            await window.App.refreshUserData();
+          }
+        } catch (err) {
+          console.error(err);
+          if (window.UI && typeof window.UI.notify === 'function') {
+            window.UI.notify(err.message);
+          } else {
+            toast(err.message);
+          }
+        }
+      });
     },
 
     async load() {
       if (!window.Api || typeof window.Api.getChannels !== 'function') return;
-      const data = await window.Api.getChannels();
-      if (data) {
+      try {
+        const data = await window.Api.getChannels();
+        if (!data) return;
+
         const state = getState();
         if (state && Array.isArray(data.channels)) {
           state.channels = data.channels;
@@ -466,6 +505,9 @@
         ) {
           window.CampaignsModule.populateChannelSelect(data.marketplaceChannels);
         }
+      } catch (err) {
+        console.error(err);
+        throw err;
       }
     },
 
@@ -473,27 +515,31 @@
       const listEl = document.getElementById('my-channels-list');
       if (!listEl) return;
 
-      if (!channels || channels.length === 0) {
-        listEl.innerHTML = `<div class="empty-state">${esc(t('no_data'))}</div>`;
-        return;
-      }
+      try {
+        if (!channels || channels.length === 0) {
+          listEl.innerHTML = `<div class="empty-state">${esc(t('no_data'))}</div>`;
+          return;
+        }
 
-      listEl.innerHTML = channels
-        .map((ch) => {
-          const subs = Number(ch.subscribers || 0).toLocaleString();
-          const price = Number(ch.pricePerPost || 0);
-          const safeStatus = esc(ch.status || '');
-          return `
-            <div class="list-item">
-              <div class="item-main">
-                <span class="item-title">${esc(ch.title)} (@${esc(ch.channelUsername)})</span>
-                <span class="item-sub">${esc(subs)} subs • $${esc(price)}/post</span>
+        listEl.innerHTML = channels
+          .map((ch) => {
+            const subs = Number(ch.subscribers || 0).toLocaleString();
+            const price = Number(ch.pricePerPost || 0);
+            const safeStatus = esc(ch.status || '');
+            return `
+              <div class="list-item">
+                <div class="item-main">
+                  <span class="item-title">${esc(ch.title)} (@${esc(ch.channelUsername)})</span>
+                  <span class="item-sub">${esc(subs)} subs • $${esc(price)}/post</span>
+                </div>
+                <span class="badge ${safeStatus}">${esc(t(`status_${ch.status}`, ch.status || ''))}</span>
               </div>
-              <span class="badge ${safeStatus}">${esc(t(`status_${ch.status}`, ch.status || ''))}</span>
-            </div>
-          `;
-        })
-        .join('');
+            `;
+          })
+          .join('');
+      } catch (err) {
+        console.error(err);
+      }
     },
 
     saveNewChannel,
