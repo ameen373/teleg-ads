@@ -1,37 +1,51 @@
 // ==================== API & SERVER COMMUNICATION ====================
 (function () {
   function safeCall(fnName, ...args) {
-    if (typeof window[fnName] === 'function') {
-      return window[fnName](...args);
+    try {
+      if (typeof window[fnName] === 'function') {
+        return window[fnName](...args);
+      }
+    } catch (err) {
+      console.error(err);
     }
     return undefined;
   }
 
   const Api = {
     getInitData() {
-      return window.Telegram?.WebApp?.initData || '';
+      try {
+        return window.Telegram?.WebApp?.initData || '';
+      } catch (err) {
+        console.error(err);
+        return '';
+      }
     },
 
     async request(endpoint, options = {}) {
-      const headers = {
-        'x-telegram-init-data': this.getInitData(),
-        ...(options.headers || {})
-      };
+      try {
+        const headers = {
+          'x-telegram-init-data': this.getInitData(),
+          ...(options.headers || {})
+        };
 
-      if (options.body !== undefined && !headers['Content-Type']) {
-        headers['Content-Type'] = 'application/json';
+        if (options.body !== undefined && !headers['Content-Type']) {
+          headers['Content-Type'] = 'application/json';
+        }
+
+        const response = await fetch(endpoint, {
+          ...options,
+          headers
+        });
+
+        const data = await response.json();
+        if (!response.ok || (data && data.success === false)) {
+          throw new Error((data && data.message) || 'API Request Failed');
+        }
+        return data;
+      } catch (err) {
+        console.error(err);
+        throw err;
       }
-
-      const response = await fetch(endpoint, {
-        ...options,
-        headers
-      });
-
-      const data = await response.json();
-      if (!response.ok || (data && data.success === false)) {
-        throw new Error((data && data.message) || 'API Request Failed');
-      }
-      return data;
     },
 
     async get(url) {
@@ -185,33 +199,33 @@
     },
 
     async fetchMarketplaceChannels() {
-      const budgetResult = safeCall('handleBudgetTargetingState');
-      const isOpen = Boolean(budgetResult);
-
-      const langEl = document.getElementById('camp-language');
-      const catEl = document.getElementById('camp-category');
-      const priceEl = document.getElementById('camp-price-input');
-      const searchEl = document.getElementById('mkt-search-input');
-
-      const lang = langEl ? langEl.value : '';
-      const cat = catEl ? catEl.value : '';
-      const parsedPrice = priceEl ? parseFloat(priceEl.value) : NaN;
-      const maxPrice = Number.isFinite(parsedPrice) && parsedPrice > 0 ? parsedPrice : 3;
-      const search = searchEl ? searchEl.value.trim() : '';
-
-      const params = new URLSearchParams();
-      params.set('openTargeting', String(isOpen));
-      params.set('maxPrice', String(maxPrice));
-      if (!isOpen) {
-        if (lang) params.set('language', lang);
-        if (cat) params.set('category', cat);
-      }
-      if (search) params.set('search', search);
-      if (window.AppState && window.AppState.favoritesOnlyFilter) {
-        params.set('favoritesOnly', 'true');
-      }
-
       try {
+        const budgetResult = safeCall('handleBudgetTargetingState');
+        const isOpen = Boolean(budgetResult);
+
+        const langEl = document.getElementById('camp-language');
+        const catEl = document.getElementById('camp-category');
+        const priceEl = document.getElementById('camp-price-input');
+        const searchEl = document.getElementById('mkt-search-input');
+
+        const lang = langEl ? langEl.value : '';
+        const cat = catEl ? catEl.value : '';
+        const parsedPrice = priceEl ? parseFloat(priceEl.value) : NaN;
+        const maxPrice = Number.isFinite(parsedPrice) && parsedPrice > 0 ? parsedPrice : 3;
+        const search = searchEl ? searchEl.value.trim() : '';
+
+        const params = new URLSearchParams();
+        params.set('openTargeting', String(isOpen));
+        params.set('maxPrice', String(maxPrice));
+        if (!isOpen) {
+          if (lang) params.set('language', lang);
+          if (cat) params.set('category', cat);
+        }
+        if (search) params.set('search', search);
+        if (window.AppState && window.AppState.favoritesOnlyFilter) {
+          params.set('favoritesOnly', 'true');
+        }
+
         const json = await this.get(`/api/marketplace/channels?${params.toString()}`);
         if (json && json.success) {
           if (window.AppState) window.AppState.marketplaceChannels = json.data;
