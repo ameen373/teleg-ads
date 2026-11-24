@@ -11,6 +11,23 @@
     return undefined;
   }
 
+  function triggerMaintenanceBanner(data, ctx) {
+    if (!data || typeof data.maintenanceMode !== 'boolean') return;
+    try {
+      if (ctx && typeof ctx.renderMaintenanceBanner === 'function') {
+        ctx.renderMaintenanceBanner(data.maintenanceMode, data.maintenanceMessage, ctx);
+        return;
+      }
+      if (window.UI && typeof window.UI.renderMaintenanceBanner === 'function') {
+        window.UI.renderMaintenanceBanner(data);
+      } else if (typeof window.renderMaintenanceBanner === 'function') {
+        window.renderMaintenanceBanner(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
   const Api = {
     getInitData() {
       try {
@@ -21,25 +38,65 @@
       }
     },
 
-    async request(endpoint, options = {}) {
+    async request(endpoint, options = {}, ctx) {
       try {
-        const headers = {
-          'x-telegram-init-data': this.getInitData(),
-          ...(options.headers || {})
-        };
+        const state = ctx?.state || window.AppState || (typeof AppState !== 'undefined' ? AppState : null);
+        const headers = Object.assign(
+          {
+            'x-telegram-init-data': this.getInitData()
+          },
+          state?.userId ? { 'x-user-id': state.userId } : {},
+          state?.adminKey ? { 'x-admin-key': state.adminKey } : {},
+          options.headers || {}
+        );
 
         if (options.body !== undefined && !headers['Content-Type']) {
           headers['Content-Type'] = 'application/json';
         }
 
-        const response = await fetch(endpoint, {
-          ...options,
-          headers
-        });
+        const response = await fetch(
+          endpoint,
+          Object.assign({}, options, {
+            headers
+          })
+        );
 
-        const data = await response.json();
-        if (!response.ok || (data && data.success === false)) {
-          throw new Error((data && data.message) || 'API Request Failed');
+        const data = await response.json().catch(() => ({}));
+        triggerMaintenanceBanner(data, ctx);
+
+        if (!response.ok || (data && (data.success === false || data.ok === false))) {
+          throw new Error((data && (data.error || data.message)) || 'API Request Failed');
+        }
+        return data;
+      } catch (err) {
+        console.error(err);
+        throw err;
+      }
+    },
+
+    async apiRequest(url, options = {}, ctx) {
+      const state = ctx?.state || window.AppState || (typeof AppState !== 'undefined' ? AppState : null);
+      const headers = Object.assign(
+        {
+          'Content-Type': 'application/json',
+          'x-telegram-init-data': this.getInitData()
+        },
+        state?.userId ? { 'x-user-id': state.userId } : {},
+        state?.adminKey ? { 'x-admin-key': state.adminKey } : {},
+        options && options.headers ? options.headers : {}
+      );
+
+      if (state && state.adminKey && !headers['x-admin-key']) {
+        headers['x-admin-key'] = state.adminKey;
+      }
+
+      try {
+        const res = await fetch(url, Object.assign({}, options, { headers }));
+        const data = await res.json().catch(() => ({}));
+        triggerMaintenanceBanner(data, ctx);
+
+        if (!res.ok || (data && (data.success === false || data.ok === false))) {
+          throw new Error((data && (data.error || data.message)) || 'حدث خطأ في الطلب');
         }
         return data;
       } catch (err) {
@@ -112,21 +169,21 @@
     },
 
     reviewChannel(id, action) {
-      return this.request(`/api/admin/channels/${id}/review`, {
+      return this.request(`/api/admin/channels/${encodeURIComponent(id)}/review`, {
         method: 'POST',
         body: JSON.stringify({ action })
       });
     },
 
     reviewTransaction(id, action) {
-      return this.request(`/api/admin/transactions/${id}/review`, {
+      return this.request(`/api/admin/transactions/${encodeURIComponent(id)}/review`, {
         method: 'POST',
         body: JSON.stringify({ action })
       });
     },
 
     completeCampaign(id) {
-      return this.request(`/api/admin/campaigns/${id}/complete`, {
+      return this.request(`/api/admin/campaigns/${encodeURIComponent(id)}/complete`, {
         method: 'POST'
       });
     },
@@ -256,6 +313,7 @@
   window.Api = Api;
 
   // Global helper functions compatible with direct calls across modules
+  window.apiRequest = (url, options, ctx) => Api.apiRequest(url, options, ctx);
   window.apiGet = (url) => Api.get(url);
   window.apiSend = (url, method, body) => Api.send(url, method, body);
   window.fetchChannels = () => Api.fetchChannels();
