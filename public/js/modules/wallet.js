@@ -2,25 +2,33 @@
 (function () {
   function t(key, fallback = '') {
     if (!key) return fallback;
-    if (window.I18n && typeof window.I18n.t === 'function') {
-      const val = window.I18n.t(key);
-      if (val !== undefined && val !== null) return val;
-    }
-    if (window.I18N && typeof window.I18N.t === 'function') {
-      const val = window.I18N.t(key);
-      if (val !== undefined && val !== null) return val;
+    try {
+      if (window.I18n && typeof window.I18n.t === 'function') {
+        const val = window.I18n.t(key);
+        if (val !== undefined && val !== null) return val;
+      }
+      if (window.I18N && typeof window.I18N.t === 'function') {
+        const val = window.I18N.t(key);
+        if (val !== undefined && val !== null) return val;
+      }
+    } catch (err) {
+      console.error(err);
     }
     return fallback || key;
   }
 
   function toast(message) {
     if (!message) return;
-    if (typeof window.showToast === 'function') {
-      window.showToast(message);
-    } else if (window.UI && typeof window.UI.showToast === 'function') {
-      window.UI.showToast(message);
-    } else if (window.UI && typeof window.UI.notify === 'function') {
-      window.UI.notify(message);
+    try {
+      if (typeof window.showToast === 'function') {
+        window.showToast(message);
+      } else if (window.UI && typeof window.UI.showToast === 'function') {
+        window.UI.showToast(message);
+      } else if (window.UI && typeof window.UI.notify === 'function') {
+        window.UI.notify(message);
+      }
+    } catch (err) {
+      console.error(err);
     }
   }
 
@@ -60,109 +68,118 @@
   }
 
   async function sendRequest(url, method, body) {
-    if (typeof window.apiSend === 'function') {
-      return window.apiSend(url, method, body);
-    }
-    if (window.Api && typeof window.Api.send === 'function') {
-      return window.Api.send(url, method, body);
-    }
-    const options = {
-      method,
-      headers: {
-        ...(window.Api?.getInitData ? { 'x-telegram-init-data': window.Api.getInitData() } : {})
+    try {
+      if (typeof window.apiSend === 'function') {
+        return await window.apiSend(url, method, body);
       }
-    };
-    if (body !== undefined) {
-      options.headers['Content-Type'] = 'application/json';
-      options.body = JSON.stringify(body);
+      if (window.Api && typeof window.Api.send === 'function') {
+        return await window.Api.send(url, method, body);
+      }
+      const options = {
+        method,
+        headers: {
+          ...(window.Api?.getInitData ? { 'x-telegram-init-data': window.Api.getInitData() } : {})
+        }
+      };
+      if (body !== undefined) {
+        options.headers['Content-Type'] = 'application/json';
+        options.body = JSON.stringify(body);
+      }
+      const res = await fetch(url, options);
+      return await res.json();
+    } catch (err) {
+      console.error(err);
+      throw err;
     }
-    const res = await fetch(url, options);
-    return res.json();
   }
 
   async function refreshWalletState() {
-    if (typeof window.fetchWallet === 'function') {
-      await window.fetchWallet();
-    } else if (window.Api && typeof window.Api.fetchWallet === 'function') {
-      await window.Api.fetchWallet();
-    }
-    if (window.App && typeof window.App.refreshUserData === 'function') {
-      try {
-        await window.App.refreshUserData();
-      } catch (err) {
-        console.error(err);
+    try {
+      if (typeof window.fetchWallet === 'function') {
+        await window.fetchWallet();
+      } else if (window.Api && typeof window.Api.fetchWallet === 'function') {
+        await window.Api.fetchWallet();
       }
+      if (window.App && typeof window.App.refreshUserData === 'function') {
+        await window.App.refreshUserData();
+      }
+    } catch (err) {
+      console.error(err);
     }
   }
 
   function renderWallet(user) {
-    if (user && typeof user === 'object') {
-      const earningsEl = document.getElementById('wallet-earnings-balance');
-      const adBalanceEl = document.getElementById('wallet-ad-balance');
-      const refCountEl = document.getElementById('ref-count');
-      const refEarningsEl = document.getElementById('ref-earnings');
-      const refInputEl = document.getElementById('referral-link-input');
+    try {
+      if (user && typeof user === 'object') {
+        const earningsEl = document.getElementById('wallet-earnings-balance');
+        const adBalanceEl = document.getElementById('wallet-ad-balance');
+        const refCountEl = document.getElementById('ref-count');
+        const refEarningsEl = document.getElementById('ref-earnings');
+        const refInputEl = document.getElementById('referral-link-input');
 
-      if (earningsEl) {
-        earningsEl.textContent = `$${Number(user.balance || 0).toFixed(2)}`;
+        if (earningsEl) {
+          earningsEl.textContent = `$${Number(user.balance || 0).toFixed(2)}`;
+        }
+        if (adBalanceEl) {
+          adBalanceEl.textContent = `$${Number(user.adBalance || 0).toFixed(2)}`;
+        }
+        if (refCountEl) {
+          refCountEl.textContent = user.referralsCount ?? 0;
+        }
+        if (refEarningsEl) {
+          refEarningsEl.textContent = `$${Number(user.referralEarnings || 0).toFixed(2)}`;
+        }
+        if (refInputEl) {
+          const botUsername =
+            window.Telegram?.WebApp?.initDataUnsafe?.receiver?.username || 'YourBotUsername';
+          refInputEl.value = `https://t.me/${botUsername}?startapp=ref_${user.telegramId}`;
+        }
       }
-      if (adBalanceEl) {
-        adBalanceEl.textContent = `$${Number(user.adBalance || 0).toFixed(2)}`;
+
+      const state = getState();
+      const wallet = state && state.wallet ? state.wallet : null;
+      if (!wallet) return;
+
+      const advEl = document.getElementById('wallet-adv-balance');
+      const pubEl = document.getElementById('wallet-pub-balance');
+      const txListEl = document.getElementById('wallet-tx-list');
+
+      if (advEl) {
+        advEl.textContent = `${Number(wallet.advertiserBalance || 0).toFixed(2)}$`;
       }
-      if (refCountEl) {
-        refCountEl.textContent = user.referralsCount ?? 0;
+      if (pubEl) {
+        pubEl.textContent = `${Number(wallet.publisherBalance || 0).toFixed(2)}$`;
       }
-      if (refEarningsEl) {
-        refEarningsEl.textContent = `$${Number(user.referralEarnings || 0).toFixed(2)}`;
+
+      if (!txListEl) return;
+      const txs = Array.isArray(wallet.transactions) ? wallet.transactions : [];
+      if (!txs.length) {
+        txListEl.innerHTML = `<div class="empty-state">${esc(t('no_transactions', t('no_data')))}</div>`;
+        return;
       }
-      if (refInputEl) {
-        const botUsername =
-          window.Telegram?.WebApp?.initDataUnsafe?.receiver?.username || 'YourBotUsername';
-        refInputEl.value = `https://t.me/${botUsername}?startapp=ref_${user.telegramId}`;
-      }
-    }
 
-    const state = getState();
-    const wallet = state && state.wallet ? state.wallet : null;
-    if (!wallet) return;
-
-    const advEl = document.getElementById('wallet-adv-balance');
-    const pubEl = document.getElementById('wallet-pub-balance');
-    const txListEl = document.getElementById('wallet-tx-list');
-
-    if (advEl) {
-      advEl.textContent = `${Number(wallet.advertiserBalance || 0).toFixed(2)}$`;
-    }
-    if (pubEl) {
-      pubEl.textContent = `${Number(wallet.publisherBalance || 0).toFixed(2)}$`;
-    }
-
-    if (!txListEl) return;
-    const txs = Array.isArray(wallet.transactions) ? wallet.transactions : [];
-    if (!txs.length) {
-      txListEl.innerHTML = `<div class="empty-state">${esc(t('no_transactions', t('no_data')))}</div>`;
-      return;
-    }
-
-    txListEl.innerHTML = txs
-      .map((tx) => {
-        const roleLabel =
-          tx.walletRole === 'advertiser' ? t('wallet_role_adv') : t('wallet_role_pub');
-        const noteHtml = tx.note
-          ? `<span style="color:var(--text-muted);">(${esc(tx.note)})</span>`
-          : '';
-        return `
-          <div class="tx-row">
-            <div>
-              <strong>${esc(getTxTypeText(tx.type))}</strong> ·
-              <span>${esc(roleLabel)}</span>
-              ${noteHtml}
+      txListEl.innerHTML = txs
+        .map((tx) => {
+          const roleLabel =
+            tx.walletRole === 'advertiser' ? t('wallet_role_adv') : t('wallet_role_pub');
+          const noteHtml = tx.note
+            ? `<span style="color:var(--text-muted);">(${esc(tx.note)})</span>`
+            : '';
+          return `
+            <div class="tx-row">
+              <div>
+                <strong>${esc(getTxTypeText(tx.type))}</strong> ·
+                <span>${esc(roleLabel)}</span>
+                ${noteHtml}
+              </div>
+              <strong>${esc(Number(tx.amount || 0).toFixed(2))}$</strong>
             </div>
-            <strong>${esc(Number(tx.amount || 0).toFixed(2))}$</strong>
-          </div>
-        `;
-      })
-      .join('');
+          `;
+        })
+        .join('');
+    } catch (err) {
+      console.error(err);
+    }
   }
 
   async function handleWalletOperation(endpointType) {
@@ -191,6 +208,7 @@
         toast((json && json.message) || t('msg_fill_required'));
       }
     } catch (err) {
+      console.error(err);
       toast(err.message);
     }
   }
@@ -208,8 +226,11 @@
             if (window.UI && typeof window.UI.haptic === 'function') {
               window.UI.haptic('medium');
             }
-            await window.App.refreshUserData();
+            if (window.App && typeof window.App.refreshUserData === 'function') {
+              await window.App.refreshUserData();
+            }
           } catch (err) {
+            console.error(err);
             if (window.UI && typeof window.UI.notify === 'function') {
               window.UI.notify(err.message);
             } else {
@@ -231,8 +252,11 @@
             if (window.UI && typeof window.UI.haptic === 'function') {
               window.UI.haptic('medium');
             }
-            await window.App.refreshUserData();
+            if (window.App && typeof window.App.refreshUserData === 'function') {
+              await window.App.refreshUserData();
+            }
           } catch (err) {
+            console.error(err);
             if (window.UI && typeof window.UI.notify === 'function') {
               window.UI.notify(err.message);
             } else {
@@ -244,17 +268,22 @@
 
       const copyBtn = document.getElementById('copy-ref-btn');
       if (copyBtn) {
-        copyBtn.addEventListener('click', () => {
-          const input = document.getElementById('referral-link-input');
-          if (!input) return;
-          input.select();
-          if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-            navigator.clipboard.writeText(input.value);
-          }
-          if (window.UI && typeof window.UI.notify === 'function') {
-            window.UI.notify(t('copied_msg'));
-          } else {
-            toast(t('copied_msg'));
+        copyBtn.addEventListener('click', async () => {
+          try {
+            const input = document.getElementById('referral-link-input');
+            if (!input) return;
+            input.select();
+            if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+              await navigator.clipboard.writeText(input.value);
+            }
+            if (window.UI && typeof window.UI.notify === 'function') {
+              window.UI.notify(t('copied_msg'));
+            } else {
+              toast(t('copied_msg'));
+            }
+          } catch (err) {
+            console.error(err);
+            toast(err.message);
           }
         });
       }
