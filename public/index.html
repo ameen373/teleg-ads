@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Telega-Ads</title>
+  <title data-i18n="appTitle">Telega-Ads</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="/css/styles.css" />
 </head>
@@ -28,7 +28,20 @@
         <button id="lang-toggle-btn" class="lang-pill" type="button">AR / EN</button>
       </div>
     </div>
+
+    <div class="topbar-controls">
+      <div>
+        <label for="userIdInput" data-i18n="userIdLabel">معرف المستخدم</label>
+        <input id="userIdInput" type="text" placeholder="user_demo_01" />
+      </div>
+      <button id="loadUserBtn" type="button" class="btn btn-primary btn-sm" data-i18n="loadAccountBtn">تحميل الحساب</button>
+      <button id="langArBtn" type="button" class="btn btn-secondary btn-sm">العربية</button>
+      <button id="langEnBtn" type="button" class="btn btn-secondary btn-sm">English</button>
+    </div>
   </header>
+
+  <div id="maintenanceBanner" class="maintenance-banner hidden"></div>
+  <div id="broadcastBanner" class="broadcast-banner hidden"></div>
 
   <main id="app-content" class="app-container container">
     <!-- ==================== HOME SECTION ==================== -->
@@ -41,6 +54,21 @@
         <div class="tg-card balance-box">
           <span class="card-label" data-i18n="ad_balance">Ad Balance</span>
           <h2 class="card-value" id="home-ad-balance">$0.00</h2>
+        </div>
+      </div>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="stat-label" data-i18n="walletBalanceLabel">رصيد المحفظة (المعلنين)</div>
+          <div id="walletBalanceValue" class="stat-value">$0.00</div>
+        </div>
+        <div class="card">
+          <div class="stat-label" data-i18n="pendingEarningsLabel">أرباح معلقة (قيد التحقق 24 ساعة)</div>
+          <div id="pendingEarningsValue" class="stat-value">$0.00</div>
+        </div>
+        <div class="card">
+          <div class="stat-label" data-i18n="availableEarningsLabel">أرباح قابلة للسحب</div>
+          <div id="availableEarningsValue" class="stat-value">$0.00</div>
         </div>
       </div>
 
@@ -60,6 +88,11 @@
       </div>
 
       <div class="section-header">
+        <h3 data-i18n="smartAlertsTitle">نظام التنبيهات الذكية</h3>
+      </div>
+      <div id="smartAlertsList" class="item-list"></div>
+
+      <div class="section-header">
         <h3 data-i18n="recent_activity">Recent Activity</h3>
       </div>
       <div id="home-transactions-list" class="tg-list"></div>
@@ -69,6 +102,61 @@
         <button type="button" id="btn-mark-notifications-read" class="btn btn-secondary btn-sm" data-i18n="btn_mark_read">تحديد الكل كمقروء</button>
       </div>
       <div id="notifications-list" class="tg-list tx-list"></div>
+
+      <div class="card" style="margin-top: 16px;">
+        <div class="card-header">
+          <h3 class="card-title" data-i18n="faqTitle">الأسئلة الشائعة (FAQ)</h3>
+        </div>
+        <div class="grid-2" style="margin-bottom: 0;">
+          <div class="faq-item">
+            <strong data-i18n="faqQ1">كيف تعمل دورة تحرير الأرباح خلال 24 ساعة؟</strong>
+            <p class="rules-note" data-i18n="faqA1">
+              تُضاف الأرباح وعمولات الإحالة (10%) أولاً إلى الرصيد المعلق، ثم تتحول تلقائياً إلى الرصيد القابل للسحب بعد مرور 24 ساعة.
+            </p>
+          </div>
+          <div class="faq-item">
+            <strong data-i18n="faqQ2">ما هي شروط السحب والرسوم المطبقة؟</strong>
+            <p class="rules-note" data-i18n="faqA2">
+              الحد الأدنى للسحب 30.00$ عبر شبكة USDT - TRC20 مع خصم رسوم ثابتة قدرها 3.00$ توضح قبل التأكيد.
+            </p>
+          </div>
+          <div class="faq-item">
+            <strong data-i18n="faqQ3">ماذا يحدث عند إيقاف أو إنهاء حملة إعلانية؟</strong>
+            <p class="rules-note" data-i18n="faqA3">
+              تُعاد الميزانية المتبقية تلقائياً إلى رصيد محفظة المعلن ضمن معاملة قاعدة بيانات ذرية (ACID) لمنع التكرار.
+            </p>
+          </div>
+          <div class="faq-item">
+            <strong data-i18n="faqQ4">كيف يحمي النظام المشاهدات والحملات من التلاعب؟</strong>
+            <p class="rules-note" data-i18n="faqA4">
+              يعمل محرك Anti-Bot لفلترة المشاهدات المشبوهة، وتفحص القائمة السوداء النصوص، مع سجل تعديلات زمني وحظر فوري عند الحاجة.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 16px;">
+        <div class="card-header">
+          <h3 class="card-title" data-i18n="supportTitle">الدعم الفني ونظام التذاكر</h3>
+        </div>
+        <form id="ticketForm">
+          <div class="form-group">
+            <label for="ticketSubjectInput" data-i18n="ticketSubjectLabel">موضوع التذكرة</label>
+            <input id="ticketSubjectInput" type="text" required />
+          </div>
+          <div class="form-group">
+            <label for="ticketMessageInput" data-i18n="ticketMessageLabel">تفاصيل الرسالة</label>
+            <textarea id="ticketMessageInput" rows="3" required></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary" data-i18n="submitTicketBtn">إرسال التذكرة</button>
+        </form>
+        <div id="ticketNotice" class="notice hidden"></div>
+
+        <div style="margin-top: 16px;">
+          <h4 class="card-title" style="margin-bottom: 10px;" data-i18n="ticketsListTitle">تذاكري والردود المباشرة</h4>
+          <div id="ticketsList" class="item-list"></div>
+        </div>
+      </div>
     </section>
 
     <!-- ==================== CHANNELS SECTION ==================== -->
@@ -180,6 +268,7 @@
 
       <div class="section-header">
         <h3 data-i18n="add_new_channel">Add Your Channel</h3>
+        <p class="rules-note" data-i18n="channelSubRuleNote">شرط القبول: الحد الأدنى 1000 مشترك، مع فحص الكلمات المحظورة ومحرك Anti-Bot.</p>
       </div>
       <form id="add-channel-form" class="tg-card tg-form">
         <input type="text" id="ch-username-legacy" data-i18n-placeholder="channel_username_ph" placeholder="@channel_username" required />
@@ -191,10 +280,28 @@
         <button type="submit" class="tg-btn primary" data-i18n="submit_channel">Submit Channel</button>
       </form>
 
+      <form id="channelForm" class="tg-card tg-form hidden">
+        <div class="form-group">
+          <label for="channelNameInput" data-i18n="channelNameLabel">اسم القناة</label>
+          <input id="channelNameInput" type="text" />
+        </div>
+        <div class="form-group">
+          <label for="channelSubsInput" data-i18n="channelSubsLabel">عدد المشتركين</label>
+          <input id="channelSubsInput" type="number" min="0" value="1500" />
+        </div>
+        <div class="form-group">
+          <label for="channelPriceInput" data-i18n="channelPriceLabel">سعر الإعلان ($)</label>
+          <input id="channelPriceInput" type="number" step="0.01" min="1" value="50" />
+        </div>
+        <button type="submit" class="btn btn-primary" data-i18n="addChannelBtn">إضافة القناة</button>
+      </form>
+      <div id="channelNotice" class="notice hidden"></div>
+
       <div class="section-header">
         <h3 data-i18n="my_channels">My Channels</h3>
       </div>
       <div id="my-channels-list" class="tg-list"></div>
+      <div id="channelsList" class="item-list"></div>
     </section>
 
     <!-- ==================== PROMOTION (CAMPAIGNS) SECTION ==================== -->
@@ -346,6 +453,28 @@
         <div id="campaigns-container" class="items-list"></div>
       </div>
 
+      <div class="card" style="margin-bottom: 16px;">
+        <div class="card-header">
+          <h3 class="card-title" data-i18n="estimatorTitle">محاكي التسعير والعائد التقديري (CPM & ROI Estimator)</h3>
+        </div>
+        <form id="estimatorForm">
+          <div class="form-group">
+            <label for="estimatorCpmInput" data-i18n="estimatorCpmLabel">تكلفة الألف ظهور CPM ($)</label>
+            <input id="estimatorCpmInput" type="number" step="0.01" min="0.01" value="2.5" required />
+          </div>
+          <div class="form-group">
+            <label for="estimatorCtrInput" data-i18n="estimatorCtrLabel">نسبة النقر التقديرية CTR (%)</label>
+            <input id="estimatorCtrInput" type="number" step="0.1" min="0.1" value="3.5" required />
+          </div>
+          <div class="form-group">
+            <label for="estimatorConvValInput" data-i18n="estimatorConvValLabel">متوسط قيمة التحويل ($)</label>
+            <input id="estimatorConvValInput" type="number" step="0.01" min="0.01" value="12" required />
+          </div>
+          <button type="submit" class="btn btn-secondary" data-i18n="runEstimateBtn">احسب التقدير</button>
+        </form>
+        <div id="estimatorResultBox" class="summary-box" style="margin-top: 12px;"></div>
+      </div>
+
       <div class="section-header">
         <h3 data-i18n="create_campaign">Launch Ad Campaign</h3>
       </div>
@@ -359,10 +488,34 @@
         <button type="submit" class="tg-btn primary" data-i18n="launch_btn">Pay & Launch Ad</button>
       </form>
 
+      <form id="campaignForm" class="tg-card tg-form hidden">
+        <div class="form-group">
+          <label for="campaignTitleInput" data-i18n="campaignNameLabel">عنوان الحملة</label>
+          <input id="campaignTitleInput" type="text" />
+        </div>
+        <div class="form-group">
+          <label for="campaignBudgetInput" data-i18n="campaignBudgetLabel">ميزانية الحملة ($)</label>
+          <input id="campaignBudgetInput" type="number" step="0.01" min="1" value="500" />
+        </div>
+        <div class="form-group">
+          <label for="campaignTargetingSelect" data-i18n="targetingModeLabel">نوع الاستهداف</label>
+          <select id="campaignTargetingSelect">
+            <option value="specific" data-i18n="targetingSpecificOption">استهداف محدد</option>
+            <option value="open" disabled data-i18n="targetingOpenOption">استهداف مفتوح (يتطلب ميزانية أكبر من 1000$)</option>
+          </select>
+          <div class="rules-note" data-i18n="openTargetingHint">
+            ملاحظة: الاستهداف المفتوح متاح فقط عندما تكون الميزانية أكبر من 1000$. يتم حفظ المسودة تلقائياً أثناء الكتابة.
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary" data-i18n="createCampaignBtn">إنشاء الحملة وحجز الميزانية</button>
+      </form>
+      <div id="campaignNotice" class="notice hidden"></div>
+
       <div class="section-header">
         <h3 data-i18n="my_campaigns">My Campaigns</h3>
       </div>
       <div id="my-campaigns-list" class="tg-list"></div>
+      <div id="campaignsList" class="item-list"></div>
     </section>
 
     <!-- ==================== WALLET SECTION ==================== -->
@@ -420,6 +573,78 @@
         <div id="wallet-tx-list" class="tx-list"></div>
       </div>
 
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title" data-i18n="depositTitle">إيداع عبر USDT - BEP20</h3>
+          </div>
+          <p class="rules-note" data-i18n="depositInstructions">
+            أرسل مبلغاً لا يقل عن 10.00$ عبر شبكة USDT - BEP20 إلى العنوان التالي ثم أدخل رقم المعاملة TXID.
+          </p>
+          <div class="wallet-box" style="margin-top: 10px;">
+            <span id="depositAddressText">0x742d35Cc6634C0532925a3b844Bc454e4438f44e (USDT - BEP20)</span>
+            <button id="copyAddressBtn" type="button" class="btn btn-secondary btn-sm" data-i18n="copyAddressBtn">نسخ العنوان</button>
+          </div>
+          <form id="depositForm">
+            <div class="form-group">
+              <label for="depositAmountInput" data-i18n="depositAmountLabel">المبلغ ($)</label>
+              <input id="depositAmountInput" type="number" step="0.01" min="10" value="10" required />
+            </div>
+            <div class="form-group">
+              <label for="depositTxidInput" data-i18n="txidLabel">رقم المعاملة (TXID)</label>
+              <input id="depositTxidInput" type="text" placeholder="0xabc123..." required />
+            </div>
+            <button type="submit" class="btn btn-primary" data-i18n="submitDepositBtn">إرسال طلب الإيداع</button>
+          </form>
+          <div id="depositNotice" class="notice hidden"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title" data-i18n="withdrawTitle">طلب سحب الأرباح (USDT - TRC20)</h3>
+          </div>
+          <div class="summary-box">
+            <span class="stat-label" data-i18n="trc20SavedLabel">عنوان محفظة TRC20 المحفوظ</span>:
+            <strong id="savedTrc20Text">---</strong>
+          </div>
+          <div class="form-group">
+            <label for="trc20SaveInput" data-i18n="trc20AddressInputLabel">حفظ أو تعديل عنوان محفظة USDT - TRC20</label>
+            <div class="actions-inline">
+              <input id="trc20SaveInput" type="text" placeholder="T..." style="flex:1; min-width:200px;" />
+              <button id="saveTrc20Btn" type="button" class="btn btn-secondary btn-sm" data-i18n="saveTrc20Btn">حفظ العنوان</button>
+            </div>
+          </div>
+          <div id="withdrawSummaryText" class="summary-box"></div>
+          <form id="withdrawForm">
+            <div class="form-group">
+              <label for="withdrawAmountInput" data-i18n="withdrawAmountLabel">مبلغ السحب ($ - الحد الأدنى 30.00$)</label>
+              <input id="withdrawAmountInput" type="number" step="0.01" min="30" value="30" required />
+            </div>
+            <div class="form-group">
+              <label for="withdrawAddressInput" data-i18n="withdrawAddressLabel">عنوان محفظة الاستلام (TRC20)</label>
+              <input id="withdrawAddressInput" type="text" placeholder="T..." required />
+            </div>
+            <button type="submit" class="btn btn-primary" data-i18n="submitWithdrawBtn">تأكيد وإرسال طلب السحب</button>
+          </form>
+          <div id="withdrawNotice" class="notice hidden"></div>
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-top: 16px;">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title" data-i18n="withdrawalsTrackerTitle">تتبع طلبات السحب خطوة بخطوة</h3>
+          </div>
+          <div id="withdrawalsTrackerList" class="item-list"></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title" data-i18n="transactionsTitle">سجل المعاملات المالية (آخر 10 معاملات)</h3>
+          </div>
+          <div id="transactionsList" class="tx-list"></div>
+        </div>
+      </div>
+
       <div class="section-header">
         <h3 data-i18n="deposit_funds">Deposit Ad Funds</h3>
       </div>
@@ -447,6 +672,13 @@
           <input type="text" id="referral-link-input" readonly />
           <button type="button" id="copy-ref-btn" class="tg-btn primary" data-i18n="copy_link">Copy</button>
         </div>
+        <div class="form-group" style="margin-top: 12px;">
+          <label for="referralLinkInput" data-i18n="referralLinkLabel">رابط الإحالة الخاص بك</label>
+          <div class="wallet-box">
+            <input id="referralLinkInput" type="text" readonly />
+            <button id="copyReferralBtn" type="button" class="btn btn-secondary btn-sm" data-i18n="copyAddressBtn">نسخ العنوان</button>
+          </div>
+        </div>
       </div>
 
       <div class="balance-card-grid">
@@ -457,6 +689,10 @@
         <div class="tg-card balance-box">
           <span class="card-label" data-i18n="referral_earnings">Referral Earnings</span>
           <h2 class="card-value" id="ref-earnings">$0.00</h2>
+        </div>
+        <div class="tg-card balance-box">
+          <span class="card-label" data-i18n="referralTotalLabel">إجمالي أرباح الإحالة</span>
+          <h2 class="card-value" id="referralTotalValue">$0.00</h2>
         </div>
       </div>
 
@@ -479,6 +715,16 @@
       <div class="section-header">
         <h3 data-i18n="admin_panel">Admin Control Center</h3>
       </div>
+
+      <div class="topbar-controls" style="margin-bottom: 12px;">
+        <div>
+          <label for="adminKeyInput" data-i18n="adminKeyLabel">مفتاح الإدارة (Admin Key)</label>
+          <input id="adminKeyInput" type="password" placeholder="ADMIN_API_KEY" />
+        </div>
+        <button id="loadAdminBtn" type="button" class="btn btn-primary btn-sm" data-i18n="loadAdminBtn">دخول الإدارة</button>
+      </div>
+      <div id="adminNotice" class="notice hidden"></div>
+
       <div class="stats-row">
         <div class="tg-card stat-pill">
           <span class="stat-num" id="admin-total-users">0</span>
@@ -534,6 +780,164 @@
         </div>
       </div>
 
+      <div id="adminWorkspace" class="hidden">
+        <div class="card" style="background: var(--bg-card-alt); margin-bottom: 16px;">
+          <h4 class="card-title" style="margin-bottom: 10px;" data-i18n="adminLiveDashboardTitle">لوحة المؤشرات الحية (Live Dashboard)</h4>
+          <div id="liveDashboardGrid" class="grid-4" style="margin-bottom: 0;"></div>
+        </div>
+
+        <div class="card" style="background: var(--bg-card-alt); margin-bottom: 16px;">
+          <h4 class="card-title" style="margin-bottom: 10px;" data-i18n="adminDailyReportTitle">التقرير المالي اليومي الآلي</h4>
+          <div id="dailyReportBox" class="summary-box" style="margin-bottom: 0;"></div>
+        </div>
+
+        <div class="card" style="background: var(--bg-card-alt); margin-bottom: 16px;">
+          <div class="form-group">
+            <label for="maintenanceMessageInput">رسالة وضع الصيانة</label>
+            <input id="maintenanceMessageInput" type="text" value="النظام في وضع الصيانة حالياً لإجراء تحديثات أمان." />
+          </div>
+          <button id="toggleMaintenanceBtn" type="button" class="btn btn-warning" data-i18n="maintenanceToggleBtn">
+            تبديل وضع الصيانة
+          </button>
+        </div>
+
+        <div class="grid-2">
+          <div class="card" style="background: var(--bg-card-alt); margin-bottom: 0;">
+            <h4 class="card-title" style="margin-bottom: 10px;" data-i18n="adminBanTitle">نظام الحظر الفوري (مستخدم / قناة / معلن)</h4>
+            <form id="adminBanForm">
+              <div class="form-group">
+                <label for="adminBanTypeSelect">نوع الكيان</label>
+                <select id="adminBanTypeSelect">
+                  <option value="user">مستخدم (user)</option>
+                  <option value="channel">قناة (channel)</option>
+                  <option value="advertiser">معلن (advertiser)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="adminBanIdInput">معرف الكيان</label>
+                <input id="adminBanIdInput" type="text" required />
+              </div>
+              <div class="form-group">
+                <label for="adminBanReasonInput">السبب</label>
+                <input id="adminBanReasonInput" type="text" />
+              </div>
+              <div class="form-group">
+                <label><input id="adminBanUnbanCheckbox" type="checkbox" style="width:auto; margin-inline-end:6px;" /> إلغاء الحظر (Unban)</label>
+              </div>
+              <button type="submit" class="btn btn-danger">تنفيذ الحظر / التحديث</button>
+            </form>
+          </div>
+
+          <div class="card" style="background: var(--bg-card-alt); margin-bottom: 0;">
+            <h4 class="card-title" style="margin-bottom: 10px;" data-i18n="adminBlacklistTitle">إدارة القائمة السوداء للكلمات (Blacklist Words)</h4>
+            <div id="blacklistWordsBox" class="summary-box"></div>
+            <form id="adminBlacklistForm">
+              <div class="form-group">
+                <label for="adminBlacklistWordInput">الكلمة</label>
+                <input id="adminBlacklistWordInput" type="text" required />
+              </div>
+              <div class="form-group">
+                <label><input id="adminBlacklistRemoveCheckbox" type="checkbox" style="width:auto; margin-inline-end:6px;" /> حذف الكلمة من القائمة السوداء</label>
+              </div>
+              <button type="submit" class="btn btn-secondary">تحديث القائمة السوداء</button>
+            </form>
+          </div>
+        </div>
+
+        <div class="card" style="background: var(--bg-card-alt); margin-top: 16px; margin-bottom: 16px;">
+          <h4 class="card-title" style="margin-bottom: 10px;" data-i18n="adminEmergencyStopTitle">إيقاف / حذف إعلان طارئ فوراً من جميع القنوات</h4>
+          <form id="adminEmergencyStopForm" class="grid-2">
+            <div class="form-group">
+              <label for="adminEmergencyCampaignIdInput">معرف الحملة (Campaign ID)</label>
+              <input id="adminEmergencyCampaignIdInput" type="text" required />
+            </div>
+            <div class="form-group">
+              <label for="adminEmergencyReasonInput">سبب الإيقاف الطارئ</label>
+              <input id="adminEmergencyReasonInput" type="text" required />
+            </div>
+            <div style="grid-column: 1 / -1;">
+              <button type="submit" class="btn btn-danger">إيقاف طارئ فوري من جميع القنوات</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card" style="background: var(--bg-card-alt); margin-bottom: 16px;">
+          <h4 class="card-title" style="margin-bottom: 10px;" data-i18n="adminAdjustTitle">تعديل رصيد مستخدم يدوياً</h4>
+          <form id="adminAdjustForm" class="grid-2">
+            <div class="form-group">
+              <label for="adminTargetUserInput" data-i18n="adminTargetUserLabel">معرف المستخدم المستهدف</label>
+              <input id="adminTargetUserInput" type="text" required />
+            </div>
+            <div class="form-group">
+              <label for="adminAdjustModeSelect" data-i18n="adminAdjustModeLabel">العملية</label>
+              <select id="adminAdjustModeSelect">
+                <option value="add" data-i18n="adminAddOption">إضافة رصيد</option>
+                <option value="deduct" data-i18n="adminDeductOption">خصم رصيد</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="adminBucketSelect" data-i18n="adminBucketLabel">نوع الرصيد</label>
+              <select id="adminBucketSelect">
+                <option value="walletBalance">walletBalance (المحفظة)</option>
+                <option value="availableEarnings">availableEarnings (المتاح للسحب)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="adminAmountInput" data-i18n="adminAmountLabel">المبلغ ($)</label>
+              <input id="adminAmountInput" type="number" step="0.01" min="0.01" required />
+            </div>
+            <div class="form-group" style="grid-column: 1 / -1;">
+              <label for="adminReasonInput" data-i18n="adminReasonLabel">السبب (إجباري)</label>
+              <input id="adminReasonInput" type="text" required />
+            </div>
+            <div style="grid-column: 1 / -1;">
+              <button type="submit" class="btn btn-primary" data-i18n="adminApplyAdjustBtn">تنفيذ التعديل المالي</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card" style="background: var(--bg-card-alt); margin-bottom: 16px;">
+          <h4 class="card-title" style="margin-bottom: 10px;" data-i18n="adminBroadcastTitle">الإرسال الجماعي (Broadcast) والتنبيهات الفورية</h4>
+          <form id="adminBroadcastForm">
+            <div class="form-group">
+              <label for="adminBroadcastTitleInput" data-i18n="adminBroadcastTitleInputLabel">عنوان التنبيه</label>
+              <input id="adminBroadcastTitleInput" type="text" required />
+            </div>
+            <div class="form-group">
+              <label for="adminBroadcastBodyInput" data-i18n="adminBroadcastBodyLabel">نص الرسالة الجماعية</label>
+              <textarea id="adminBroadcastBodyInput" rows="2" required></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary" data-i18n="adminSendBroadcastBtn">إرسال التنبيه الجماعي</button>
+          </form>
+        </div>
+
+        <div class="grid-2">
+          <div>
+            <h4 class="card-title" style="margin-bottom: 10px;" data-i18n="adminDepositsTitle">طلبات الإيداع للمراجعة</h4>
+            <div id="adminDepositsList" class="item-list"></div>
+          </div>
+          <div>
+            <h4 class="card-title" style="margin-bottom: 10px;" data-i18n="adminWithdrawalsTitle">طلبات السحب للمراجعة وإدارة المراحل</h4>
+            <div id="adminWithdrawalsList" class="item-list"></div>
+          </div>
+        </div>
+
+        <div style="margin-top: 16px;">
+          <h4 class="card-title" style="margin-bottom: 10px;" data-i18n="adminTicketsTitle">تذاكر الدعم الفني والرد المباشر</h4>
+          <div id="adminTicketsList" class="item-list"></div>
+        </div>
+
+        <div style="margin-top: 16px;">
+          <h4 class="card-title" style="margin-bottom: 10px;" data-i18n="adminAuditLogsTitle">سجل العمليات المشبوهة (Audit Logs)</h4>
+          <div id="adminAuditLogsList" class="item-list"></div>
+        </div>
+
+        <div style="margin-top: 16px;">
+          <h4 class="card-title" style="margin-bottom: 10px;" data-i18n="adminSecurityLogsTitle">سجلات الأمان والعمليات الحساسة</h4>
+          <div id="adminSecurityLogsList" class="item-list"></div>
+        </div>
+      </div>
+
       <div class="section-header">
         <h3 data-i18n="pending_channels">Pending Channels</h3>
       </div>
@@ -555,6 +959,11 @@
       <div id="admin-logs-list" class="tg-list"></div>
     </section>
   </main>
+
+  <footer class="mandatory-footer">
+    <span class="stat-label" data-i18n="footerNotice">التذييل الإجباري لمنصة Telega.ads - جميع الحقوق محفوظة.</span>
+    <a id="footerReferralLink" href="?ref=user_demo_01" data-i18n="footerReferralAnchorText">انضم عبر رابط إحالة الناشر</a>
+  </footer>
 
   <div id="toast" class="toast hidden"></div>
 
