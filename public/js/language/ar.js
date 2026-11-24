@@ -5,7 +5,6 @@ const AR_TRANSLATIONS = {
   nav_promote: 'الترويج',
   nav_wallet: 'المحفظة',
   nav_referral: 'الإحالة',
-  nav_workspace: 'مساحة العمل',
   nav_admin: 'الإدارة',
 
   // Legacy Balances, Stats & Activity
@@ -67,12 +66,10 @@ const AR_TRANSLATIONS = {
   status_rejected: 'مرفوض',
   status_completed: 'مكتمل',
 
-  // New Header & Workspace Tabs
+  // Header & App Metadata
   app_title: 'Telega.ads',
   app_subtitle: 'منصة إدارة القنوات والحملات الإعلانية',
   lang_switch: 'English',
-  tab_my_channels: 'قنواتي',
-  tab_promotion: 'الترويج',
 
   // My Channels Section
   channels_section_title: 'إدارة قنواتي',
