@@ -2,10 +2,12 @@
   function resolveDictionaries() {
     try {
       const arDict =
-        (typeof window !== 'undefined' && (window.AR_TRANSLATIONS || window.LANG_AR)) ||
+        (typeof window !== 'undefined' &&
+          (window.AR_TRANSLATIONS || window.LANG_AR || window.TELEGA_LANG_AR)) ||
         (typeof AR_TRANSLATIONS !== 'undefined' ? AR_TRANSLATIONS : {});
       const enDict =
-        (typeof window !== 'undefined' && (window.EN_TRANSLATIONS || window.LANG_EN)) ||
+        (typeof window !== 'undefined' &&
+          (window.EN_TRANSLATIONS || window.LANG_EN || window.TELEGA_LANG_EN)) ||
         (typeof EN_TRANSLATIONS !== 'undefined' ? EN_TRANSLATIONS : {});
       return {
         ar: arDict && typeof arDict === 'object' ? arDict : {},
@@ -58,7 +60,10 @@
           typeof window !== 'undefined'
             ? window.Telegram?.WebApp?.initDataUnsafe?.user?.language_code
             : null;
-        const navLang = typeof navigator !== 'undefined' ? navigator.language : null;
+        const navLang =
+          typeof navigator !== 'undefined'
+            ? navigator.language || navigator.userLanguage
+            : null;
         const detected = serverLang || tgUserLang || navLang || 'ar';
         if (String(detected).toLowerCase().startsWith('ar')) {
           return 'ar';
@@ -140,6 +145,14 @@
       }
     },
 
+    applyLanguage(lang) {
+      this.setLanguage(lang === 'en' ? 'en' : 'ar');
+    },
+
+    getLang() {
+      return this.currentLang;
+    },
+
     toggleLanguage() {
       try {
         const nextLang = this.currentLang === 'ar' ? 'en' : 'ar';
@@ -152,9 +165,16 @@
     }
   };
 
+  I18N.currentLang = I18N.detectInitialLanguage();
+
   if (typeof window !== 'undefined') {
     window.I18N = I18N;
     window.I18n = I18N;
+    window.TelegaI18n = {
+      applyLanguage: (lang) => I18N.applyLanguage(lang),
+      t: (key) => I18N.t(key),
+      getLang: () => I18N.getLang()
+    };
   }
 
   if (typeof module !== 'undefined' && module.exports) {
