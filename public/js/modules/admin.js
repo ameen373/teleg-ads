@@ -1,18 +1,17 @@
-// ==================== ADMIN QUEUE, REFERRALS & SYSTEM RELIABILITY ====================
 (function () {
-  function t(key, fallback = '') {
+  function translateKey(key, fallback = '', ctx) {
     if (!key) return fallback;
     try {
-      if (window.TelegaI18n && typeof window.TelegaI18n.t === 'function') {
-        const val = window.TelegaI18n.t(key);
+      if (ctx && typeof ctx.t === 'function') {
+        const val = ctx.t(key, ctx);
         if (val !== undefined && val !== null) return val;
       }
-      if (window.I18n && typeof window.I18n.t === 'function') {
-        const val = window.I18n.t(key);
+      if (window.TelegaI18n && typeof window.TelegaI18n.t === 'function') {
+        const val = window.TelegaI18n.t(key, ctx);
         if (val !== undefined && val !== null) return val;
       }
       if (window.I18N && typeof window.I18N.t === 'function') {
-        const val = window.I18N.t(key);
+        const val = window.I18N.t(key, ctx);
         if (val !== undefined && val !== null) return val;
       }
     } catch (err) {
@@ -21,24 +20,10 @@
     return fallback || key;
   }
 
-  function toast(message) {
-    if (!message) return;
-    try {
-      if (typeof window.showToast === 'function') {
-        window.showToast(message);
-      } else if (window.UI && typeof window.UI.showToast === 'function') {
-        window.UI.showToast(message);
-      } else if (window.UI && typeof window.UI.notify === 'function') {
-        window.UI.notify(message);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
   function esc(str) {
-    if (typeof window.escapeHTML === 'function') return window.escapeHTML(str);
-    if (window.UI && typeof window.UI.escapeHTML === 'function') return window.UI.escapeHTML(str);
+    if (window.UI && typeof window.UI.escapeHTML === 'function') {
+      return window.UI.escapeHTML(str);
+    }
     if (str === null || str === undefined) return '';
     return String(str)
       .replace(/&/g, '&amp;')
@@ -48,247 +33,307 @@
       .replace(/'/g, '&#39;');
   }
 
-  function getEl(id) {
+  function getState(ctx) {
+    if (ctx && ctx.state && typeof ctx.state === 'object') return ctx.state;
+    if (window.AppState && typeof window.AppState === 'object') return window.AppState;
+    if (typeof AppState !== 'undefined' && AppState && typeof AppState === 'object') return AppState;
+    return null;
+  }
+
+  function getEl(id, ctx) {
+    if (!id) return null;
+    if (ctx && typeof ctx.el === 'function') {
+      const node = ctx.el(id);
+      if (node) return node;
+    }
+    if (ctx && ctx.root && typeof ctx.root.querySelector === 'function') {
+      const escaped = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(id) : id;
+      const found = ctx.root.querySelector(`#${escaped}`);
+      if (found) return found;
+    }
     return document.getElementById(id);
   }
 
-  function showAdminNotice(message, isError = false) {
+  function toast(message, ctx) {
     if (!message) return;
     try {
-      if (window.UI && typeof window.UI.showNotice === 'function') {
-        window.UI.showNotice('adminNotice', message, isError);
-      } else if (typeof window.showNotice === 'function') {
-        window.showNotice('adminNotice', message, isError);
+      if (window.UI && typeof window.UI.showToast === 'function') {
+        window.UI.showToast(message, ctx);
+      } else if (window.UI && typeof window.UI.notify === 'function') {
+        window.UI.notify(message);
       }
     } catch (err) {
       console.error(err);
     }
-    toast(message);
   }
 
-  function clearAdminNotice() {
+  function showAdminNotice(message, isError = false, ctx) {
+    if (!message) return;
     try {
-      if (window.UI && typeof window.UI.clearNotice === 'function') {
-        window.UI.clearNotice('adminNotice');
-      } else if (typeof window.clearNotice === 'function') {
-        window.clearNotice('adminNotice');
+      if (ctx && typeof ctx.showNotice === 'function') {
+        ctx.showNotice('adminNotice', message, isError);
+      } else if (window.UI && typeof window.UI.showNotice === 'function') {
+        window.UI.showNotice('adminNotice', message, isError, ctx);
       }
     } catch (err) {
       console.error(err);
     }
+    toast(message, ctx);
   }
 
-  function syncMaintenanceBanner(enabled, message) {
+  function clearAdminNotice(ctx) {
     try {
-      if (window.UI && typeof window.UI.renderMaintenanceBanner === 'function') {
-        window.UI.renderMaintenanceBanner({ maintenanceMode: Boolean(enabled), maintenanceMessage: message });
-      } else if (typeof window.renderMaintenanceBanner === 'function') {
-        window.renderMaintenanceBanner({ maintenanceMode: Boolean(enabled), maintenanceMessage: message });
+      if (ctx && typeof ctx.clearNotice === 'function') {
+        ctx.clearNotice('adminNotice');
+      } else if (window.UI && typeof window.UI.clearNotice === 'function') {
+        window.UI.clearNotice('adminNotice', ctx);
       }
     } catch (err) {
       console.error(err);
     }
   }
 
-  function getState() {
-    if (window.AppState) return window.AppState;
-    if (typeof AppState !== 'undefined') return AppState;
-    return null;
+  function syncMaintenanceBanner(enabled, message, ctx) {
+    try {
+      if (ctx && typeof ctx.renderMaintenanceBanner === 'function') {
+        ctx.renderMaintenanceBanner({
+          maintenanceMode: Boolean(enabled),
+          maintenanceMessage: message
+        });
+      } else if (window.UI && typeof window.UI.renderMaintenanceBanner === 'function') {
+        window.UI.renderMaintenanceBanner(
+          { maintenanceMode: Boolean(enabled), maintenanceMessage: message },
+          undefined,
+          ctx
+        );
+      }
+    } catch (err) {
+      console.error(err);
+    }
   }
 
   function buildContext(ctx) {
     if (ctx && ctx.state) return ctx;
     if (window.App && typeof window.App.getContext === 'function') {
-      return window.App.getContext();
+      const appCtx = window.App.getContext();
+      if (appCtx) return appCtx;
     }
-    const state = getState();
-    return {
+    const state = getState(ctx);
+    const baseCtx = {
       state,
-      el: getEl,
-      apiRequest: async (url, options = {}) => sendRequest(url, options.method || 'GET', options.body ? JSON.parse(options.body) : undefined, options.headers),
-      showNotice: (_targetOrMsg, msgOrErr, maybeErr) => {
-        if (typeof maybeErr === 'boolean') {
-          showAdminNotice(msgOrErr, maybeErr);
-        } else {
-          showAdminNotice(_targetOrMsg, Boolean(msgOrErr));
+      el: (id) => document.getElementById(id),
+      t: (key) => translateKey(key, key, baseCtx),
+      apiRequest: async (url, options = {}) => {
+        const headers = Object.assign(
+          {},
+          state?.userId ? { 'x-user-id': String(state.userId) } : {},
+          state?.adminKey ? { 'x-admin-key': String(state.adminKey) } : {},
+          options && options.headers ? options.headers : {}
+        );
+        if (options && options.body !== undefined && !headers['Content-Type']) {
+          headers['Content-Type'] = 'application/json';
+        }
+        const res = await fetch(url, Object.assign({}, options, { headers }));
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.ok === false || data.success === false) {
+          const err = new Error(data.error || data.message || 'Request failed');
+          err.status = res.status;
+          err.data = data;
+          throw err;
+        }
+        return data;
+      },
+      showNotice: (targetId, message, isError) => {
+        if (window.UI && typeof window.UI.showNotice === 'function') {
+          window.UI.showNotice(targetId, message, isError, baseCtx);
         }
       },
-      clearNotice: () => clearAdminNotice(),
+      clearNotice: (targetId) => {
+        if (window.UI && typeof window.UI.clearNotice === 'function') {
+          window.UI.clearNotice(targetId, baseCtx);
+        }
+      },
+      renderMaintenanceBanner: (data) => {
+        if (window.UI && typeof window.UI.renderMaintenanceBanner === 'function') {
+          window.UI.renderMaintenanceBanner(data, undefined, baseCtx);
+        }
+      },
       refreshWallet: async () => {
-        if (window.WalletModule && typeof window.WalletModule.refresh === 'function') {
-          await window.WalletModule.refresh();
-        } else if (typeof window.fetchWallet === 'function') {
-          await window.fetchWallet();
+        if (typeof window.refreshWallet === 'function') {
+          await window.refreshWallet(baseCtx);
         }
       },
       refreshCampaigns: async () => {
-        if (window.CampaignsModule && typeof window.CampaignsModule.load === 'function') {
-          await window.CampaignsModule.load();
-        } else if (typeof window.fetchCampaigns === 'function') {
-          await window.fetchCampaigns();
+        if (typeof window.refreshCampaigns === 'function') {
+          await window.refreshCampaigns(baseCtx);
+        }
+      },
+      refreshChannels: async () => {
+        if (typeof window.refreshChannels === 'function') {
+          await window.refreshChannels(baseCtx);
         }
       },
       refreshTicketsAndBroadcasts: async () => {
-        if (window.App && typeof window.App.getContext === 'function') {
-          await window.App.getContext().refreshTicketsAndBroadcasts();
+        if (window.UI && typeof window.UI.refreshTicketsAndBroadcasts === 'function') {
+          await window.UI.refreshTicketsAndBroadcasts(baseCtx);
         }
       }
     };
-  }
-
-  async function sendRequest(url, method, body, extraHeaders = {}) {
-    try {
-      const state = getState();
-      const adminKey = extraHeaders['x-admin-key'] || state?.adminKey || '';
-      const userId = extraHeaders['x-user-id'] || state?.userId || '';
-
-      if (typeof window.apiSend === 'function' && !adminKey) {
-        return await window.apiSend(url, method, body);
-      }
-      if (window.Api && typeof window.Api.send === 'function' && !adminKey) {
-        return await window.Api.send(url, method, body);
-      }
-
-      const headers = Object.assign(
-        {},
-        window.Api?.getInitData ? { 'x-telegram-init-data': window.Api.getInitData() } : {},
-        userId ? { 'x-user-id': userId } : {},
-        adminKey ? { 'x-admin-key': adminKey } : {},
-        extraHeaders
-      );
-
-      const options = {
-        method,
-        headers
-      };
-
-      if (body !== undefined) {
-        headers['Content-Type'] = 'application/json';
-        options.body = typeof body === 'string' ? body : JSON.stringify(body);
-      }
-
-      const res = await fetch(url, options);
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || data.ok === false || data.success === false) {
-        const err = new Error(data.error || data.message || 'Request failed');
-        err.status = res.status;
-        err.data = data;
-        throw err;
-      }
-      return data;
-    } catch (err) {
-      console.error(err);
-      throw err;
-    }
+    return baseCtx;
   }
 
   async function callAdminApi(ctx, url, method = 'POST', body = undefined) {
     const activeCtx = buildContext(ctx);
     const adminKey = activeCtx.state?.adminKey || '';
-    if (typeof activeCtx.apiRequest === 'function') {
-      const opts = {
-        method,
-        headers: Object.assign({}, adminKey ? { 'x-admin-key': adminKey } : {})
-      };
-      if (body !== undefined) {
-        opts.headers['Content-Type'] = 'application/json';
-        opts.body = typeof body === 'string' ? body : JSON.stringify(body);
-      }
-      return await activeCtx.apiRequest(url, opts, activeCtx);
+    const opts = {
+      method,
+      headers: Object.assign({}, adminKey ? { 'x-admin-key': String(adminKey) } : {})
+    };
+    if (body !== undefined) {
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = typeof body === 'string' ? body : JSON.stringify(body);
     }
-    return await sendRequest(url, method, body, adminKey ? { 'x-admin-key': adminKey } : {});
+    return await activeCtx.apiRequest(url, opts, activeCtx);
   }
 
-  async function refreshChannelsData() {
+  async function refreshChannelsData(ctx) {
     try {
-      if (typeof window.fetchChannels === 'function') {
-        await window.fetchChannels();
-      } else if (window.Api && typeof window.Api.fetchChannels === 'function') {
-        await window.Api.fetchChannels();
+      const activeCtx = buildContext(ctx);
+      if (typeof activeCtx.refreshChannels === 'function') {
+        await activeCtx.refreshChannels();
+      } else if (typeof window.refreshChannels === 'function') {
+        await window.refreshChannels(activeCtx);
       }
+      renderAdminQueue(activeCtx);
     } catch (err) {
       console.error(err);
     }
   }
 
-  async function refreshReliabilityState() {
+  async function refreshReferrals(ctx) {
+    const activeCtx = buildContext(ctx);
+    const state = activeCtx.state;
     try {
-      if (typeof window.fetchReliabilityData === 'function') {
-        await window.fetchReliabilityData();
-      } else if (window.Api && typeof window.Api.fetchReliabilityData === 'function') {
-        await window.Api.fetchReliabilityData();
+      const query = state?.userId ? `?userId=${encodeURIComponent(state.userId)}` : '';
+      const data = await activeCtx.apiRequest(`/api/referrals${query}`, { method: 'GET' }, activeCtx);
+      if (state && Array.isArray(data?.referrals)) {
+        state.referrals = data.referrals;
       }
+      renderReferrals(activeCtx);
+      return data;
     } catch (err) {
       console.error(err);
     }
   }
 
-  async function reviewChannelDecision(id, decision) {
+  async function refreshReliabilityState(ctx) {
+    const activeCtx = buildContext(ctx);
+    const state = activeCtx.state;
     try {
-      const json = await sendRequest(`/api/channels/${encodeURIComponent(id)}/review`, 'POST', { decision });
-      if (json && json.success) {
-        toast(t('msg_review_updated'));
-        await refreshChannelsData();
+      const query = state?.userId ? `?userId=${encodeURIComponent(state.userId)}` : '';
+      const data = await activeCtx.apiRequest(`/api/system/reliability${query}`, { method: 'GET' }, activeCtx);
+      if (state && data) {
+        if (data.health) state.health = data.health;
+        if (Array.isArray(data.notifications)) state.notifications = data.notifications;
+        if (Array.isArray(data.publishLogs)) state.publishLogs = data.publishLogs;
+        if (Array.isArray(data.backups)) state.backups = data.backups;
+      }
+      renderReliabilityPanel(activeCtx);
+      return data;
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function reviewChannelDecision(id, decision, ctx) {
+    const activeCtx = buildContext(ctx);
+    try {
+      const json = await activeCtx.apiRequest(
+        `/api/channels/${encodeURIComponent(id)}/review`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ decision })
+        },
+        activeCtx
+      );
+      if (json && (json.success || json.ok !== false)) {
+        toast(translateKey('msg_review_updated', 'Review updated', activeCtx), activeCtx);
+        await refreshChannelsData(activeCtx);
+        if (stateHasAdminKey(activeCtx)) {
+          await refreshAdminPanel(activeCtx);
+        }
       } else if (json && json.message) {
-        toast(json.message);
+        toast(json.message, activeCtx);
       }
     } catch (err) {
       console.error(err);
-      toast(err.message);
+      toast(err.message, activeCtx);
     }
   }
 
-  function renderAdminQueue() {
-    const container = getEl('admin-queue-container');
+  function stateHasAdminKey(ctx) {
+    return Boolean(ctx?.state?.adminKey);
+  }
+
+  function renderAdminQueue(ctx) {
+    const activeCtx = buildContext(ctx);
+    const container = getEl('admin-queue-container', activeCtx);
     if (!container) return;
 
     try {
-      const state = getState();
+      const state = getState(activeCtx);
       const channels = state && Array.isArray(state.channels) ? state.channels : [];
       const pending = channels.filter(
         (c) => c.isPublic !== false && c.approvalStatus === 'pending_review'
       );
 
       if (!pending.length) {
-        container.innerHTML = `<div class="empty-state">${esc(t('no_pending_channels', t('no_data')))}</div>`;
+        container.innerHTML = `<div class="empty-state">${esc(translateKey('no_pending_channels', translateKey('no_data', 'No data', activeCtx), activeCtx))}</div>`;
         return;
       }
 
       container.innerHTML = pending
         .map((ch) => {
-          const safeId = esc(ch._id);
+          const safeId = esc(ch._id || ch.id);
           return `
             <div class="item-card">
               <div class="item-summary">
                 <div class="item-title-group">
-                  <span class="item-title">${esc(ch.name)}</span>
-                  <span class="item-subtitle">${esc(ch.username)}</span>
-                  <span class="badge badge-draft">${esc(ch.subscribersCount || 0)}</span>
+                  <span class="item-title">${esc(ch.name || ch.title || '')}</span>
+                  <span class="item-subtitle">${esc(ch.username || ch.channelUsername || '')}</span>
+                  <span class="badge badge-draft">${esc(ch.subscribersCount ?? ch.subscribers ?? 0)}</span>
                 </div>
                 <div class="detail-actions">
-                  <button type="button" class="btn btn-success btn-sm" onclick="reviewChannelDecision('${safeId}', 'approved')">${esc(t('btn_approve_channel', t('approve')))}</button>
-                  <button type="button" class="btn btn-danger btn-sm" onclick="reviewChannelDecision('${safeId}', 'rejected')">${esc(t('btn_reject_channel', t('reject')))}</button>
+                  <button type="button" class="btn btn-success btn-sm" data-queue-id="${safeId}" data-queue-decision="approved">${esc(translateKey('btn_approve_channel', translateKey('approve', 'Approve', activeCtx), activeCtx))}</button>
+                  <button type="button" class="btn btn-danger btn-sm" data-queue-id="${safeId}" data-queue-decision="rejected">${esc(translateKey('btn_reject_channel', translateKey('reject', 'Reject', activeCtx), activeCtx))}</button>
                 </div>
               </div>
             </div>
           `;
         })
         .join('');
+
+      container.querySelectorAll('[data-queue-id]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          reviewChannelDecision(btn.getAttribute('data-queue-id'), btn.getAttribute('data-queue-decision'), activeCtx);
+        });
+      });
     } catch (err) {
       console.error(err);
     }
   }
 
-  function renderReferrals() {
-    const container = getEl('referrals-container');
+  function renderReferrals(ctx) {
+    const activeCtx = buildContext(ctx);
+    const container = getEl('referrals-container', activeCtx);
     if (!container) return;
 
     try {
-      const state = getState();
+      const state = getState(activeCtx);
       const referrals = state && Array.isArray(state.referrals) ? state.referrals : [];
 
       if (!referrals.length) {
-        container.innerHTML = `<div class="empty-state">${esc(t('no_referrals', t('no_data')))}</div>`;
+        container.innerHTML = `<div class="empty-state">${esc(translateKey('no_referrals', translateKey('no_data', 'No data', activeCtx), activeCtx))}</div>`;
         return;
       }
 
@@ -298,9 +343,9 @@
           return `
             <div class="item-card">
               <div class="detail-grid" style="margin-bottom:0;">
-                <div class="detail-row"><span class="label">${esc(t('referral_publisher'))}</span><strong>${esc(ref.publisherTelegramId)}</strong></div>
-                <div class="detail-row"><span class="label">${esc(t('referral_user'))}</span><strong>${esc(ref.referredUsername || ref.referredTelegramId)}</strong></div>
-                <div class="detail-row"><span class="label">${esc(t('referral_channel'))}</span><strong>${esc(chName)}</strong></div>
+                <div class="detail-row"><span class="label">${esc(translateKey('referral_publisher', 'Publisher:', activeCtx))}</span><strong>${esc(ref.publisherTelegramId || ref.publisherId || '-')}</strong></div>
+                <div class="detail-row"><span class="label">${esc(translateKey('referral_user', 'User:', activeCtx))}</span><strong>${esc(ref.referredUsername || ref.referredTelegramId || ref.userId || '-')}</strong></div>
+                <div class="detail-row"><span class="label">${esc(translateKey('referral_channel', 'Channel:', activeCtx))}</span><strong>${esc(chName)}</strong></div>
               </div>
             </div>
           `;
@@ -311,34 +356,35 @@
     }
   }
 
-  function renderReliabilityPanel() {
+  function renderReliabilityPanel(ctx) {
+    const activeCtx = buildContext(ctx);
     try {
-      const state = getState();
+      const state = getState(activeCtx);
 
-      const healthBox = getEl('system-health-box');
+      const healthBox = getEl('system-health-box', activeCtx);
       if (healthBox && state && state.health) {
         const h = state.health;
         healthBox.innerHTML = `
-          <div class="detail-row"><span class="label">${esc(t('health_server'))}</span><strong>${esc(h.serverStatus)}</strong></div>
-          <div class="detail-row"><span class="label">${esc(t('health_bot'))}</span><strong>${esc(h.botUsername)} (${h.botConfigured ? 'OK' : 'Token'})</strong></div>
-          <div class="detail-row"><span class="label">${esc(t('health_uptime'))}</span><strong>${esc(h.uptimeSeconds)}s</strong></div>
-          <div class="detail-row"><span class="label">${esc(t('health_channels'))}</span><strong>${esc(h.healthyBotChannels)} / ${esc(h.totalChannels)}</strong></div>
+          <div class="detail-row"><span class="label">${esc(translateKey('health_server', 'Server:', activeCtx))}</span><strong>${esc(h.serverStatus || 'OK')}</strong></div>
+          <div class="detail-row"><span class="label">${esc(translateKey('health_bot', 'Bot:', activeCtx))}</span><strong>${esc(h.botUsername || '@adTelega_bot')} (${h.botConfigured ? 'OK' : 'Token'})</strong></div>
+          <div class="detail-row"><span class="label">${esc(translateKey('health_uptime', 'Uptime:', activeCtx))}</span><strong>${esc(h.uptimeSeconds ?? 0)}s</strong></div>
+          <div class="detail-row"><span class="label">${esc(translateKey('health_channels', 'Channels:', activeCtx))}</span><strong>${esc(h.healthyBotChannels ?? 0)} / ${esc(h.totalChannels ?? 0)}</strong></div>
         `;
       }
 
-      const notifList = getEl('notifications-list');
+      const notifList = getEl('notifications-list', activeCtx);
       if (notifList) {
         const notifications = state && Array.isArray(state.notifications) ? state.notifications : [];
         if (!notifications.length) {
-          notifList.innerHTML = `<div class="empty-state">${esc(t('no_notifications', t('no_data')))}</div>`;
+          notifList.innerHTML = `<div class="empty-state">${esc(translateKey('no_notifications', translateKey('no_data', 'No data', activeCtx), activeCtx))}</div>`;
         } else {
           notifList.innerHTML = notifications
             .map(
               (n) => `
               <div class="tx-row">
                 <div>
-                  <strong>${esc(n.title)}</strong> ·
-                  <span>${esc(n.message)}</span>
+                  <strong>${esc(n.title || '')}</strong> ·
+                  <span>${esc(n.message || '')}</span>
                 </div>
                 <span class="badge ${n.isRead ? 'badge-price' : 'badge-draft'}">${n.isRead ? 'Read' : 'New'}</span>
               </div>
@@ -348,11 +394,11 @@
         }
       }
 
-      const logsList = getEl('publish-logs-list');
+      const logsList = getEl('publish-logs-list', activeCtx);
       if (logsList) {
         const publishLogs = state && Array.isArray(state.publishLogs) ? state.publishLogs : [];
         if (!publishLogs.length) {
-          logsList.innerHTML = `<div class="empty-state">${esc(t('no_publish_logs', t('no_data')))}</div>`;
+          logsList.innerHTML = `<div class="empty-state">${esc(translateKey('no_publish_logs', translateKey('no_data', 'No data', activeCtx), activeCtx))}</div>`;
         } else {
           logsList.innerHTML = publishLogs
             .map((l) => {
@@ -363,11 +409,11 @@
               return `
                 <div class="tx-row">
                   <div>
-                    <strong>${esc(l.campaignTitle)}</strong> →
-                    <span>${esc(l.channelName)}</span>
+                    <strong>${esc(l.campaignTitle || '')}</strong> →
+                    <span>${esc(l.channelName || '')}</span>
                     ${detailsHtml}
                   </div>
-                  <span class="badge ${badgeClass}">${esc(l.status)}</span>
+                  <span class="badge ${badgeClass}">${esc(l.status || '')}</span>
                 </div>
               `;
             })
@@ -375,21 +421,21 @@
         }
       }
 
-      const backupsList = getEl('backups-list');
+      const backupsList = getEl('backups-list', activeCtx);
       if (backupsList) {
         const backups = state && Array.isArray(state.backups) ? state.backups : [];
         if (!backups.length) {
-          backupsList.innerHTML = `<div class="empty-state">${esc(t('no_backups', t('no_data')))}</div>`;
+          backupsList.innerHTML = `<div class="empty-state">${esc(translateKey('no_backups', translateKey('no_data', 'No data', activeCtx), activeCtx))}</div>`;
         } else {
           backupsList.innerHTML = backups
             .map(
               (b) => `
               <div class="tx-row">
                 <div>
-                  <strong dir="ltr">${esc(b.filename)}</strong> ·
+                  <strong dir="ltr">${esc(b.filename || '')}</strong> ·
                   <span>${esc(b.totalRecords || 0)} records</span>
                 </div>
-                <span class="badge badge-price">${esc(b.status)}</span>
+                <span class="badge badge-price">${esc(b.status || '')}</span>
               </div>
             `
             )
@@ -401,33 +447,35 @@
     }
   }
 
-  async function createManualBackup() {
+  async function createManualBackup(ctx) {
+    const activeCtx = buildContext(ctx);
     try {
-      const json = await sendRequest('/api/system/backups', 'POST');
-      if (json && json.success) {
-        toast(t('msg_backup_created'));
-        await refreshReliabilityState();
+      const json = await callAdminApi(activeCtx, '/api/system/backups', 'POST');
+      if (json && (json.success || json.ok !== false)) {
+        toast(translateKey('msg_backup_created', 'Backup created', activeCtx), activeCtx);
+        await refreshReliabilityState(activeCtx);
       } else if (json && json.message) {
-        toast(json.message);
+        toast(json.message, activeCtx);
       }
     } catch (err) {
       console.error(err);
-      toast(err.message);
+      toast(err.message, activeCtx);
     }
   }
 
-  async function markNotificationsRead() {
+  async function markNotificationsRead(ctx) {
+    const activeCtx = buildContext(ctx);
     try {
-      const json = await sendRequest('/api/notifications/read-all', 'POST');
-      if (json && json.success) {
-        toast(t('msg_notifications_read'));
-        await refreshReliabilityState();
+      const json = await callAdminApi(activeCtx, '/api/notifications/read-all', 'POST');
+      if (json && (json.success || json.ok !== false)) {
+        toast(translateKey('msg_notifications_read', 'Notifications marked read', activeCtx), activeCtx);
+        await refreshReliabilityState(activeCtx);
       } else if (json && json.message) {
-        toast(json.message);
+        toast(json.message, activeCtx);
       }
     } catch (err) {
       console.error(err);
-      toast(err.message);
+      toast(err.message, activeCtx);
     }
   }
 
@@ -442,13 +490,33 @@
 
       if (typeof data.maintenanceMode === 'boolean') {
         state.maintenanceMode = data.maintenanceMode;
-        syncMaintenanceBanner(data.maintenanceMode, data.maintenanceMessage || '');
+        syncMaintenanceBanner(data.maintenanceMode, data.maintenanceMessage || '', activeCtx);
       }
 
-      const workspace = getEl('adminWorkspace');
+      const workspace = getEl('adminWorkspace', activeCtx);
       if (workspace) workspace.classList.remove('hidden');
 
-      const liveGrid = getEl('liveDashboardGrid');
+      const totalUsersEl = getEl('admin-total-users', activeCtx);
+      const pendingChEl = getEl('admin-pending-ch', activeCtx);
+      const pendingTxEl = getEl('admin-pending-tx', activeCtx);
+      if (totalUsersEl && data.stats) totalUsersEl.textContent = data.stats.totalUsers ?? 0;
+      if (pendingChEl && data.stats) pendingChEl.textContent = data.stats.pendingChannelsCount ?? 0;
+      if (pendingTxEl && data.stats) pendingTxEl.textContent = data.stats.pendingTransactionsCount ?? 0;
+
+      if (Array.isArray(data.pendingChannels)) {
+        AdminModule.renderChannels(data.pendingChannels, activeCtx);
+      }
+      if (Array.isArray(data.pendingCampaigns)) {
+        AdminModule.renderCampaigns(data.pendingCampaigns, activeCtx);
+      }
+      if (Array.isArray(data.pendingTransactions)) {
+        AdminModule.renderTransactions(data.pendingTransactions, activeCtx);
+      }
+      if (Array.isArray(data.securityLogs)) {
+        AdminModule.renderLogs(data.securityLogs, activeCtx);
+      }
+
+      const liveGrid = getEl('liveDashboardGrid', activeCtx);
       if (liveGrid) {
         const m = data.liveMetrics || {};
         liveGrid.innerHTML = `
@@ -471,7 +539,7 @@
         `;
       }
 
-      const dailyBox = getEl('dailyReportBox');
+      const dailyBox = getEl('dailyReportBox', activeCtx);
       if (dailyBox) {
         const r = data.dailyReport || {};
         dailyBox.innerHTML = `
@@ -483,7 +551,7 @@
         `;
       }
 
-      const blBox = getEl('blacklistWordsBox');
+      const blBox = getEl('blacklistWordsBox', activeCtx);
       if (blBox) {
         const blList = Array.isArray(data.blacklistWords) ? data.blacklistWords : [];
         blBox.innerHTML = blList.length
@@ -491,7 +559,7 @@
           : '<span class="stat-label">القائمة السوداء فارغة.</span>';
       }
 
-      const depBox = getEl('adminDepositsList');
+      const depBox = getEl('adminDepositsList', activeCtx);
       if (depBox) {
         depBox.innerHTML = (data.deposits || [])
           .map((d) => {
@@ -528,7 +596,7 @@
                 activeCtx.refreshWallet ? activeCtx.refreshWallet(activeCtx) : Promise.resolve()
               ]);
             } catch (err) {
-              showAdminNotice(err.message, true);
+              showAdminNotice(err.message, true, activeCtx);
             }
           });
         });
@@ -546,13 +614,13 @@
                 activeCtx.refreshWallet ? activeCtx.refreshWallet(activeCtx) : Promise.resolve()
               ]);
             } catch (err) {
-              showAdminNotice(err.message, true);
+              showAdminNotice(err.message, true, activeCtx);
             }
           });
         });
       }
 
-      const wdrBox = getEl('adminWithdrawalsList');
+      const wdrBox = getEl('adminWithdrawalsList', activeCtx);
       if (wdrBox) {
         wdrBox.innerHTML = (data.withdrawals || [])
           .map((w) => {
@@ -591,7 +659,7 @@
                 activeCtx.refreshWallet ? activeCtx.refreshWallet(activeCtx) : Promise.resolve()
               ]);
             } catch (err) {
-              showAdminNotice(err.message, true);
+              showAdminNotice(err.message, true, activeCtx);
             }
           });
         });
@@ -609,7 +677,7 @@
                 activeCtx.refreshWallet ? activeCtx.refreshWallet(activeCtx) : Promise.resolve()
               ]);
             } catch (err) {
-              showAdminNotice(err.message, true);
+              showAdminNotice(err.message, true, activeCtx);
             }
           });
         });
@@ -627,13 +695,13 @@
                 activeCtx.refreshWallet ? activeCtx.refreshWallet(activeCtx) : Promise.resolve()
               ]);
             } catch (err) {
-              showAdminNotice(err.message, true);
+              showAdminNotice(err.message, true, activeCtx);
             }
           });
         });
       }
 
-      const tktAdminBox = getEl('adminTicketsList');
+      const tktAdminBox = getEl('adminTicketsList', activeCtx);
       if (tktAdminBox) {
         tktAdminBox.innerHTML = (data.tickets || [])
           .map((tk) => {
@@ -663,13 +731,13 @@
                 activeCtx.refreshTicketsAndBroadcasts ? activeCtx.refreshTicketsAndBroadcasts(activeCtx) : Promise.resolve()
               ]);
             } catch (err) {
-              showAdminNotice(err.message, true);
+              showAdminNotice(err.message, true, activeCtx);
             }
           });
         });
       }
 
-      const auditBox = getEl('adminAuditLogsList');
+      const auditBox = getEl('adminAuditLogsList', activeCtx);
       if (auditBox) {
         auditBox.innerHTML = (data.auditLogs || [])
           .map((a) => {
@@ -687,7 +755,7 @@
           .join('');
       }
 
-      const logsBox = getEl('adminSecurityLogsList');
+      const logsBox = getEl('adminSecurityLogsList', activeCtx);
       if (logsBox) {
         logsBox.innerHTML = (data.securityLogs || [])
           .map((l) => {
@@ -703,6 +771,8 @@
           })
           .join('');
       }
+
+      return data;
     } catch (err) {
       console.error(err);
       throw err;
@@ -713,11 +783,11 @@
     const activeCtx = buildContext(ctx);
     const state = activeCtx.state;
 
-    const loadAdminBtn = getEl('loadAdminBtn');
+    const loadAdminBtn = getEl('loadAdminBtn', activeCtx);
     if (loadAdminBtn) {
       loadAdminBtn.addEventListener('click', async () => {
-        clearAdminNotice();
-        const keyInput = getEl('adminKeyInput');
+        clearAdminNotice(activeCtx);
+        const keyInput = getEl('adminKeyInput', activeCtx);
         if (state && keyInput) {
           state.adminKey = keyInput.value.trim();
           try {
@@ -728,113 +798,113 @@
         }
         try {
           await refreshAdminPanel(activeCtx);
-          showAdminNotice('تم تحميل لوحة الإدارة بنجاح.', false);
+          showAdminNotice('تم تحميل لوحة الإدارة بنجاح.', false, activeCtx);
         } catch (err) {
-          getEl('adminWorkspace')?.classList.add('hidden');
-          showAdminNotice(err.message, true);
+          getEl('adminWorkspace', activeCtx)?.classList.add('hidden');
+          showAdminNotice(err.message, true, activeCtx);
         }
       });
     }
 
-    const toggleMaintBtn = getEl('toggleMaintenanceBtn');
+    const toggleMaintBtn = getEl('toggleMaintenanceBtn', activeCtx);
     if (toggleMaintBtn) {
       toggleMaintBtn.addEventListener('click', async () => {
-        clearAdminNotice();
+        clearAdminNotice(activeCtx);
         try {
           const nextState = !(state && state.maintenanceMode);
-          const msg = getEl('maintenanceMessageInput')?.value.trim() || '';
+          const msg = getEl('maintenanceMessageInput', activeCtx)?.value.trim() || '';
           await callAdminApi(activeCtx, '/api/admin/maintenance', 'POST', {
             enabled: nextState,
             message: msg || undefined
           });
           await refreshAdminPanel(activeCtx);
         } catch (err) {
-          showAdminNotice(err.message, true);
+          showAdminNotice(err.message, true, activeCtx);
         }
       });
     }
 
-    const banForm = getEl('adminBanForm');
+    const banForm = getEl('adminBanForm', activeCtx);
     if (banForm) {
       banForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        clearAdminNotice();
+        clearAdminNotice(activeCtx);
         try {
-          const entityType = getEl('adminBanTypeSelect')?.value || 'user';
-          const entityId = getEl('adminBanIdInput')?.value.trim() || '';
-          const reason = getEl('adminBanReasonInput')?.value.trim() || '';
-          const unban = Boolean(getEl('adminBanUnbanCheckbox')?.checked);
+          const entityType = getEl('adminBanTypeSelect', activeCtx)?.value || 'user';
+          const entityId = getEl('adminBanIdInput', activeCtx)?.value.trim() || '';
+          const reason = getEl('adminBanReasonInput', activeCtx)?.value.trim() || '';
+          const unban = Boolean(getEl('adminBanUnbanCheckbox', activeCtx)?.checked);
 
           await callAdminApi(activeCtx, '/api/admin/ban', 'POST', { entityType, entityId, reason, unban });
-          if (getEl('adminBanIdInput')) getEl('adminBanIdInput').value = '';
-          if (getEl('adminBanReasonInput')) getEl('adminBanReasonInput').value = '';
-          if (getEl('adminBanUnbanCheckbox')) getEl('adminBanUnbanCheckbox').checked = false;
-          showAdminNotice('تم تحديث حالة الحظر وتوثيقها بنجاح.', false);
+          if (getEl('adminBanIdInput', activeCtx)) getEl('adminBanIdInput', activeCtx).value = '';
+          if (getEl('adminBanReasonInput', activeCtx)) getEl('adminBanReasonInput', activeCtx).value = '';
+          if (getEl('adminBanUnbanCheckbox', activeCtx)) getEl('adminBanUnbanCheckbox', activeCtx).checked = false;
+          showAdminNotice('تم تحديث حالة الحظر وتوثيقها بنجاح.', false, activeCtx);
           await refreshAdminPanel(activeCtx);
         } catch (err) {
-          showAdminNotice(err.message, true);
+          showAdminNotice(err.message, true, activeCtx);
         }
       });
     }
 
-    const blacklistForm = getEl('adminBlacklistForm');
+    const blacklistForm = getEl('adminBlacklistForm', activeCtx);
     if (blacklistForm) {
       blacklistForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        clearAdminNotice();
+        clearAdminNotice(activeCtx);
         try {
-          const word = getEl('adminBlacklistWordInput')?.value.trim() || '';
-          const remove = Boolean(getEl('adminBlacklistRemoveCheckbox')?.checked);
+          const word = getEl('adminBlacklistWordInput', activeCtx)?.value.trim() || '';
+          const remove = Boolean(getEl('adminBlacklistRemoveCheckbox', activeCtx)?.checked);
           await callAdminApi(activeCtx, '/api/admin/blacklist', 'POST', { word, remove });
-          if (getEl('adminBlacklistWordInput')) getEl('adminBlacklistWordInput').value = '';
-          if (getEl('adminBlacklistRemoveCheckbox')) getEl('adminBlacklistRemoveCheckbox').checked = false;
-          showAdminNotice('تم تحديث القائمة السوداء للكلمات بنجاح.', false);
+          if (getEl('adminBlacklistWordInput', activeCtx)) getEl('adminBlacklistWordInput', activeCtx).value = '';
+          if (getEl('adminBlacklistRemoveCheckbox', activeCtx)) getEl('adminBlacklistRemoveCheckbox', activeCtx).checked = false;
+          showAdminNotice('تم تحديث القائمة السوداء للكلمات بنجاح.', false, activeCtx);
           await refreshAdminPanel(activeCtx);
         } catch (err) {
-          showAdminNotice(err.message, true);
+          showAdminNotice(err.message, true, activeCtx);
         }
       });
     }
 
-    const emergencyStopForm = getEl('adminEmergencyStopForm');
+    const emergencyStopForm = getEl('adminEmergencyStopForm', activeCtx);
     if (emergencyStopForm) {
       emergencyStopForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        clearAdminNotice();
+        clearAdminNotice(activeCtx);
         try {
-          const campaignId = getEl('adminEmergencyCampaignIdInput')?.value.trim() || '';
-          const reason = getEl('adminEmergencyReasonInput')?.value.trim() || '';
+          const campaignId = getEl('adminEmergencyCampaignIdInput', activeCtx)?.value.trim() || '';
+          const reason = getEl('adminEmergencyReasonInput', activeCtx)?.value.trim() || '';
           await callAdminApi(
             activeCtx,
             `/api/admin/campaigns/${encodeURIComponent(campaignId)}/emergency-stop`,
             'POST',
             { reason }
           );
-          if (getEl('adminEmergencyCampaignIdInput')) getEl('adminEmergencyCampaignIdInput').value = '';
-          if (getEl('adminEmergencyReasonInput')) getEl('adminEmergencyReasonInput').value = '';
-          showAdminNotice('تم تنفيذ الإيقاف الطارئ الفوري للحملة من جميع القنوات.', false);
+          if (getEl('adminEmergencyCampaignIdInput', activeCtx)) getEl('adminEmergencyCampaignIdInput', activeCtx).value = '';
+          if (getEl('adminEmergencyReasonInput', activeCtx)) getEl('adminEmergencyReasonInput', activeCtx).value = '';
+          showAdminNotice('تم تنفيذ الإيقاف الطارئ الفوري للحملة من جميع القنوات.', false, activeCtx);
           await Promise.all([
             refreshAdminPanel(activeCtx),
             activeCtx.refreshCampaigns ? activeCtx.refreshCampaigns(activeCtx) : Promise.resolve(),
             activeCtx.refreshWallet ? activeCtx.refreshWallet(activeCtx) : Promise.resolve()
           ]);
         } catch (err) {
-          showAdminNotice(err.message, true);
+          showAdminNotice(err.message, true, activeCtx);
         }
       });
     }
 
-    const adjustForm = getEl('adminAdjustForm');
+    const adjustForm = getEl('adminAdjustForm', activeCtx);
     if (adjustForm) {
       adjustForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        clearAdminNotice();
+        clearAdminNotice(activeCtx);
         try {
-          const targetUserId = getEl('adminTargetUserInput')?.value.trim() || '';
-          const mode = getEl('adminAdjustModeSelect')?.value || 'add';
-          const balanceBucket = getEl('adminBucketSelect')?.value || 'walletBalance';
-          const amount = Number(getEl('adminAmountInput')?.value || 0);
-          const reason = getEl('adminReasonInput')?.value.trim() || '';
+          const targetUserId = getEl('adminTargetUserInput', activeCtx)?.value.trim() || '';
+          const mode = getEl('adminAdjustModeSelect', activeCtx)?.value || 'add';
+          const balanceBucket = getEl('adminBucketSelect', activeCtx)?.value || 'walletBalance';
+          const amount = Number(getEl('adminAmountInput', activeCtx)?.value || 0);
+          const reason = getEl('adminReasonInput', activeCtx)?.value.trim() || '';
 
           await callAdminApi(activeCtx, '/api/admin/wallet/adjust', 'POST', {
             targetUserId,
@@ -843,44 +913,45 @@
             amount,
             reason
           });
-          if (getEl('adminReasonInput')) getEl('adminReasonInput').value = '';
-          showAdminNotice('تم تنفيذ التعديل المالي اليدوي وتوثيقه في سجل الأمان.', false);
+          if (getEl('adminReasonInput', activeCtx)) getEl('adminReasonInput', activeCtx).value = '';
+          showAdminNotice('تم تنفيذ التعديل المالي اليدوي وتوثيقه في سجل الأمان.', false, activeCtx);
           await Promise.all([
             refreshAdminPanel(activeCtx),
             activeCtx.refreshWallet ? activeCtx.refreshWallet(activeCtx) : Promise.resolve()
           ]);
         } catch (err) {
-          showAdminNotice(err.message, true);
+          showAdminNotice(err.message, true, activeCtx);
         }
       });
     }
 
-    const broadcastForm = getEl('adminBroadcastForm');
+    const broadcastForm = getEl('adminBroadcastForm', activeCtx);
     if (broadcastForm) {
       broadcastForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        clearAdminNotice();
+        clearAdminNotice(activeCtx);
         try {
-          const title = getEl('adminBroadcastTitleInput')?.value.trim() || '';
-          const body = getEl('adminBroadcastBodyInput')?.value.trim() || '';
+          const title = getEl('adminBroadcastTitleInput', activeCtx)?.value.trim() || '';
+          const body = getEl('adminBroadcastBodyInput', activeCtx)?.value.trim() || '';
           await callAdminApi(activeCtx, '/api/admin/broadcasts', 'POST', { title, body });
-          if (getEl('adminBroadcastTitleInput')) getEl('adminBroadcastTitleInput').value = '';
-          if (getEl('adminBroadcastBodyInput')) getEl('adminBroadcastBodyInput').value = '';
-          showAdminNotice('تم إرسال الرسالة الجماعية وتحديث التنبيهات الفورية.', false);
+          if (getEl('adminBroadcastTitleInput', activeCtx)) getEl('adminBroadcastTitleInput', activeCtx).value = '';
+          if (getEl('adminBroadcastBodyInput', activeCtx)) getEl('adminBroadcastBodyInput', activeCtx).value = '';
+          showAdminNotice('تم إرسال الرسالة الجماعية وتحديث التنبيهات الفورية.', false, activeCtx);
           await Promise.all([
             refreshAdminPanel(activeCtx),
             activeCtx.refreshTicketsAndBroadcasts ? activeCtx.refreshTicketsAndBroadcasts(activeCtx) : Promise.resolve()
           ]);
         } catch (err) {
-          showAdminNotice(err.message, true);
+          showAdminNotice(err.message, true, activeCtx);
         }
       });
     }
   }
 
   const AdminModule = {
-    enableAdminAccess() {
-      const adminNavBtn = getEl('nav-admin-btn');
+    enableAdminAccess(ctx) {
+      const activeCtx = buildContext(ctx);
+      const adminNavBtn = getEl('nav-admin-btn', activeCtx);
       if (adminNavBtn) {
         adminNavBtn.style.display = 'flex';
       }
@@ -892,137 +963,139 @@
         if (activeCtx.state?.adminKey) {
           await refreshAdminPanel(activeCtx);
         }
-
-        if (!window.Api || typeof window.Api.getAdminDashboard !== 'function') return;
-        const data = await window.Api.getAdminDashboard();
-        if (!data) return;
-
-        const totalUsersEl = getEl('admin-total-users');
-        const pendingChEl = getEl('admin-pending-ch');
-        const pendingTxEl = getEl('admin-pending-tx');
-
-        if (totalUsersEl && data.stats) totalUsersEl.textContent = data.stats.totalUsers ?? 0;
-        if (pendingChEl && data.stats) pendingChEl.textContent = data.stats.pendingChannelsCount ?? 0;
-        if (pendingTxEl && data.stats) pendingTxEl.textContent = data.stats.pendingTransactionsCount ?? 0;
-
-        this.renderChannels(data.pendingChannels);
-        this.renderCampaigns(data.pendingCampaigns);
-        this.renderTransactions(data.pendingTransactions);
-        this.renderLogs(data.securityLogs);
       } catch (err) {
         console.error(err);
-        if (window.UI && typeof window.UI.notify === 'function') {
-          window.UI.notify(err.message);
-        } else {
-          toast(err.message);
-        }
+        toast(err.message, ctx);
       }
     },
 
-    renderChannels(channels) {
-      const listEl = getEl('admin-channels-list');
+    renderChannels(channels, ctx) {
+      const activeCtx = buildContext(ctx);
+      const listEl = getEl('admin-channels-list', activeCtx);
       if (!listEl) return;
 
       try {
         if (!channels || channels.length === 0) {
-          listEl.innerHTML = `<div class="empty-state">${esc(t('no_data'))}</div>`;
+          listEl.innerHTML = `<div class="empty-state">${esc(translateKey('no_data', 'No data', activeCtx))}</div>`;
           return;
         }
 
         listEl.innerHTML = channels
           .map((ch) => {
-            const safeId = esc(ch._id);
+            const safeId = esc(ch._id || ch.id);
+            const cleanUser = esc(String(ch.channelUsername || ch.username || '').replace(/^@/, ''));
             return `
               <div class="list-item">
                 <div class="item-main">
-                  <span class="item-title">@${esc(ch.channelUsername)} ($${esc(ch.pricePerPost)})</span>
-                  <span class="item-sub">Owner: ${esc(ch.ownerId)} • ${esc(ch.subscribers)} subs</span>
+                  <span class="item-title">@${cleanUser} ($${esc(ch.pricePerPost ?? ch.price ?? 0)})</span>
+                  <span class="item-sub">Owner: ${esc(ch.ownerId || ch.ownerTelegramId || '')} • ${esc(ch.subscribers ?? ch.subscribersCount ?? 0)} subs</span>
                 </div>
                 <div class="admin-actions">
-                  <button type="button" class="tg-btn sm success" onclick="AdminModule.handleChannel('${safeId}', 'approved')">${esc(t('approve'))}</button>
-                  <button type="button" class="tg-btn sm danger" onclick="AdminModule.handleChannel('${safeId}', 'rejected')">${esc(t('reject'))}</button>
+                  <button type="button" class="tg-btn sm success" data-adm-ch-id="${safeId}" data-adm-ch-action="approved">${esc(translateKey('approve', 'Approve', activeCtx))}</button>
+                  <button type="button" class="tg-btn sm danger" data-adm-ch-id="${safeId}" data-adm-ch-action="rejected">${esc(translateKey('reject', 'Reject', activeCtx))}</button>
                 </div>
               </div>
             `;
           })
           .join('');
+
+        listEl.querySelectorAll('[data-adm-ch-id]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            AdminModule.handleChannel(btn.getAttribute('data-adm-ch-id'), btn.getAttribute('data-adm-ch-action'), activeCtx);
+          });
+        });
       } catch (err) {
         console.error(err);
       }
     },
 
-    renderCampaigns(campaigns) {
-      const listEl = getEl('admin-campaigns-list');
+    renderCampaigns(campaigns, ctx) {
+      const activeCtx = buildContext(ctx);
+      const listEl = getEl('admin-campaigns-list', activeCtx);
       if (!listEl) return;
 
       try {
         if (!campaigns || campaigns.length === 0) {
-          listEl.innerHTML = `<div class="empty-state">${esc(t('no_data'))}</div>`;
+          listEl.innerHTML = `<div class="empty-state">${esc(translateKey('no_data', 'No data', activeCtx))}</div>`;
           return;
         }
 
         listEl.innerHTML = campaigns
           .map((camp) => {
-            const safeId = esc(camp._id);
+            const safeId = esc(camp._id || camp.id);
             const chUsername = camp.channelId?.channelUsername ? `@${esc(camp.channelId.channelUsername)}` : 'N/A';
             return `
               <div class="list-item">
                 <div class="item-main">
-                  <span class="item-title">${esc(camp.title)} ($${esc(camp.budget)})</span>
+                  <span class="item-title">${esc(camp.title)} ($${esc(camp.budget ?? 0)})</span>
                   <span class="item-sub">${chUsername} • ${esc(camp.targetUrl || '')}</span>
                 </div>
                 <div class="admin-actions">
-                  <button type="button" class="tg-btn sm success" onclick="AdminModule.handleCampaign('${safeId}')">${esc(t('complete'))}</button>
+                  <button type="button" class="tg-btn sm success" data-adm-camp-id="${safeId}">${esc(translateKey('complete', 'Complete', activeCtx))}</button>
                 </div>
               </div>
             `;
           })
           .join('');
+
+        listEl.querySelectorAll('[data-adm-camp-id]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            AdminModule.handleCampaign(btn.getAttribute('data-adm-camp-id'), activeCtx);
+          });
+        });
       } catch (err) {
         console.error(err);
       }
     },
 
-    renderTransactions(txs) {
-      const listEl = getEl('admin-tx-list');
+    renderTransactions(txs, ctx) {
+      const activeCtx = buildContext(ctx);
+      const listEl = getEl('admin-tx-list', activeCtx);
       if (!listEl) return;
 
       try {
         if (!txs || txs.length === 0) {
-          listEl.innerHTML = `<div class="empty-state">${esc(t('no_data'))}</div>`;
+          listEl.innerHTML = `<div class="empty-state">${esc(translateKey('no_data', 'No data', activeCtx))}</div>`;
           return;
         }
 
         listEl.innerHTML = txs
           .map((tx) => {
-            const safeId = esc(tx._id);
+            const safeId = esc(tx._id || tx.id);
             const txType = tx.type ? esc(String(tx.type).toUpperCase()) : '';
             return `
               <div class="list-item">
                 <div class="item-main">
                   <span class="item-title">${txType} ($${esc(Math.abs(Number(tx.amount || 0)))})</span>
-                  <span class="item-sub">User: ${esc(tx.userId)} • ${esc(tx.details || '')}</span>
+                  <span class="item-sub">User: ${esc(tx.userId)} • ${esc(tx.details || tx.note || '')}</span>
                 </div>
                 <div class="admin-actions">
-                  <button type="button" class="tg-btn sm success" onclick="AdminModule.handleTx('${safeId}', 'completed')">${esc(t('approve'))}</button>
-                  <button type="button" class="tg-btn sm danger" onclick="AdminModule.handleTx('${safeId}', 'rejected')">${esc(t('reject'))}</button>
+                  <button type="button" class="tg-btn sm success" data-adm-tx-id="${safeId}" data-adm-tx-action="completed">${esc(translateKey('approve', 'Approve', activeCtx))}</button>
+                  <button type="button" class="tg-btn sm danger" data-adm-tx-id="${safeId}" data-adm-tx-action="rejected">${esc(translateKey('reject', 'Reject', activeCtx))}</button>
                 </div>
               </div>
             `;
           })
           .join('');
+
+        listEl.querySelectorAll('[data-adm-tx-id]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            AdminModule.handleTx(btn.getAttribute('data-adm-tx-id'), btn.getAttribute('data-adm-tx-action'), activeCtx);
+          });
+        });
       } catch (err) {
         console.error(err);
       }
     },
 
-    renderLogs(logs) {
-      const listEl = getEl('admin-logs-list');
+    renderLogs(logs, ctx) {
+      const activeCtx = buildContext(ctx);
+      const listEl = getEl('admin-logs-list', activeCtx);
       if (!listEl) return;
 
       try {
         if (!logs || logs.length === 0) {
-          listEl.innerHTML = `<div class="empty-state">${esc(t('no_data'))}</div>`;
+          listEl.innerHTML = `<div class="empty-state">${esc(translateKey('no_data', 'No data', activeCtx))}</div>`;
           return;
         }
 
@@ -1031,8 +1104,8 @@
             (log) => `
             <div class="list-item">
               <div class="item-main">
-                <span class="item-title">${esc(log.action)}</span>
-                <span class="item-sub">Actor: ${esc(log.actorId)} | ${esc(log.details || '')}</span>
+                <span class="item-title">${esc(log.action || '')}</span>
+                <span class="item-sub">Actor: ${esc(log.actorId || '')} | ${esc(log.details || '')}</span>
               </div>
             </div>
           `
@@ -1043,43 +1116,55 @@
       }
     },
 
-    async handleChannel(id, action) {
+    async handleChannel(id, action, ctx) {
+      const activeCtx = buildContext(ctx);
       try {
-        if (!window.Api || typeof window.Api.reviewChannel !== 'function') return;
-        await window.Api.reviewChannel(id, action);
-        await this.loadDashboard();
+        await callAdminApi(activeCtx, `/api/admin/channels/${encodeURIComponent(id)}/review`, 'POST', { action });
+        await Promise.all([
+          refreshAdminPanel(activeCtx),
+          activeCtx.refreshChannels ? activeCtx.refreshChannels(activeCtx) : Promise.resolve()
+        ]);
       } catch (err) {
         console.error(err);
-        toast(err.message);
+        toast(err.message, activeCtx);
       }
     },
 
-    async handleCampaign(id) {
+    async handleCampaign(id, ctx) {
+      const activeCtx = buildContext(ctx);
       try {
-        if (!window.Api || typeof window.Api.completeCampaign !== 'function') return;
-        await window.Api.completeCampaign(id);
-        await this.loadDashboard();
+        await callAdminApi(activeCtx, `/api/admin/campaigns/${encodeURIComponent(id)}/complete`, 'POST');
+        await Promise.all([
+          refreshAdminPanel(activeCtx),
+          activeCtx.refreshCampaigns ? activeCtx.refreshCampaigns(activeCtx) : Promise.resolve(),
+          activeCtx.refreshWallet ? activeCtx.refreshWallet(activeCtx) : Promise.resolve()
+        ]);
       } catch (err) {
         console.error(err);
-        toast(err.message);
+        toast(err.message, activeCtx);
       }
     },
 
-    async handleTx(id, action) {
+    async handleTx(id, action, ctx) {
+      const activeCtx = buildContext(ctx);
       try {
-        if (!window.Api || typeof window.Api.reviewTransaction !== 'function') return;
-        await window.Api.reviewTransaction(id, action);
-        await this.loadDashboard();
+        await callAdminApi(activeCtx, `/api/admin/transactions/${encodeURIComponent(id)}/review`, 'POST', { action });
+        await Promise.all([
+          refreshAdminPanel(activeCtx),
+          activeCtx.refreshWallet ? activeCtx.refreshWallet(activeCtx) : Promise.resolve()
+        ]);
       } catch (err) {
         console.error(err);
-        toast(err.message);
+        toast(err.message, activeCtx);
       }
     },
 
     reviewChannelDecision,
     renderAdminQueue,
     renderReferrals,
+    refreshReferrals,
     renderReliabilityPanel,
+    refreshReliabilityState,
     createManualBackup,
     markNotificationsRead,
     refreshAdminPanel,
@@ -1088,14 +1173,6 @@
   };
 
   window.AdminModule = AdminModule;
-
-  // Global helper functions for inline handlers and cross-module compatibility
-  window.reviewChannelDecision = reviewChannelDecision;
-  window.renderAdminQueue = renderAdminQueue;
-  window.renderReferrals = renderReferrals;
-  window.renderReliabilityPanel = renderReliabilityPanel;
-  window.createManualBackup = createManualBackup;
-  window.markNotificationsRead = markNotificationsRead;
-  window.refreshAdminPanel = refreshAdminPanel;
-  window.bindAdminEvents = bindEvents;
+  window.refreshAdminPanel = (ctx) => refreshAdminPanel(ctx);
+  window.bindAdminEvents = (ctx) => bindEvents(ctx);
 })();
