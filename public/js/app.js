@@ -26,7 +26,6 @@ function getTelegramUser() {
     console.error('app.js getTelegramUser error:', err);
   }
 
-  // وضع معاينة محلية آمن عند الفتح خارج تطبيق تيليجرام أثناء التطوير
   return {
     id: 0,
     first_name: 'Guest',
@@ -70,7 +69,6 @@ function syncNavVisibilityAndLabels() {
       if (!tab) return;
 
       if (tab === 'admin') {
-        // إخفاء تبويب الإدارة نهائياً عن أي مستخدم غير مشرف
         btn.classList.toggle('is-hidden', !appState.isAdmin);
         btn.style.display = appState.isAdmin ? '' : 'none';
       }
@@ -254,7 +252,6 @@ async function hydrateFromServer() {
     appState.tickets = Array.isArray(accountData && accountData.tickets) ? accountData.tickets : [];
     appState.broadcasts = Array.isArray(accountData && accountData.broadcasts) ? accountData.broadcasts : [];
 
-    // إذا لم يقم المستخدم بتبديل اللغة يدوياً في المتصفح، نعتمد اللغة المحفوظة أو المكتشفة
     let hasManualOverride = false;
     try {
       hasManualOverride = Boolean(localStorage.getItem('telega_ads_lang'));
