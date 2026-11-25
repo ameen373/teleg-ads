@@ -1,4 +1,4 @@
-window.LANG_AR = {
+export const LANG_AR = {
   dir: 'rtl',
   lang: 'ar',
   toggleLabel: 'EN',
