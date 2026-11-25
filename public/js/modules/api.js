@@ -1,118 +1,77 @@
-function getInitData() {
-  try {
-    if (
-      typeof window !== 'undefined' &&
-      window.Telegram &&
-      window.Telegram.WebApp &&
-      typeof window.Telegram.WebApp.initData === 'string'
-    ) {
-      return window.Telegram.WebApp.initData;
-    }
-  } catch (err) {
-    console.error('api.js getInitData error:', err);
+export class ApiService {
+  constructor(initData) {
+    this.initData = initData || "";
+    this.baseUrl = "/api";
   }
-  return '';
-}
 
-export async function request(url, options = {}) {
-  try {
-    if (!url) {
-      return Promise.resolve(null);
-    }
-
-    const initData = getInitData();
-    const headers = Object.assign(
-      {
-        'Content-Type': 'application/json'
-      },
-      options.headers || {}
-    );
-
-    if (initData) {
-      headers['x-telegram-init-data'] = initData;
-    }
-
-    const fetchOptions = {
-      method: options.method || 'GET',
-      headers
-    };
-
-    if (options.body !== undefined) {
-      fetchOptions.body = JSON.stringify(options.body);
-    }
-
-    const response = await fetch(url, fetchOptions);
-    let data = null;
+  async request(endpoint, options = {}) {
     try {
-      data = await response.json();
-    } catch (_) {
-      data = { ok: false, error: 'Invalid server response' };
-    }
+      const headers = {
+        "Content-Type": "application/json",
+        "X-Telegram-Init-Data": this.initData,
+        ...(options.headers || {})
+      };
 
-    if (!response.ok || !data || !data.ok) {
-      const err = new Error(
-        (data && data.error) || `Request failed (${response.status})`
-      );
-      err.status = response.status;
-      err.data = data;
-      throw err;
-    }
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        ...options,
+        headers
+      });
 
-    return data;
-  } catch (err) {
-    console.error('api.js request error:', err);
-    throw err;
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Request failed");
+      }
+      return data;
+    } catch (error) {
+      console.error(`[API Error ${endpoint}]:`, error.message);
+      throw error;
+    }
   }
-}
 
-const APIModule = {
-  getInitData,
-
-  getAccount(lang) {
-    const query = lang ? `?lang=${encodeURIComponent(lang)}` : '';
-    return request(`/api/account${query}`);
-  },
-
-  updateLanguage(language) {
-    return request('/api/account/language', {
-      method: 'POST',
-      body: { language }
-    });
-  },
-
-  createTicket(payload) {
-    return request('/api/tickets', {
-      method: 'POST',
-      body: payload
-    });
-  },
-
-  getTickets() {
-    return request('/api/tickets');
-  },
-
-  getAdminOverview() {
-    return request('/api/admin/overview');
-  },
-
-  replyToTicket(ticketId, reply) {
-    return request(`/api/admin/tickets/${encodeURIComponent(ticketId)}/reply`, {
-      method: 'POST',
-      body: { reply }
-    });
-  },
-
-  sendBroadcast(payload) {
-    return request('/api/admin/broadcasts', {
-      method: 'POST',
-      body: payload
+  syncUser(userPayload) {
+    return this.request("/auth/sync", {
+      method: "POST",
+      body: JSON.stringify(userPayload)
     });
   }
-};
 
-if (typeof window !== 'undefined') {
-  window.APIModule = APIModule;
-  window.request = request;
+  getChannels() {
+    return this.request("/channels");
+  }
+
+  addChannel(username) {
+    return this.request("/channels", {
+      method: "POST",
+      body: JSON.stringify({ username })
+    });
+  }
+
+  getCampaigns() {
+    return this.request("/campaigns");
+  }
+
+  createCampaign(payload) {
+    return this.request("/campaigns", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  }
+
+  sendSupportTicket(message) {
+    return this.request("/support", {
+      method: "POST",
+      body: JSON.stringify({ message })
+    });
+  }
+
+  getAdminStats() {
+    return this.request("/admin/stats");
+  }
+
+  sendAdminBroadcast(message) {
+    return this.request("/admin/broadcast", {
+      method: "POST",
+      body: JSON.stringify({ message })
+    });
+  }
 }
-
-export default APIModule;
