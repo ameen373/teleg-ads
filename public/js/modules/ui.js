@@ -277,42 +277,82 @@ const UIModule = {
             <span class="pill-badge">${escapeHtml(translate('account.autoDetectedBadge'))}</span>
           </header>
 
-          <!-- Identity Card -->
-          <div class="card identity-card">
-            <div class="identity-top">
-              <div class="avatar-wrap">
-                ${
-                  photoUrl
-                    ? `<img src="${escapeHtml(photoUrl)}" alt="${escapeHtml(translate('account.identity.photoAlt'))}" class="avatar-img" />`
-                    : `<div class="avatar-fallback">${escapeHtml(getInitials(user))}</div>`
-                }
-              </div>
-              <div class="identity-meta">
-                <h2 class="identity-name">${escapeHtml(fullName)}</h2>
-                <div class="identity-username">${escapeHtml(username)}</div>
-                <span class="verified-tag">${escapeHtml(translate('account.identity.verifiedTg'))}</span>
-              </div>
+          <!-- Telegram-Style Profile Hero -->
+          <div class="tg-profile-hero">
+            <div class="avatar-wrap">
+              ${
+                photoUrl
+                  ? `<img src="${escapeHtml(photoUrl)}" alt="${escapeHtml(translate('account.identity.photoAlt'))}" class="avatar-img" />`
+                  : `<div class="avatar-fallback">${escapeHtml(getInitials(user))}</div>`
+              }
             </div>
+            <div class="identity-meta">
+              <h2 class="identity-name">${escapeHtml(fullName)}</h2>
+              <div class="identity-status-line">${escapeHtml(translate('account.identity.onlineStatus'))}</div>
+              <span class="verified-tag">${escapeHtml(translate('account.identity.verifiedTg'))}</span>
+            </div>
+          </div>
 
-            <div class="identity-grid">
-              <div class="info-cell">
-                <span class="info-label">${escapeHtml(translate('account.identity.userId'))}</span>
-                <div class="info-value-row">
-                  <code class="info-code" id="account-user-id">${escapeHtml(userId)}</code>
-                  <button type="button" class="btn-mini" id="copy-user-id-btn" data-copy-id="${escapeHtml(userId)}">
-                    ${escapeHtml(translate('account.identity.copyId'))}
-                  </button>
+          <!-- Quick Action Buttons (Telegram Profile Style) -->
+          <div class="tg-quick-actions" role="group" aria-label="${escapeHtml(accountTitle)}">
+            <button type="button" class="tg-quick-btn" id="quick-copy-id-btn" data-copy-id="${escapeHtml(userId)}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              <span>${escapeHtml(translate('account.identity.copyId'))}</span>
+            </button>
+
+            <button type="button" class="tg-quick-btn" id="quick-support-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M12 20h9"></path>
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+              </svg>
+              <span>${escapeHtml(translate('account.support.ticketsTab'))}</span>
+            </button>
+
+            <button type="button" class="tg-quick-btn" id="quick-lang-settings-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+              <span>${escapeHtml(translate('account.language.title'))}</span>
+            </button>
+          </div>
+
+          <!-- Telegram-Style Details Card -->
+          <div class="card identity-card">
+            <div class="tg-detail-list">
+              <div class="tg-detail-row">
+                <div class="tg-detail-content">
+                  <div class="tg-detail-main">
+                    <code class="info-code" id="account-user-id">${escapeHtml(userId)}</code>
+                  </div>
+                  <div class="tg-detail-sub">${escapeHtml(translate('account.identity.userId'))}</div>
+                </div>
+                <button type="button" class="btn-mini" id="copy-user-id-btn" data-copy-id="${escapeHtml(userId)}">
+                  ${escapeHtml(translate('account.identity.copyId'))}
+                </button>
+              </div>
+
+              <div class="tg-detail-row">
+                <div class="tg-detail-content">
+                  <div class="tg-detail-main">${escapeHtml(username)}</div>
+                  <div class="tg-detail-sub">${escapeHtml(translate('account.identity.username'))}</div>
                 </div>
               </div>
-              <div class="info-cell">
-                <span class="info-label">${escapeHtml(translate('account.language.currentLabel'))}</span>
-                <strong class="info-value">${escapeHtml(currentLang.toUpperCase())}</strong>
+
+              <div class="tg-detail-row">
+                <div class="tg-detail-content">
+                  <div class="tg-detail-main">${escapeHtml(currentLang.toUpperCase())}</div>
+                  <div class="tg-detail-sub">${escapeHtml(translate('account.language.currentLabel'))}</div>
+                </div>
               </div>
             </div>
           </div>
 
           <!-- Language Switcher Card -->
-          <div class="card language-card">
+          <div class="card language-card" id="account-language-card">
             <div class="card-head-row">
               <h2 class="card-title">${escapeHtml(translate('account.language.title'))}</h2>
               <button type="button" class="btn-ghost" id="reset-auto-lang-btn">
@@ -338,7 +378,7 @@ const UIModule = {
           </div>
 
           <!-- Support & Broadcasts Card -->
-          <div class="card support-card">
+          <div class="card support-card" id="account-support-card">
             <h2 class="card-title">${escapeHtml(translate('account.support.title'))}</h2>
 
             <div class="subtabs">
@@ -425,19 +465,50 @@ const UIModule = {
         });
       }
 
-      const copyBtn = container.querySelector('#copy-user-id-btn');
-      if (copyBtn) {
-        copyBtn.addEventListener('click', async () => {
-          const idVal = copyBtn.getAttribute('data-copy-id') || '';
-          if (!idVal || idVal === '—') return;
-          try {
-            await navigator.clipboard.writeText(idVal);
+      const handleCopyId = async (triggerBtn) => {
+        if (!triggerBtn) return;
+        const idVal = triggerBtn.getAttribute('data-copy-id') || '';
+        if (!idVal || idVal === '—') return;
+        try {
+          await navigator.clipboard.writeText(idVal);
+          const copyBtn = container.querySelector('#copy-user-id-btn');
+          if (copyBtn) {
             copyBtn.textContent = translate('account.identity.copied');
             setTimeout(() => {
               copyBtn.textContent = translate('account.identity.copyId');
             }, 1500);
-          } catch (err) {
-            console.error('ui.js clipboard write error:', err);
+          }
+        } catch (err) {
+          console.error('ui.js clipboard write error:', err);
+        }
+      };
+
+      const copyBtn = container.querySelector('#copy-user-id-btn');
+      if (copyBtn) {
+        copyBtn.addEventListener('click', () => handleCopyId(copyBtn));
+      }
+
+      const quickCopyBtn = container.querySelector('#quick-copy-id-btn');
+      if (quickCopyBtn) {
+        quickCopyBtn.addEventListener('click', () => handleCopyId(quickCopyBtn));
+      }
+
+      const quickSupportBtn = container.querySelector('#quick-support-btn');
+      if (quickSupportBtn) {
+        quickSupportBtn.addEventListener('click', () => {
+          const supportCard = container.querySelector('#account-support-card');
+          if (supportCard) {
+            supportCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        });
+      }
+
+      const quickLangBtn = container.querySelector('#quick-lang-settings-btn');
+      if (quickLangBtn) {
+        quickLangBtn.addEventListener('click', () => {
+          const langCard = container.querySelector('#account-language-card');
+          if (langCard) {
+            langCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
           }
         });
       }
