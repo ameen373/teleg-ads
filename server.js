@@ -8,9 +8,10 @@ const fs = require('fs');
 const {
   admin,
   db,
-  initFirebase,
+  FieldValue,
   RULES,
   COLLECTIONS,
+  collections,
   roundMoney,
   nowIso,
   createDefaultUser,
@@ -27,19 +28,19 @@ const {
   ALLOWED_CATEGORIES
 } = require('./models');
 
-const firestoreReferrals = db.collection('referrals');
-const firestoreWallets = db.collection('wallets');
-const firestorePublishLogs = db.collection('publishLogs');
-const firestoreNotifications = db.collection('notifications');
-const firestoreBackups = db.collection('backups');
-const firestoreDeposits = db.collection(COLLECTIONS.DEPOSITS);
-const firestoreWithdrawals = db.collection(COLLECTIONS.WITHDRAWALS);
-const firestoreEarningsLocks = db.collection(COLLECTIONS.EARNINGS_LOCKS);
-const firestoreTickets = db.collection(COLLECTIONS.TICKETS);
-const firestoreBroadcasts = db.collection(COLLECTIONS.BROADCASTS);
-const firestoreSystemConfig = db.collection(COLLECTIONS.SYSTEM_CONFIG);
-const firestoreAuditLogs = db.collection(COLLECTIONS.AUDIT_LOGS);
-const firestoreSmartAlerts = db.collection(COLLECTIONS.SMART_ALERTS);
+const firestoreReferrals = collections.referrals || db.collection(COLLECTIONS.REFERRALS);
+const firestoreWallets = collections.wallets || db.collection(COLLECTIONS.WALLETS);
+const firestorePublishLogs = collections.publishLogs || db.collection(COLLECTIONS.PUBLISH_LOGS);
+const firestoreNotifications = collections.notifications || db.collection(COLLECTIONS.NOTIFICATIONS);
+const firestoreBackups = collections.backupRecords || db.collection(COLLECTIONS.BACKUP_RECORDS);
+const firestoreDeposits = collections.deposits || db.collection(COLLECTIONS.DEPOSITS);
+const firestoreWithdrawals = collections.withdrawals || db.collection(COLLECTIONS.WITHDRAWALS);
+const firestoreEarningsLocks = collections.earningsLocks || db.collection(COLLECTIONS.EARNINGS_LOCKS);
+const firestoreTickets = collections.tickets || db.collection(COLLECTIONS.TICKETS);
+const firestoreBroadcasts = collections.broadcasts || db.collection(COLLECTIONS.BROADCASTS);
+const firestoreSystemConfig = collections.systemConfig || db.collection(COLLECTIONS.SYSTEM_CONFIG);
+const firestoreAuditLogs = collections.auditLogs || db.collection(COLLECTIONS.AUDIT_LOGS);
+const firestoreSmartAlerts = collections.smartAlerts || db.collection(COLLECTIONS.SMART_ALERTS);
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -504,7 +505,7 @@ const authMiddleware = asyncHandler(async (req, res, next) => {
         if (referrerDoc) {
           referredBy = refId;
           await referrerDoc.ref.update({
-            referralsCount: admin.firestore.FieldValue.increment(1)
+            referralsCount: FieldValue.increment(1)
           });
         }
       }
@@ -1268,7 +1269,7 @@ async function processTelegramUpdate(update) {
 
               if (publisherChannel) {
                 await firestoreChannels.doc(publisherChannel.id).update({
-                  referralsCount: admin.firestore.FieldValue.increment(1)
+                  referralsCount: FieldValue.increment(1)
                 });
               }
             }
@@ -1678,7 +1679,7 @@ app.post('/api/referrals/track', asyncHandler(async (req, res) => {
 
   if (channel) {
     await firestoreChannels.doc(channel.id).update({
-      referralsCount: admin.firestore.FieldValue.increment(1)
+      referralsCount: FieldValue.increment(1)
     });
   }
 
@@ -2307,7 +2308,7 @@ app.post('/api/channels', checkMaintenanceAndBanGate, asyncHandler(async (req, r
     });
   }
 
-  // Phase 3 Direct User Channel Registration Flow (when subscribers & userId/ownerId provided without legacy targetLanguage/category)
+  // Direct User Channel Registration Flow (when subscribers & userId/ownerId provided without legacy targetLanguage/category)
   const ownerId = extractUserId(req);
   if (ownerId && req.body?.subscribers !== undefined && !req.body?.language && !req.body?.category) {
     const name = (req.body?.name || '').toString().trim();
@@ -2415,7 +2416,7 @@ app.post('/api/channels', checkMaintenanceAndBanGate, asyncHandler(async (req, r
     });
   }
 
-  // Original Marketplace Channel Registration Flow
+  // Marketplace Channel Registration Flow
   const {
     name,
     username,
@@ -3335,7 +3336,7 @@ app.post('/api/campaigns', checkMaintenanceAndBanGate, asyncHandler(async (req, 
     });
   }
 
-  // Phase 3 Direct User Campaign Creation with Budget Reservation & Open Targeting Rule
+  // Direct User Campaign Creation with Budget Reservation & Open Targeting Rule
   const userId = extractUserId(req);
   if (userId && !req.body?.targetLanguage && !req.body?.targetCategory) {
     const title = (req.body?.title || '').toString().trim();
@@ -3476,7 +3477,7 @@ app.post('/api/campaigns', checkMaintenanceAndBanGate, asyncHandler(async (req, 
     });
   }
 
-  // Original Marketplace Campaign Creation Flow
+  // Marketplace Campaign Creation Flow
   const {
     title,
     adText,
@@ -3955,7 +3956,7 @@ app.post('/api/wallet/deposit', checkMaintenanceAndBanGate, asyncHandler(async (
     });
   }
 
-  // Phase 3 TXID-Protected Crypto Deposit Flow (USDT - BEP20)
+  // TXID-Protected Crypto Deposit Flow (USDT - BEP20)
   const userId = extractUserId(req);
   if (userId && (req.body?.txid !== undefined || !req.body?.role)) {
     const amount = roundMoney(req.body?.amount);
@@ -4178,7 +4179,7 @@ app.post('/api/wallet/withdraw', checkMaintenanceAndBanGate, asyncHandler(async 
     });
   }
 
-  // Phase 3 TRC20 Withdrawal Flow with Fee Deduction & Step Tracking
+  // TRC20 Withdrawal Flow with Fee Deduction & Step Tracking
   const userId = extractUserId(req);
   if (userId && (req.body?.destinationAddress !== undefined || !req.body?.role)) {
     const amount = roundMoney(req.body?.amount);
