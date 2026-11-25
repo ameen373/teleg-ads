@@ -29,6 +29,7 @@ export const LANG_EN = {
       userId: 'User ID',
       photoAlt: 'User profile avatar',
       verifiedTg: 'Verified via Telegram Mini App',
+      onlineStatus: 'online',
       copyId: 'Copy ID',
       copied: 'Copied!'
     },
