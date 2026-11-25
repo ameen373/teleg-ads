@@ -1,100 +1,182 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Telega.ads — Telegram Mini App</title>
+  <title>Telega.ads - Telegram Ad Network</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="/css/styles.css" />
 </head>
-<body class="rtl">
-  <div id="toast-banner" class="toast-banner is-hidden" role="status" aria-live="polite"></div>
+<body>
+  <div id="app-loader" class="loader-overlay">
+    <div class="pulse-ring"></div>
+    <span class="loader-text">Telega.ads</span>
+  </div>
 
-  <div id="app" class="app-shell">
-    <!-- الشريط العلوي -->
-    <header class="top-bar">
-      <div id="header-title" class="header-title">حسابي</div>
-      <button id="lang-toggle-btn" class="lang-btn" type="button">EN</button>
+  <div id="app-container" class="app-wrapper hidden">
+    <!-- Header -->
+    <header class="top-bar glass-panel">
+      <div class="brand">
+        <span class="brand-dot"></span>
+        <h1>Telega.ads</h1>
+      </div>
+      <div class="header-actions">
+        <button id="btn-header-lang" class="icon-btn" aria-label="Language">
+          <span id="current-flag">🇬🇧</span>
+        </button>
+      </div>
     </header>
 
-    <!-- حاوية الأقسام -->
-    <main id="main-content" class="main-content app-main">
-      <div id="view-account" class="app-view"></div>
-      <div id="view-admin" class="app-view is-hidden"></div>
-      <div id="view-placeholder" class="app-view is-hidden"></div>
+    <!-- Main Dynamic Content -->
+    <main id="main-viewport" class="viewport">
+      
+      <!-- Section 1: My Account (حسابي) -->
+      <section id="section-account" class="view-section active-view">
+        <div class="profile-hero-card glass-panel animate-float">
+          <div class="avatar-wrapper">
+            <img id="user-avatar" src="" alt="Profile" class="avatar-img" />
+            <span class="status-badge"></span>
+          </div>
+          <h2 id="user-display-name" class="user-name">User</h2>
+          <p class="user-role-tag" data-i18n="account_verified">Verified Partner</p>
+        </div>
 
-      <section id="section-home" class="tab-section active" data-tab="home"></section>
-      <section id="section-channels" class="tab-section" data-tab="channels"></section>
-      <section id="section-campaigns" class="tab-section" data-tab="campaigns"></section>
-      <section id="section-wallet" class="tab-section" data-tab="wallet"></section>
-      <section id="section-referral" class="tab-section" data-tab="referral"></section>
-      <section id="section-admin" class="tab-section" data-tab="admin"></section>
+        <div class="action-grid">
+          <button class="feature-btn glass-panel ripple" data-action="open-language">
+            <span class="btn-icon">🌐</span>
+            <span class="btn-label" data-i18n="btn_language">Change Language</span>
+            <span class="btn-arrow">›</span>
+          </button>
+
+          <button class="feature-btn glass-panel ripple" data-action="open-faq">
+            <span class="btn-icon">❓</span>
+            <span class="btn-label" data-i18n="btn_faq">FAQ</span>
+            <span class="btn-arrow">›</span>
+          </button>
+
+          <button class="feature-btn glass-panel ripple" data-action="open-channel">
+            <span class="btn-icon">📢</span>
+            <span class="btn-label" data-i18n="btn_official_channel">Official Channel</span>
+            <span class="btn-arrow">›</span>
+          </button>
+
+          <button class="feature-btn glass-panel ripple" data-action="open-support">
+            <span class="btn-icon">🎧</span>
+            <span class="btn-label" data-i18n="btn_support">Support Team</span>
+            <span class="btn-arrow">›</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Section 2: My Channels (قنواتي) -->
+      <section id="section-channels" class="view-section">
+        <div class="section-header">
+          <h2 data-i18n="nav_channels">My Channels</h2>
+          <button class="primary-btn pulse-btn" data-action="toggle-add-channel" data-i18n="btn_add_channel">+ Add Channel</button>
+        </div>
+        <div id="add-channel-panel" class="collapsible-panel hidden glass-panel">
+          <input type="text" id="channel-input" class="modern-input" data-i18n-placeholder="placeholder_channel" placeholder="@channel_username" />
+          <button id="submit-channel-btn" class="primary-btn full-width" data-i18n="btn_verify_channel">Verify & Connect</button>
+        </div>
+        <div id="channels-list" class="cards-container"></div>
+      </section>
+
+      <!-- Section 3: Promotion (الترويج) -->
+      <section id="section-campaigns" class="view-section">
+        <div class="section-header">
+          <h2 data-i18n="nav_promotion">Promotion</h2>
+          <button class="primary-btn pulse-btn" data-action="toggle-create-campaign" data-i18n="btn_new_ad">+ New Ad</button>
+        </div>
+        <div id="create-campaign-panel" class="collapsible-panel hidden glass-panel">
+          <input type="text" id="ad-title-input" class="modern-input" data-i18n-placeholder="placeholder_ad_title" placeholder="Campaign Title" />
+          <textarea id="ad-content-input" class="modern-input" rows="3" data-i18n-placeholder="placeholder_ad_text" placeholder="Ad message text..."></textarea>
+          <input type="number" id="ad-budget-input" class="modern-input" data-i18n-placeholder="placeholder_budget" placeholder="Budget (USDT)" />
+          <button id="submit-campaign-btn" class="primary-btn full-width" data-i18n="btn_launch_ad">Launch Campaign</button>
+        </div>
+        <div id="campaigns-list" class="cards-container"></div>
+      </section>
+
+      <!-- Section 4: Referral (الإحالة) -->
+      <section id="section-referral" class="view-section">
+        <div class="section-header">
+          <h2 data-i18n="nav_referral">Referral</h2>
+        </div>
+        <div class="glass-panel referral-box">
+          <p class="referral-desc" data-i18n="referral_desc">Invite friends and earn commission from every campaign and payout.</p>
+          <button class="primary-btn full-width ripple" data-action="reveal-referral" data-i18n="btn_get_ref_link">Generate Invite Link</button>
+          <div id="referral-link-box" class="hidden ref-result">
+            <input type="text" id="ref-link-input" class="modern-input" readonly />
+            <button id="copy-ref-btn" class="secondary-btn full-width" data-i18n="btn_copy">Copy Link</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 5: Admin Only (قسم الإدارة - مخفي تماماً عن الجميع إلا المالك) -->
+      <section id="section-admin" class="view-section hidden-admin">
+        <div class="section-header">
+          <h2 data-i18n="nav_admin">Admin Control</h2>
+          <span class="admin-badge">OWNER</span>
+        </div>
+        <div class="action-grid">
+          <button class="feature-btn glass-panel ripple" data-action="admin-stats">
+            <span class="btn-icon">📊</span>
+            <span class="btn-label" data-i18n="admin_live_stats">Live Platform Stats</span>
+            <span class="btn-arrow">›</span>
+          </button>
+          <button class="feature-btn glass-panel ripple" data-action="admin-broadcast">
+            <span class="btn-icon">📣</span>
+            <span class="btn-label" data-i18n="admin_broadcast">Global Broadcast</span>
+            <span class="btn-arrow">›</span>
+          </button>
+          <button class="feature-btn glass-panel ripple" data-action="admin-security">
+            <span class="btn-icon">🛡️</span>
+            <span class="btn-label" data-i18n="admin_shield">Anti-Bot & Security Logs</span>
+            <span class="btn-arrow">›</span>
+          </button>
+        </div>
+        <div id="admin-dynamic-workspace" class="collapsible-panel hidden glass-panel"></div>
+      </section>
+
     </main>
 
-    <!-- شريط التنقل السفلي العائم -->
-    <nav class="bottom-nav-wrap bottom-nav" aria-label="Bottom Navigation">
-      <button class="nav-item active is-active" data-target="home" data-nav-tab="account" type="button">
-        <span class="nav-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 3l9 8h-3v9h-5v-6h-2v6H6v-9H3l9-8z"/>
-          </svg>
-          <span class="nav-badge" data-badge="home"></span>
-        </span>
-        <span class="nav-label" data-i18n="nav_home">حسابي</span>
+    <!-- Bottom Navigation Bar -->
+    <nav class="bottom-nav glass-panel">
+      <button class="nav-item active" data-target="section-account">
+        <span class="nav-icon">👤</span>
+        <span class="nav-text" data-i18n="nav_account">Account</span>
       </button>
-
-      <button class="nav-item" data-target="channels" data-nav-tab="channels" type="button">
-        <span class="nav-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M16.6 7.8L6.5 11.7c-.7.3-.7.7-.1.9l2.6.8 6-3.8c.3-.2.5-.1.3.1l-4.8 4.4-.2 2.7c.3 0 .4-.1.6-.3l1.4-1.4 2.9 2.1c.5.3.9.1 1-.5l1.8-8.6c.2-.7-.3-1-.9-.7z" fill="var(--pill-bg)"/>
-          </svg>
-          <span class="nav-badge" data-badge="channels"></span>
-        </span>
-        <span class="nav-label" data-i18n="nav_channels">قنواتي</span>
+      <button class="nav-item" data-target="section-channels">
+        <span class="nav-icon">📡</span>
+        <span class="nav-text" data-i18n="nav_channels">Channels</span>
       </button>
-
-      <button class="nav-item" data-target="campaigns" data-nav-tab="campaigns" type="button">
-        <span class="nav-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M18 4v16l-8-4H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h5l8-4zm2 4h2v2h-2V8zm0 6h2v2h-2v-2z"/>
-          </svg>
-          <span class="nav-badge" data-badge="campaigns"></span>
-        </span>
-        <span class="nav-label" data-i18n="nav_campaigns">الترويج</span>
+      <button class="nav-item" data-target="section-campaigns">
+        <span class="nav-icon">🚀</span>
+        <span class="nav-text" data-i18n="nav_promotion">Promotion</span>
       </button>
-
-      <button class="nav-item" data-target="wallet" data-nav-tab="wallet" type="button">
-        <span class="nav-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M19 5H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2h-4a2 2 0 0 1 0-4h4V7a2 2 0 0 0-2-2zm-2 7a1 1 0 1 0 0 2h4v-2h-4z"/>
-          </svg>
-          <span class="nav-badge" data-badge="wallet"></span>
-        </span>
-        <span class="nav-label" data-i18n="nav_wallet">المحفظة</span>
+      <button class="nav-item" data-target="section-referral">
+        <span class="nav-icon">🎁</span>
+        <span class="nav-text" data-i18n="nav_referral">Referral</span>
       </button>
-
-      <button class="nav-item" data-target="referral" type="button">
-        <span class="nav-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M9 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zm7 1a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM9 14c-3.3 0-6 1.8-6 4v1h12v-1c0-2.2-2.7-4-6-4zm7 1c-1.2 0-2.3.3-3.2.8.8.8 1.2 1.9 1.2 3.2v1h7v-1c0-1.9-2.2-4-5-4z"/>
-          </svg>
-          <span class="nav-badge" data-badge="referral"></span>
-        </span>
-        <span class="nav-label" data-i18n="nav_referral">الإحالة</span>
-      </button>
-
-      <button class="nav-item is-hidden" data-target="admin" data-nav-tab="admin" type="button" style="display: none;">
-        <span class="nav-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3zm0 2.18l6 2.25v4.66h-6V4.18zm0 15.63c-3.09-.98-5.33-4.38-5.88-8.16H12v8.16z"/>
-          </svg>
-          <span class="nav-badge" data-badge="admin"></span>
-        </span>
-        <span class="nav-label" data-i18n="nav_admin">الإدارة</span>
+      <button id="nav-admin-btn" class="nav-item hidden-admin" data-target="section-admin">
+        <span class="nav-icon">⚡</span>
+        <span class="nav-text" data-i18n="nav_admin">Admin</span>
       </button>
     </nav>
   </div>
+
+  <!-- Interactive Modal Overlay (للنوافذ المنبثقة عند الضغط على الأزرار) -->
+  <div id="modal-backdrop" class="modal-backdrop hidden">
+    <div class="modal-sheet glass-panel">
+      <div class="modal-header">
+        <h3 id="modal-title">Title</h3>
+        <button id="modal-close-btn" class="close-btn">✕</button>
+      </div>
+      <div id="modal-body" class="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast-container" class="toast-container"></div>
 
   <script type="module" src="/js/app.js"></script>
 </body>
