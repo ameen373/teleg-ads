@@ -1,34 +1,38 @@
-(function () {
-  document.addEventListener('DOMContentLoaded', function () {
-    if (window.Telegram && window.Telegram.WebApp) {
-      window.Telegram.WebApp.ready();
-      window.Telegram.WebApp.expand();
-    }
+import { applyLanguage, toggleLanguage, setOnLanguageChange } from './language/i18n.js';
+import { initThemeListener, setActiveTab, refreshHeaderTitle } from './modules/ui.js';
+import { init as initChannels } from './modules/channels.js';
+import { init as initCampaigns } from './modules/campaigns.js';
+import { init as initWallet } from './modules/wallet.js';
+import { init as initAdmin } from './modules/admin.js';
 
-    if (window.I18n) {
-      window.I18n.applyLanguage('ar');
-    }
+document.addEventListener('DOMContentLoaded', () => {
+  const tg = window.Telegram && window.Telegram.WebApp;
+  if (tg) {
+    tg.ready();
+    tg.expand();
+  }
 
-    var langBtn = document.getElementById('lang-toggle-btn');
-    if (langBtn && window.I18n) {
-      langBtn.addEventListener('click', function () {
-        window.I18n.toggleLanguage();
-      });
-    }
+  initThemeListener();
+  setOnLanguageChange(refreshHeaderTitle);
+  applyLanguage('ar');
 
-    var navButtons = document.querySelectorAll('.nav-item');
-    navButtons.forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var target = btn.getAttribute('data-target');
-        if (target && window.UI) {
-          window.UI.setActiveTab(target);
-        }
-      });
+  const langBtn = document.getElementById('lang-toggle-btn');
+  if (langBtn) {
+    langBtn.addEventListener('click', toggleLanguage);
+  }
+
+  const navButtons = document.querySelectorAll('.nav-item');
+  navButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const target = btn.getAttribute('data-target');
+      if (target) {
+        setActiveTab(target);
+      }
     });
-
-    if (window.ChannelsModule) window.ChannelsModule.init();
-    if (window.CampaignsModule) window.CampaignsModule.init();
-    if (window.WalletModule) window.WalletModule.init();
-    if (window.AdminModule) window.AdminModule.init();
   });
-})();
+
+  initChannels();
+  initCampaigns();
+  initWallet();
+  initAdmin();
+});
