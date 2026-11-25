@@ -1,4 +1,4 @@
-window.LANG_EN = {
+export const LANG_EN = {
   dir: 'ltr',
   lang: 'en',
   toggleLabel: 'عربي',
