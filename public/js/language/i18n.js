@@ -1,11 +1,14 @@
 (function () {
-  function resolveDictionaries() {
+  function resolveDictionaries(ctx) {
     try {
+      const ctxDicts = ctx && ctx.dictionaries && typeof ctx.dictionaries === 'object' ? ctx.dictionaries : null;
       const arDict =
+        (ctxDicts && ctxDicts.ar) ||
         (typeof window !== 'undefined' &&
           (window.AR_TRANSLATIONS || window.LANG_AR || window.TELEGA_LANG_AR)) ||
         (typeof AR_TRANSLATIONS !== 'undefined' ? AR_TRANSLATIONS : {});
       const enDict =
+        (ctxDicts && ctxDicts.en) ||
         (typeof window !== 'undefined' &&
           (window.EN_TRANSLATIONS || window.LANG_EN || window.TELEGA_LANG_EN)) ||
         (typeof EN_TRANSLATIONS !== 'undefined' ? EN_TRANSLATIONS : {});
@@ -19,8 +22,11 @@
     }
   }
 
-  function getSavedLanguage() {
+  function getSavedLanguage(ctx) {
     try {
+      if (ctx && ctx.state && (ctx.state.lang === 'ar' || ctx.state.lang === 'en')) {
+        return ctx.state.lang;
+      }
       if (typeof localStorage !== 'undefined') {
         const savedLang = localStorage.getItem('telega_lang');
         if (savedLang === 'ar' || savedLang === 'en') {
@@ -33,9 +39,13 @@
     return null;
   }
 
-  function saveLanguage(lang) {
+  function saveLanguage(lang, ctx) {
     try {
-      if (typeof localStorage !== 'undefined' && (lang === 'ar' || lang === 'en')) {
+      if (lang !== 'ar' && lang !== 'en') return;
+      if (ctx && ctx.state && typeof ctx.state === 'object') {
+        ctx.state.lang = lang;
+      }
+      if (typeof localStorage !== 'undefined') {
         localStorage.setItem('telega_lang', lang);
       }
     } catch (err) {
@@ -50,9 +60,9 @@
       return resolveDictionaries();
     },
 
-    detectInitialLanguage(serverLang) {
+    detectInitialLanguage(serverLang, ctx) {
       try {
-        const savedLang = getSavedLanguage();
+        const savedLang = getSavedLanguage(ctx);
         if (savedLang === 'ar' || savedLang === 'en') {
           return savedLang;
         }
@@ -75,11 +85,12 @@
       }
     },
 
-    t(key) {
+    t(key, ctx) {
       if (!key) return '';
       try {
-        const dicts = resolveDictionaries();
-        const activeDict = dicts[this.currentLang] || dicts.ar || {};
+        const dicts = resolveDictionaries(ctx);
+        const activeLang = (ctx && ctx.lang) || this.currentLang;
+        const activeDict = dicts[activeLang] || dicts.ar || {};
         const fallbackEn = dicts.en || {};
         const fallbackAr = dicts.ar || {};
         if (Object.prototype.hasOwnProperty.call(activeDict, key) && activeDict[key] !== undefined) {
@@ -97,31 +108,33 @@
       return key;
     },
 
-    applyDirection() {
+    applyDirection(ctx) {
       if (typeof document === 'undefined' || !document.documentElement) return;
       try {
+        const activeLang = (ctx && ctx.lang) || this.currentLang;
         const htmlEl = document.documentElement;
-        htmlEl.lang = this.currentLang;
-        htmlEl.dir = this.currentLang === 'ar' ? 'rtl' : 'ltr';
+        htmlEl.lang = activeLang;
+        htmlEl.dir = activeLang === 'ar' ? 'rtl' : 'ltr';
       } catch (err) {
         console.error(err);
       }
     },
 
-    translateDOM() {
+    translateDOM(ctx) {
       if (typeof document === 'undefined') return;
       try {
-        document.querySelectorAll('[data-i18n]').forEach((el) => {
+        const root = ctx && ctx.root && typeof ctx.root.querySelectorAll === 'function' ? ctx.root : document;
+        root.querySelectorAll('[data-i18n]').forEach((el) => {
           const key = el.getAttribute('data-i18n');
           if (key) {
-            el.textContent = this.t(key);
+            el.textContent = this.t(key, ctx);
           }
         });
 
-        document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
+        root.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
           const key = el.getAttribute('data-i18n-placeholder');
           if (key) {
-            el.placeholder = this.t(key);
+            el.placeholder = this.t(key, ctx);
           }
         });
       } catch (err) {
@@ -129,38 +142,38 @@
       }
     },
 
-    applyTranslations() {
-      this.translateDOM();
+    applyTranslations(ctx) {
+      this.translateDOM(ctx);
     },
 
-    setLanguage(lang) {
+    setLanguage(lang, ctx) {
       if (lang !== 'ar' && lang !== 'en') return;
       try {
         this.currentLang = lang;
-        saveLanguage(lang);
-        this.applyDirection();
-        this.translateDOM();
+        saveLanguage(lang, ctx);
+        this.applyDirection(ctx);
+        this.translateDOM(ctx);
       } catch (err) {
         console.error(err);
       }
     },
 
-    applyLanguage(lang) {
-      this.setLanguage(lang === 'en' ? 'en' : 'ar');
+    applyLanguage(lang, ctx) {
+      this.setLanguage(lang === 'en' ? 'en' : 'ar', ctx);
     },
 
-    getLang() {
-      return this.currentLang;
+    getLang(ctx) {
+      return (ctx && ctx.lang) || this.currentLang;
     },
 
-    toggleLanguage() {
+    toggleLanguage(ctx) {
       try {
-        const nextLang = this.currentLang === 'ar' ? 'en' : 'ar';
-        this.setLanguage(nextLang);
+        const nextLang = this.getLang(ctx) === 'ar' ? 'en' : 'ar';
+        this.setLanguage(nextLang, ctx);
         return nextLang;
       } catch (err) {
         console.error(err);
-        return this.currentLang;
+        return this.getLang(ctx);
       }
     }
   };
@@ -169,11 +182,10 @@
 
   if (typeof window !== 'undefined') {
     window.I18N = I18N;
-    window.I18n = I18N;
     window.TelegaI18n = {
-      applyLanguage: (lang) => I18N.applyLanguage(lang),
-      t: (key) => I18N.t(key),
-      getLang: () => I18N.getLang()
+      applyLanguage: (lang, ctx) => I18N.applyLanguage(lang, ctx),
+      t: (key, ctx) => I18N.t(key, ctx),
+      getLang: (ctx) => I18N.getLang(ctx)
     };
   }
 
