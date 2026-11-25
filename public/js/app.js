@@ -1,4 +1,3 @@
-// ==================== APP STATE & CORE CONSTANTS ====================
 const SUPPORTED_LANGUAGES = [
   'English',
   'Chinese',
@@ -103,27 +102,23 @@ window.SUPPORTED_LANGUAGES = SUPPORTED_LANGUAGES;
 window.SUPPORTED_CATEGORIES = SUPPORTED_CATEGORIES;
 window.AppState = AppState;
 
-function getTranslateFn() {
-  if (window.TelegaI18n && typeof window.TelegaI18n.t === 'function') {
-    return (key) => window.TelegaI18n.t(key);
+function getTranslateFn(ctx) {
+  if (ctx && typeof ctx.t === 'function') {
+    return (key) => ctx.t(key, ctx);
   }
-  if (window.I18n && typeof window.I18n.t === 'function') {
-    return (key) => window.I18n.t(key);
+  if (window.TelegaI18n && typeof window.TelegaI18n.t === 'function') {
+    return (key) => window.TelegaI18n.t(key, ctx);
   }
   if (window.I18N && typeof window.I18N.t === 'function') {
-    return (key) => window.I18N.t(key);
+    return (key) => window.I18N.t(key, ctx);
   }
   return (key) => key;
 }
 
-function notifyUser(message) {
+function notifyUser(message, ctx) {
   if (!message) return;
-  if (window.UI && typeof window.UI.showNotice === 'function') {
-    window.UI.showNotice(message);
-  } else if (typeof window.showNotice === 'function') {
-    window.showNotice(message);
-  } else if (typeof window.showToast === 'function') {
-    window.showToast(message);
+  if (window.UI && typeof window.UI.showToast === 'function') {
+    window.UI.showToast(message, ctx);
   } else if (window.UI && typeof window.UI.notify === 'function') {
     window.UI.notify(message);
   }
@@ -136,8 +131,8 @@ function safeOn(elementId, eventName, handler) {
   return element;
 }
 
-function updateToggleButtonsText() {
-  const t = getTranslateFn();
+function updateToggleButtonsText(ctx) {
+  const t = getTranslateFn(ctx);
 
   const btnChannelsList = document.getElementById('btn-toggle-channels-list');
   if (btnChannelsList) {
@@ -154,21 +149,23 @@ function updateToggleButtonsText() {
   }
 }
 
-async function refreshAllRenderedViews() {
+async function refreshAllRenderedViews(ctx) {
   try {
-    if (typeof window.populateDropdowns === 'function') window.populateDropdowns();
-    updateToggleButtonsText();
-    if (typeof window.renderChannels === 'function') window.renderChannels();
-    if (typeof window.renderAdminQueue === 'function') window.renderAdminQueue();
-    if (typeof window.renderReferrals === 'function') window.renderReferrals();
-    if (typeof window.renderWallet === 'function') window.renderWallet();
-    if (typeof window.renderReliabilityPanel === 'function') window.renderReliabilityPanel();
-    if (typeof window.renderMarketplaceChannels === 'function') window.renderMarketplaceChannels();
-    if (typeof window.renderCampaigns === 'function') window.renderCampaigns();
+    if (window.UI && typeof window.UI.populateDropdowns === 'function') {
+      window.UI.populateDropdowns(ctx);
+    }
+    updateToggleButtonsText(ctx);
+    if (window.ChannelsModule && typeof window.ChannelsModule.render === 'function') {
+      window.ChannelsModule.render(ctx);
+    }
+    if (window.CampaignsModule && typeof window.CampaignsModule.render === 'function') {
+      window.CampaignsModule.render(ctx);
+    }
+    if (window.WalletModule && typeof window.WalletModule.render === 'function') {
+      window.WalletModule.render(ctx);
+    }
     if (window.UI && typeof window.UI.renderSmartAlerts === 'function') {
-      window.UI.renderSmartAlerts(AppState.smartAlerts);
-    } else if (typeof window.renderSmartAlerts === 'function') {
-      window.renderSmartAlerts(AppState.smartAlerts);
+      window.UI.renderSmartAlerts(AppState.smartAlerts, ctx);
     }
   } catch (err) {
     console.error(err);
@@ -178,30 +175,30 @@ async function refreshAllRenderedViews() {
 window.updateToggleButtonsText = updateToggleButtonsText;
 window.refreshAllRenderedViews = refreshAllRenderedViews;
 
-// ==================== MAIN APPLICATION CONTROLLER ====================
 (function () {
   const App = {
     user: null,
     _initialized: false,
 
     getContext() {
-      return {
+      const ctx = {
         state: AppState,
         el: (id) => document.getElementById(id),
-        apiRequest: async (url, options, ctx) => {
-          if (window.Api && typeof window.Api.request === 'function') {
-            return window.Api.request(url, options, ctx);
-          }
+        t: (key) => getTranslateFn(ctx)(key),
+        apiRequest: async (url, options = {}) => {
           const headers = Object.assign(
             {
               'Content-Type': 'application/json',
-              'x-user-id': AppState.userId
+              'x-user-id': String(AppState.userId || '')
             },
-            AppState.adminKey ? { 'x-admin-key': AppState.adminKey } : {},
-            (options && options.headers) || {}
+            AppState.adminKey ? { 'x-admin-key': String(AppState.adminKey) } : {},
+            options && options.headers ? options.headers : {}
           );
           const resp = await fetch(url, Object.assign({}, options, { headers }));
           const data = await resp.json().catch(() => ({}));
+          if (typeof data.maintenanceMode === 'boolean') {
+            ctx.renderMaintenanceBanner(data);
+          }
           if (!resp.ok || data.ok === false || data.success === false) {
             const err = new Error(data.error || data.message || 'Request failed');
             err.status = resp.status;
@@ -210,105 +207,82 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
           }
           return data;
         },
-        showNotice: (msg, isError) => {
+        showNotice: (containerId, msg, isError) => {
           if (window.UI && typeof window.UI.showNotice === 'function') {
-            window.UI.showNotice(msg, isError);
-          } else if (typeof window.showNotice === 'function') {
-            window.showNotice(msg, isError);
+            window.UI.showNotice(containerId, msg, isError, ctx);
           } else {
-            notifyUser(msg);
+            notifyUser(msg, ctx);
           }
         },
-        clearNotice: () => {
+        clearNotice: (containerId) => {
           if (window.UI && typeof window.UI.clearNotice === 'function') {
-            window.UI.clearNotice();
-          } else if (typeof window.clearNotice === 'function') {
-            window.clearNotice();
+            window.UI.clearNotice(containerId, ctx);
           }
         },
         renderMaintenanceBanner: (data) => {
           if (window.UI && typeof window.UI.renderMaintenanceBanner === 'function') {
-            window.UI.renderMaintenanceBanner(data);
-          } else if (typeof window.renderMaintenanceBanner === 'function') {
-            window.renderMaintenanceBanner(data);
+            window.UI.renderMaintenanceBanner(data, undefined, ctx);
           }
         },
         syncReferralLink: () => {
           if (window.UI && typeof window.UI.syncReferralLink === 'function') {
-            window.UI.syncReferralLink(App.getContext());
-          } else if (typeof window.syncReferralLink === 'function') {
-            window.syncReferralLink(App.getContext());
+            window.UI.syncReferralLink(ctx);
           }
         },
         saveDrafts: () => {
           if (window.UI && typeof window.UI.saveDrafts === 'function') {
-            window.UI.saveDrafts(App.getContext());
-          } else if (typeof window.saveDrafts === 'function') {
-            window.saveDrafts(App.getContext());
+            window.UI.saveDrafts(ctx);
           }
         },
         restoreDrafts: () => {
           if (window.UI && typeof window.UI.restoreDrafts === 'function') {
-            window.UI.restoreDrafts(App.getContext());
-          } else if (typeof window.restoreDrafts === 'function') {
-            window.restoreDrafts(App.getContext());
+            window.UI.restoreDrafts(ctx);
           }
         },
         syncOpenTargetingRule: () => {
-          if (typeof window.handleBudgetTargetingState === 'function') {
-            window.handleBudgetTargetingState();
+          if (window.UI && typeof window.UI.handleBudgetTargetingState === 'function') {
+            window.UI.handleBudgetTargetingState(ctx);
           }
           if (window.CampaignsModule && typeof window.CampaignsModule.syncOpenTargetingRule === 'function') {
-            window.CampaignsModule.syncOpenTargetingRule(App.getContext());
+            window.CampaignsModule.syncOpenTargetingRule(ctx);
           }
         },
         syncWithdrawalSummary: () => {
           if (window.WalletModule && typeof window.WalletModule.syncWithdrawalSummary === 'function') {
-            window.WalletModule.syncWithdrawalSummary(App.getContext());
-          } else if (typeof window.syncWithdrawalSummary === 'function') {
-            window.syncWithdrawalSummary(App.getContext());
+            window.WalletModule.syncWithdrawalSummary(ctx);
           }
         },
         renderSmartAlerts: (alerts) => {
           AppState.smartAlerts = Array.isArray(alerts) ? alerts : [];
           if (window.UI && typeof window.UI.renderSmartAlerts === 'function') {
-            window.UI.renderSmartAlerts(AppState.smartAlerts);
-          } else if (typeof window.renderSmartAlerts === 'function') {
-            window.renderSmartAlerts(AppState.smartAlerts);
+            window.UI.renderSmartAlerts(AppState.smartAlerts, ctx);
           }
         },
         refreshWallet: async () => {
           if (window.WalletModule && typeof window.WalletModule.refresh === 'function') {
-            await window.WalletModule.refresh(App.getContext());
-          } else if (typeof window.fetchWallet === 'function') {
-            await window.fetchWallet();
+            await window.WalletModule.refresh(ctx);
           }
-          await App.refreshUserData().catch(() => {});
+          await App.refreshUserData(ctx).catch(() => {});
         },
         refreshCampaigns: async () => {
           if (window.CampaignsModule && typeof window.CampaignsModule.load === 'function') {
-            await window.CampaignsModule.load(App.getContext());
-          } else if (typeof window.fetchCampaigns === 'function') {
-            await window.fetchCampaigns();
+            await window.CampaignsModule.load(ctx);
           }
         },
         refreshChannels: async () => {
           if (window.ChannelsModule && typeof window.ChannelsModule.load === 'function') {
-            await window.ChannelsModule.load(App.getContext());
-          } else if (typeof window.fetchChannels === 'function') {
-            await window.fetchChannels();
+            await window.ChannelsModule.load(ctx);
           }
         },
         refreshTicketsAndBroadcasts: async () => {
-          const ctx = App.getContext();
           if (window.UI && typeof window.UI.refreshTicketsAndBroadcasts === 'function') {
             await window.UI.refreshTicketsAndBroadcasts(ctx);
             return;
           }
           try {
             const [tktRes, bcastRes] = await Promise.all([
-              ctx.apiRequest(`/api/tickets?userId=${encodeURIComponent(AppState.userId)}`, undefined, ctx).catch(() => ({ tickets: [] })),
-              ctx.apiRequest('/api/broadcasts', undefined, ctx).catch(() => ({ broadcasts: [] }))
+              ctx.apiRequest(`/api/tickets?userId=${encodeURIComponent(AppState.userId)}`).catch(() => ({ tickets: [] })),
+              ctx.apiRequest('/api/broadcasts').catch(() => ({ broadcasts: [] }))
             ]);
             AppState.tickets = Array.isArray(tktRes.tickets) ? tktRes.tickets : [];
             AppState.broadcasts = Array.isArray(bcastRes.broadcasts) ? bcastRes.broadcasts : [];
@@ -318,17 +292,18 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
         },
         refreshAdminPanel: async () => {
           if (window.AdminModule && typeof window.AdminModule.loadDashboard === 'function') {
-            await window.AdminModule.loadDashboard(App.getContext());
-          } else if (typeof window.fetchAdminOverview === 'function') {
-            await window.fetchAdminOverview();
+            await window.AdminModule.loadDashboard(ctx);
           }
         }
       };
+      return ctx;
     },
 
     async init() {
       if (this._initialized) return;
       this._initialized = true;
+
+      const ctx = this.getContext();
 
       try {
         const tg = window.Telegram?.WebApp;
@@ -342,17 +317,14 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
 
       try {
         if (window.TelegaI18n && typeof window.TelegaI18n.applyLanguage === 'function' && typeof window.TelegaI18n.getLang === 'function') {
-          window.TelegaI18n.applyLanguage(window.TelegaI18n.getLang());
-        } else if (window.I18n) {
-          const initialLang = typeof window.I18n.detectInitialLanguage === 'function'
-            ? window.I18n.detectInitialLanguage()
-            : window.I18n.currentLang || 'ar';
-          if (typeof window.I18n.setLanguage === 'function') {
-            window.I18n.setLanguage(initialLang);
-          }
+          window.TelegaI18n.applyLanguage(window.TelegaI18n.getLang(ctx), ctx);
         } else if (window.I18N) {
-          if (typeof window.I18N.applyDirection === 'function') window.I18N.applyDirection();
-          if (typeof window.I18N.translateDOM === 'function') window.I18N.translateDOM();
+          const initialLang = typeof window.I18N.detectInitialLanguage === 'function'
+            ? window.I18N.detectInitialLanguage(undefined, ctx)
+            : window.I18N.currentLang || 'ar';
+          if (typeof window.I18N.setLanguage === 'function') {
+            window.I18N.setLanguage(initialLang, ctx);
+          }
         }
       } catch (err) {
         console.error(err);
@@ -365,37 +337,36 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
         const adminKeyInput = document.getElementById('adminKeyInput');
         if (adminKeyInput) adminKeyInput.value = AppState.adminKey;
 
-        if (typeof window.populateDropdowns === 'function') {
-          window.populateDropdowns();
+        if (window.UI && typeof window.UI.populateDropdowns === 'function') {
+          window.UI.populateDropdowns(ctx);
         }
-        updateToggleButtonsText();
+        updateToggleButtonsText(ctx);
       } catch (err) {
         console.error(err);
       }
 
-      const ctx = this.getContext();
       ctx.syncReferralLink();
       ctx.restoreDrafts();
       ctx.syncWithdrawalSummary();
 
-      this.bindNavigation();
-      this.bindLanguageToggle();
-      this.bindProgressivePanelsAndWizards();
+      this.bindNavigation(ctx);
+      this.bindLanguageToggle(ctx);
+      this.bindProgressivePanelsAndWizards(ctx);
 
       try {
         if (window.UI && typeof window.UI.bindEvents === 'function') {
           window.UI.bindEvents(ctx);
         }
         if (window.ChannelsModule) {
-          if (typeof window.ChannelsModule.init === 'function') window.ChannelsModule.init();
+          if (typeof window.ChannelsModule.init === 'function') window.ChannelsModule.init(ctx);
           if (typeof window.ChannelsModule.bindEvents === 'function') window.ChannelsModule.bindEvents(ctx);
         }
         if (window.CampaignsModule) {
-          if (typeof window.CampaignsModule.init === 'function') window.CampaignsModule.init();
+          if (typeof window.CampaignsModule.init === 'function') window.CampaignsModule.init(ctx);
           if (typeof window.CampaignsModule.bindEvents === 'function') window.CampaignsModule.bindEvents(ctx);
         }
         if (window.WalletModule) {
-          if (typeof window.WalletModule.init === 'function') window.WalletModule.init();
+          if (typeof window.WalletModule.init === 'function') window.WalletModule.init(ctx);
           if (typeof window.WalletModule.bindEvents === 'function') window.WalletModule.bindEvents(ctx);
         }
         if (window.AdminModule && typeof window.AdminModule.bindEvents === 'function') {
@@ -406,7 +377,7 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
       }
 
       try {
-        const cfg = await ctx.apiRequest('/api/config/rules', undefined, ctx).catch(() => null);
+        const cfg = await ctx.apiRequest('/api/config/rules').catch(() => null);
         if (cfg) {
           if (typeof cfg.maintenanceMode === 'boolean') {
             AppState.maintenanceMode = cfg.maintenanceMode;
@@ -430,72 +401,53 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
         }
 
         if (AppState.userId) {
-          await ctx.apiRequest(
-            '/api/users/init',
-            {
-              method: 'POST',
-              body: JSON.stringify({ userId: AppState.userId, referredBy: AppState.referredBy })
-            },
-            ctx
-          ).catch(() => {});
+          await ctx.apiRequest('/api/users/init', {
+            method: 'POST',
+            body: JSON.stringify({ userId: AppState.userId, referredBy: AppState.referredBy })
+          }).catch(() => {});
         }
 
-        if (window.Api && typeof window.Api.getMe === 'function') {
-          await this.refreshUserData();
-          await Promise.all([
-            window.ChannelsModule?.load ? window.ChannelsModule.load(ctx) : Promise.resolve(),
-            window.CampaignsModule?.load ? window.CampaignsModule.load(ctx) : Promise.resolve(),
-            ctx.refreshTicketsAndBroadcasts()
-          ]);
-        } else {
-          await Promise.all([
-            ctx.refreshWallet(),
-            ctx.refreshCampaigns(),
-            ctx.refreshChannels(),
-            ctx.refreshTicketsAndBroadcasts()
-          ]);
-        }
+        await Promise.all([
+          this.refreshUserData(ctx).catch(() => {}),
+          ctx.refreshWallet(),
+          ctx.refreshCampaigns(),
+          ctx.refreshChannels(),
+          ctx.refreshTicketsAndBroadcasts()
+        ]);
 
         if (AppState.adminKey) {
           await ctx.refreshAdminPanel().catch(() => {});
         }
       } catch (err) {
-        if (window.UI && typeof window.UI.notify === 'function') {
-          window.UI.notify(err.message);
-        } else {
-          notifyUser(err.message);
-        }
+        notifyUser(err.message, ctx);
       } finally {
         if (window.UI && typeof window.UI.hideLoader === 'function') {
-          window.UI.hideLoader();
+          window.UI.hideLoader(ctx);
         }
       }
     },
 
-    async refreshUserData() {
-      if (!window.Api || typeof window.Api.getMe !== 'function') return;
+    async refreshUserData(ctx) {
+      const activeCtx = ctx || this.getContext();
       try {
-        const data = await window.Api.getMe();
+        const data = await activeCtx.apiRequest('/api/me');
         this.user = data?.user || null;
         if (!this.user) return;
 
-        if (window.I18n) {
-          const syncedLang = typeof window.I18n.detectInitialLanguage === 'function'
-            ? window.I18n.detectInitialLanguage(this.user.languageCode)
-            : this.user.languageCode || window.I18n.currentLang;
-          if (typeof window.I18n.setLanguage === 'function') {
-            window.I18n.setLanguage(syncedLang);
+        if (window.I18N && this.user.languageCode) {
+          const syncedLang = typeof window.I18N.detectInitialLanguage === 'function'
+            ? window.I18N.detectInitialLanguage(this.user.languageCode, activeCtx)
+            : this.user.languageCode;
+          if (typeof window.I18N.setLanguage === 'function') {
+            window.I18N.setLanguage(syncedLang, activeCtx);
           }
         }
 
         if (window.UI && typeof window.UI.renderUserHeader === 'function') {
-          window.UI.renderUserHeader(this.user);
-        }
-        if (window.UI && typeof window.UI.renderHome === 'function') {
-          window.UI.renderHome(this.user, data.stats, data.transactions);
+          window.UI.renderUserHeader(this.user, activeCtx);
         }
         if (window.WalletModule && typeof window.WalletModule.render === 'function') {
-          window.WalletModule.render(this.user);
+          window.WalletModule.render(activeCtx);
         }
 
         if (
@@ -503,7 +455,7 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
           window.AdminModule &&
           typeof window.AdminModule.enableAdminAccess === 'function'
         ) {
-          window.AdminModule.enableAdminAccess();
+          window.AdminModule.enableAdminAccess(activeCtx);
         }
       } catch (err) {
         console.error(err);
@@ -511,7 +463,8 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
       }
     },
 
-    bindNavigation() {
+    bindNavigation(ctx) {
+      const activeCtx = ctx || this.getContext();
       document.querySelectorAll('.nav-item').forEach((btn) => {
         btn.addEventListener('click', async () => {
           try {
@@ -523,81 +476,79 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
             }
 
             if (window.UI && typeof window.UI.switchView === 'function') {
-              window.UI.switchView(target);
+              window.UI.switchView(target, activeCtx);
             }
 
-            const ctx = this.getContext();
-            if (target === 'view-channels' && window.ChannelsModule?.load) {
-              await window.ChannelsModule.load(ctx);
+            if (target === 'view-channels') {
+              await activeCtx.refreshChannels();
             }
-            if (target === 'view-campaigns' && window.CampaignsModule?.load) {
-              await window.CampaignsModule.load(ctx);
+            if (target === 'view-campaigns') {
+              await activeCtx.refreshCampaigns();
             }
             if (target === 'view-admin' && (this.user?.isAdmin || AppState.adminKey)) {
-              await ctx.refreshAdminPanel();
+              await activeCtx.refreshAdminPanel();
             }
           } catch (err) {
             console.error(err);
-            notifyUser(err.message);
+            notifyUser(err.message, activeCtx);
           }
         });
       });
     },
 
-    async handleLanguageSwitch() {
-      const t = getTranslateFn();
+    async handleLanguageSwitch(ctx) {
+      const activeCtx = ctx || this.getContext();
+      const t = getTranslateFn(activeCtx);
 
       try {
+        let nextLang = 'ar';
         if (window.TelegaI18n && typeof window.TelegaI18n.getLang === 'function' && typeof window.TelegaI18n.applyLanguage === 'function') {
-          const nextLang = window.TelegaI18n.getLang() === 'ar' ? 'en' : 'ar';
-          window.TelegaI18n.applyLanguage(nextLang);
-        }
-
-        if (window.I18n && typeof window.I18n.setLanguage === 'function') {
-          const nextLang = window.I18n.currentLang === 'ar' ? 'en' : 'ar';
-          window.I18n.setLanguage(nextLang);
-          if (window.UI && typeof window.UI.haptic === 'function') {
-            window.UI.haptic('light');
-          }
-          try {
-            if (window.Api && typeof window.Api.updateLanguage === 'function') {
-              await window.Api.updateLanguage(nextLang);
-              await this.refreshUserData();
-            }
-          } catch (err) {
-            console.error(err);
-          }
+          nextLang = window.TelegaI18n.getLang(activeCtx) === 'ar' ? 'en' : 'ar';
+          window.TelegaI18n.applyLanguage(nextLang, activeCtx);
         } else if (window.I18N && typeof window.I18N.toggleLanguage === 'function') {
-          window.I18N.toggleLanguage();
+          nextLang = window.I18N.toggleLanguage(activeCtx);
         }
 
-        await refreshAllRenderedViews();
-        if (!window.I18n && typeof window.showToast === 'function') {
-          window.showToast(t('msg_lang_updated') || 'Language updated');
+        if (window.UI && typeof window.UI.haptic === 'function') {
+          window.UI.haptic('light');
         }
+
+        try {
+          await activeCtx.apiRequest('/api/user/language', {
+            method: 'POST',
+            body: JSON.stringify({ lang: nextLang })
+          });
+        } catch (err) {
+          console.error(err);
+        }
+
+        await refreshAllRenderedViews(activeCtx);
+        notifyUser(t('msg_lang_updated') || 'Language updated', activeCtx);
       } catch (err) {
         console.error(err);
       }
     },
 
-    bindLanguageToggle() {
+    bindLanguageToggle(ctx) {
+      const activeCtx = ctx || this.getContext();
       const legacyToggleBtn = document.getElementById('lang-toggle-btn');
       if (legacyToggleBtn) {
-        legacyToggleBtn.addEventListener('click', () => this.handleLanguageSwitch());
+        legacyToggleBtn.addEventListener('click', () => this.handleLanguageSwitch(activeCtx));
       }
 
       const newToggleBtn = document.getElementById('btn-lang-toggle');
       if (newToggleBtn) {
-        newToggleBtn.addEventListener('click', () => this.handleLanguageSwitch());
+        newToggleBtn.addEventListener('click', () => this.handleLanguageSwitch(activeCtx));
       }
     },
 
-    bindProgressivePanelsAndWizards() {
-      const t = getTranslateFn();
+    bindProgressivePanelsAndWizards(ctx) {
+      const activeCtx = ctx || this.getContext();
+      const t = getTranslateFn(activeCtx);
       const closePanels = () => {
         try {
-          if (typeof window.closeAllChannelPanels === 'function') {
-            window.closeAllChannelPanels();
+          if (window.UI && typeof window.UI.closeAllChannelPanels === 'function') {
+            window.UI.closeAllChannelPanels(activeCtx);
           }
         } catch (err) {
           console.error(err);
@@ -605,19 +556,23 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
       };
 
       try {
-        if (typeof window.setupPriceSelector === 'function') {
-          window.setupPriceSelector('ch-price-pills', 'ch-price-input', null);
-          window.setupPriceSelector('camp-price-pills', 'camp-price-input', () => {
-            if (AppState.campaignStep === 3 && typeof window.fetchMarketplaceChannels === 'function') {
-              window.fetchMarketplaceChannels();
-            }
-          });
+        if (window.UI && typeof window.UI.setupPriceSelector === 'function') {
+          window.UI.setupPriceSelector('ch-price-pills', 'ch-price-input', null, activeCtx);
+          window.UI.setupPriceSelector(
+            'camp-price-pills',
+            'camp-price-input',
+            () => {
+              if (AppState.campaignStep === 3 && window.CampaignsModule?.loadMarketplace) {
+                window.CampaignsModule.loadMarketplace(activeCtx);
+              }
+            },
+            activeCtx
+          );
         }
       } catch (err) {
         console.error(err);
       }
 
-      // Bot Instructions Progressive Toggle
       safeOn('btn-toggle-bot-box', 'click', () => {
         const panel = document.getElementById('panel-bot-instructions');
         if (!panel) return;
@@ -634,14 +589,13 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
         try {
           if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
             await navigator.clipboard.writeText('@adTelega_bot');
-            notifyUser(t('msg_copied'));
+            notifyUser(t('msg_copied'), activeCtx);
           }
         } catch (err) {
           console.error(err);
         }
       });
 
-      // Admin Review Queue Progressive Toggle
       safeOn('btn-toggle-admin-queue', 'click', async () => {
         try {
           const panel = document.getElementById('panel-admin-queue');
@@ -650,7 +604,7 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
           closePanels();
           if (isHidden) {
             panel.classList.remove('hidden');
-            if (typeof window.fetchChannels === 'function') await window.fetchChannels();
+            await activeCtx.refreshChannels();
           }
         } catch (err) {
           console.error(err);
@@ -661,7 +615,6 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
         document.getElementById('panel-admin-queue')?.classList.add('hidden');
       });
 
-      // Referrals Progressive Toggle
       safeOn('btn-toggle-referrals', 'click', async () => {
         try {
           const panel = document.getElementById('panel-referrals');
@@ -670,7 +623,9 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
           closePanels();
           if (isHidden) {
             panel.classList.remove('hidden');
-            if (typeof window.fetchReferrals === 'function') await window.fetchReferrals();
+            if (window.ChannelsModule && typeof window.ChannelsModule.loadReferrals === 'function') {
+              await window.ChannelsModule.loadReferrals(activeCtx);
+            }
           }
         } catch (err) {
           console.error(err);
@@ -681,7 +636,6 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
         document.getElementById('panel-referrals')?.classList.add('hidden');
       });
 
-      // Wallets Progressive Toggle
       safeOn('btn-toggle-wallet', 'click', async () => {
         try {
           const panel = document.getElementById('panel-wallet');
@@ -690,7 +644,7 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
           closePanels();
           if (isHidden) {
             panel.classList.remove('hidden');
-            if (typeof window.fetchWallet === 'function') await window.fetchWallet();
+            await activeCtx.refreshWallet();
           }
         } catch (err) {
           console.error(err);
@@ -703,8 +657,8 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
 
       safeOn('btn-wallet-deposit', 'click', async () => {
         try {
-          if (typeof window.handleWalletOperation === 'function') {
-            await window.handleWalletOperation('deposit');
+          if (window.WalletModule && typeof window.WalletModule.handleOperation === 'function') {
+            await window.WalletModule.handleOperation('deposit', activeCtx);
           }
         } catch (err) {
           console.error(err);
@@ -713,15 +667,14 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
 
       safeOn('btn-wallet-withdraw', 'click', async () => {
         try {
-          if (typeof window.handleWalletOperation === 'function') {
-            await window.handleWalletOperation('withdraw');
+          if (window.WalletModule && typeof window.WalletModule.handleOperation === 'function') {
+            await window.WalletModule.handleOperation('withdraw', activeCtx);
           }
         } catch (err) {
           console.error(err);
         }
       });
 
-      // Reliability Progressive Toggle
       safeOn('btn-toggle-reliability', 'click', async () => {
         try {
           const panel = document.getElementById('panel-reliability');
@@ -730,7 +683,9 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
           closePanels();
           if (isHidden) {
             panel.classList.remove('hidden');
-            if (typeof window.fetchReliabilityData === 'function') await window.fetchReliabilityData();
+            if (window.AdminModule && typeof window.AdminModule.loadReliability === 'function') {
+              await window.AdminModule.loadReliability(activeCtx);
+            }
           }
         } catch (err) {
           console.error(err);
@@ -743,8 +698,8 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
 
       safeOn('btn-mark-notifications-read', 'click', async () => {
         try {
-          if (typeof window.markNotificationsRead === 'function') {
-            await window.markNotificationsRead();
+          if (window.AdminModule && typeof window.AdminModule.markNotificationsRead === 'function') {
+            await window.AdminModule.markNotificationsRead(activeCtx);
           }
         } catch (err) {
           console.error(err);
@@ -753,29 +708,32 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
 
       safeOn('btn-run-backup', 'click', async () => {
         try {
-          if (typeof window.createManualBackup === 'function') {
-            await window.createManualBackup();
+          if (window.AdminModule && typeof window.AdminModule.createBackup === 'function') {
+            await window.AdminModule.createBackup(activeCtx);
           }
         } catch (err) {
           console.error(err);
         }
       });
 
-      // Add Channel Progressive Wizard
       safeOn('btn-open-add-channel', 'click', () => {
         const panel = document.getElementById('panel-add-channel');
         if (!panel) return;
         const isHidden = panel.classList.contains('hidden');
         closePanels();
         if (isHidden) {
-          if (typeof window.resetChannelWizard === 'function') window.resetChannelWizard();
+          if (window.UI && typeof window.UI.resetChannelWizard === 'function') {
+            window.UI.resetChannelWizard(activeCtx);
+          }
           panel.classList.remove('hidden');
         }
       });
 
       safeOn('btn-cancel-channel-wizard', 'click', () => {
         document.getElementById('panel-add-channel')?.classList.add('hidden');
-        if (typeof window.resetChannelWizard === 'function') window.resetChannelWizard();
+        if (window.UI && typeof window.UI.resetChannelWizard === 'function') {
+          window.UI.resetChannelWizard(activeCtx);
+        }
       });
 
       safeOn('btn-ch-next', 'click', () => {
@@ -783,65 +741,73 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
           const name = document.getElementById('ch-name')?.value.trim() || '';
           const username = document.getElementById('ch-username')?.value.trim() || '';
           if (!name || !username) {
-            notifyUser(t('msg_fill_required'));
+            notifyUser(t('msg_fill_required'), activeCtx);
             return;
           }
           if (username.includes('+') || username.toLowerCase().includes('joinchat')) {
-            notifyUser(t('msg_private_rejected'));
+            notifyUser(t('msg_private_rejected'), activeCtx);
             return;
           }
         }
-        if (AppState.channelStep < 3 && typeof window.updateChannelWizardStep === 'function') {
-          window.updateChannelWizardStep(AppState.channelStep + 1);
+        if (AppState.channelStep < 3 && window.UI && typeof window.UI.updateChannelWizardStep === 'function') {
+          window.UI.updateChannelWizardStep(AppState.channelStep + 1, activeCtx);
         }
       });
 
       safeOn('btn-ch-prev', 'click', () => {
-        if (AppState.channelStep > 1 && typeof window.updateChannelWizardStep === 'function') {
-          window.updateChannelWizardStep(AppState.channelStep - 1);
+        if (AppState.channelStep > 1 && window.UI && typeof window.UI.updateChannelWizardStep === 'function') {
+          window.UI.updateChannelWizardStep(AppState.channelStep - 1, activeCtx);
         }
       });
 
       safeOn('btn-ch-save', 'click', async () => {
         try {
-          if (typeof window.saveNewChannel === 'function') await window.saveNewChannel();
-        } catch (err) {
-          console.error(err);
-        }
-      });
-
-      // Toggle Channels List (Progressive)
-      safeOn('btn-toggle-channels-list', 'click', async () => {
-        try {
-          AppState.isChannelsListOpen = !AppState.isChannelsListOpen;
-          const panel = document.getElementById('panel-channels-list');
-          if (panel) panel.classList.toggle('hidden', !AppState.isChannelsListOpen);
-          updateToggleButtonsText();
-          if (AppState.isChannelsListOpen && typeof window.fetchChannels === 'function') {
-            await window.fetchChannels();
+          if (window.ChannelsModule && typeof window.ChannelsModule.saveNewChannel === 'function') {
+            await window.ChannelsModule.saveNewChannel(activeCtx);
           }
         } catch (err) {
           console.error(err);
         }
       });
 
-      // Campaign Listeners
+      safeOn('btn-toggle-channels-list', 'click', async () => {
+        try {
+          AppState.isChannelsListOpen = !AppState.isChannelsListOpen;
+          const panel = document.getElementById('panel-channels-list');
+          if (panel) panel.classList.toggle('hidden', !AppState.isChannelsListOpen);
+          updateToggleButtonsText(activeCtx);
+          if (AppState.isChannelsListOpen) {
+            await activeCtx.refreshChannels();
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      });
+
       safeOn('camp-title', 'input', () => {
-        if (typeof window.updateLivePreview === 'function') window.updateLivePreview();
+        if (window.UI && typeof window.UI.updateLivePreview === 'function') {
+          window.UI.updateLivePreview(activeCtx);
+        }
       });
 
       safeOn('camp-text', 'input', () => {
-        if (typeof window.updateLivePreview === 'function') window.updateLivePreview();
+        if (window.UI && typeof window.UI.updateLivePreview === 'function') {
+          window.UI.updateLivePreview(activeCtx);
+        }
       });
 
       safeOn('camp-custom-btn', 'input', () => {
-        if (typeof window.updateLivePreview === 'function') window.updateLivePreview();
+        if (window.UI && typeof window.UI.updateLivePreview === 'function') {
+          window.UI.updateLivePreview(activeCtx);
+        }
       });
 
       safeOn('camp-btn-preset', 'change', (e) => {
         const isCustom = e.target.value === 'Custom';
         document.getElementById('camp-custom-btn-group')?.classList.toggle('hidden', !isCustom);
-        if (typeof window.updateLivePreview === 'function') window.updateLivePreview();
+        if (window.UI && typeof window.UI.updateLivePreview === 'function') {
+          window.UI.updateLivePreview(activeCtx);
+        }
       });
 
       safeOn('camp-media-file', 'change', (e) => {
@@ -857,7 +823,9 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
           AppState.mediaData = String(reader.result || '');
           AppState.mediaName = file.name;
           document.getElementById('btn-clear-media')?.classList.remove('hidden');
-          if (typeof window.updateLivePreview === 'function') window.updateLivePreview();
+          if (window.UI && typeof window.UI.updateLivePreview === 'function') {
+            window.UI.updateLivePreview(activeCtx);
+          }
         };
         reader.onerror = () => {
           console.error(reader.error);
@@ -872,16 +840,18 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
         const fileInput = document.getElementById('camp-media-file');
         if (fileInput) fileInput.value = '';
         document.getElementById('btn-clear-media')?.classList.add('hidden');
-        if (typeof window.updateLivePreview === 'function') window.updateLivePreview();
+        if (window.UI && typeof window.UI.updateLivePreview === 'function') {
+          window.UI.updateLivePreview(activeCtx);
+        }
       });
 
       safeOn('camp-budget', 'input', async () => {
         try {
-          if (typeof window.handleBudgetTargetingState === 'function') {
-            window.handleBudgetTargetingState();
+          if (window.UI && typeof window.UI.handleBudgetTargetingState === 'function') {
+            window.UI.handleBudgetTargetingState(activeCtx);
           }
-          if (AppState.campaignStep === 3 && typeof window.fetchMarketplaceChannels === 'function') {
-            await window.fetchMarketplaceChannels();
+          if (AppState.campaignStep === 3 && window.CampaignsModule?.loadMarketplace) {
+            await window.CampaignsModule.loadMarketplace(activeCtx);
           }
         } catch (err) {
           console.error(err);
@@ -890,8 +860,8 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
 
       safeOn('camp-language', 'change', async () => {
         try {
-          if (AppState.campaignStep === 3 && typeof window.fetchMarketplaceChannels === 'function') {
-            await window.fetchMarketplaceChannels();
+          if (AppState.campaignStep === 3 && window.CampaignsModule?.loadMarketplace) {
+            await window.CampaignsModule.loadMarketplace(activeCtx);
           }
         } catch (err) {
           console.error(err);
@@ -900,8 +870,8 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
 
       safeOn('camp-category', 'change', async () => {
         try {
-          if (AppState.campaignStep === 3 && typeof window.fetchMarketplaceChannels === 'function') {
-            await window.fetchMarketplaceChannels();
+          if (AppState.campaignStep === 3 && window.CampaignsModule?.loadMarketplace) {
+            await window.CampaignsModule.loadMarketplace(activeCtx);
           }
         } catch (err) {
           console.error(err);
@@ -910,8 +880,8 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
 
       safeOn('mkt-search-input', 'input', async () => {
         try {
-          if (typeof window.fetchMarketplaceChannels === 'function') {
-            await window.fetchMarketplaceChannels();
+          if (window.CampaignsModule && typeof window.CampaignsModule.loadMarketplace === 'function') {
+            await window.CampaignsModule.loadMarketplace(activeCtx);
           }
         } catch (err) {
           console.error(err);
@@ -923,21 +893,22 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
           AppState.favoritesOnlyFilter = !AppState.favoritesOnlyFilter;
           e.currentTarget.classList.toggle('btn-primary', AppState.favoritesOnlyFilter);
           e.currentTarget.classList.toggle('btn-secondary', !AppState.favoritesOnlyFilter);
-          if (typeof window.fetchMarketplaceChannels === 'function') {
-            await window.fetchMarketplaceChannels();
+          if (window.CampaignsModule && typeof window.CampaignsModule.loadMarketplace === 'function') {
+            await window.CampaignsModule.loadMarketplace(activeCtx);
           }
         } catch (err) {
           console.error(err);
         }
       });
 
-      // Create Campaign Progressive Wizard
       safeOn('btn-open-create-campaign', 'click', () => {
         const panel = document.getElementById('panel-campaign-wizard');
         if (!panel) return;
         const isHidden = panel.classList.contains('hidden');
         if (isHidden) {
-          if (typeof window.resetCampaignWizard === 'function') window.resetCampaignWizard();
+          if (window.UI && typeof window.UI.resetCampaignWizard === 'function') {
+            window.UI.resetCampaignWizard(activeCtx);
+          }
           panel.classList.remove('hidden');
         } else {
           panel.classList.add('hidden');
@@ -946,31 +917,35 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
 
       safeOn('btn-cancel-campaign-wizard', 'click', () => {
         document.getElementById('panel-campaign-wizard')?.classList.add('hidden');
-        if (typeof window.resetCampaignWizard === 'function') window.resetCampaignWizard();
+        if (window.UI && typeof window.UI.resetCampaignWizard === 'function') {
+          window.UI.resetCampaignWizard(activeCtx);
+        }
       });
 
       safeOn('btn-camp-next', 'click', () => {
         if (AppState.campaignStep === 1) {
           const title = document.getElementById('camp-title')?.value.trim() || '';
           if (!title) {
-            notifyUser(t('msg_fill_required'));
+            notifyUser(t('msg_fill_required'), activeCtx);
             return;
           }
         }
-        if (AppState.campaignStep < 3 && typeof window.updateCampaignWizardStep === 'function') {
-          window.updateCampaignWizardStep(AppState.campaignStep + 1);
+        if (AppState.campaignStep < 3 && window.UI && typeof window.UI.updateCampaignWizardStep === 'function') {
+          window.UI.updateCampaignWizardStep(AppState.campaignStep + 1, activeCtx);
         }
       });
 
       safeOn('btn-camp-prev', 'click', () => {
-        if (AppState.campaignStep > 1 && typeof window.updateCampaignWizardStep === 'function') {
-          window.updateCampaignWizardStep(AppState.campaignStep - 1);
+        if (AppState.campaignStep > 1 && window.UI && typeof window.UI.updateCampaignWizardStep === 'function') {
+          window.UI.updateCampaignWizardStep(AppState.campaignStep - 1, activeCtx);
         }
       });
 
       safeOn('btn-camp-save-draft', 'click', async () => {
         try {
-          if (typeof window.submitCampaign === 'function') await window.submitCampaign('draft');
+          if (window.CampaignsModule && typeof window.CampaignsModule.submitCampaign === 'function') {
+            await window.CampaignsModule.submitCampaign('draft', activeCtx);
+          }
         } catch (err) {
           console.error(err);
         }
@@ -978,21 +953,22 @@ window.refreshAllRenderedViews = refreshAllRenderedViews;
 
       safeOn('btn-camp-publish', 'click', async () => {
         try {
-          if (typeof window.submitCampaign === 'function') await window.submitCampaign('active');
+          if (window.CampaignsModule && typeof window.CampaignsModule.submitCampaign === 'function') {
+            await window.CampaignsModule.submitCampaign('active', activeCtx);
+          }
         } catch (err) {
           console.error(err);
         }
       });
 
-      // Toggle Campaigns List (Progressive)
       safeOn('btn-toggle-campaigns-list', 'click', async () => {
         try {
           AppState.isCampaignsListOpen = !AppState.isCampaignsListOpen;
           const panel = document.getElementById('panel-campaigns-list');
           if (panel) panel.classList.toggle('hidden', !AppState.isCampaignsListOpen);
-          updateToggleButtonsText();
-          if (AppState.isCampaignsListOpen && typeof window.fetchCampaigns === 'function') {
-            await window.fetchCampaigns();
+          updateToggleButtonsText(activeCtx);
+          if (AppState.isCampaignsListOpen) {
+            await activeCtx.refreshCampaigns();
           }
         } catch (err) {
           console.error(err);
