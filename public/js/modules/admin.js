@@ -1,4 +1,1 @@
-window.AdminModule = (function () {
-  function init() {}
-  return { init: init };
-})();
+export function init() {}
