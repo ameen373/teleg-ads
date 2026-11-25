@@ -7,6 +7,7 @@ const fs = require('fs');
 // ============================================================================
 
 let dbInstance = null;
+let firestoreConfigured = false;
 
 function formatPrivateKey(rawKey) {
   if (!rawKey) return '';
@@ -63,11 +64,21 @@ function initFirebase() {
   }
   initFirebaseAdmin();
   dbInstance = admin.firestore();
+  if (!firestoreConfigured) {
+    try {
+      dbInstance.settings({ ignoreUndefinedProperties: true });
+      firestoreConfigured = true;
+    } catch (err) {
+      if (!String(err && err.message).includes('already been initialized')) {
+        throw err;
+      }
+      firestoreConfigured = true;
+    }
+  }
   return dbInstance;
 }
 
 const db = initFirebase();
-db.settings({ ignoreUndefinedProperties: true });
 
 const FieldValue = admin.firestore.FieldValue;
 const Timestamp = admin.firestore.Timestamp;
