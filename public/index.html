@@ -25,79 +25,73 @@
       <section id="section-admin" class="tab-section" data-tab="admin"></section>
     </main>
 
-    <!-- شريط التنقل السفلي -->
-    <nav class="bottom-nav" aria-label="Bottom Navigation">
-      <button class="nav-item active" data-target="home" type="button">
-        <span class="nav-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 3l9 8h-3v9h-5v-6h-2v6H6v-9H3l9-8z"/>
-          </svg>
-        </span>
-        <span class="nav-label" data-i18n="nav_home">الرئيسية</span>
-      </button>
+    <!-- شريط التنقل السفلي العائم -->
+    <nav class="bottom-nav-wrap" aria-label="Bottom Navigation">
+      <div class="bottom-nav">
+        <button class="nav-item active" data-target="home" type="button">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 3l9 8h-3v9h-5v-6h-2v6H6v-9H3l9-8z"/>
+            </svg>
+            <span class="nav-badge" data-badge="home"></span>
+          </span>
+          <span class="nav-label" data-i18n="nav_home">الرئيسية</span>
+        </button>
 
-      <button class="nav-item" data-target="channels" type="button">
-        <span class="nav-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M16.6 7.8L6.5 11.7c-.7.3-.7.7-.1.9l2.6.8 6-3.8c.3-.2.5-.1.3.1l-4.8 4.4-.2 2.7c.3 0 .4-.1.6-.3l1.4-1.4 2.9 2.1c.5.3.9.1 1-.5l1.8-8.6c.2-.7-.3-1-.9-.7z" fill="#17212b"/>
-          </svg>
-        </span>
-        <span class="nav-label" data-i18n="nav_channels">قنواتي</span>
-      </button>
+        <button class="nav-item" data-target="channels" type="button">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M16.6 7.8L6.5 11.7c-.7.3-.7.7-.1.9l2.6.8 6-3.8c.3-.2.5-.1.3.1l-4.8 4.4-.2 2.7c.3 0 .4-.1.6-.3l1.4-1.4 2.9 2.1c.5.3.9.1 1-.5l1.8-8.6c.2-.7-.3-1-.9-.7z" fill="var(--pill-bg)"/>
+            </svg>
+            <span class="nav-badge" data-badge="channels"></span>
+          </span>
+          <span class="nav-label" data-i18n="nav_channels">قنواتي</span>
+        </button>
 
-      <button class="nav-item" data-target="campaigns" type="button">
-        <span class="nav-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M18 4v16l-8-4H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h5l8-4zm2 4h2v2h-2V8zm0 6h2v2h-2v-2z"/>
-          </svg>
-        </span>
-        <span class="nav-label" data-i18n="nav_campaigns">الترويج</span>
-      </button>
+        <button class="nav-item" data-target="campaigns" type="button">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M18 4v16l-8-4H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h5l8-4zm2 4h2v2h-2V8zm0 6h2v2h-2v-2z"/>
+            </svg>
+            <span class="nav-badge" data-badge="campaigns"></span>
+          </span>
+          <span class="nav-label" data-i18n="nav_campaigns">الترويج</span>
+        </button>
 
-      <button class="nav-item" data-target="wallet" type="button">
-        <span class="nav-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M19 5H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2h-4a2 2 0 0 1 0-4h4V7a2 2 0 0 0-2-2zm-2 7a1 1 0 1 0 0 2h4v-2h-4z"/>
-          </svg>
-        </span>
-        <span class="nav-label" data-i18n="nav_wallet">المحفظة</span>
-      </button>
+        <button class="nav-item" data-target="wallet" type="button">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 5H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2h-4a2 2 0 0 1 0-4h4V7a2 2 0 0 0-2-2zm-2 7a1 1 0 1 0 0 2h4v-2h-4z"/>
+            </svg>
+            <span class="nav-badge" data-badge="wallet"></span>
+          </span>
+          <span class="nav-label" data-i18n="nav_wallet">المحفظة</span>
+        </button>
 
-      <button class="nav-item" data-target="referral" type="button">
-        <span class="nav-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M9 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zm7 1a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM9 14c-3.3 0-6 1.8-6 4v1h12v-1c0-2.2-2.7-4-6-4zm7 1c-1.2 0-2.3.3-3.2.8.8.8 1.2 1.9 1.2 3.2v1h7v-1c0-1.9-2.2-4-5-4z"/>
-          </svg>
-        </span>
-        <span class="nav-label" data-i18n="nav_referral">الإحالة</span>
-      </button>
+        <button class="nav-item" data-target="referral" type="button">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M9 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zm7 1a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM9 14c-3.3 0-6 1.8-6 4v1h12v-1c0-2.2-2.7-4-6-4zm7 1c-1.2 0-2.3.3-3.2.8.8.8 1.2 1.9 1.2 3.2v1h7v-1c0-1.9-2.2-4-5-4z"/>
+            </svg>
+            <span class="nav-badge" data-badge="referral"></span>
+          </span>
+          <span class="nav-label" data-i18n="nav_referral">الإحالة</span>
+        </button>
 
-      <button class="nav-item" data-target="admin" type="button">
-        <span class="nav-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3zm0 2.18l6 2.25v4.66h-6V4.18zm0 15.63c-3.09-.98-5.33-4.38-5.88-8.16H12v8.16z"/>
-          </svg>
-        </span>
-        <span class="nav-label" data-i18n="nav_admin">الإدارة</span>
-      </button>
+        <button class="nav-item" data-target="admin" type="button">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3zm0 2.18l6 2.25v4.66h-6V4.18zm0 15.63c-3.09-.98-5.33-4.38-5.88-8.16H12v8.16z"/>
+            </svg>
+            <span class="nav-badge" data-badge="admin"></span>
+          </span>
+          <span class="nav-label" data-i18n="nav_admin">الإدارة</span>
+        </button>
+      </div>
     </nav>
   </div>
 
-  <!-- ملفات اللغة -->
-  <script src="/js/language/ar.js"></script>
-  <script src="/js/language/en.js"></script>
-  <script src="/js/language/i18n.js"></script>
-
-  <!-- الوحدات -->
-  <script src="/js/modules/api.js"></script>
-  <script src="/js/modules/ui.js"></script>
-  <script src="/js/modules/channels.js"></script>
-  <script src="/js/modules/campaigns.js"></script>
-  <script src="/js/modules/wallet.js"></script>
-  <script src="/js/modules/admin.js"></script>
-
-  <!-- نقطة البداية -->
-  <script src="/js/app.js"></script>
+  <script type="module" src="/js/app.js"></script>
 </body>
 </html>
