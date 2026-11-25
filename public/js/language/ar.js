@@ -29,6 +29,7 @@ export const LANG_AR = {
       userId: 'معرّف المستخدم (ID)',
       photoAlt: 'الصورة الشخصية للمستخدم',
       verifiedTg: 'موثّق عبر Telegram Mini App',
+      onlineStatus: 'متصل',
       copyId: 'نسخ الآيدي',
       copied: 'تم النسخ!'
     },
