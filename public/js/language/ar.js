@@ -1,5 +1,5 @@
 const AR_TRANSLATIONS = {
-  // Legacy Navigation & App Keys
+  // Navigation & App Keys
   nav_home: 'الرئيسية',
   nav_channels: 'قنواتي',
   nav_promote: 'الترويج',
@@ -7,7 +7,7 @@ const AR_TRANSLATIONS = {
   nav_referral: 'الإحالة',
   nav_admin: 'الإدارة',
 
-  // Legacy Balances, Stats & Activity
+  // Balances, Stats & Activity
   earnings_balance: 'رصيد الأرباح',
   ad_balance: 'رصيد الإعلانات',
   market_channels: 'القنوات النشطة',
@@ -15,7 +15,7 @@ const AR_TRANSLATIONS = {
   my_campaigns_count: 'حملاتي',
   recent_activity: 'أحدث العمليات',
 
-  // Legacy Channel Form & List
+  // Channel Form & List
   add_new_channel: 'إضافة قناة جديدة',
   channel_username_ph: 'معرف القناة (@username)',
   channel_title_ph: 'اسم القناة',
@@ -24,7 +24,7 @@ const AR_TRANSLATIONS = {
   submit_channel: 'إرسال القناة للمراجعة',
   my_channels: 'قنواتي المسجلة',
 
-  // Legacy Campaign Form & List
+  // Campaign Form & List
   create_campaign: 'إطلاق حملة إعلانية',
   select_channel: 'اختر القناة المستهدفة...',
   campaign_title_ph: 'عنوان الحملة الإعلانية',
@@ -33,24 +33,24 @@ const AR_TRANSLATIONS = {
   launch_btn: 'دفع وإطلاق الإعلان',
   my_campaigns: 'حملاتي الإعلانية',
 
-  // Legacy Wallet Forms
+  // Wallet Forms
   deposit_funds: 'إيداع رصيد إعلانات',
-  amount_usd_ph: 'المبلغ بالدولار (الحد الأدنى $1)',
+  amount_usd_ph: 'المبلغ بالدولار (الحد الأدنى $10)',
   request_deposit: 'طلب إيداع',
   withdraw_earnings: 'سحب الأرباح',
-  withdraw_amount_ph: 'المبلغ للسحب (الحد الأدنى $5)',
-  wallet_address_ph: 'عنوان المحفظة (TON / USDT TRC20)',
+  withdraw_amount_ph: 'المبلغ للسحب (الحد الأدنى $30)',
+  wallet_address_ph: 'عنوان المحفظة (USDT TRC20)',
   request_withdraw: 'تقديم طلب سحب',
 
-  // Legacy Referral Section
-  invite_friends: 'ادعُ أصدقاءك واربح 5%',
-  referral_desc: 'احصل على عمولة 5% مدى الحياة من كل إعلان مكتمل في قنوات أصدقائك المدعوين.',
+  // Referral Section
+  invite_friends: 'ادعُ أصدقاءك واربح 10%',
+  referral_desc: 'احصل على عمولة 10% من أرباح المستخدمين المحالين وتتحرر تلقائياً بعد مرور 24 ساعة.',
   copy_link: 'نسخ',
   copied_msg: 'تم نسخ رابط الإحالة!',
   invited_users: 'المستخدمون المدعوون',
   referral_earnings: 'أرباح الإحالات',
 
-  // Legacy Admin Section & Shared Statuses
+  // Admin Section & Shared Statuses
   admin_panel: 'لوحة تحكم الإدارة',
   total_users: 'المستخدمون',
   pending_channels: 'قنوات معلقة',
