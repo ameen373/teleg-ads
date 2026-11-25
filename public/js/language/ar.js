@@ -1,83 +1,42 @@
-export const LANG_AR = {
-  dir: 'rtl',
-  lang: 'ar',
-  toggleLabel: 'EN',
-  appName: 'Telega.ads',
-  nav_home: 'حسابي',
-  nav_channels: 'قنواتي',
-  nav_campaigns: 'الترويج',
-  nav_wallet: 'المحفظة',
-  nav_referral: 'الإحالة',
-  nav_admin: 'الإدارة',
-  nav: {
-    account: 'حسابي',
-    channels: 'القنوات',
-    campaigns: 'الحملات',
-    wallet: 'المحفظة',
-    admin: 'الإدارة'
-  },
-  account: {
-    title: 'حسابي',
-    subtitle: 'هويتك الذكية على تيليجرام وإعداداتك الفورية',
-    autoDetectedBadge: 'تعرف ذكي على اللغة',
-    fallbackNotice: 'أي لغة غير مضافة حالياً تتحول تلقائياً إلى الإنجليزية (EN) لضمان تجربة سليسة.',
-    identity: {
-      title: 'بيانات الهوية الفورية',
-      fullName: 'الاسم الكامل',
-      username: 'المعرف (@username)',
-      noUsername: 'غير محدد في تيليجرام',
-      userId: 'معرّف المستخدم (ID)',
-      photoAlt: 'الصورة الشخصية للمستخدم',
-      verifiedTg: 'موثّق عبر Telegram Mini App',
-      onlineStatus: 'متصل',
-      copyId: 'نسخ الآيدي',
-      copied: 'تم النسخ!'
-    },
-    language: {
-      title: 'اللغة والتعرف التلقائي',
-      currentLabel: 'اللغة النشطة حالياً',
-      switchManual: 'تبديل يدوي فوري',
-      autoDetectBtn: 'إعادة التعرف التلقائي',
-      upcomingTitle: 'لغات مخطط إضافتها لاحقاً'
-    },
-    faq: {
-      title: 'الأسئلة الشائعة (FAQ)',
-      items: [
-        {
-          q: 'كيف يتم التعرف على لغتي داخل التطبيق؟',
-          a: 'يتعرف التطبيق تلقائياً على لغة حسابك في تيليجرام، وإذا لم تكن اللغة مضافة بعد يتم عرض الإنجليزية مع إمكانية التبديل اليدوي فوراً.'
-        },
-        {
-          q: 'كيف يتم التحقق من هويتي وبياناتي؟',
-          a: 'يقرأ التطبيق بياناتك الرسمية من Telegram WebApp (الاسم، الصورة، المعرف، والآيدي) ويُتحقق منها عبر الخادم.'
-        },
-        {
-          q: 'كيف أفتح تذكرة دعم أو أتابع التنبيهات الإدارية؟',
-          a: 'من قسم فريق الدعم أدناه يمكنك إرسال تذكرة مباشرة لفريق الدعم ومتابعة البث والتنبيهات الإدارية الفورية.'
-        }
-      ]
-    },
-    support: {
-      title: 'فريق الدعم والتنبيهات الإدارية',
-      ticketsTab: 'تذكرة دعم فني',
-      broadcastsTab: 'البث والتنبيهات الفورية',
-      subjectPlaceholder: 'عنوان المشكلة أو الاستفسار',
-      messagePlaceholder: 'اشرح تفاصيل طلبك أو مشكلتك بوضوح...',
-      sendTicket: 'إرسال التذكرة',
-      ticketSent: 'تم إرسال تذكرتك بنجاح، سيتواصل معك فريق الدعم قريباً.',
-      emptyTickets: 'لا توجد تذاكر سابقة بعد.',
-      emptyBroadcasts: 'لا توجد تنبيهات إدارية جديدة حالياً.'
-    }
-  }
+export const ar = {
+  dir: "rtl",
+  flag: "🇸🇦",
+  name: "العربية",
+  account_verified: "شريك موثّق",
+  btn_language: "تغيير اللغة",
+  btn_faq: "الأسئلة الشائعة (FAQ)",
+  btn_official_channel: "القناة الرسمية",
+  btn_support: "فريق الدعم",
+  nav_account: "حسابي",
+  nav_channels: "قنواتي",
+  nav_promotion: "الترويج",
+  nav_referral: "الإحالة",
+  nav_admin: "الإدارة",
+  btn_add_channel: "+ إضافة قناة",
+  placeholder_channel: "@معرف_القناة",
+  btn_verify_channel: "تحقق وربط القناة",
+  btn_new_ad: "+ إعلان جديد",
+  placeholder_ad_title: "عنوان الحملة الإعلانية",
+  placeholder_ad_text: "نص الرسالة الإعلانية...",
+  placeholder_budget: "الميزانية (USDT)",
+  btn_launch_ad: "إطلاق الحملة",
+  referral_desc: "ادعُ أصدقاءك واربح عمولة تلقائية من كل حملة إعلانية أو عملية سحب.",
+  btn_get_ref_link: "إظهار رابط الإحالة",
+  btn_copy: "نسخ الرابط",
+  copied_success: "تم نسخ الرابط بنجاح!",
+  modal_select_lang: "اختر اللغة",
+  modal_faq_title: "الأسئلة الشائعة",
+  modal_faq_empty: "لا توجد أسئلة مضافة حالياً.",
+  modal_support_title: "فريق الدعم المباشر",
+  modal_support_desc: "تواصل مباشرة مع الدعم الفني عبر التطبيق أو عبر البوت الرسمي.",
+  placeholder_support_msg: "اكتب رسالتك لفريق الدعم هنا...",
+  btn_send_support: "إرسال للدعم الفني",
+  btn_open_bot_support: "المراسلة عبر البوت",
+  support_sent: "تم إرسال رسالتك إلى فريق الدعم بنجاح!",
+  lang_not_ready: "سيتم تفعيل هذه اللغة قريباً. تم ضبط الإنجليزية افتراضياً.",
+  admin_live_stats: "إحصائيات المنصة المباشرة",
+  admin_broadcast: "إرسال إشعار جماعي",
+  admin_shield: "درع الحماية وسجلات الأمان",
+  empty_channels: "لم تقم بإضافة أي قنوات بعد.",
+  empty_campaigns: "لا توجد حملات ترويجية نشطة حالياً."
 };
-
-if (typeof window !== 'undefined') {
-  window.LANG_AR = LANG_AR;
-  if (window.i18n && typeof window.i18n.registerDictionary === 'function') {
-    try {
-      window.i18n.registerDictionary('ar', LANG_AR);
-    } catch (err) {
-      console.error('ar.js registerDictionary error:', err);
-    }
-  }
-}
