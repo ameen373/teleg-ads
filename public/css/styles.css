@@ -251,29 +251,24 @@ body.ltr {
   line-height: 1.5;
 }
 
-/* Identity Card */
-.identity-card {
-  background:
-    linear-gradient(135deg, rgba(42, 171, 238, 0.14), rgba(18, 26, 43, 0.94) 55%),
-    var(--bg-surface);
-  border-color: var(--border-strong);
-}
-
-.identity-top {
+/* Telegram-Style Profile Header & Quick Actions */
+.tg-profile-hero {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 14px;
-  margin-bottom: 16px;
+  text-align: center;
+  padding: 8px 8px 14px;
 }
 
 .avatar-wrap {
-  width: 68px;
-  height: 68px;
+  width: 96px;
+  height: 96px;
   border-radius: 50%;
   flex-shrink: 0;
   overflow: hidden;
   border: 2px solid var(--accent-primary);
-  box-shadow: 0 0 0 4px rgba(42, 171, 238, 0.18);
+  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.45);
+  margin-bottom: 12px;
 }
 
 .avatar-img {
@@ -288,7 +283,7 @@ body.ltr {
   height: 100%;
   display: grid;
   place-items: center;
-  font-size: 1.35rem;
+  font-size: 1.75rem;
   font-weight: 800;
   color: #fff;
   background: linear-gradient(135deg, #2AABEE, #0284c7);
@@ -296,32 +291,37 @@ body.ltr {
 
 .identity-meta {
   min-width: 0;
-  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .identity-name {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: 1.32rem;
   font-weight: 800;
   color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.35;
+  unicode-bidi: isolate;
+  max-width: 100%;
+  word-break: break-word;
 }
 
-.identity-username {
-  margin-top: 3px;
-  font-size: 0.9rem;
-  color: #7dd3fc;
+.identity-status-line {
+  margin-top: 4px;
+  font-size: 0.86rem;
   font-weight: 600;
-  direction: ltr;
-  text-align: start;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .verified-tag {
   display: inline-block;
-  margin-top: 6px;
-  padding: 3px 9px;
+  margin-top: 8px;
+  padding: 3px 10px;
   border-radius: 999px;
   font-size: 0.72rem;
   font-weight: 600;
@@ -330,43 +330,96 @@ body.ltr {
   border: 1px solid rgba(34, 197, 94, 0.32);
 }
 
-.identity-grid {
+.tg-quick-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
+  margin-bottom: 14px;
 }
 
-.info-cell {
-  background: var(--bg-surface-elevated);
-  border: 1px solid var(--border-subtle);
+.tg-quick-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 8px;
   border-radius: var(--radius-md);
-  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface-elevated);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform var(--transition-fast), border-color var(--transition-fast), background-color var(--transition-fast);
 }
 
-.info-label {
-  display: block;
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  margin-bottom: 5px;
+.tg-quick-btn:hover {
+  border-color: var(--border-strong);
 }
 
-.info-value {
-  font-size: 1rem;
+.tg-quick-btn:active {
+  transform: scale(0.96);
+}
+
+.tg-quick-btn svg {
+  width: 20px;
+  height: 20px;
   color: var(--text-primary);
 }
 
-.info-value-row {
+/* Telegram-Style Details Card */
+.identity-card {
+  background: var(--bg-glass);
+  border-color: var(--border-subtle);
+  padding: 8px 16px;
+}
+
+.tg-detail-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.tg-detail-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.tg-detail-row:last-child {
+  border-bottom: none;
+}
+
+.tg-detail-content {
+  min-width: 0;
+  flex: 1;
+}
+
+.tg-detail-main {
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.4;
+  unicode-bidi: isolate;
+}
+
+.tg-detail-sub {
+  margin-top: 2px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
 }
 
 .info-code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   color: var(--text-primary);
   direction: ltr;
+  unicode-bidi: isolate;
+  display: inline-block;
 }
 
 /* Language Switcher */
@@ -566,10 +619,11 @@ body.ltr {
 }
 
 .btn-mini {
-  padding: 4px 8px;
+  padding: 6px 10px;
   background: rgba(42, 171, 238, 0.16);
   color: #7dd3fc;
-  font-size: 0.74rem;
+  font-size: 0.76rem;
+  flex-shrink: 0;
 }
 
 .btn-primary:active,
@@ -778,7 +832,6 @@ body.ltr {
 }
 
 @media (max-width: 480px) {
-  .identity-grid,
   .lang-switcher {
     grid-template-columns: 1fr;
   }
