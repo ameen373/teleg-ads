@@ -1,5 +1,5 @@
 const EN_TRANSLATIONS = {
-  // Legacy Navigation & App Keys
+  // Navigation & App Keys
   nav_home: 'Home',
   nav_channels: 'Channels',
   nav_promote: 'Promote',
@@ -7,7 +7,7 @@ const EN_TRANSLATIONS = {
   nav_referral: 'Referral',
   nav_admin: 'Admin',
 
-  // Legacy Balances, Stats & Activity
+  // Balances, Stats & Activity
   earnings_balance: 'Earnings Balance',
   ad_balance: 'Ad Balance',
   market_channels: 'Active Channels',
@@ -15,7 +15,7 @@ const EN_TRANSLATIONS = {
   my_campaigns_count: 'Campaigns',
   recent_activity: 'Recent Activity',
 
-  // Legacy Channel Form & List
+  // Channel Form & List
   add_new_channel: 'Add Your Channel',
   channel_username_ph: '@channel_username',
   channel_title_ph: 'Channel Title',
@@ -24,7 +24,7 @@ const EN_TRANSLATIONS = {
   submit_channel: 'Submit Channel',
   my_channels: 'My Channels',
 
-  // Legacy Campaign Form & List
+  // Campaign Form & List
   create_campaign: 'Launch Ad Campaign',
   select_channel: 'Select Target Channel...',
   campaign_title_ph: 'Campaign Title',
@@ -33,24 +33,24 @@ const EN_TRANSLATIONS = {
   launch_btn: 'Pay & Launch Ad',
   my_campaigns: 'My Campaigns',
 
-  // Legacy Wallet Forms
+  // Wallet Forms
   deposit_funds: 'Deposit Ad Funds',
-  amount_usd_ph: 'Amount in USD (Min $1)',
+  amount_usd_ph: 'Amount in USD (Min $10)',
   request_deposit: 'Request Deposit',
   withdraw_earnings: 'Withdraw Earnings',
-  withdraw_amount_ph: 'Amount in USD (Min $5)',
-  wallet_address_ph: 'TON / USDT TRC20 Address',
+  withdraw_amount_ph: 'Amount in USD (Min $30)',
+  wallet_address_ph: 'USDT TRC20 Address',
   request_withdraw: 'Withdraw',
 
-  // Legacy Referral Section
-  invite_friends: 'Invite Friends & Earn 5%',
-  referral_desc: 'Earn 5% lifetime commission from every ad completed on your invited friends channels.',
+  // Referral Section
+  invite_friends: 'Invite Friends & Earn 10%',
+  referral_desc: 'Earn a 10% commission from referred users earnings, automatically released after 24 hours.',
   copy_link: 'Copy',
   copied_msg: 'Referral link copied!',
   invited_users: 'Invited Users',
   referral_earnings: 'Referral Earnings',
 
-  // Legacy Admin Section & Shared Statuses
+  // Admin Section & Shared Statuses
   admin_panel: 'Admin Control Center',
   total_users: 'Users',
   pending_channels: 'Pending Channels',
