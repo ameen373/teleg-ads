@@ -1,9 +1,18 @@
-// ==================== API & SERVER COMMUNICATION ====================
 (function () {
-  function safeCall(fnName, ...args) {
+  function resolveState(ctx) {
+    if (ctx && ctx.state) return ctx.state;
+    if (window.AppState && typeof window.AppState === 'object') return window.AppState;
+    if (typeof AppState !== 'undefined' && AppState && typeof AppState === 'object') return AppState;
+    return null;
+  }
+
+  function invokeUnified(fnName, ctx, ...args) {
     try {
+      if (ctx && typeof ctx[fnName] === 'function') {
+        return ctx[fnName](ctx, ...args);
+      }
       if (typeof window[fnName] === 'function') {
-        return window[fnName](...args);
+        return window[fnName](ctx, ...args);
       }
     } catch (err) {
       console.error(err);
@@ -19,9 +28,9 @@
         return;
       }
       if (window.UI && typeof window.UI.renderMaintenanceBanner === 'function') {
-        window.UI.renderMaintenanceBanner(data);
+        window.UI.renderMaintenanceBanner(data, ctx);
       } else if (typeof window.renderMaintenanceBanner === 'function') {
-        window.renderMaintenanceBanner(data);
+        window.renderMaintenanceBanner(data, ctx);
       }
     } catch (err) {
       console.error(err);
@@ -40,17 +49,17 @@
 
     async request(endpoint, options = {}, ctx) {
       try {
-        const state = ctx?.state || window.AppState || (typeof AppState !== 'undefined' ? AppState : null);
+        const state = resolveState(ctx);
         const headers = Object.assign(
           {
             'x-telegram-init-data': this.getInitData()
           },
-          state?.userId ? { 'x-user-id': state.userId } : {},
-          state?.adminKey ? { 'x-admin-key': state.adminKey } : {},
-          options.headers || {}
+          state?.userId ? { 'x-user-id': String(state.userId) } : {},
+          state?.adminKey ? { 'x-admin-key': String(state.adminKey) } : {},
+          options && options.headers ? options.headers : {}
         );
 
-        if (options.body !== undefined && !headers['Content-Type']) {
+        if (options && options.body !== undefined && !headers['Content-Type']) {
           headers['Content-Type'] = 'application/json';
         }
 
@@ -74,127 +83,128 @@
       }
     },
 
-    async apiRequest(url, options = {}, ctx) {
-      const state = ctx?.state || window.AppState || (typeof AppState !== 'undefined' ? AppState : null);
-      const headers = Object.assign(
-        {
-          'Content-Type': 'application/json',
-          'x-telegram-init-data': this.getInitData()
-        },
-        state?.userId ? { 'x-user-id': state.userId } : {},
-        state?.adminKey ? { 'x-admin-key': state.adminKey } : {},
-        options && options.headers ? options.headers : {}
-      );
-
-      if (state && state.adminKey && !headers['x-admin-key']) {
-        headers['x-admin-key'] = state.adminKey;
-      }
-
-      try {
-        const res = await fetch(url, Object.assign({}, options, { headers }));
-        const data = await res.json().catch(() => ({}));
-        triggerMaintenanceBanner(data, ctx);
-
-        if (!res.ok || (data && (data.success === false || data.ok === false))) {
-          throw new Error((data && (data.error || data.message)) || 'حدث خطأ في الطلب');
-        }
-        return data;
-      } catch (err) {
-        console.error(err);
-        throw err;
-      }
+    async get(url, ctx) {
+      return this.request(url, { method: 'GET' }, ctx);
     },
 
-    async get(url) {
-      return this.request(url, { method: 'GET' });
-    },
-
-    async send(url, method = 'POST', body) {
+    async send(url, method = 'POST', body, ctx) {
       const options = { method };
       if (body !== undefined) {
         options.body = typeof body === 'string' ? body : JSON.stringify(body);
       }
-      return this.request(url, options);
+      return this.request(url, options, ctx);
     },
 
-    getMe() {
-      return this.request('/api/me');
+    getMe(ctx) {
+      return this.request('/api/me', { method: 'GET' }, ctx);
     },
 
-    updateLanguage(lang) {
-      return this.request('/api/user/language', {
-        method: 'POST',
-        body: JSON.stringify({ lang })
-      });
+    updateLanguage(lang, ctx) {
+      return this.request(
+        '/api/user/language',
+        {
+          method: 'POST',
+          body: JSON.stringify({ lang })
+        },
+        ctx
+      );
     },
 
-    getChannels() {
-      return this.request('/api/channels');
+    getChannels(ctx) {
+      return this.request('/api/channels', { method: 'GET' }, ctx);
     },
 
-    addChannel(payload) {
-      return this.request('/api/channels', {
-        method: 'POST',
-        body: JSON.stringify(payload)
-      });
+    addChannel(payload, ctx) {
+      return this.request(
+        '/api/channels',
+        {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        },
+        ctx
+      );
     },
 
-    getCampaigns() {
-      return this.request('/api/campaigns');
+    getCampaigns(ctx) {
+      return this.request('/api/campaigns', { method: 'GET' }, ctx);
     },
 
-    createCampaign(payload) {
-      return this.request('/api/campaigns', {
-        method: 'POST',
-        body: JSON.stringify(payload)
-      });
+    createCampaign(payload, ctx) {
+      return this.request(
+        '/api/campaigns',
+        {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        },
+        ctx
+      );
     },
 
-    requestDeposit(amount) {
-      return this.request('/api/wallet/deposit', {
-        method: 'POST',
-        body: JSON.stringify({ amount })
-      });
+    requestDeposit(amount, ctx) {
+      return this.request(
+        '/api/wallet/deposit',
+        {
+          method: 'POST',
+          body: JSON.stringify({ amount })
+        },
+        ctx
+      );
     },
 
-    requestWithdraw(amount, walletAddress) {
-      return this.request('/api/wallet/withdraw', {
-        method: 'POST',
-        body: JSON.stringify({ amount, walletAddress })
-      });
+    requestWithdraw(amount, walletAddress, ctx) {
+      return this.request(
+        '/api/wallet/withdraw',
+        {
+          method: 'POST',
+          body: JSON.stringify({ amount, walletAddress })
+        },
+        ctx
+      );
     },
 
-    getAdminDashboard() {
-      return this.request('/api/admin/dashboard');
+    getAdminDashboard(ctx) {
+      return this.request('/api/admin/dashboard', { method: 'GET' }, ctx);
     },
 
-    reviewChannel(id, action) {
-      return this.request(`/api/admin/channels/${encodeURIComponent(id)}/review`, {
-        method: 'POST',
-        body: JSON.stringify({ action })
-      });
+    reviewChannel(id, action, ctx) {
+      return this.request(
+        `/api/admin/channels/${encodeURIComponent(id)}/review`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ action })
+        },
+        ctx
+      );
     },
 
-    reviewTransaction(id, action) {
-      return this.request(`/api/admin/transactions/${encodeURIComponent(id)}/review`, {
-        method: 'POST',
-        body: JSON.stringify({ action })
-      });
+    reviewTransaction(id, action, ctx) {
+      return this.request(
+        `/api/admin/transactions/${encodeURIComponent(id)}/review`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ action })
+        },
+        ctx
+      );
     },
 
-    completeCampaign(id) {
-      return this.request(`/api/admin/campaigns/${encodeURIComponent(id)}/complete`, {
-        method: 'POST'
-      });
+    completeCampaign(id, ctx) {
+      return this.request(
+        `/api/admin/campaigns/${encodeURIComponent(id)}/complete`,
+        {
+          method: 'POST'
+        },
+        ctx
+      );
     },
 
-    async fetchChannels() {
+    async refreshChannels(ctx) {
       try {
-        const json = await this.get('/api/channels');
+        const json = await this.get('/api/channels', ctx);
+        const state = resolveState(ctx);
         if (json && json.success) {
-          if (window.AppState) window.AppState.channels = json.data;
-          safeCall('renderChannels');
-          safeCall('renderAdminQueue');
+          if (state) state.channels = json.data;
+          invokeUnified('renderAdminQueue', ctx, json.data);
         }
         return json;
       } catch (err) {
@@ -203,12 +213,12 @@
       }
     },
 
-    async fetchReferrals() {
+    async refreshReferrals(ctx) {
       try {
-        const json = await this.get('/api/referrals');
-        if (json && json.success) {
-          if (window.AppState) window.AppState.referrals = json.data;
-          safeCall('renderReferrals');
+        const json = await this.get('/api/referrals', ctx);
+        const state = resolveState(ctx);
+        if (json && json.success && state) {
+          state.referrals = json.data;
         }
         return json;
       } catch (err) {
@@ -217,12 +227,12 @@
       }
     },
 
-    async fetchWallet() {
+    async refreshWallet(ctx) {
       try {
-        const json = await this.get('/api/wallet');
-        if (json && json.success && json.data) {
-          if (window.AppState) window.AppState.wallet = json.data;
-          safeCall('renderWallet');
+        const json = await this.get('/api/wallet', ctx);
+        const state = resolveState(ctx);
+        if (json && json.success && json.data && state) {
+          state.wallet = json.data;
         }
         return json;
       } catch (err) {
@@ -231,23 +241,29 @@
       }
     },
 
-    async fetchReliabilityData() {
+    async refreshReliabilityData(ctx) {
       try {
         const [healthJson, notifJson, logsJson, backupsJson] = await Promise.all([
-          this.get('/api/system/health'),
-          this.get('/api/notifications'),
-          this.get('/api/publish-logs'),
-          this.get('/api/system/backups')
+          this.get('/api/system/health', ctx),
+          this.get('/api/notifications', ctx),
+          this.get('/api/publish-logs', ctx),
+          this.get('/api/system/backups', ctx)
         ]);
 
-        if (window.AppState) {
-          if (healthJson && healthJson.success) window.AppState.health = healthJson.data;
-          if (notifJson && notifJson.success) window.AppState.notifications = notifJson.data;
-          if (logsJson && logsJson.success) window.AppState.publishLogs = logsJson.data;
-          if (backupsJson && backupsJson.success) window.AppState.backups = backupsJson.data;
+        const state = resolveState(ctx);
+        if (state) {
+          if (healthJson && healthJson.success) state.health = healthJson.data;
+          if (notifJson && notifJson.success) state.notifications = notifJson.data;
+          if (logsJson && logsJson.success) state.publishLogs = logsJson.data;
+          if (backupsJson && backupsJson.success) state.backups = backupsJson.data;
         }
 
-        safeCall('renderReliabilityPanel');
+        invokeUnified('renderReliabilityPanel', ctx, {
+          healthJson,
+          notifJson,
+          logsJson,
+          backupsJson
+        });
         return { healthJson, notifJson, logsJson, backupsJson };
       } catch (err) {
         console.error(err);
@@ -255,10 +271,11 @@
       }
     },
 
-    async fetchMarketplaceChannels() {
+    async refreshMarketplaceChannels(ctx) {
       try {
-        const budgetResult = safeCall('handleBudgetTargetingState');
+        const budgetResult = invokeUnified('handleBudgetTargetingState', ctx);
         const isOpen = Boolean(budgetResult);
+        const state = resolveState(ctx);
 
         const langEl = document.getElementById('camp-language');
         const catEl = document.getElementById('camp-category');
@@ -279,14 +296,13 @@
           if (cat) params.set('category', cat);
         }
         if (search) params.set('search', search);
-        if (window.AppState && window.AppState.favoritesOnlyFilter) {
+        if (state && state.favoritesOnlyFilter) {
           params.set('favoritesOnly', 'true');
         }
 
-        const json = await this.get(`/api/marketplace/channels?${params.toString()}`);
-        if (json && json.success) {
-          if (window.AppState) window.AppState.marketplaceChannels = json.data;
-          safeCall('renderMarketplaceChannels');
+        const json = await this.get(`/api/marketplace/channels?${params.toString()}`, ctx);
+        if (json && json.success && state) {
+          state.marketplaceChannels = json.data;
         }
         return json;
       } catch (err) {
@@ -295,12 +311,12 @@
       }
     },
 
-    async fetchCampaigns() {
+    async refreshCampaigns(ctx) {
       try {
-        const json = await this.get('/api/campaigns');
-        if (json && json.success) {
-          if (window.AppState) window.AppState.campaigns = json.data;
-          safeCall('renderCampaigns');
+        const json = await this.get('/api/campaigns', ctx);
+        const state = resolveState(ctx);
+        if (json && json.success && state) {
+          state.campaigns = json.data;
         }
         return json;
       } catch (err) {
@@ -311,15 +327,13 @@
   };
 
   window.Api = Api;
-
-  // Global helper functions compatible with direct calls across modules
-  window.apiRequest = (url, options, ctx) => Api.apiRequest(url, options, ctx);
-  window.apiGet = (url) => Api.get(url);
-  window.apiSend = (url, method, body) => Api.send(url, method, body);
-  window.fetchChannels = () => Api.fetchChannels();
-  window.fetchReferrals = () => Api.fetchReferrals();
-  window.fetchWallet = () => Api.fetchWallet();
-  window.fetchReliabilityData = () => Api.fetchReliabilityData();
-  window.fetchMarketplaceChannels = () => Api.fetchMarketplaceChannels();
-  window.fetchCampaigns = () => Api.fetchCampaigns();
+  window.apiRequest = (url, options, ctx) => Api.request(url, options, ctx);
+  window.apiGet = (url, ctx) => Api.get(url, ctx);
+  window.apiSend = (url, method, body, ctx) => Api.send(url, method, body, ctx);
+  window.refreshChannels = (ctx) => Api.refreshChannels(ctx);
+  window.refreshReferrals = (ctx) => Api.refreshReferrals(ctx);
+  window.refreshWallet = (ctx) => Api.refreshWallet(ctx);
+  window.refreshReliabilityData = (ctx) => Api.refreshReliabilityData(ctx);
+  window.refreshMarketplaceChannels = (ctx) => Api.refreshMarketplaceChannels(ctx);
+  window.refreshCampaigns = (ctx) => Api.refreshCampaigns(ctx);
 })();
