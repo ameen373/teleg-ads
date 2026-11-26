@@ -4,7 +4,8 @@ import {
   initNavigation,
   openFaqModal,
   openLanguageModal,
-  openSupportModal
+  openSupportModal,
+  updateActiveNavPill
 } from "./modules/ui.js";
 import { initChannelsModule } from "./modules/channels.js";
 import { initCampaignsModule } from "./modules/campaigns.js";
@@ -13,7 +14,7 @@ import { initAdminModule } from "./modules/admin.js";
 
 function generateFallbackAvatar(name) {
   const initial = encodeURIComponent((name || "U").charAt(0).toUpperCase());
-  return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><rect width="120" height="120" fill="%232563eb"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="52" font-family="sans-serif" font-weight="bold">${initial}</text></svg>`;
+  return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><rect width="120" height="120" fill="%232aabee"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="52" font-family="sans-serif" font-weight="bold">${initial}</text></svg>`;
 }
 
 async function bootstrapApp() {
@@ -25,7 +26,7 @@ async function bootstrapApp() {
     tg.setBackgroundColor("#0b0f19");
   }
 
-  // 1. Smart User Detection (يُستخدم الاسم والصورة للعرض، ويُحفظ المعرف والـ ID سراً في الذاكرة فقط دون عرضهما)
+  // 1. Smart User Detection
   const tgUser = tg?.initDataUnsafe?.user || {};
   const fullName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(" ") || "Telegram User";
   const secretTelegramId = tgUser.id ? String(tgUser.id) : "";
@@ -36,14 +37,22 @@ async function bootstrapApp() {
   const detectedLang = detectSmartLanguage(tgUser.language_code);
   setLanguage(detectedLang);
 
-  // 3. Render Public Profile Info ONLY (بدون إظهار المعرف أو الـ ID نهائياً)
+  // 3. Render Public Profile Info & Bottom Nav Avatar
   const nameEl = document.getElementById("user-display-name");
   const avatarEl = document.getElementById("user-avatar");
+  const navAvatarEl = document.getElementById("nav-user-avatar");
+
   if (nameEl) nameEl.textContent = fullName;
   if (avatarEl) {
     avatarEl.src = photoUrl;
     avatarEl.onerror = () => {
       avatarEl.src = generateFallbackAvatar(fullName);
+    };
+  }
+  if (navAvatarEl) {
+    navAvatarEl.src = photoUrl;
+    navAvatarEl.onerror = () => {
+      navAvatarEl.src = generateFallbackAvatar(fullName);
     };
   }
 
@@ -99,9 +108,10 @@ async function bootstrapApp() {
     }
   });
 
-  // 7. Reveal App Smoothly
+  // 7. Reveal App Smoothly & Position Active Pill
   document.getElementById("app-loader")?.classList.add("hidden");
   document.getElementById("app-container")?.classList.remove("hidden");
+  requestAnimationFrame(() => updateActiveNavPill());
 }
 
 document.addEventListener("DOMContentLoaded", bootstrapApp);
