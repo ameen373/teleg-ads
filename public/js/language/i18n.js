@@ -26,26 +26,15 @@ export const SUPPORTED_LANGUAGES = [
 const dictionaries = { en, ar };
 let currentLang = "en";
 
-try {
-  const initialSaved =
-    localStorage.getItem("telega_ads_lang") || localStorage.getItem("telega_lang");
-  if (initialSaved && dictionaries[initialSaved]) {
-    currentLang = initialSaved;
-  }
-} catch {
-  // تجاهل في حال تعذر الوصول إلى التخزين المحلي
-}
-
 export function detectSmartLanguage(tgUserLangCode) {
   try {
-    const saved =
-      localStorage.getItem("telega_ads_lang") || localStorage.getItem("telega_lang");
+    const saved = localStorage.getItem("telega_ads_lang");
     if (saved && dictionaries[saved]) {
       return saved;
     }
 
     if (tgUserLangCode) {
-      const normalized = String(tgUserLangCode).toLowerCase().split("-")[0];
+      const normalized = tgUserLangCode.toLowerCase().split("-")[0];
       if (dictionaries[normalized]) {
         return normalized;
       }
@@ -67,7 +56,6 @@ export function setLanguage(langCode) {
   currentLang = target;
   try {
     localStorage.setItem("telega_ads_lang", target);
-    localStorage.setItem("telega_lang", target);
   } catch {
     // Storage restricted fallback
   }
@@ -75,30 +63,22 @@ export function setLanguage(langCode) {
   return target;
 }
 
-export function setLang(langCode) {
-  return setLanguage(langCode);
-}
-
 export function getCurrentLanguage() {
   return currentLang;
 }
 
-export function getLang() {
-  return getCurrentLanguage();
-}
-
 export function t(key) {
   const dict = dictionaries[currentLang] || dictionaries.en;
-  return dict[key] || dictionaries.en[key] || dictionaries.ar[key] || key;
+  return dict[key] || dictionaries.en[key] || key;
 }
 
 export function applyTranslations() {
   const dict = dictionaries[currentLang] || dictionaries.en;
   document.documentElement.lang = currentLang;
-  document.documentElement.dir = dict.dir || (currentLang === "ar" ? "rtl" : "ltr");
+  document.documentElement.dir = dict.dir;
 
   const flagEl = document.getElementById("current-flag");
-  if (flagEl && dict.flag) {
+  if (flagEl) {
     flagEl.textContent = dict.flag;
   }
 
