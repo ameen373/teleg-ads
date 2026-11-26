@@ -35,33 +35,6 @@ export class ApiService {
     });
   }
 
-  // Wallet APIs
-  getWalletOverview() {
-    return this.request("/wallet/overview");
-  }
-
-  saveWithdrawAddress(address) {
-    return this.request("/wallet/address", {
-      method: "POST",
-      body: JSON.stringify({ address })
-    });
-  }
-
-  submitDeposit(amount, txid) {
-    return this.request("/wallet/deposit", {
-      method: "POST",
-      body: JSON.stringify({ amount, txid })
-    });
-  }
-
-  submitWithdraw(amount, address) {
-    return this.request("/wallet/withdraw", {
-      method: "POST",
-      body: JSON.stringify({ amount, address })
-    });
-  }
-
-  // Channels APIs
   getChannels() {
     return this.request("/channels");
   }
@@ -73,7 +46,6 @@ export class ApiService {
     });
   }
 
-  // Campaigns APIs
   getCampaigns() {
     return this.request("/campaigns");
   }
@@ -85,13 +57,6 @@ export class ApiService {
     });
   }
 
-  settleCampaign(campaignId) {
-    return this.request(`/campaigns/${campaignId}/settle`, {
-      method: "POST"
-    });
-  }
-
-  // Support
   sendSupportTicket(message) {
     return this.request("/support", {
       method: "POST",
@@ -99,34 +64,8 @@ export class ApiService {
     });
   }
 
-  // Admin APIs
   getAdminStats() {
     return this.request("/admin/stats");
-  }
-
-  getAdminFinanceQueue() {
-    return this.request("/admin/finance-queue");
-  }
-
-  reviewDeposit(depositId, action) {
-    return this.request(`/admin/deposits/${depositId}/review`, {
-      method: "POST",
-      body: JSON.stringify({ action })
-    });
-  }
-
-  reviewWithdrawal(withdrawalId, action, txHash = "") {
-    return this.request(`/admin/withdrawals/${withdrawalId}/review`, {
-      method: "POST",
-      body: JSON.stringify({ action, txHash })
-    });
-  }
-
-  creditPublisherEarning(publisherId, amount, campaignTitle) {
-    return this.request("/admin/credit-publisher", {
-      method: "POST",
-      body: JSON.stringify({ publisherId, amount, campaignTitle })
-    });
   }
 
   sendAdminBroadcast(message) {
