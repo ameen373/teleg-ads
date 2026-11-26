@@ -1,13 +1,5 @@
 import { showToast } from "./ui.js";
 
-function escapeHtml(str) {
-  return String(str || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
 export function initAdminModule(apiService, isOwner, onFinanceUpdated) {
   const adminSection = document.getElementById("section-admin");
   const adminNavBtn = document.getElementById("nav-admin-btn");
@@ -22,95 +14,69 @@ export function initAdminModule(apiService, isOwner, onFinanceUpdated) {
   adminSection?.classList.add("owner-unlocked");
   adminNavBtn?.classList.add("owner-unlocked");
 
-  async function renderFinanceReviewWorkspace() {
+  // 1. إدارة طابور الإيداعات والسحوبات
+  async function renderFinanceQueue() {
     workspace.classList.remove("hidden");
-    workspace.innerHTML = "<p style='color:var(--text-muted);'>Loading deposits & withdrawals...</p>";
-
+    workspace.innerHTML = "<p>Loading pending deposits & withdrawals...</p>";
     try {
-      const { deposits = [], withdrawals = [] } = await apiService.getAdminFinanceRequests();
+      const { deposits, withdrawals } = await apiService.getAdminFinanceQueue();
 
-      const depositsHtml =
+      const depHtml =
         deposits.length === 0
-          ? "<p style='color:var(--text-muted);font-size:0.85rem;'>No deposit requests.</p>"
+          ? "<p style='color:var(--text-muted);font-size:0.85rem;'>No pending deposits.</p>"
           : deposits
               .map(
-                (dep) => `
-                <div class="glass-panel" style="padding:12px;border-radius:12px;margin-bottom:10px;">
-                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                    <strong>📥 $${Number(dep.amount || 0).toFixed(2)} (${escapeHtml(dep.network)})</strong>
-                    <span style="font-size:0.75rem;color:var(--accent-primary);">${escapeHtml(dep.status)}</span>
-                  </div>
-                  <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:4px;">
-                    User: ${escapeHtml(dep.username ? `@${dep.username}` : dep.userId)}
-                  </div>
-                  <div style="font-size:0.76rem;word-break:break-all;margin-bottom:8px;">
-                    TXID: <code>${escapeHtml(dep.txid)}</code>
-                  </div>
-                  ${
-                    dep.status === "pending_review"
-                      ? `<div style="display:flex;gap:8px;">
-                          <button class="primary-btn admin-dep-btn" data-id="${dep.id}" data-action="approve" style="flex:1;padding:8px;">✓ Approve</button>
-                          <button class="secondary-btn admin-dep-btn" data-id="${dep.id}" data-action="reject" style="flex:1;padding:8px;border-color:#ef4444;color:#fca5a5;">✕ Reject</button>
-                        </div>`
-                      : ""
-                  }
+                (d) => `
+              <div class="glass-panel" style="padding:12px;border-radius:12px;margin-bottom:8px;">
+                <div><strong>Deposit $${Number(d.amount).toFixed(2)}</strong> (User: ${d.userId})</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);word-break:break-all;margin:4px 0;">TXID: ${d.txid}</div>
+                <div style="display:flex;gap:8px;margin-top:8px;">
+                  <button class="primary-btn btn-dep-act" data-id="${d.id}" data-act="approve" style="flex:1;padding:8px;">Approve</button>
+                  <button class="secondary-btn btn-dep-act" data-id="${d.id}" data-act="reject" style="flex:1;padding:8px;">Reject</button>
                 </div>
-              `
+              </div>
+            `
               )
               .join("");
 
-      const withdrawalsHtml =
+      const witHtml =
         withdrawals.length === 0
-          ? "<p style='color:var(--text-muted);font-size:0.85rem;'>No withdrawal requests.</p>"
+          ? "<p style='color:var(--text-muted);font-size:0.85rem;'>No active withdrawals.</p>"
           : withdrawals
               .map(
-                (wd) => `
-                <div class="glass-panel" style="padding:12px;border-radius:12px;margin-bottom:10px;">
-                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                    <strong>📤 $${Number(wd.amount || 0).toFixed(2)} → Net $${Number(wd.netAmount || 0).toFixed(2)}</strong>
-                    <span style="font-size:0.75rem;color:var(--accent-secondary);">${escapeHtml(wd.status)}</span>
-                  </div>
-                  <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:4px;">
-                    User: ${escapeHtml(wd.username ? `@${wd.username}` : wd.userId)} | ${escapeHtml(wd.network)}
-                  </div>
-                  <div style="font-size:0.76rem;word-break:break-all;margin-bottom:8px;">
-                    TRC20: <code>${escapeHtml(wd.walletAddress)}</code>
-                  </div>
+                (w) => `
+              <div class="glass-panel" style="padding:12px;border-radius:12px;margin-bottom:8px;">
+                <div><strong>Withdraw $${Number(w.amount).toFixed(2)}</strong> → Net: $${Number(w.netAmount).toFixed(2)}</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);word-break:break-all;margin:4px 0;">TRC20: ${w.walletAddress}</div>
+                <div style="font-size:0.75rem;color:#fbbf24;margin-bottom:6px;">Stage: ${w.status.toUpperCase()}</div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
                   ${
-                    ["pending_review", "processing"].includes(wd.status)
-                      ? `<input type="text" class="modern-input admin-wd-tx" id="wd-tx-${wd.id}" placeholder="Optional Payout TX Hash..." style="margin-bottom:8px;padding:8px 10px;font-size:0.8rem;" />
-                         <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                          ${
-                            wd.status === "pending_review"
-                              ? `<button class="secondary-btn admin-wd-btn" data-id="${wd.id}" data-status="processing" style="flex:1;padding:8px;">⏳ Processing</button>`
-                              : ""
-                          }
-                          <button class="primary-btn admin-wd-btn" data-id="${wd.id}" data-status="completed" style="flex:1;padding:8px;">✓ Complete</button>
-                          <button class="secondary-btn admin-wd-btn" data-id="${wd.id}" data-status="rejected" style="flex:1;padding:8px;border-color:#ef4444;color:#fca5a5;">✕ Reject</button>
-                        </div>`
+                    w.status === "submitted"
+                      ? `<button class="secondary-btn btn-wit-act" data-id="${w.id}" data-act="processing" style="flex:1;padding:7px;">Mark Processing</button>`
                       : ""
                   }
+                  <button class="primary-btn btn-wit-act" data-id="${w.id}" data-act="completed" style="flex:1;padding:7px;">Complete</button>
+                  <button class="secondary-btn btn-wit-act" data-id="${w.id}" data-act="rejected" style="flex:1;padding:7px;">Reject & Refund</button>
                 </div>
-              `
+              </div>
+            `
               )
               .join("");
 
       workspace.innerHTML = `
-        <h4 style="margin-bottom:8px;color:var(--accent-primary);">Deposits Review (USDT - BEP20)</h4>
-        ${depositsHtml}
-        <h4 style="margin:14px 0 8px;color:var(--accent-secondary);">Withdrawals Review (USDT - TRC20)</h4>
-        ${withdrawalsHtml}
+        <h4 style="margin-bottom:8px;">📥 Pending Deposits (${deposits.length})</h4>
+        ${depHtml}
+        <h4 style="margin:14px 0 8px;">📤 Withdrawals Queue (${withdrawals.length})</h4>
+        ${witHtml}
       `;
 
-      workspace.querySelectorAll(".admin-dep-btn").forEach((btn) => {
+      workspace.querySelectorAll(".btn-dep-act").forEach((btn) => {
         btn.addEventListener("click", async () => {
-          const id = btn.getAttribute("data-id");
-          const action = btn.getAttribute("data-action");
           btn.disabled = true;
           try {
-            await apiService.reviewDepositRequest(id, action);
-            showToast(action === "approve" ? "Deposit approved!" : "Deposit rejected!");
-            await renderFinanceReviewWorkspace();
+            await apiService.reviewDeposit(btn.dataset.id, btn.dataset.act);
+            showToast("Deposit updated!");
+            await renderFinanceQueue();
             if (typeof onFinanceUpdated === "function") await onFinanceUpdated();
           } catch (err) {
             showToast(err.message);
@@ -119,16 +85,13 @@ export function initAdminModule(apiService, isOwner, onFinanceUpdated) {
         });
       });
 
-      workspace.querySelectorAll(".admin-wd-btn").forEach((btn) => {
+      workspace.querySelectorAll(".btn-wit-act").forEach((btn) => {
         btn.addEventListener("click", async () => {
-          const id = btn.getAttribute("data-id");
-          const status = btn.getAttribute("data-status");
-          const txHash = document.getElementById(`wd-tx-${id}`)?.value.trim() || "";
           btn.disabled = true;
           try {
-            await apiService.reviewWithdrawalRequest(id, status, txHash);
-            showToast(`Withdrawal updated: ${status}`);
-            await renderFinanceReviewWorkspace();
+            await apiService.reviewWithdrawal(btn.dataset.id, btn.dataset.act);
+            showToast("Withdrawal updated!");
+            await renderFinanceQueue();
             if (typeof onFinanceUpdated === "function") await onFinanceUpdated();
           } catch (err) {
             showToast(err.message);
@@ -137,12 +100,43 @@ export function initAdminModule(apiService, isOwner, onFinanceUpdated) {
         });
       });
     } catch (err) {
-      workspace.innerHTML = `<p style="color:#fca5a5;">${escapeHtml(err.message)}</p>`;
+      workspace.innerHTML = `<p>${err.message}</p>`;
     }
   }
 
-  document.querySelector('[data-action="admin-finance"]')?.addEventListener("click", renderFinanceReviewWorkspace);
+  document.querySelector('[data-action="admin-finance"]')?.addEventListener("click", renderFinanceQueue);
 
+  // 2. إضافة أرباح نشر لناشر (مع تفعيل الـ 24 ساعة وعمولة الإحالة 10%)
+  document.querySelector('[data-action="admin-credit-pub"]')?.addEventListener("click", () => {
+    workspace.classList.remove("hidden");
+    workspace.innerHTML = `
+      <h4 style="margin-bottom:8px;">Credit Publisher Ad Revenue</h4>
+      <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:10px;">
+        Holds earnings for 24h and automatically allocates 10% referral commission if publisher was invited.
+      </p>
+      <input type="text" id="admin-pub-id" class="modern-input" placeholder="Publisher Telegram ID" />
+      <input type="number" id="admin-pub-amount" class="modern-input" step="0.01" placeholder="Gross Earning (USDT)" />
+      <input type="text" id="admin-pub-camp" class="modern-input" placeholder="Campaign Title" value="Sponsored Post" />
+      <button id="btn-exec-credit-pub" class="primary-btn full-width">Credit & Start 24h Timer</button>
+    `;
+
+    document.getElementById("btn-exec-credit-pub")?.addEventListener("click", async () => {
+      const pubId = document.getElementById("admin-pub-id")?.value.trim();
+      const amount = parseFloat(document.getElementById("admin-pub-amount")?.value);
+      const camp = document.getElementById("admin-pub-camp")?.value.trim();
+      if (!pubId || isNaN(amount) || amount <= 0) return;
+
+      try {
+        await apiService.creditPublisherEarning(pubId, amount, camp);
+        showToast("Publisher & Referral 24h earnings queued!");
+        if (typeof onFinanceUpdated === "function") await onFinanceUpdated();
+      } catch (err) {
+        showToast(err.message);
+      }
+    });
+  });
+
+  // 3. الإحصائيات المباشرة
   document.querySelector('[data-action="admin-stats"]')?.addEventListener("click", async () => {
     workspace.classList.remove("hidden");
     workspace.innerHTML = "<p>Loading live telemetry...</p>";
@@ -159,20 +153,12 @@ export function initAdminModule(apiService, isOwner, onFinanceUpdated) {
             <h3>${data.totalChannels ?? 0}</h3>
           </div>
           <div class="glass-panel" style="padding:12px;border-radius:12px;">
-            <small style="color:var(--text-muted)">Active Ads</small>
+            <small style="color:var(--text-muted)">Campaigns</small>
             <h3>${data.activeCampaigns ?? 0}</h3>
           </div>
           <div class="glass-panel" style="padding:12px;border-radius:12px;">
-            <small style="color:var(--text-muted)">Approved Volume</small>
-            <h3>$${Number(data.totalVolume ?? 0).toFixed(2)}</h3>
-          </div>
-          <div class="glass-panel" style="padding:12px;border-radius:12px;">
-            <small style="color:var(--text-muted)">Pending Deposits</small>
-            <h3 style="color:#fbbf24;">${data.pendingDeposits ?? 0}</h3>
-          </div>
-          <div class="glass-panel" style="padding:12px;border-radius:12px;">
-            <small style="color:var(--text-muted)">Pending Withdrawals</small>
-            <h3 style="color:#38bdf8;">${data.pendingWithdrawals ?? 0}</h3>
+            <small style="color:var(--text-muted)">Pending Finance</small>
+            <h3>${(data.pendingDepositsCount || 0) + (data.pendingWithdrawalsCount || 0)}</h3>
           </div>
         </div>
       `;
@@ -181,6 +167,7 @@ export function initAdminModule(apiService, isOwner, onFinanceUpdated) {
     }
   });
 
+  // 4. البث الجماعي
   document.querySelector('[data-action="admin-broadcast"]')?.addEventListener("click", () => {
     workspace.classList.remove("hidden");
     workspace.innerHTML = `
@@ -201,13 +188,13 @@ export function initAdminModule(apiService, isOwner, onFinanceUpdated) {
     });
   });
 
+  // 5. سجلات الأمان
   document.querySelector('[data-action="admin-security"]')?.addEventListener("click", () => {
     workspace.classList.remove("hidden");
     workspace.innerHTML = `
       <div style="font-size:0.88rem;color:var(--accent-secondary);">
-        🛡️ Anti-Bot Shield: ACTIVE<br/>
-        🔒 Telegram HMAC Signature Verification: ENFORCED<br/>
-        ⚛️ Firestore Atomic Ledger & 24h Hold Engine: ACTIVE
+        🛡️ Anti-Bot & TXID Deduplication Shield: ACTIVE<br/>
+        🔒 Atomic Firestore Ledger & HMAC Auth: ENFORCED
       </div>
     `;
   });
