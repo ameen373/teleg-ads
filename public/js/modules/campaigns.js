@@ -1,7 +1,7 @@
 import { t } from "../language/i18n.js";
 import { showToast } from "./ui.js";
 
-export function initCampaignsModule(apiService, onBalanceChanged) {
+export function initCampaignsModule(apiService) {
   const toggleBtn = document.querySelector('[data-action="toggle-create-campaign"]');
   const panel = document.getElementById("create-campaign-panel");
   const submitBtn = document.getElementById("submit-campaign-btn");
@@ -29,9 +29,8 @@ export function initCampaignsModule(apiService, onBalanceChanged) {
       panel.classList.add("hidden");
       showToast("✓");
       await loadCampaigns();
-      if (typeof onBalanceChanged === "function") await onBalanceChanged();
     } catch (err) {
-      showToast(err.message === "INSUFFICIENT_BALANCE" ? t("err_insufficient_balance") : err.message);
+      showToast(err.message);
     } finally {
       submitBtn.disabled = false;
     }
@@ -46,50 +45,18 @@ export function initCampaignsModule(apiService, onBalanceChanged) {
         listContainer.innerHTML = `<div class="glass-panel data-card"><span style="color:var(--text-muted)">${t("empty_campaigns")}</span></div>`;
         return;
       }
-
       listContainer.innerHTML = campaigns
-        .map((cp) => {
-          const isCompleted = cp.status === "Completed";
-          const spent = Number(cp.spent || 0).toFixed(2);
-          const budget = Number(cp.budget || 0).toFixed(2);
-          return `
-            <div class="glass-panel" style="padding:16px;border-radius:14px;">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                <div>
-                  <strong>${cp.title}</strong>
-                  <div style="font-size:0.8rem;color:var(--text-muted)">$${spent} / $${budget} USDT</div>
-                </div>
-                <span style="color:${isCompleted ? "var(--accent-secondary)" : "var(--accent-primary)"};font-weight:700;">
-                  ${cp.status}
-                </span>
-              </div>
-              ${
-                !isCompleted
-                  ? `<button class="secondary-btn full-width btn-settle-camp" data-id="${cp.id}" style="padding:8px;font-size:0.84rem;">
-                      ♻️ ${t("btn_settle_campaign")}
-                    </button>`
-                  : `<div style="font-size:0.78rem;color:var(--accent-secondary);">✓ ${t("settled_refund_label")}: $${Number(cp.refundedAmount || 0).toFixed(2)}</div>`
-              }
+        .map(
+          (cp) => `
+          <div class="glass-panel data-card">
+            <div>
+              <strong>${cp.title}</strong>
+              <div style="font-size:0.8rem;color:var(--text-muted)">$${cp.budget} USDT</div>
             </div>
-          `;
-        })
+            <span style="color:var(--accent-primary);font-weight:700">${cp.status || "Running"}</span>
+          </div>`
+        )
         .join("");
-
-      listContainer.querySelectorAll(".btn-settle-camp").forEach((btn) => {
-        btn.addEventListener("click", async () => {
-          const id = btn.getAttribute("data-id");
-          btn.disabled = true;
-          try {
-            const settleRes = await apiService.settleCampaign(id);
-            showToast(`${t("settled_refund_label")}: $${Number(settleRes.refundedAmount).toFixed(2)}`);
-            await loadCampaigns();
-            if (typeof onBalanceChanged === "function") await onBalanceChanged();
-          } catch (err) {
-            showToast(err.message);
-            btn.disabled = false;
-          }
-        });
-      });
     } catch {
       listContainer.innerHTML = `<div class="glass-panel data-card"><span style="color:var(--text-muted)">${t("empty_campaigns")}</span></div>`;
     }
