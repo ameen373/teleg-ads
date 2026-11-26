@@ -78,37 +78,23 @@ async function bootstrapApp() {
   }
 
   // 5. Initialize Modules
-  const walletCtrl = initWalletAndReferralModule(
-    api,
-    secretTelegramId || secretUsername,
-    botUsername
-  );
-
-  initAdminModule(api, isOwner, async () => {
-    await walletCtrl.loadWalletData();
-    await walletCtrl.loadReferralData();
-  });
-
+  const walletCtrl = initWalletAndReferralModule(api, secretTelegramId || secretUsername, botUsername);
+  initAdminModule(api, isOwner, () => walletCtrl.loadWalletData());
   const channelsCtrl = initChannelsModule(api);
-  const campaignsCtrl = initCampaignsModule(api, async () => {
-    await walletCtrl.loadWalletData();
-  });
+  const campaignsCtrl = initCampaignsModule(api, () => walletCtrl.loadWalletData());
 
-  // تحميل بيانات المحفظة فوراً عند الدخول إلى حسابي
   await walletCtrl.loadWalletData();
 
   initNavigation((sectionId) => {
-    if (sectionId === "section-account") walletCtrl.loadWalletData();
+    if (sectionId === "section-wallet" || sectionId === "section-referral") walletCtrl.loadWalletData();
     if (sectionId === "section-channels") channelsCtrl.loadChannels();
     if (sectionId === "section-campaigns") campaignsCtrl.loadCampaigns();
-    if (sectionId === "section-referral") walletCtrl.loadReferralData();
   });
 
   // 6. Account Interactive Buttons
   const triggerLanguageModal = () =>
     openLanguageModal(() => {
       walletCtrl.loadWalletData();
-      walletCtrl.loadReferralData();
       channelsCtrl.loadChannels();
       campaignsCtrl.loadCampaigns();
     });
