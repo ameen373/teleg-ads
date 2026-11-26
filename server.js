@@ -9,21 +9,11 @@ import {
   Collections,
   WALLET_CONSTANTS,
   db,
-  FieldValue,
-  Timestamp,
-  roundMoney,
   logSecurityEvent,
-  upsertTelegramUser,
-  ensureUserDocument,
-  process24HourReleases,
-  recordPublisherEarningWithReferral,
+  processMatureEarnings,
+  recordTransaction,
   settleCampaignBudgetAtomically,
-  getWalletSummary,
-  updateUserTrc20Address,
-  recordDepositRequest,
-  requestWithdrawalAtomically,
-  getTransactionHistory,
-  WalletModule
+  upsertTelegramUser
 } from "./models.js";
 
 dotenv.config();
@@ -33,7 +23,6 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const MAX_AUTH_AGE_SECONDS = 24 * 60 * 60;
 
 app.use(
   helmet({
@@ -41,36 +30,23 @@ app.use(
   })
 );
 app.use(cors());
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
 const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
 
-function serializeFirestoreDate(value) {
-  if (!value) return null;
-  if (typeof value.toDate === "function") return value.toDate().toISOString();
-  if (value instanceof Date) return value.toISOString();
-  return String(value);
+function roundMoney(value) {
+  return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 }
 
-// التحقق المشفر من بيانات تيليجرام (HMAC-SHA256 + التحقق من صلاحية الوقت)
+// التحقق المشفر من بيانات تيليجرام (HMAC-SHA256) لضمان عدم تزوير الهوية
 function verifyTelegramWebAppData(initData) {
   if (!initData || !process.env.BOT_TOKEN) return null;
   try {
-    const urlParams = new URLSearchParams(String(initData));
+    const urlParams = new URLSearchParams(initData);
     const hash = urlParams.get("hash");
-    const authDateRaw = urlParams.get("auth_date");
-
-    if (!hash || !authDateRaw) return null;
-
-    const authDate = Number(authDateRaw);
-    if (!Number.isFinite(authDate)) return null;
-
-    const nowSeconds = Math.floor(Date.now() / 1000);
-    if (nowSeconds - authDate > MAX_AUTH_AGE_SECONDS) {
-      return null;
-    }
+    if (!hash) return null;
 
     urlParams.delete("hash");
     const dataCheckString = Array.from(urlParams.entries())
@@ -88,13 +64,15 @@ function verifyTelegramWebAppData(initData) {
       .update(dataCheckString)
       .digest("hex");
 
-    const hashBuf = Buffer.from(hash, "utf8");
-    const calcBuf = Buffer.from(calculatedHash, "utf8");
-    if (hashBuf.length !== calcBuf.length) return null;
-    if (!crypto.timingSafeEqual(hashBuf, calcBuf)) return null;
+    if (calculatedHash !== hash) return null;
 
     const userRaw = urlParams.get("user");
-    return userRaw ? JSON.parse(userRaw) : null;
+    const startParam = urlParams.get("start_param") || "";
+    const parsedUser = userRaw ? JSON.parse(userRaw) : null;
+    if (parsedUser && startParam) {
+      parsedUser.startParam = startParam;
+    }
+    return parsedUser;
   } catch {
     return null;
   }
@@ -105,24 +83,13 @@ const telegramAuthMiddleware = asyncHandler(async (req, res, next) => {
   const initData = req.headers["x-telegram-init-data"];
   const verifiedUser = verifyTelegramWebAppData(initData);
 
-  if (!verifiedUser || !verifiedUser.id) {
-    await logSecurityEvent("UNVERIFIED_ACCESS_ATTEMPT", {
-      ip: req.ip,
-      path: req.path
-    });
+  if (!verifiedUser) {
+    await logSecurityEvent("UNVERIFIED_ACCESS_ATTEMPT", { ip: req.ip, path: req.path });
     return res.status(401).json({ error: "Unauthorized Telegram session" });
   }
 
   req.tgUser = verifiedUser;
-  const adminIds = [
-    process.env.ADMIN_TELEGRAM_ID,
-    process.env.ADMIN_USER_ID,
-    "admin_1"
-  ]
-    .filter(Boolean)
-    .map(String);
-
-  req.isOwner = adminIds.includes(String(verifiedUser.id));
+  req.isOwner = String(verifiedUser.id) === String(process.env.ADMIN_TELEGRAM_ID);
   next();
 });
 
@@ -138,392 +105,272 @@ const ownerOnlyMiddleware = asyncHandler(async (req, res, next) => {
   next();
 });
 
-function resolveTargetUserId(req, explicitUserId = null) {
-  const authUserId = String(req.tgUser.id);
-  if (!explicitUserId) return authUserId;
-  const requestedId = String(explicitUserId).trim();
-  if (requestedId !== authUserId && !req.isOwner) {
-    return null;
-  }
-  return requestedId;
-}
-
-async function fetchUserWalletPayload(targetUserId, req, txLimit = 20) {
-  const summary = await getWalletSummary(targetUserId, {
-    runReleaseCheck: false,
-    ensureDoc: false
-  });
-
-  const [
-    txSnap,
-    depositsSnap,
-    withdrawalsSnap,
-    pendingReleasesSnap,
-    referralsSnap
-  ] = await Promise.all([
-    db
-      .collection(Collections.TRANSACTIONS)
-      .where("userId", "==", targetUserId)
-      .orderBy("createdAt", "desc")
-      .limit(txLimit)
-      .get()
-      .catch(() =>
-        db
-          .collection(Collections.TRANSACTIONS)
-          .where("userId", "==", targetUserId)
-          .limit(txLimit)
-          .get()
-      ),
-    db
-      .collection(Collections.DEPOSITS)
-      .where("userId", "==", targetUserId)
-      .limit(25)
-      .get(),
-    db
-      .collection(Collections.WITHDRAWALS)
-      .where("userId", "==", targetUserId)
-      .limit(25)
-      .get(),
-    db
-      .collection(Collections.PENDING_RELEASES)
-      .where("userId", "==", targetUserId)
-      .where("status", "==", "pending")
-      .get(),
-    db
-      .collection(Collections.REFERRALS)
-      .where("referrerId", "==", targetUserId)
-      .limit(20)
-      .get()
-  ]);
-
-  const sortByCreatedDesc = (a, b) => {
-    const aTime = a.createdAt?.toMillis
-      ? a.createdAt.toMillis()
-      : new Date(a.createdAt || 0).getTime();
-    const bTime = b.createdAt?.toMillis
-      ? b.createdAt.toMillis()
-      : new Date(b.createdAt || 0).getTime();
-    return bTime - aTime;
-  };
-
-  const transactions = txSnap.docs
-    .map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt:
-        serializeFirestoreDate(doc.data().createdAt) || new Date().toISOString()
-    }))
-    .sort(sortByCreatedDesc)
-    .slice(0, txLimit);
-
-  const deposits = depositsSnap.docs
-    .map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt:
-        serializeFirestoreDate(doc.data().createdAt) || new Date().toISOString()
-    }))
-    .sort(sortByCreatedDesc);
-
-  const withdrawals = withdrawalsSnap.docs
-    .map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt:
-        serializeFirestoreDate(doc.data().createdAt) || new Date().toISOString(),
-      updatedAt: serializeFirestoreDate(doc.data().updatedAt)
-    }))
-    .sort(sortByCreatedDesc);
-
-  const pendingReleases = pendingReleasesSnap.docs
-    .map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt: serializeFirestoreDate(doc.data().createdAt),
-      releaseAt: serializeFirestoreDate(doc.data().releaseAt)
-    }))
-    .sort((a, b) => new Date(a.releaseAt || 0) - new Date(b.releaseAt || 0));
-
-  const referralLogs = referralsSnap.docs
-    .map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt: serializeFirestoreDate(doc.data().createdAt),
-      releaseAt: serializeFirestoreDate(doc.data().releaseAt)
-    }))
-    .sort(sortByCreatedDesc);
-
-  return {
-    wallet: {
-      userId: summary.userId,
-      availableBalance: summary.availableBalance,
-      pendingEarnings: summary.pendingEarnings,
-      totalSpent: summary.totalSpent,
-      totalEarned: summary.totalEarned,
-      referralEarningsAvailable: summary.referralEarningsAvailable,
-      referralEarningsPending: summary.referralEarningsPending,
-      trc20Address: summary.trc20Address,
-      referralCode: summary.referralCode,
-      referredBy: req.isOwner ? summary.referredBy || null : undefined,
-      referralsCount: summary.referralsCount,
-      isAdmin: req.isOwner
-    },
-    constants: WalletModule.constants,
-    transactions,
-    deposits,
-    withdrawals,
-    pendingReleases,
-    referralLogs
-  };
-}
-
-// مزامنة بيانات المستخدم
+// مزامنة بيانات المستخدم + تحرير أي أرباح أتمت 24 ساعة
 app.post(
   "/api/auth/sync",
   telegramAuthMiddleware,
   asyncHandler(async (req, res) => {
-    const refCode = req.body?.ref || req.body?.referralCode || null;
-    await upsertTelegramUser(req.tgUser);
-    if (refCode) {
-      await ensureUserDocument(String(req.tgUser.id), String(refCode));
-    }
+    const startParam = req.tgUser.startParam || req.body?.startParam || "";
+    await upsertTelegramUser(req.tgUser, startParam);
+    await processMatureEarnings(req.tgUser.id);
+
     res.json({
       success: true,
       isOwner: req.isOwner,
-      officialChannel:
-        process.env.OFFICIAL_CHANNEL_URL || "https://t.me/ttelega_ads",
-      botUsername: process.env.BOT_USERNAME || "AdTelega_bot"
+      officialChannel: process.env.OFFICIAL_CHANNEL_URL || "https://t.me/TelegaAdsOfficial",
+      botUsername: process.env.BOT_USERNAME || "TelegaAdsBot"
     });
   })
 );
 
-// ================= قسم المحفظة والعمليات المالية =================
+// =========================================================
+// منظومة المحفظة (Wallet) وسجل الإيداعات والسحوبات
+// =========================================================
 
-// جلب بيانات المحفظة والرصيد وسجل العمليات والإحالة للمستخدم المصادق عليه
+// جلب ملخص المحفظة الفوري + آخر 10 معاملات + سجل الإيداعات والسحوبات
 app.get(
-  "/api/wallet",
+  "/api/wallet/summary",
   telegramAuthMiddleware,
   asyncHandler(async (req, res) => {
     const userId = String(req.tgUser.id);
-    const ref = req.query?.ref ? String(req.query.ref) : null;
 
-    await upsertTelegramUser(req.tgUser);
-    await ensureUserDocument(userId, ref);
-    const releaseInfo = await process24HourReleases(userId);
-    const payload = await fetchUserWalletPayload(userId, req, 20);
+    // تحرير الأرباح التي مرّ عليها 24 ساعة قبل القراءة
+    await processMatureEarnings(userId);
+
+    const [userSnap, txSnap, depSnap, wdSnap] = await Promise.all([
+      db.collection(Collections.USERS).doc(userId).get(),
+      db.collection(Collections.TRANSACTIONS).where("userId", "==", userId).get(),
+      db.collection(Collections.DEPOSITS).where("userId", "==", userId).get(),
+      db.collection(Collections.WITHDRAWALS).where("userId", "==", userId).get()
+    ]);
+
+    const userData = userSnap.exists ? userSnap.data() : {};
+
+    const transactions = txSnap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
+      .slice(0, 10);
+
+    const deposits = depSnap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+
+    const withdrawals = wdSnap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
 
     res.json({
-      success: true,
-      ...payload,
-      releaseInfo
+      wallet: {
+        balance: roundMoney(userData.balance || 0),
+        pendingBalance: roundMoney(userData.pendingBalance || 0),
+        totalSpent: roundMoney(userData.totalSpent || 0),
+        totalEarned: roundMoney(userData.totalEarned || 0),
+        trc20Wallet: userData.trc20Wallet || "",
+        constants: WALLET_CONSTANTS
+      },
+      transactions,
+      deposits,
+      withdrawals
     });
   })
 );
 
-// تهيئة وجلب بيانات المحفظة لمعرف محدد (للمستخدم نفسه أو المالك)
-app.get(
-  "/api/wallet/:userId",
-  telegramAuthMiddleware,
-  asyncHandler(async (req, res) => {
-    const targetUserId = resolveTargetUserId(req, req.params.userId);
-    if (!targetUserId) {
-      await logSecurityEvent("UNAUTHORIZED_WALLET_ACCESS", {
-        requesterId: req.tgUser.id,
-        targetUserId: req.params.userId
-      });
-      return res
-        .status(403)
-        .json({ error: "Forbidden: Cannot access another user's wallet" });
-    }
-
-    const ref = req.query?.ref ? String(req.query.ref) : null;
-    await ensureUserDocument(targetUserId, ref);
-    const releaseInfo = await process24HourReleases(targetUserId);
-    const payload = await fetchUserWalletPayload(targetUserId, req, 10);
-
-    res.json({
-      success: true,
-      ...payload,
-      releaseInfo
-    });
-  })
-);
-
-// سجل العمليات الكامل للمحفظة
-app.get(
-  "/api/wallet/transactions",
-  telegramAuthMiddleware,
-  asyncHandler(async (req, res) => {
-    const userId = String(req.tgUser.id);
-    const limit = Number(req.query?.limit || 20);
-    const items = await getTransactionHistory(userId, limit);
-    const transactions = items.map((item) => ({
-      ...item,
-      createdAt: serializeFirestoreDate(item.createdAt)
-    }));
-    res.json({ success: true, transactions });
-  })
-);
-
-// حفظ أو تعديل عنوان محفظة USDT - TRC20
+// حفظ أو تعديل عنوان محفظة السحب USDT - TRC20
 app.post(
   "/api/wallet/address",
   telegramAuthMiddleware,
   asyncHandler(async (req, res) => {
-    const targetUserId = resolveTargetUserId(req, req.body?.userId);
-    if (!targetUserId) {
-      return res
-        .status(403)
-        .json({ error: "Forbidden: Cannot modify another user's address" });
+    const userId = String(req.tgUser.id);
+    const address = String(req.body?.address || "").trim();
+
+    if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address)) {
+      return res.status(400).json({ error: "Invalid USDT TRC20 wallet address (must start with T and be 34 chars)" });
     }
 
-    const { trc20Address } = req.body || {};
-    if (!trc20Address) {
-      return res.status(400).json({ error: "يرجى إدخال عنوان المحفظة" });
-    }
-
-    const updated = await updateUserTrc20Address(targetUserId, trc20Address);
-    res.json({
-      success: true,
-      message: "تم حفظ عنوان محفظة USDT - TRC20 بنجاح",
-      trc20Address: updated.trc20Address
-    });
-  })
-);
-
-// طلب سحب جديد عبر USDT - TRC20 (الحد الأدنى $30.00 ورسوم $3.00)
-app.post(
-  "/api/wallet/withdraw",
-  telegramAuthMiddleware,
-  asyncHandler(async (req, res) => {
-    const targetUserId = resolveTargetUserId(req, req.body?.userId);
-    if (!targetUserId) {
-      return res
-        .status(403)
-        .json({ error: "Forbidden: Cannot withdraw from another user's wallet" });
-    }
-
-    const { amount, trc20Address } = req.body || {};
-    const withdrawAmount = roundMoney(amount);
-    if (!Number.isFinite(withdrawAmount) || withdrawAmount <= 0) {
-      return res.status(400).json({ error: "بيانات السحب غير مكتملة" });
-    }
-
-    const result = await requestWithdrawalAtomically(
-      targetUserId,
-      withdrawAmount,
-      trc20Address || null
+    await db.collection(Collections.USERS).doc(userId).set(
+      {
+        trc20Wallet: address,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      },
+      { merge: true }
     );
 
-    const withdrawalRecord = {
-      ...result.withdrawal,
-      walletAddress: result.withdrawal.trc20Address,
-      status:
-        result.withdrawal.status === "pending"
-          ? "requested"
-          : result.withdrawal.status,
-      stepIndex: 1,
-      txHash: "",
-      adminNote: "",
-      createdAt: serializeFirestoreDate(result.withdrawal.createdAt),
-      updatedAt: serializeFirestoreDate(result.withdrawal.updatedAt)
-    };
-
-    res.json({
-      success: true,
-      message: "تم إرسال طلب السحب بنجاح وهو قيد المراجعة",
-      withdrawal: withdrawalRecord
-    });
+    res.json({ success: true, trc20Wallet: address });
   })
 );
 
-// إرسال طلب إيداع عبر USDT - BEP20 برقم المعاملة TXID مع منع التكرار
+// إرسال طلب إيداع عبر USDT - BEP20 مع TXID (الحد الأدنى $10.00 - لا عمولة إحالة على الإيداعات)
 app.post(
   "/api/wallet/deposit",
   telegramAuthMiddleware,
   asyncHandler(async (req, res) => {
-    const targetUserId = resolveTargetUserId(req, req.body?.userId);
-    if (!targetUserId) {
-      return res
-        .status(403)
-        .json({ error: "Forbidden: Cannot deposit for another user" });
+    const userId = String(req.tgUser.id);
+    const amount = roundMoney(req.body?.amount);
+    const txid = String(req.body?.txid || "").trim();
+
+    if (isNaN(amount) || amount < WALLET_CONSTANTS.MIN_DEPOSIT) {
+      return res.status(400).json({ error: `Minimum deposit is $${WALLET_CONSTANTS.MIN_DEPOSIT.toFixed(2)}` });
     }
 
-    const { amount, txid, txHash, adminNote } = req.body || {};
-    const depositAmount = roundMoney(amount);
-    const rawHash = txid || txHash || "";
-
-    if (!rawHash || !Number.isFinite(depositAmount)) {
-      return res
-        .status(400)
-        .json({ error: "يرجى إدخال المبلغ ورقم المعاملة (TXID)" });
+    if (!txid || txid.length < 16 || txid.length > 128) {
+      return res.status(400).json({ error: "Valid Transaction Hash (TXID) is required" });
     }
 
-    if (depositAmount < WALLET_CONSTANTS.MIN_DEPOSIT) {
-      return res.status(400).json({
-        error: `الحد الأدنى للإيداع هو $${WALLET_CONSTANTS.MIN_DEPOSIT.toFixed(2)}`
-      });
+    // منع تكرار نفس رقم المعاملة TXID
+    const dupSnap = await db
+      .collection(Collections.DEPOSITS)
+      .where("txid", "==", txid)
+      .limit(1)
+      .get();
+
+    if (!dupSnap.empty) {
+      return res.status(409).json({ error: "This TXID has already been submitted" });
     }
 
-    const cleanTxid = String(rawHash).trim();
-    if (cleanTxid.length < 16) {
-      return res.status(400).json({ error: "رقم المعاملة (TXID) غير صالح" });
-    }
+    const now = new Date().toISOString();
+    const depRef = await db.collection(Collections.DEPOSITS).add({
+      userId,
+      username: req.tgUser.username || "",
+      amount,
+      network: WALLET_CONSTANTS.DEPOSIT_NETWORK,
+      depositAddress: WALLET_CONSTANTS.DEPOSIT_ADDRESS,
+      txid,
+      status: "pending_review", // pending_review | approved | rejected
+      createdAt: now
+    });
 
-    try {
-      const created = await recordDepositRequest(
-        targetUserId,
-        depositAmount,
-        cleanTxid,
-        adminNote || ""
-      );
+    await recordTransaction(null, {
+      userId,
+      type: "deposit",
+      amount,
+      direction: "in",
+      status: "pending_review",
+      title: `Deposit Request (${WALLET_CONSTANTS.DEPOSIT_NETWORK})`,
+      meta: { depositId: depRef.id, txid, network: WALLET_CONSTANTS.DEPOSIT_NETWORK }
+    });
 
-      res.json({
-        success: true,
-        message: "تم إرسال طلب الإيداع بنجاح للمراجعة الإدارية",
-        deposit: {
-          ...created.deposit,
-          createdAt: serializeFirestoreDate(created.deposit.createdAt)
-        }
-      });
-    } catch (err) {
-      if (err.code === "DUPLICATE_TXID") {
-        return res.status(409).json({ error: err.message });
-      }
-      throw err;
-    }
+    res.json({ success: true, id: depRef.id });
   })
 );
 
-// تسجيل أرباح ناشر (مع احتساب عمولة 10% للمحيل وتحرير بعد 24 ساعة)
+// إرسال طلب سحب عبر USDT - TRC20 (الحد الأدنى $30.00 + خصم رسوم $3.00 ذرياً)
 app.post(
-  "/api/earnings/publisher",
+  "/api/wallet/withdraw",
   telegramAuthMiddleware,
-  ownerOnlyMiddleware,
   asyncHandler(async (req, res) => {
-    const { publisherId, amount, campaignId } = req.body || {};
-    if (!publisherId || amount === undefined) {
-      return res.status(400).json({ error: "معرف الناشر والمبلغ مطلوبان" });
+    const userId = String(req.tgUser.id);
+    const amount = roundMoney(req.body?.amount);
+    const providedAddress = String(req.body?.address || "").trim();
+
+    if (isNaN(amount) || amount < WALLET_CONSTANTS.MIN_WITHDRAWAL) {
+      return res.status(400).json({ error: `Minimum withdrawal is $${WALLET_CONSTANTS.MIN_WITHDRAWAL.toFixed(2)}` });
     }
 
-    await ensureUserDocument(String(publisherId));
-    const result = await recordPublisherEarningWithReferral(
-      String(publisherId),
-      amount,
-      campaignId || null
-    );
+    await processMatureEarnings(userId);
+
+    const fee = WALLET_CONSTANTS.WITHDRAWAL_FEE;
+    const netAmount = roundMoney(amount - fee);
+    if (netAmount <= 0) {
+      return res.status(400).json({ error: "Invalid net withdrawal amount" });
+    }
+
+    const result = await db.runTransaction(async (tx) => {
+      const userRef = db.collection(Collections.USERS).doc(userId);
+      const userSnap = await tx.get(userRef);
+      if (!userSnap.exists) throw new Error("User account not found");
+
+      const userData = userSnap.data() || {};
+      const walletAddress = providedAddress || userData.trc20Wallet || "";
+
+      if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(walletAddress)) {
+        throw new Error("Please set a valid USDT TRC20 wallet address first");
+      }
+
+      const currentBalance = roundMoney(userData.balance || 0);
+      if (currentBalance < amount) {
+        throw new Error("Insufficient available balance");
+      }
+
+      const updatedBalance = roundMoney(currentBalance - amount);
+      const wdRef = db.collection(Collections.WITHDRAWALS).doc();
+      const now = new Date().toISOString();
+
+      tx.update(userRef, {
+        balance: updatedBalance,
+        trc20Wallet: walletAddress
+      });
+
+      tx.set(wdRef, {
+        userId,
+        username: req.tgUser.username || "",
+        amount,
+        fee,
+        netAmount,
+        network: WALLET_CONSTANTS.WITHDRAWAL_NETWORK,
+        walletAddress,
+        status: "pending_review", // pending_review | processing | completed | rejected
+        txHash: "",
+        createdAt: now,
+        updatedAt: now
+      });
+
+      recordTransaction(tx, {
+        userId,
+        type: "withdrawal",
+        amount,
+        direction: "out",
+        status: "pending_review",
+        title: `Withdrawal (${WALLET_CONSTANTS.WITHDRAWAL_NETWORK}) - Net $${netAmount.toFixed(2)}`,
+        meta: {
+          withdrawalId: wdRef.id,
+          fee,
+          netAmount,
+          walletAddress,
+          network: WALLET_CONSTANTS.WITHDRAWAL_NETWORK
+        }
+      });
+
+      return { id: wdRef.id, newBalance: updatedBalance };
+    });
+
+    res.json({ success: true, ...result });
+  })
+);
+
+// =========================================================
+// قسم الإحالة (Referrals) - 10% من أرباح الناشرين فقط + احتجاز 24 ساعة
+// =========================================================
+app.get(
+  "/api/referrals/summary",
+  telegramAuthMiddleware,
+  asyncHandler(async (req, res) => {
+    const userId = String(req.tgUser.id);
+    await processMatureEarnings(userId);
+
+    const [userSnap, invitedSnap, refTxSnap] = await Promise.all([
+      db.collection(Collections.USERS).doc(userId).get(),
+      db.collection(Collections.USERS).where("referredBy", "==", userId).get(),
+      db.collection(Collections.TRANSACTIONS).where("userId", "==", userId).get()
+    ]);
+
+    const userData = userSnap.exists ? userSnap.data() : {};
+    const referralHistory = refTxSnap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((item) => item.type === "referral_earning")
+      .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
+      .slice(0, 15);
 
     res.json({
-      success: true,
-      message:
-        "تم تسجيل أرباح الناشر وعمولة الإحالة في فترة الانتظار (24 ساعة)",
-      result
+      commissionRate: 10,
+      invitedCount: invitedSnap.size,
+      availableReferralEarnings: roundMoney(userData.referralEarnings || 0),
+      pendingReferralEarnings: roundMoney(userData.pendingReferralEarnings || 0),
+      history: referralHistory
     });
   })
 );
 
-// ================= القنوات =================
-
+// القنوات
 app.get(
   "/api/channels",
   telegramAuthMiddleware,
@@ -533,7 +380,7 @@ app.get(
       .where("ownerId", "==", String(req.tgUser.id))
       .get();
     const channels = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-    res.json({ success: true, channels });
+    res.json({ channels });
   })
 );
 
@@ -541,50 +388,34 @@ app.post(
   "/api/channels",
   telegramAuthMiddleware,
   asyncHandler(async (req, res) => {
-    const { username } = req.body || {};
-    if (!username) {
-      return res.status(400).json({ error: "Channel username required" });
-    }
+    const { username } = req.body;
+    if (!username) return res.status(400).json({ error: "Channel username required" });
 
-    const trimmed = String(username).trim();
-    const cleanUsername = trimmed.startsWith("@") ? trimmed : `@${trimmed}`;
-
+    const cleanUsername = username.startsWith("@") ? username : `@${username}`;
     const docRef = await db.collection(Collections.CHANNELS).add({
       ownerId: String(req.tgUser.id),
       username: cleanUsername,
       title: cleanUsername,
       subscribers: 0,
       status: "Pending Verification",
-      createdAt: Timestamp.now()
+      createdAt: new Date().toISOString()
     });
 
     res.json({ success: true, id: docRef.id });
   })
 );
 
-// ================= الحملات الترويجية والتسوية الذرية =================
-
+// الحملات الترويجية (مع خصم الميزانية ذرياً + إمكانية إنهاء وتسوية الميزانية المتبقية)
 app.get(
   "/api/campaigns",
   telegramAuthMiddleware,
   asyncHandler(async (req, res) => {
-    const targetAdvertiserId =
-      req.isOwner && req.query?.userId
-        ? String(req.query.userId)
-        : String(req.tgUser.id);
-
     const snap = await db
       .collection(Collections.CAMPAIGNS)
-      .where("advertiserId", "==", targetAdvertiserId)
+      .where("advertiserId", "==", String(req.tgUser.id))
       .get();
-
-    const campaigns = snap.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt: serializeFirestoreDate(doc.data().createdAt)
-    }));
-
-    res.json({ success: true, campaigns });
+    const campaigns = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    res.json({ campaigns });
   })
 );
 
@@ -592,184 +423,80 @@ app.post(
   "/api/campaigns",
   telegramAuthMiddleware,
   asyncHandler(async (req, res) => {
-    const advertiserId = String(req.tgUser.id);
-    const { title, content, budget, totalBudget } = req.body || {};
-    const rawBudget = totalBudget !== undefined ? totalBudget : budget;
-    const numericBudget = roundMoney(rawBudget);
-
-    if (!title || !Number.isFinite(numericBudget) || numericBudget <= 0) {
+    const { title, content, budget } = req.body;
+    const cleanBudget = roundMoney(budget);
+    if (!title || !content || isNaN(cleanBudget) || cleanBudget <= 0) {
       return res.status(400).json({ error: "Invalid campaign parameters" });
     }
 
-    await ensureUserDocument(advertiserId);
-    const userRef = db.collection(Collections.USERS).doc(advertiserId);
-    const campaignRef = db.collection(Collections.CAMPAIGNS).doc();
-    const txRef = db.collection(Collections.TRANSACTIONS).doc();
-
-    await db.runTransaction(async (transaction) => {
-      const userSnap = await transaction.get(userRef);
-      if (!userSnap.exists) {
-        throw new Error("المستخدم غير موجود");
-      }
+    const userId = String(req.tgUser.id);
+    const created = await db.runTransaction(async (tx) => {
+      const userRef = db.collection(Collections.USERS).doc(userId);
+      const userSnap = await tx.get(userRef);
+      if (!userSnap.exists) throw new Error("User account not found");
 
       const userData = userSnap.data() || {};
-      const available = roundMoney(
-        typeof userData.availableBalance === "number"
-          ? userData.availableBalance
-          : userData.balance || 0
-      );
-
-      if (available < numericBudget) {
-        throw new Error("الرصيد المتاح غير كافٍ لتمويل الحملة");
+      const availableBalance = roundMoney(userData.balance || 0);
+      if (availableBalance < cleanBudget) {
+        throw new Error("Insufficient wallet balance to launch campaign");
       }
 
-      const now = Timestamp.now();
-      const cleanTitle = String(title).trim().slice(0, 100);
-      const cleanContent = content
-        ? String(content).slice(0, 1000)
-        : cleanTitle;
+      const campRef = db.collection(Collections.CAMPAIGNS).doc();
+      const now = new Date().toISOString();
 
-      transaction.update(userRef, {
-        availableBalance: FieldValue.increment(-numericBudget),
-        balance: FieldValue.increment(-numericBudget),
-        totalSpent: FieldValue.increment(numericBudget),
-        updatedAt: FieldValue.serverTimestamp()
+      tx.update(userRef, {
+        balance: roundMoney(availableBalance - cleanBudget),
+        totalSpent: roundMoney((userData.totalSpent || 0) + cleanBudget)
       });
 
-      transaction.set(campaignRef, {
-        advertiserId,
-        title: cleanTitle,
-        content: cleanContent,
-        budget: numericBudget,
-        totalBudget: numericBudget,
-        spentBudget: 0.0,
+      tx.set(campRef, {
+        advertiserId: userId,
+        title: String(title).slice(0, 100),
+        content: String(content).slice(0, 1000),
+        budget: cleanBudget,
+        spent: 0,
         status: "Active",
-        isSettled: false,
+        settled: false,
         createdAt: now
       });
 
-      transaction.set(txRef, {
-        userId: advertiserId,
+      recordTransaction(tx, {
+        userId,
         type: "campaign_spend",
-        amount: -numericBudget,
-        campaignId: campaignRef.id,
+        amount: cleanBudget,
+        direction: "out",
         status: "completed",
-        description: `حجز ميزانية حملة إعلانية: ${cleanTitle}`,
-        createdAt: now
+        title: `Campaign Launch: ${String(title).slice(0, 50)}`,
+        meta: { campaignId: campRef.id }
       });
+
+      return { id: campRef.id };
     });
 
-    res.json({
-      success: true,
-      id: campaignRef.id,
-      message: "تم إنشاء الحملة وحجز الميزانية بنجاح"
-    });
+    res.json({ success: true, id: created.id });
   })
 );
 
-// تحديث المصروف الفعلي لحملة نشطة (لصرف جزء من الميزانية لناشر)
+// إنهاء الحملة الإعلانية وتسوية الميزانية المتبقية ذرياً إلى رصيد المعلن
 app.post(
-  "/api/campaigns/:campaignId/spend",
+  "/api/campaigns/:id/complete",
   telegramAuthMiddleware,
   asyncHandler(async (req, res) => {
-    const { campaignId } = req.params;
-    const { amount, publisherId } = req.body || {};
-    const spendAmount = roundMoney(amount);
-
-    if (!Number.isFinite(spendAmount) || spendAmount <= 0) {
-      return res.status(400).json({ error: "مبلغ الصرف غير صالح" });
-    }
-
-    const campaignRef = db
-      .collection(Collections.CAMPAIGNS)
-      .doc(String(campaignId));
-
-    await db.runTransaction(async (transaction) => {
-      const snap = await transaction.get(campaignRef);
-      if (!snap.exists) {
-        throw new Error("الحملة غير موجودة");
-      }
-
-      const data = snap.data() || {};
-      if (!req.isOwner && String(data.advertiserId) !== String(req.tgUser.id)) {
-        throw new Error("غير مصرح لك بالتعديل على هذه الحملة");
-      }
-
-      if (String(data.status).toLowerCase() !== "active") {
-        throw new Error("الحملة غير نشطة");
-      }
-
-      const total = roundMoney(data.totalBudget ?? data.budget ?? 0);
-      const spent = roundMoney(data.spentBudget || 0);
-      const remaining = roundMoney(total - spent);
-
-      if (spendAmount > remaining) {
-        throw new Error("المبلغ يتجاوز الميزانية المتبقية للحملة");
-      }
-
-      transaction.update(campaignRef, {
-        spentBudget: FieldValue.increment(spendAmount),
-        updatedAt: FieldValue.serverTimestamp()
-      });
-    });
-
-    if (publisherId) {
-      await ensureUserDocument(String(publisherId));
-      await recordPublisherEarningWithReferral(
-        String(publisherId),
-        spendAmount,
-        String(campaignId)
-      );
-    }
-
-    res.json({
-      success: true,
-      message: "تم تسجيل الصرف وتحويل الأرباح للناشر بنجاح"
-    });
+    const settlement = await settleCampaignBudgetAtomically(
+      req.params.id,
+      req.tgUser.id,
+      req.isOwner
+    );
+    res.json({ success: true, ...settlement });
   })
 );
 
-// تسوية الميزانية الآلية الذرية عند انتهاء الحملة
-app.post(
-  "/api/campaigns/:campaignId/settle",
-  telegramAuthMiddleware,
-  asyncHandler(async (req, res) => {
-    const { campaignId } = req.params;
-    const campaignSnap = await db
-      .collection(Collections.CAMPAIGNS)
-      .doc(String(campaignId))
-      .get();
-
-    if (!campaignSnap.exists) {
-      return res.status(404).json({ error: "الحملة غير موجودة" });
-    }
-
-    const campaignData = campaignSnap.data() || {};
-    if (
-      !req.isOwner &&
-      String(campaignData.advertiserId) !== String(req.tgUser.id)
-    ) {
-      return res
-        .status(403)
-        .json({ error: "Forbidden: Not allowed to settle this campaign" });
-    }
-
-    const result = await settleCampaignBudgetAtomically(String(campaignId));
-    res.json({
-      success: true,
-      message: `تمت تسوية الحملة ذرياً وإعادة $${result.refundedAmount.toFixed(2)} إلى رصيد المعلن`,
-      settlement: result
-    });
-  })
-);
-
-// ================= الدعم الفني المباشر =================
-
+// الدعم الفني المباشر
 app.post(
   "/api/support",
   telegramAuthMiddleware,
   asyncHandler(async (req, res) => {
-    const { message } = req.body || {};
+    const { message } = req.body;
     if (!message || !String(message).trim()) {
       return res.status(400).json({ error: "Message is required" });
     }
@@ -777,317 +504,249 @@ app.post(
     await db.collection(Collections.TICKETS).add({
       userId: String(req.tgUser.id),
       username: req.tgUser.username || "",
-      message: String(message).trim().slice(0, 2000),
+      message: String(message).slice(0, 2000),
       status: "open",
-      createdAt: Timestamp.now()
+      createdAt: new Date().toISOString()
     });
 
     res.json({ success: true });
   })
 );
 
-// ================= مسارات الإدارة الحصرية للمالك فقط =================
-
+// =========================================================
+// مسارات الإدارة الحصرية للمالك فقط (Admin Panel Integration)
+// =========================================================
 app.get(
   "/api/admin/stats",
   telegramAuthMiddleware,
   ownerOnlyMiddleware,
   asyncHandler(async (req, res) => {
-    const [usersSnap, channelsSnap, campaignsSnap] = await Promise.all([
-      db.collection(Collections.USERS).count().get(),
-      db.collection(Collections.CHANNELS).count().get(),
-      db.collection(Collections.CAMPAIGNS).count().get()
-    ]);
+    const [usersSnap, channelsSnap, campaignsSnap, pendingDepSnap, pendingWdSnap, approvedDepSnap] =
+      await Promise.all([
+        db.collection(Collections.USERS).count().get(),
+        db.collection(Collections.CHANNELS).count().get(),
+        db.collection(Collections.CAMPAIGNS).count().get(),
+        db.collection(Collections.DEPOSITS).where("status", "==", "pending_review").count().get(),
+        db.collection(Collections.WITHDRAWALS).where("status", "in", ["pending_review", "processing"]).count().get(),
+        db.collection(Collections.DEPOSITS).where("status", "==", "approved").get()
+      ]);
+
+    const totalVolume = approvedDepSnap.docs.reduce(
+      (sum, d) => roundMoney(sum + Number(d.data()?.amount || 0)),
+      0
+    );
 
     res.json({
-      success: true,
       totalUsers: usersSnap.data().count,
       totalChannels: channelsSnap.data().count,
       activeCampaigns: campaignsSnap.data().count,
-      totalVolume: 0
+      pendingDeposits: pendingDepSnap.data().count,
+      pendingWithdrawals: pendingWdSnap.data().count,
+      totalVolume
     });
   })
 );
 
+// جلب طلبات الإيداع والسحب للإدارة
 app.get(
-  "/api/admin/overview",
+  "/api/admin/finance/requests",
   telegramAuthMiddleware,
   ownerOnlyMiddleware,
   asyncHandler(async (req, res) => {
-    const [depositsSnap, withdrawalsSnap, campaignsSnap] = await Promise.all([
-      db.collection(Collections.DEPOSITS).limit(50).get(),
-      db.collection(Collections.WITHDRAWALS).limit(50).get(),
-      db.collection(Collections.CAMPAIGNS).limit(30).get()
+    const [depSnap, wdSnap] = await Promise.all([
+      db.collection(Collections.DEPOSITS).get(),
+      db.collection(Collections.WITHDRAWALS).get()
     ]);
 
-    const sortByCreatedDesc = (a, b) => {
-      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return bTime - aTime;
-    };
+    const deposits = depSnap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
+      .slice(0, 40);
 
-    const deposits = depositsSnap.docs
-      .map((d) => ({
-        id: d.id,
-        ...d.data(),
-        createdAt: serializeFirestoreDate(d.data().createdAt)
-      }))
-      .sort(sortByCreatedDesc);
+    const withdrawals = wdSnap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
+      .slice(0, 40);
 
-    const withdrawals = withdrawalsSnap.docs
-      .map((d) => ({
-        id: d.id,
-        ...d.data(),
-        createdAt: serializeFirestoreDate(d.data().createdAt),
-        updatedAt: serializeFirestoreDate(d.data().updatedAt)
-      }))
-      .sort(sortByCreatedDesc);
-
-    const campaigns = campaignsSnap.docs
-      .map((d) => ({
-        id: d.id,
-        ...d.data(),
-        createdAt: serializeFirestoreDate(d.data().createdAt)
-      }))
-      .sort(sortByCreatedDesc);
-
-    res.json({
-      success: true,
-      deposits,
-      withdrawals,
-      campaigns
-    });
+    res.json({ deposits, withdrawals });
   })
 );
 
-// اعتماد أو رفض طلب إيداع (بدون احتساب أي عمولة إحالة عند الشحن)
+// اعتماد أو رفض طلب إيداع (بدون احتساب أي عمولة إحالة على الإيداعات)
 app.post(
-  "/api/admin/deposits/:depositId/review",
+  "/api/admin/deposits/:id/decision",
   telegramAuthMiddleware,
   ownerOnlyMiddleware,
   asyncHandler(async (req, res) => {
-    const { depositId } = req.params;
-    const { action, adminNote } = req.body || {};
+    const depositId = String(req.params.id);
+    const action = String(req.body?.action || ""); // approve | reject
+    const note = String(req.body?.note || "").trim();
 
     if (!["approve", "reject"].includes(action)) {
-      return res.status(400).json({ error: "إجراء غير صالح" });
+      return res.status(400).json({ error: "Invalid decision action" });
     }
 
-    const depositRef = db
-      .collection(Collections.DEPOSITS)
-      .doc(String(depositId));
+    const depRef = db.collection(Collections.DEPOSITS).doc(depositId);
 
-    await db.runTransaction(async (transaction) => {
-      const depSnap = await transaction.get(depositRef);
-      if (!depSnap.exists) {
-        throw new Error("طلب الإيداع غير موجود");
+    await db.runTransaction(async (tx) => {
+      const depSnap = await tx.get(depRef);
+      if (!depSnap.exists) throw new Error("Deposit request not found");
+
+      const dep = depSnap.data() || {};
+      if (dep.status !== "pending_review") {
+        throw new Error("Deposit request already processed");
       }
 
-      const depData = depSnap.data() || {};
-      if (depData.status !== "pending") {
-        throw new Error("تمت معالجة طلب الإيداع هذا مسبقاً");
-      }
+      const userId = String(dep.userId);
+      const amount = roundMoney(dep.amount || 0);
+      const userRef = db.collection(Collections.USERS).doc(userId);
+      const userSnap = await tx.get(userRef);
+      if (!userSnap.exists) throw new Error("User account not found");
 
-      const userRef = db
-        .collection(Collections.USERS)
-        .doc(String(depData.userId));
-      const userSnap = await transaction.get(userRef);
-      if (!userSnap.exists) {
-        throw new Error("المستخدم غير موجود");
-      }
-
-      const txRef = db.collection(Collections.TRANSACTIONS).doc();
-      const now = Timestamp.now();
+      const userData = userSnap.data() || {};
+      const now = new Date().toISOString();
 
       if (action === "approve") {
-        const amount = roundMoney(depData.amount);
-        if (amount <= 0) {
-          throw new Error("قيمة الإيداع غير صالحة");
-        }
-
-        transaction.update(userRef, {
-          availableBalance: FieldValue.increment(amount),
-          balance: FieldValue.increment(amount),
-          updatedAt: FieldValue.serverTimestamp()
-        });
-
-        transaction.update(depositRef, {
+        const newBalance = roundMoney((userData.balance || 0) + amount);
+        tx.update(userRef, { balance: newBalance });
+        tx.update(depRef, {
           status: "approved",
-          adminNote: adminNote ? String(adminNote) : "تم التحقق واعتماد الشحن",
           reviewedBy: String(req.tgUser.id),
-          confirmedBy: String(req.tgUser.id),
-          reviewedAt: now,
-          confirmedAt: now
-        });
-
-        transaction.set(txRef, {
-          userId: String(depData.userId),
-          type: "deposit_approved",
-          amount,
-          network: depData.network || WALLET_CONSTANTS.DEPOSIT_NETWORK,
-          depositId: depositRef.id,
-          status: "completed",
-          description: `تم اعتماد إيداع $${amount.toFixed(2)} عبر ${depData.network || WALLET_CONSTANTS.DEPOSIT_NETWORK}`,
-          createdAt: now
-        });
-      } else {
-        const refCode = depData.txid || depData.txHash || "N/A";
-        transaction.update(depositRef, {
-          status: "rejected",
-          adminNote: adminNote
-            ? String(adminNote)
-            : "رقم المعاملة غير مطابق أو مرفوض",
-          reviewedBy: String(req.tgUser.id),
+          reviewNote: note,
           reviewedAt: now
         });
 
-        transaction.set(txRef, {
-          userId: String(depData.userId),
-          type: "deposit_rejected",
-          amount: 0,
-          depositId: depositRef.id,
+        // إضافة معاملة مكتملة دون أي عمولة إحالة (الإيداعات مستثناة من الإحالة)
+        recordTransaction(tx, {
+          userId,
+          type: "deposit",
+          amount,
+          direction: "in",
+          status: "completed",
+          title: `Deposit Approved (${dep.network || "USDT - BEP20"})`,
+          meta: { depositId, txid: dep.txid }
+        });
+      } else {
+        tx.update(depRef, {
           status: "rejected",
-          description: `تم رفض طلب الإيداع (TXID: ${String(refCode).slice(0, 10)}...)`,
-          createdAt: now
+          reviewedBy: String(req.tgUser.id),
+          reviewNote: note || "Rejected by admin",
+          reviewedAt: now
+        });
+
+        recordTransaction(tx, {
+          userId,
+          type: "deposit",
+          amount,
+          direction: "in",
+          status: "rejected",
+          title: `Deposit Rejected (${dep.network || "USDT - BEP20"})`,
+          meta: { depositId, txid: dep.txid, note }
         });
       }
     });
 
-    res.json({
-      success: true,
-      message:
-        action === "approve"
-          ? "تم اعتماد الإيداع وشحن رصيد المستخدم بنجاح"
-          : "تم رفض طلب الإيداع"
+    await logSecurityEvent("ADMIN_DEPOSIT_REVIEW", {
+      adminId: req.tgUser.id,
+      depositId,
+      action
     });
+
+    res.json({ success: true });
   })
 );
 
-// تحديث مراحل دورة السحب خطوة بخطوة من الإدارة
+// تحديث دورة طلب السحب (قيد المعالجة / مكتمل / مرفوض مع إعادة المبلغ للمستخدم ذرياً عند الرفض)
 app.post(
-  "/api/admin/withdrawals/:withdrawalId/status",
+  "/api/admin/withdrawals/:id/decision",
   telegramAuthMiddleware,
   ownerOnlyMiddleware,
   asyncHandler(async (req, res) => {
-    const { withdrawalId } = req.params;
-    const { status, txHash, adminNote } = req.body || {};
+    const withdrawalId = String(req.params.id);
+    const status = String(req.body?.status || ""); // processing | completed | rejected
+    const txHash = String(req.body?.txHash || "").trim();
+    const note = String(req.body?.note || "").trim();
 
-    const stepMap = {
-      requested: 1,
-      reviewing: 2,
-      processing: 3,
-      completed: 4,
-      rejected: 0
-    };
-
-    if (!(status in stepMap)) {
-      return res.status(400).json({ error: "حالة السحب غير صالحة" });
+    if (!["processing", "completed", "rejected"].includes(status)) {
+      return res.status(400).json({ error: "Invalid withdrawal status" });
     }
 
-    const withdrawalRef = db
-      .collection(Collections.WITHDRAWALS)
-      .doc(String(withdrawalId));
+    const wdRef = db.collection(Collections.WITHDRAWALS).doc(withdrawalId);
 
-    await db.runTransaction(async (transaction) => {
-      const wSnap = await transaction.get(withdrawalRef);
-      if (!wSnap.exists) {
-        throw new Error("طلب السحب غير موجود");
+    await db.runTransaction(async (tx) => {
+      const wdSnap = await tx.get(wdRef);
+      if (!wdSnap.exists) throw new Error("Withdrawal request not found");
+
+      const wd = wdSnap.data() || {};
+      if (["completed", "rejected"].includes(wd.status)) {
+        throw new Error("Withdrawal request is already finalized");
       }
 
-      const wData = wSnap.data() || {};
-      if (wData.status === "completed" || wData.status === "rejected") {
-        throw new Error("تم إغلاق طلب السحب هذا نهائياً ولا يمكن تعديله");
-      }
+      const userId = String(wd.userId);
+      const amount = roundMoney(wd.amount || 0);
+      const userRef = db.collection(Collections.USERS).doc(userId);
+      const userSnap = await tx.get(userRef);
+      if (!userSnap.exists) throw new Error("User account not found");
 
-      const now = Timestamp.now();
-      const updates = {
-        status,
-        stepIndex: stepMap[status],
-        txHash:
-          txHash !== undefined ? String(txHash).trim() : wData.txHash || "",
-        adminNote:
-          adminNote !== undefined
-            ? String(adminNote).trim()
-            : wData.adminNote || "",
-        updatedAt: now
-      };
+      const userData = userSnap.data() || {};
+      const now = new Date().toISOString();
 
-      transaction.update(withdrawalRef, updates);
-
-      const refundOrRequestAmount = roundMoney(
-        wData.requestedAmount ?? wData.amount ?? 0
-      );
-
-      if (status === "rejected") {
-        const userRef = db
-          .collection(Collections.USERS)
-          .doc(String(wData.userId));
-        transaction.update(userRef, {
-          availableBalance: FieldValue.increment(refundOrRequestAmount),
-          balance: FieldValue.increment(refundOrRequestAmount),
-          updatedAt: FieldValue.serverTimestamp()
-        });
-
-        const txRef = db.collection(Collections.TRANSACTIONS).doc();
-        transaction.set(txRef, {
-          userId: String(wData.userId),
-          type: "withdrawal_refunded",
-          amount: refundOrRequestAmount,
-          withdrawalId: withdrawalRef.id,
-          status: "completed",
-          description: `إعادة مبلغ السحب المرفوض $${refundOrRequestAmount.toFixed(2)} إلى الرصيد`,
-          createdAt: now
+      if (status === "processing") {
+        tx.update(wdRef, {
+          status: "processing",
+          updatedAt: now,
+          reviewedBy: String(req.tgUser.id)
         });
       } else if (status === "completed") {
-        const netVal = roundMoney(wData.netAmount || 0);
-        const txRef = db.collection(Collections.TRANSACTIONS).doc();
-        transaction.set(txRef, {
-          userId: String(wData.userId),
-          type: "withdrawal_completed",
-          amount: 0,
-          netAmount: netVal,
-          txHash: updates.txHash,
-          withdrawalId: withdrawalRef.id,
+        tx.update(wdRef, {
           status: "completed",
-          description: `اكتمل تحويل السحب $${netVal.toFixed(2)} على شبكة ${wData.network || WALLET_CONSTANTS.WITHDRAWAL_NETWORK}`,
-          createdAt: now
+          txHash,
+          reviewNote: note,
+          updatedAt: now,
+          completedAt: now,
+          reviewedBy: String(req.tgUser.id)
+        });
+
+        recordTransaction(tx, {
+          userId,
+          type: "withdrawal",
+          amount,
+          direction: "out",
+          status: "completed",
+          title: `Withdrawal Completed (${wd.network || "USDT - TRC20"})`,
+          meta: { withdrawalId, txHash, walletAddress: wd.walletAddress }
+        });
+      } else if (status === "rejected") {
+        // إعادة المبلغ كاملاً (بما فيه الرسوم المقتطعة عند الطلب) إلى رصيد المستخدم
+        const refundedBalance = roundMoney((userData.balance || 0) + amount);
+        tx.update(userRef, { balance: refundedBalance });
+
+        tx.update(wdRef, {
+          status: "rejected",
+          reviewNote: note || "Rejected by admin",
+          updatedAt: now,
+          reviewedBy: String(req.tgUser.id)
+        });
+
+        recordTransaction(tx, {
+          userId,
+          type: "withdrawal",
+          amount,
+          direction: "in",
+          status: "rejected",
+          title: `Withdrawal Rejected & Refunded`,
+          meta: { withdrawalId, note }
         });
       }
     });
 
-    res.json({
-      success: true,
-      message: "تم تحديث مرحلة طلب السحب بنجاح"
+    await logSecurityEvent("ADMIN_WITHDRAWAL_REVIEW", {
+      adminId: req.tgUser.id,
+      withdrawalId,
+      status
     });
-  })
-);
 
-// تسريع تحرير الأرباح للمالك لاختبار دورة 24 ساعة
-app.post(
-  "/api/admin/force-release/:userId",
-  telegramAuthMiddleware,
-  ownerOnlyMiddleware,
-  asyncHandler(async (req, res) => {
-    const { userId } = req.params;
-    const pendingSnap = await db
-      .collection(Collections.PENDING_RELEASES)
-      .where("userId", "==", String(userId))
-      .where("status", "==", "pending")
-      .get();
-
-    const pastTimestamp = Timestamp.fromMillis(Date.now() - 1000);
-    const batch = db.batch();
-    pendingSnap.docs.forEach((doc) => {
-      batch.update(doc.ref, { releaseAt: pastTimestamp });
-    });
-    await batch.commit();
-
-    const result = await process24HourReleases(String(userId));
-    res.json({
-      success: true,
-      message: `تم تحرير ${result.releasedCount} دفعة بإجمالي $${result.releasedAmount.toFixed(2)}`,
-      result
-    });
+    res.json({ success: true });
   })
 );
 
@@ -1096,14 +755,12 @@ app.post(
   telegramAuthMiddleware,
   ownerOnlyMiddleware,
   asyncHandler(async (req, res) => {
-    const { message } = req.body || {};
-    if (!message || !String(message).trim()) {
-      return res.status(400).json({ error: "Broadcast message required" });
-    }
+    const { message } = req.body;
+    if (!message) return res.status(400).json({ error: "Broadcast message required" });
 
     await logSecurityEvent("ADMIN_BROADCAST_SENT", {
       adminId: req.tgUser.id,
-      preview: String(message).trim().slice(0, 80)
+      preview: String(message).slice(0, 80)
     });
 
     res.json({ success: true });
@@ -1116,11 +773,7 @@ app.get("*", (req, res) => {
 
 app.use((err, req, res, _next) => {
   console.error("[Server Error]:", err);
-  const status =
-    err.statusCode && Number.isInteger(err.statusCode) ? err.statusCode : 500;
-  res.status(status).json({
-    error: status === 500 ? "Internal Server Error" : err.message
-  });
+  res.status(err.status || 400).json({ error: err.message || "Internal Server Error" });
 });
 
 app.listen(PORT, () => {
