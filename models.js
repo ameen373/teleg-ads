@@ -38,118 +38,125 @@ export const Collections = {
   PENDING_RELEASES: "pending_releases"
 };
 
-// alias للتوافق الكامل مع أي استدعاء يستخدم COLLECTIONS بالأحرف الكبيرة
 export const COLLECTIONS = Collections;
 
 export const WALLET_CONSTANTS = {
-  MIN_WITHDRAWAL: 30.00,
-  WITHDRAWAL_FEE: 3.00,
+  MIN_WITHDRAWAL: 30.0,
+  WITHDRAWAL_FEE: 3.0,
   WITHDRAWAL_NETWORK: "USDT - TRC20",
-  MIN_DEPOSIT: 10.00,
+  MIN_DEPOSIT: 10.0,
   DEPOSIT_NETWORK: "USDT - BEP20",
   DEPOSIT_ADDRESS: "0xf9278f55585a0e6e35f12299493134056f2f19b0",
-  REFERRAL_COMMISSION_RATE: 0.10,
-  RELEASE_DELAY_MS: 24 * 60 * 60 * 1000,
-  RECENT_TRANSACTIONS_LIMIT: 10
+  REFERRAL_COMMISSION_RATE: 0.1,
+  RELEASE_DELAY_MS: 24 * 60 * 60 * 1000
 };
 
-function sanitizePositiveAmount(value, fieldName = "amount") {
+function roundMoney(value) {
   const num = Number(value);
-  if (!Number.isFinite(num) || num <= 0) {
-    throw new Error(`Invalid ${fieldName}`);
-  }
+  if (!Number.isFinite(num)) return 0;
   return Number(num.toFixed(2));
 }
 
-function generateReferralCode(seedId) {
-  const cleaned = String(seedId || "USER")
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "")
-    .slice(0, 6);
-  const suffix = Math.floor(100 + Math.random() * 900);
-  return `REF-${cleaned || "USER"}${suffix}`;
+function isValidTrc20Address(address) {
+  if (typeof address !== "string") return false;
+  const trimmed = address.trim();
+  return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(trimmed);
+}
+
+export async function logSecurityEvent(eventType, details) {
+  try {
+    await db.collection(Collections.AUDIT_LOGS).add({
+      eventType,
+      details,
+      timestamp: FieldValue.serverTimestamp()
+    });
+  } catch (error) {
+    console.error("[Audit Log Error]:", error);
+  }
 }
 
 export async function upsertTelegramUser(tgUser) {
   try {
-    if (!tgUser || !tgUser.id) {
-      throw new Error("Invalid Telegram user payload");
-    }
-
     const userId = String(tgUser.id);
     const userRef = db.collection(Collections.USERS).doc(userId);
     const snapshot = await userRef.get();
     const now = FieldValue.serverTimestamp();
-    const adminId = process.env.ADMIN_USER_ID || "admin_1";
 
-    const payload = {
-      userId,
+    const basePayload = {
       telegramId: userId,
       username: tgUser.username || "",
       firstName: tgUser.first_name || "",
       lastName: tgUser.last_name || "",
       languageCode: tgUser.language_code || "en",
-      isAdmin: userId === adminId,
       updatedAt: now
     };
 
     if (!snapshot.exists) {
-      const referralCode = generateReferralCode(userId);
-      await userRef.set({
-        ...payload,
+      const generatedCode =
+        "REF-" +
+        userId.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6) +
+        Math.floor(100 + Math.random() * 900);
+
+      const initialData = {
+        ...basePayload,
+        userId,
         balance: 0,
-        availableBalance: 0.00,
-        pendingEarnings: 0.00,
-        totalSpent: 0.00,
-        totalEarned: 0.00,
+        availableBalance: 0.0,
+        pendingEarnings: 0.0,
+        totalSpent: 0.0,
+        totalEarned: 0.0,
         referralEarnings: 0,
-        referralEarningsAvailable: 0.00,
-        referralEarningsPending: 0.00,
+        referralEarningsAvailable: 0.0,
+        referralEarningsPending: 0.0,
         trc20Address: "",
-        referralCode,
+        referralCode: generatedCode,
         referredBy: null,
         referralsCount: 0,
+        isAdmin: userId === (process.env.ADMIN_USER_ID || "admin_1"),
         createdAt: now
-      });
-    } else {
-      const existing = snapshot.data() || {};
-      const backfills = { ...payload };
+      };
 
-      if (typeof existing.availableBalance !== "number") {
-        backfills.availableBalance = Number(existing.balance || 0);
-      }
-      if (typeof existing.pendingEarnings !== "number") {
-        backfills.pendingEarnings = 0.00;
-      }
-      if (typeof existing.totalSpent !== "number") {
-        backfills.totalSpent = 0.00;
-      }
-      if (typeof existing.totalEarned !== "number") {
-        backfills.totalEarned = 0.00;
-      }
-      if (typeof existing.referralEarningsAvailable !== "number") {
-        backfills.referralEarningsAvailable = Number(existing.referralEarnings || 0);
-      }
-      if (typeof existing.referralEarningsPending !== "number") {
-        backfills.referralEarningsPending = 0.00;
-      }
-      if (typeof existing.trc20Address !== "string") {
-        backfills.trc20Address = "";
-      }
-      if (!existing.referralCode) {
-        backfills.referralCode = generateReferralCode(userId);
-      }
-      if (!("referredBy" in existing)) {
-        backfills.referredBy = null;
-      }
-      if (typeof existing.referralsCount !== "number") {
-        backfills.referralsCount = 0;
-      }
-
-      await userRef.update(backfills);
+      await userRef.set(initialData);
+      return { ...initialData, ...basePayload };
     }
 
-    return payload;
+    const existing = snapshot.data() || {};
+    const patch = { ...basePayload };
+
+    if (!existing.userId) patch.userId = userId;
+    if (typeof existing.availableBalance !== "number") {
+      patch.availableBalance = roundMoney(existing.balance || 0);
+    }
+    if (typeof existing.balance !== "number") {
+      patch.balance = roundMoney(existing.availableBalance || 0);
+    }
+    if (typeof existing.pendingEarnings !== "number") patch.pendingEarnings = 0.0;
+    if (typeof existing.totalSpent !== "number") patch.totalSpent = 0.0;
+    if (typeof existing.totalEarned !== "number") patch.totalEarned = 0.0;
+    if (typeof existing.referralEarningsAvailable !== "number") {
+      patch.referralEarningsAvailable = roundMoney(existing.referralEarnings || 0);
+    }
+    if (typeof existing.referralEarnings !== "number") {
+      patch.referralEarnings = roundMoney(existing.referralEarningsAvailable || 0);
+    }
+    if (typeof existing.referralEarningsPending !== "number") {
+      patch.referralEarningsPending = 0.0;
+    }
+    if (typeof existing.trc20Address !== "string") patch.trc20Address = "";
+    if (!existing.referralCode) {
+      patch.referralCode =
+        "REF-" +
+        userId.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6) +
+        Math.floor(100 + Math.random() * 900);
+    }
+    if (!("referredBy" in existing)) patch.referredBy = null;
+    if (typeof existing.referralsCount !== "number") patch.referralsCount = 0;
+    if (typeof existing.isAdmin !== "boolean") {
+      patch.isAdmin = userId === (process.env.ADMIN_USER_ID || "admin_1");
+    }
+
+    await userRef.update(patch);
+    return { ...existing, ...patch };
   } catch (error) {
     console.error("[Firestore upsertTelegramUser Error]:", error);
     throw error;
@@ -158,56 +165,50 @@ export async function upsertTelegramUser(tgUser) {
 
 export async function ensureUserDocument(userId, referralCodeInput = null) {
   try {
-    const normalizedUserId = String(userId || "").trim();
-    if (!normalizedUserId) {
-      throw new Error("User ID is required");
-    }
-
-    const userRef = db.collection(Collections.USERS).doc(normalizedUserId);
+    const normalizedId = String(userId);
+    const userRef = db.collection(Collections.USERS).doc(normalizedId);
     const doc = await userRef.get();
-    const adminId = process.env.ADMIN_USER_ID || "admin_1";
 
     if (!doc.exists) {
-      const generatedCode = generateReferralCode(normalizedUserId);
+      const generatedCode =
+        "REF-" +
+        normalizedId.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6) +
+        Math.floor(100 + Math.random() * 900);
       let validReferrerId = null;
 
       if (referralCodeInput && typeof referralCodeInput === "string") {
-        const cleanCode = referralCodeInput.trim();
-        if (cleanCode) {
-          const refQuery = await db
-            .collection(Collections.USERS)
-            .where("referralCode", "==", cleanCode)
-            .limit(1)
-            .get();
-
-          if (!refQuery.empty && refQuery.docs[0].id !== normalizedUserId) {
-            validReferrerId = refQuery.docs[0].id;
-          }
+        const refQuery = await db
+          .collection(Collections.USERS)
+          .where("referralCode", "==", referralCodeInput.trim())
+          .limit(1)
+          .get();
+        if (!refQuery.empty && refQuery.docs[0].id !== normalizedId) {
+          validReferrerId = refQuery.docs[0].id;
         }
       }
 
       const initialData = {
-        userId: normalizedUserId,
-        telegramId: normalizedUserId,
+        userId: normalizedId,
+        telegramId: normalizedId,
         username: "",
         firstName: "",
         lastName: "",
         languageCode: "en",
-        balance: 0.00,
-        availableBalance: 0.00,
-        pendingEarnings: 0.00,
-        totalSpent: 0.00,
-        totalEarned: 0.00,
-        referralEarnings: 0.00,
-        referralEarningsAvailable: 0.00,
-        referralEarningsPending: 0.00,
+        balance: 0.0,
+        availableBalance: 0.0,
+        pendingEarnings: 0.0,
+        totalSpent: 0.0,
+        totalEarned: 0.0,
+        referralEarnings: 0.0,
+        referralEarningsAvailable: 0.0,
+        referralEarningsPending: 0.0,
         trc20Address: "",
         referralCode: generatedCode,
         referredBy: validReferrerId,
         referralsCount: 0,
-        isAdmin: normalizedUserId === adminId,
+        isAdmin: normalizedId === (process.env.ADMIN_USER_ID || "admin_1"),
         createdAt: Timestamp.now(),
-        updatedAt: FieldValue.serverTimestamp()
+        updatedAt: Timestamp.now()
       };
 
       await userRef.set(initialData);
@@ -223,7 +224,46 @@ export async function ensureUserDocument(userId, referralCodeInput = null) {
       return initialData;
     }
 
-    return doc.data();
+    const existing = doc.data() || {};
+    const updates = {};
+    if (!existing.userId) updates.userId = normalizedId;
+    if (typeof existing.availableBalance !== "number") {
+      updates.availableBalance = roundMoney(existing.balance || 0);
+    }
+    if (typeof existing.balance !== "number") {
+      updates.balance = roundMoney(existing.availableBalance || 0);
+    }
+    if (typeof existing.pendingEarnings !== "number") updates.pendingEarnings = 0.0;
+    if (typeof existing.totalSpent !== "number") updates.totalSpent = 0.0;
+    if (typeof existing.totalEarned !== "number") updates.totalEarned = 0.0;
+    if (typeof existing.referralEarningsAvailable !== "number") {
+      updates.referralEarningsAvailable = roundMoney(existing.referralEarnings || 0);
+    }
+    if (typeof existing.referralEarnings !== "number") {
+      updates.referralEarnings = roundMoney(existing.referralEarningsAvailable || 0);
+    }
+    if (typeof existing.referralEarningsPending !== "number") {
+      updates.referralEarningsPending = 0.0;
+    }
+    if (typeof existing.trc20Address !== "string") updates.trc20Address = "";
+    if (!existing.referralCode) {
+      updates.referralCode =
+        "REF-" +
+        normalizedId.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6) +
+        Math.floor(100 + Math.random() * 900);
+    }
+    if (!("referredBy" in existing)) updates.referredBy = null;
+    if (typeof existing.referralsCount !== "number") updates.referralsCount = 0;
+    if (typeof existing.isAdmin !== "boolean") {
+      updates.isAdmin = normalizedId === (process.env.ADMIN_USER_ID || "admin_1");
+    }
+
+    if (Object.keys(updates).length > 0) {
+      updates.updatedAt = FieldValue.serverTimestamp();
+      await userRef.update(updates);
+    }
+
+    return { ...existing, ...updates };
   } catch (error) {
     console.error("[Firestore ensureUserDocument Error]:", error);
     throw new Error(`Database user initialization error: ${error.message}`);
@@ -232,15 +272,11 @@ export async function ensureUserDocument(userId, referralCodeInput = null) {
 
 export async function process24HourReleases(userId) {
   try {
-    const normalizedUserId = String(userId || "").trim();
-    if (!normalizedUserId) {
-      throw new Error("User ID is required");
-    }
-
+    const normalizedId = String(userId);
     const now = Timestamp.now();
     const pendingQuery = await db
       .collection(Collections.PENDING_RELEASES)
-      .where("userId", "==", normalizedUserId)
+      .where("userId", "==", normalizedId)
       .where("status", "==", "pending")
       .where("releaseAt", "<=", now)
       .get();
@@ -261,15 +297,14 @@ export async function process24HourReleases(userId) {
           return;
         }
 
-        const currentReleaseData = freshRelease.data();
-        const userRef = db.collection(Collections.USERS).doc(normalizedUserId);
+        const userRef = db.collection(Collections.USERS).doc(normalizedId);
         const userSnap = await transaction.get(userRef);
         if (!userSnap.exists) return;
 
-        const amount = Number(Number(currentReleaseData.amount || 0).toFixed(2));
+        const amount = roundMoney(releaseData.amount);
         if (amount <= 0) return;
 
-        const isReferral = currentReleaseData.type === "referral_commission";
+        const isReferral = releaseData.type === "referral_commission";
 
         const updates = {
           availableBalance: FieldValue.increment(amount),
@@ -294,7 +329,7 @@ export async function process24HourReleases(userId) {
 
         const txRef = db.collection(Collections.TRANSACTIONS).doc();
         transaction.set(txRef, {
-          userId: normalizedUserId,
+          userId: normalizedId,
           type: isReferral ? "referral_released" : "earning_released",
           amount,
           status: "completed",
@@ -305,7 +340,7 @@ export async function process24HourReleases(userId) {
         });
 
         releasedCount++;
-        totalReleasedAmount = Number((totalReleasedAmount + amount).toFixed(2));
+        totalReleasedAmount = roundMoney(totalReleasedAmount + amount);
       });
     }
 
@@ -318,19 +353,14 @@ export async function process24HourReleases(userId) {
 
 export async function recordPublisherEarningWithReferral(publisherId, grossAmount, campaignId) {
   try {
-    const normalizedPublisherId = String(publisherId || "").trim();
-    if (!normalizedPublisherId) {
-      throw new Error("Publisher ID is required");
-    }
+    const normalizedPublisherId = String(publisherId);
+    const amount = roundMoney(grossAmount);
+    if (amount <= 0) throw new Error("Invalid earning amount");
 
-    const amount = sanitizePositiveAmount(grossAmount, "earning amount");
     const releaseAt = Timestamp.fromMillis(Date.now() + WALLET_CONSTANTS.RELEASE_DELAY_MS);
     const publisherRef = db.collection(Collections.USERS).doc(normalizedPublisherId);
     const publisherSnap = await publisherRef.get();
-
-    if (!publisherSnap.exists) {
-      throw new Error("Publisher not found");
-    }
+    if (!publisherSnap.exists) throw new Error("Publisher not found");
 
     const publisherData = publisherSnap.data() || {};
     const referrerId = publisherData.referredBy ? String(publisherData.referredBy) : null;
@@ -357,14 +387,14 @@ export async function recordPublisherEarningWithReferral(publisherId, grossAmoun
         userId: normalizedPublisherId,
         type: "earning_pending",
         amount,
+        campaignId: campaignId || null,
         status: "pending_24h",
         description: "أرباح نشر إعلان (تُحرر خلال 24 ساعة)",
         createdAt: Timestamp.now()
       });
 
-      // عمولة الإحالة 10% تُحتسب فقط على أرباح المدعوين الناشرين ولا تُحتسب على الإيداع
       if (referrerId && referrerId !== normalizedPublisherId) {
-        const commission = Number((amount * WALLET_CONSTANTS.REFERRAL_COMMISSION_RATE).toFixed(2));
+        const commission = roundMoney(amount * WALLET_CONSTANTS.REFERRAL_COMMISSION_RATE);
         if (commission > 0) {
           const referrerRef = db.collection(Collections.USERS).doc(referrerId);
           const referrerSnap = await transaction.get(referrerRef);
@@ -393,6 +423,7 @@ export async function recordPublisherEarningWithReferral(publisherId, grossAmoun
               referredUserId: normalizedPublisherId,
               publisherEarning: amount,
               commissionAmount: commission,
+              campaignId: campaignId || null,
               status: "pending_24h",
               releaseAt,
               createdAt: Timestamp.now()
@@ -403,6 +434,8 @@ export async function recordPublisherEarningWithReferral(publisherId, grossAmoun
               userId: referrerId,
               type: "referral_pending",
               amount: commission,
+              fromUserId: normalizedPublisherId,
+              campaignId: campaignId || null,
               status: "pending_24h",
               description: `عمولة إحالة 10% من أرباح الناشر ${normalizedPublisherId} (تُحرر خلال 24 ساعة)`,
               createdAt: Timestamp.now()
@@ -421,12 +454,7 @@ export async function recordPublisherEarningWithReferral(publisherId, grossAmoun
 
 export async function settleCampaignBudgetAtomically(campaignId) {
   try {
-    const normalizedCampaignId = String(campaignId || "").trim();
-    if (!normalizedCampaignId) {
-      throw new Error("Campaign ID is required");
-    }
-
-    const campaignRef = db.collection(Collections.CAMPAIGNS).doc(normalizedCampaignId);
+    const campaignRef = db.collection(Collections.CAMPAIGNS).doc(String(campaignId));
 
     const result = await db.runTransaction(async (transaction) => {
       const campaignSnap = await transaction.get(campaignRef);
@@ -439,15 +467,11 @@ export async function settleCampaignBudgetAtomically(campaignId) {
         throw new Error("تمت تسوية ميزانية هذه الحملة مسبقاً");
       }
 
-      const totalBudget = Number(campaign.totalBudget || 0);
-      const spentBudget = Number(campaign.spentBudget || 0);
-      const remainingBudget = Number(Math.max(0, totalBudget - spentBudget).toFixed(2));
+      const totalBudget = roundMoney(campaign.totalBudget || 0);
+      const spentBudget = roundMoney(campaign.spentBudget || 0);
+      const remainingBudget = roundMoney(Math.max(0, totalBudget - spentBudget));
 
-      const advertiserId = String(campaign.advertiserId || "").trim();
-      if (!advertiserId) {
-        throw new Error("معرف المعلن غير موجود");
-      }
-
+      const advertiserId = String(campaign.advertiserId);
       const advertiserRef = db.collection(Collections.USERS).doc(advertiserId);
       const advertiserSnap = await transaction.get(advertiserRef);
       if (!advertiserSnap.exists) {
@@ -475,14 +499,15 @@ export async function settleCampaignBudgetAtomically(campaignId) {
           userId: advertiserId,
           type: "campaign_refund",
           amount: remainingBudget,
+          campaignId: String(campaignId),
           status: "completed",
-          description: `تسوية آلية: استرداد الميزانية المتبقية من الحملة (${campaign.title || normalizedCampaignId})`,
+          description: `تسوية آلية: استرداد الميزانية المتبقية من الحملة (${campaign.title || campaignId})`,
           createdAt: Timestamp.now()
         });
       }
 
       return {
-        campaignId: normalizedCampaignId,
+        campaignId: String(campaignId),
         advertiserId,
         totalBudget,
         spentBudget,
@@ -497,453 +522,383 @@ export async function settleCampaignBudgetAtomically(campaignId) {
   }
 }
 
-export async function updateUserTrc20Address(userId, trc20Address) {
+export async function getWalletSummary(userId) {
   try {
-    const normalizedUserId = String(userId || "").trim();
-    if (!normalizedUserId) {
-      throw new Error("User ID is required");
+    const normalizedId = String(userId);
+    await ensureUserDocument(normalizedId);
+    await process24HourReleases(normalizedId);
+
+    const userSnap = await db.collection(Collections.USERS).doc(normalizedId).get();
+    if (!userSnap.exists) {
+      throw new Error("حساب المستخدم غير موجود");
     }
 
-    const cleanAddress = String(trc20Address || "").trim();
-    if (!cleanAddress || cleanAddress.length < 20) {
-      throw new Error("عنوان USDT - TRC20 غير صالح");
-    }
+    const userData = userSnap.data() || {};
+    const availableBalance = roundMoney(
+      typeof userData.availableBalance === "number"
+        ? userData.availableBalance
+        : userData.balance || 0
+    );
+    const pendingEarnings = roundMoney(userData.pendingEarnings || 0);
+    const referralEarningsAvailable = roundMoney(
+      typeof userData.referralEarningsAvailable === "number"
+        ? userData.referralEarningsAvailable
+        : userData.referralEarnings || 0
+    );
+    const referralEarningsPending = roundMoney(userData.referralEarningsPending || 0);
+    const totalEarned = roundMoney(userData.totalEarned || 0);
+    const totalSpent = roundMoney(userData.totalSpent || 0);
 
-    const userRef = db.collection(Collections.USERS).doc(normalizedUserId);
-    const snap = await userRef.get();
-    if (!snap.exists) {
-      throw new Error("المستخدم غير موجود");
-    }
-
-    await userRef.update({
-      trc20Address: cleanAddress,
-      updatedAt: FieldValue.serverTimestamp()
-    });
-
-    return { userId: normalizedUserId, trc20Address: cleanAddress };
+    return {
+      userId: normalizedId,
+      availableBalance,
+      pendingEarnings,
+      referralEarningsAvailable,
+      referralEarningsPending,
+      totalEarned,
+      totalSpent,
+      trc20Address: userData.trc20Address || "",
+      referralCode: userData.referralCode || "",
+      referralsCount: Number(userData.referralsCount || 0),
+      walletConfig: {
+        minWithdrawal: WALLET_CONSTANTS.MIN_WITHDRAWAL,
+        withdrawalFee: WALLET_CONSTANTS.WITHDRAWAL_FEE,
+        withdrawalNetwork: WALLET_CONSTANTS.WITHDRAWAL_NETWORK,
+        minDeposit: WALLET_CONSTANTS.MIN_DEPOSIT,
+        depositNetwork: WALLET_CONSTANTS.DEPOSIT_NETWORK,
+        depositAddress: WALLET_CONSTANTS.DEPOSIT_ADDRESS,
+        referralCommissionRate: WALLET_CONSTANTS.REFERRAL_COMMISSION_RATE
+      }
+    };
   } catch (error) {
-    console.error("[Firestore updateUserTrc20Address Error]:", error);
-    throw error;
+    console.error("[Firestore getWalletSummary Error]:", error);
+    throw new Error(`تعذر جلب ملخص المحفظة: ${error.message}`);
   }
 }
 
-export async function createDepositRequest(userId, amountInput, txidInput) {
+export async function updateUserTrc20Address(userId, trc20Address) {
   try {
-    const normalizedUserId = String(userId || "").trim();
-    if (!normalizedUserId) {
-      throw new Error("User ID is required");
+    const normalizedId = String(userId);
+    const cleanedAddress = typeof trc20Address === "string" ? trc20Address.trim() : "";
+
+    if (!isValidTrc20Address(cleanedAddress)) {
+      throw new Error("عنوان محفظة USDT - TRC20 غير صالح");
     }
 
-    const amount = sanitizePositiveAmount(amountInput, "deposit amount");
-    if (amount < WALLET_CONSTANTS.MIN_DEPOSIT) {
-      throw new Error(`الحد الأدنى للإيداع هو $${WALLET_CONSTANTS.MIN_DEPOSIT.toFixed(2)}`);
+    await ensureUserDocument(normalizedId);
+    const userRef = db.collection(Collections.USERS).doc(normalizedId);
+
+    await userRef.update({
+      trc20Address: cleanedAddress,
+      updatedAt: FieldValue.serverTimestamp()
+    });
+
+    await logSecurityEvent("TRC20_ADDRESS_UPDATED", {
+      userId: normalizedId,
+      trc20Address: cleanedAddress
+    });
+
+    return {
+      success: true,
+      userId: normalizedId,
+      trc20Address: cleanedAddress,
+      network: WALLET_CONSTANTS.WITHDRAWAL_NETWORK
+    };
+  } catch (error) {
+    console.error("[Firestore updateUserTrc20Address Error]:", error);
+    throw new Error(`تعذر تحديث عنوان السحب: ${error.message}`);
+  }
+}
+
+export async function recordDepositRequest(userId, amount, txHash = "") {
+  try {
+    const normalizedId = String(userId);
+    const depositAmount = roundMoney(amount);
+
+    if (depositAmount < WALLET_CONSTANTS.MIN_DEPOSIT) {
+      throw new Error(
+        `الحد الأدنى للإيداع هو ${WALLET_CONSTANTS.MIN_DEPOSIT.toFixed(2)} USDT عبر شبكة ${WALLET_CONSTANTS.DEPOSIT_NETWORK}`
+      );
     }
 
-    const txid = String(txidInput || "").trim();
-    if (!txid || txid.length < 8) {
-      throw new Error("يرجى إدخال معرف المعاملة (TXID) بشكل صحيح");
-    }
+    await ensureUserDocument(normalizedId);
 
+    const cleanHash = typeof txHash === "string" ? txHash.trim() : "";
     const depositRef = db.collection(Collections.DEPOSITS).doc();
     const txRef = db.collection(Collections.TRANSACTIONS).doc();
     const now = Timestamp.now();
 
-    // لا يتم احتساب أي عمولة إحالة عند الإيداع أو شحن الرصيد
+    const depositRecord = {
+      depositId: depositRef.id,
+      userId: normalizedId,
+      amount: depositAmount,
+      network: WALLET_CONSTANTS.DEPOSIT_NETWORK,
+      depositAddress: WALLET_CONSTANTS.DEPOSIT_ADDRESS,
+      txHash: cleanHash,
+      status: "pending",
+      createdAt: now
+    };
+
     await db.runTransaction(async (transaction) => {
-      const userRef = db.collection(Collections.USERS).doc(normalizedUserId);
-      const userSnap = await transaction.get(userRef);
-      if (!userSnap.exists) {
-        throw new Error("المستخدم غير موجود");
-      }
-
-      transaction.set(depositRef, {
-        depositId: depositRef.id,
-        userId: normalizedUserId,
-        amount,
-        network: WALLET_CONSTANTS.DEPOSIT_NETWORK,
-        depositAddress: WALLET_CONSTANTS.DEPOSIT_ADDRESS,
-        txid,
-        status: "pending_review",
-        createdAt: now,
-        reviewedAt: null,
-        reviewedBy: null,
-        adminNote: ""
-      });
-
+      transaction.set(depositRef, depositRecord);
       transaction.set(txRef, {
-        userId: normalizedUserId,
-        type: "deposit_pending",
-        amount,
+        userId: normalizedId,
+        type: "deposit_request",
+        amount: depositAmount,
         network: WALLET_CONSTANTS.DEPOSIT_NETWORK,
-        txid,
-        status: "pending_review",
-        description: `طلب إيداع (${WALLET_CONSTANTS.DEPOSIT_NETWORK}) - TXID: ${txid}`,
+        depositId: depositRef.id,
+        txHash: cleanHash,
+        status: "pending",
+        description: `طلب إيداع ${depositAmount.toFixed(2)} USDT عبر ${WALLET_CONSTANTS.DEPOSIT_NETWORK}`,
         createdAt: now
       });
     });
 
-    return {
+    await logSecurityEvent("DEPOSIT_REQUEST_CREATED", {
+      userId: normalizedId,
       depositId: depositRef.id,
-      userId: normalizedUserId,
-      amount,
-      network: WALLET_CONSTANTS.DEPOSIT_NETWORK,
-      txid,
-      status: "pending_review"
+      amount: depositAmount,
+      network: WALLET_CONSTANTS.DEPOSIT_NETWORK
+    });
+
+    return {
+      success: true,
+      deposit: depositRecord
     };
   } catch (error) {
-    console.error("[Firestore createDepositRequest Error]:", error);
-    throw error;
+    console.error("[Firestore recordDepositRequest Error]:", error);
+    throw new Error(`تعذر تسجيل طلب الإيداع: ${error.message}`);
   }
 }
 
-export async function reviewDepositRequest(depositId, decision, adminId = "admin", adminNote = "") {
+export async function confirmDepositAtomically(depositId, adminId = null) {
   try {
-    const normalizedDepositId = String(depositId || "").trim();
-    if (!normalizedDepositId) {
-      throw new Error("Deposit ID is required");
-    }
+    const depositRef = db.collection(Collections.DEPOSITS).doc(String(depositId));
 
-    if (!["approve", "reject"].includes(decision)) {
-      throw new Error("Invalid deposit review decision");
-    }
-
-    const depositRef = db.collection(Collections.DEPOSITS).doc(normalizedDepositId);
-
-    return await db.runTransaction(async (transaction) => {
+    const result = await db.runTransaction(async (transaction) => {
       const depositSnap = await transaction.get(depositRef);
       if (!depositSnap.exists) {
         throw new Error("طلب الإيداع غير موجود");
       }
 
       const deposit = depositSnap.data() || {};
-      if (deposit.status !== "pending_review") {
-        throw new Error("تمت مراجعة طلب الإيداع مسبقاً");
+      if (deposit.status === "completed" || deposit.status === "approved") {
+        throw new Error("تم تأكيد طلب الإيداع مسبقاً");
       }
 
       const userId = String(deposit.userId);
-      const amount = sanitizePositiveAmount(deposit.amount, "deposit amount");
+      const amount = roundMoney(deposit.amount);
+      if (amount <= 0) {
+        throw new Error("قيمة الإيداع غير صالحة");
+      }
+
       const userRef = db.collection(Collections.USERS).doc(userId);
       const userSnap = await transaction.get(userRef);
-
       if (!userSnap.exists) {
         throw new Error("حساب المستخدم غير موجود");
       }
 
-      const isApproved = decision === "approve";
-      const nextStatus = isApproved ? "approved" : "rejected";
       const now = Timestamp.now();
 
       transaction.update(depositRef, {
-        status: nextStatus,
-        reviewedAt: now,
-        reviewedBy: String(adminId || "admin"),
-        adminNote: String(adminNote || "")
+        status: "completed",
+        confirmedBy: adminId ? String(adminId) : null,
+        confirmedAt: now
       });
 
-      if (isApproved) {
-        transaction.update(userRef, {
-          availableBalance: FieldValue.increment(amount),
-          balance: FieldValue.increment(amount),
-          updatedAt: FieldValue.serverTimestamp()
-        });
-      }
+      transaction.update(userRef, {
+        availableBalance: FieldValue.increment(amount),
+        balance: FieldValue.increment(amount),
+        updatedAt: FieldValue.serverTimestamp()
+      });
 
       const txRef = db.collection(Collections.TRANSACTIONS).doc();
       transaction.set(txRef, {
         userId,
-        type: isApproved ? "deposit_approved" : "deposit_rejected",
+        type: "deposit_completed",
         amount,
-        txid: deposit.txid || "",
-        status: nextStatus,
-        description: isApproved
-          ? `تمت الموافقة على إيداع بقيمة $${amount.toFixed(2)} (${WALLET_CONSTANTS.DEPOSIT_NETWORK})`
-          : `تم رفض طلب الإيداع بقيمة $${amount.toFixed(2)}${adminNote ? ` - ${adminNote}` : ""}`,
+        network: deposit.network || WALLET_CONSTANTS.DEPOSIT_NETWORK,
+        depositId: depositRef.id,
+        status: "completed",
+        description: `تأكيد إيداع ${amount.toFixed(2)} USDT عبر ${deposit.network || WALLET_CONSTANTS.DEPOSIT_NETWORK}`,
         createdAt: now
       });
 
       return {
-        depositId: normalizedDepositId,
+        depositId: depositRef.id,
         userId,
         amount,
-        status: nextStatus
+        status: "completed"
       };
     });
+
+    await logSecurityEvent("DEPOSIT_CONFIRMED", {
+      ...result,
+      adminId: adminId ? String(adminId) : null
+    });
+
+    return result;
   } catch (error) {
-    console.error("[Firestore reviewDepositRequest Error]:", error);
-    throw error;
+    console.error("[Firestore confirmDepositAtomically Error]:", error);
+    throw new Error(`تعذر تأكيد الإيداع: ${error.message}`);
   }
 }
 
-export async function createWithdrawalRequest(userId, amountInput, customTrc20Address = null) {
+export async function requestWithdrawalAtomically(userId, amount, trc20AddressInput = null) {
   try {
-    const normalizedUserId = String(userId || "").trim();
-    if (!normalizedUserId) {
-      throw new Error("User ID is required");
+    const normalizedId = String(userId);
+    const requestedAmount = roundMoney(amount);
+
+    if (requestedAmount < WALLET_CONSTANTS.MIN_WITHDRAWAL) {
+      throw new Error(
+        `الحد الأدنى للسحب هو ${WALLET_CONSTANTS.MIN_WITHDRAWAL.toFixed(2)} USDT`
+      );
     }
 
-    const grossAmount = sanitizePositiveAmount(amountInput, "withdrawal amount");
-    if (grossAmount < WALLET_CONSTANTS.MIN_WITHDRAWAL) {
-      throw new Error(`الحد الأدنى للسحب هو $${WALLET_CONSTANTS.MIN_WITHDRAWAL.toFixed(2)}`);
+    const fee = roundMoney(WALLET_CONSTANTS.WITHDRAWAL_FEE);
+    if (requestedAmount <= fee) {
+      throw new Error(
+        `مبلغ السحب يجب أن يكون أكبر من رسوم الشبكة (${fee.toFixed(2)} USDT)`
+      );
     }
 
-    const fee = WALLET_CONSTANTS.WITHDRAWAL_FEE;
-    const netAmount = Number((grossAmount - fee).toFixed(2));
-    if (netAmount <= 0) {
-      throw new Error("المبلغ أقل من رسوم السحب");
-    }
+    const netAmount = roundMoney(requestedAmount - fee);
 
+    await ensureUserDocument(normalizedId);
+    await process24HourReleases(normalizedId);
+
+    const userRef = db.collection(Collections.USERS).doc(normalizedId);
     const withdrawalRef = db.collection(Collections.WITHDRAWALS).doc();
     const txRef = db.collection(Collections.TRANSACTIONS).doc();
-    const now = Timestamp.now();
 
-    return await db.runTransaction(async (transaction) => {
-      const userRef = db.collection(Collections.USERS).doc(normalizedUserId);
+    const result = await db.runTransaction(async (transaction) => {
       const userSnap = await transaction.get(userRef);
-      if (!userSnap.exists) {
-        throw new Error("المستخدم غير موجود");
-      }
-
-      const userData = userSnap.data() || {};
-      const address = String(customTrc20Address || userData.trc20Address || "").trim();
-      if (!address || address.length < 20) {
-        throw new Error("يرجى حفظ أو إدخال عنوان USDT - TRC20 صالح قبل السحب");
-      }
-
-      const currentAvailable = Number(
-        userData.availableBalance !== undefined ? userData.availableBalance : (userData.balance || 0)
-      );
-
-      if (currentAvailable < grossAmount) {
-        throw new Error("الرصيد المتاح غير كافٍ لإتمام عملية السحب");
-      }
-
-      transaction.update(userRef, {
-        availableBalance: FieldValue.increment(-grossAmount),
-        balance: FieldValue.increment(-grossAmount),
-        trc20Address: address,
-        updatedAt: FieldValue.serverTimestamp()
-      });
-
-      transaction.set(withdrawalRef, {
-        withdrawalId: withdrawalRef.id,
-        userId: normalizedUserId,
-        grossAmount,
-        fee,
-        netAmount,
-        network: WALLET_CONSTANTS.WITHDRAWAL_NETWORK,
-        trc20Address: address,
-        status: "pending_review",
-        step: "submitted",
-        createdAt: now,
-        updatedAt: now,
-        reviewedAt: null,
-        reviewedBy: null,
-        adminNote: ""
-      });
-
-      transaction.set(txRef, {
-        userId: normalizedUserId,
-        type: "withdrawal_pending",
-        amount: grossAmount,
-        fee,
-        netAmount,
-        network: WALLET_CONSTANTS.WITHDRAWAL_NETWORK,
-        status: "pending_review",
-        description: `طلب سحب $${grossAmount.toFixed(2)} (الصافي $${netAmount.toFixed(2)} - رسوم $${fee.toFixed(2)}) عبر ${WALLET_CONSTANTS.WITHDRAWAL_NETWORK}`,
-        createdAt: now
-      });
-
-      return {
-        withdrawalId: withdrawalRef.id,
-        userId: normalizedUserId,
-        grossAmount,
-        fee,
-        netAmount,
-        network: WALLET_CONSTANTS.WITHDRAWAL_NETWORK,
-        trc20Address: address,
-        status: "pending_review",
-        step: "submitted"
-      };
-    });
-  } catch (error) {
-    console.error("[Firestore createWithdrawalRequest Error]:", error);
-    throw error;
-  }
-}
-
-export async function reviewWithdrawalRequest(
-  withdrawalId,
-  decision,
-  adminId = "admin",
-  adminNote = "",
-  stepOverride = null
-) {
-  try {
-    const normalizedWithdrawalId = String(withdrawalId || "").trim();
-    if (!normalizedWithdrawalId) {
-      throw new Error("Withdrawal ID is required");
-    }
-
-    if (!["approve", "reject"].includes(decision)) {
-      throw new Error("Invalid withdrawal review decision");
-    }
-
-    const withdrawalRef = db.collection(Collections.WITHDRAWALS).doc(normalizedWithdrawalId);
-
-    return await db.runTransaction(async (transaction) => {
-      const withdrawalSnap = await transaction.get(withdrawalRef);
-      if (!withdrawalSnap.exists) {
-        throw new Error("طلب السحب غير موجود");
-      }
-
-      const withdrawal = withdrawalSnap.data() || {};
-      if (withdrawal.status !== "pending_review") {
-        throw new Error("تمت مراجعة طلب السحب مسبقاً");
-      }
-
-      const userId = String(withdrawal.userId);
-      const grossAmount = sanitizePositiveAmount(withdrawal.grossAmount, "withdrawal grossAmount");
-      const userRef = db.collection(Collections.USERS).doc(userId);
-      const userSnap = await transaction.get(userRef);
-
       if (!userSnap.exists) {
         throw new Error("حساب المستخدم غير موجود");
       }
 
-      const isApproved = decision === "approve";
-      const nextStatus = isApproved ? "completed" : "rejected";
-      const nextStep = stepOverride || (isApproved ? "completed" : "rejected");
-      const now = Timestamp.now();
+      const userData = userSnap.data() || {};
+      const targetAddress =
+        typeof trc20AddressInput === "string" && trc20AddressInput.trim()
+          ? trc20AddressInput.trim()
+          : (userData.trc20Address || "").trim();
 
-      transaction.update(withdrawalRef, {
-        status: nextStatus,
-        step: nextStep,
-        reviewedAt: now,
-        updatedAt: now,
-        reviewedBy: String(adminId || "admin"),
-        adminNote: String(adminNote || "")
-      });
-
-      if (!isApproved) {
-        transaction.update(userRef, {
-          availableBalance: FieldValue.increment(grossAmount),
-          balance: FieldValue.increment(grossAmount),
-          updatedAt: FieldValue.serverTimestamp()
-        });
+      if (!isValidTrc20Address(targetAddress)) {
+        throw new Error(
+          `يرجى تحديد عنوان محفظة صالح على شبكة ${WALLET_CONSTANTS.WITHDRAWAL_NETWORK}`
+        );
       }
 
-      const txRef = db.collection(Collections.TRANSACTIONS).doc();
+      const currentAvailable = roundMoney(
+        typeof userData.availableBalance === "number"
+          ? userData.availableBalance
+          : userData.balance || 0
+      );
+
+      if (currentAvailable < requestedAmount) {
+        throw new Error(
+          `الرصيد المتاح غير كافٍ. المتاح: ${currentAvailable.toFixed(2)} USDT`
+        );
+      }
+
+      const now = Timestamp.now();
+
+      transaction.update(userRef, {
+        availableBalance: FieldValue.increment(-requestedAmount),
+        balance: FieldValue.increment(-requestedAmount),
+        trc20Address: targetAddress,
+        updatedAt: FieldValue.serverTimestamp()
+      });
+
+      const withdrawalData = {
+        withdrawalId: withdrawalRef.id,
+        userId: normalizedId,
+        requestedAmount,
+        fee,
+        netAmount,
+        network: WALLET_CONSTANTS.WITHDRAWAL_NETWORK,
+        trc20Address: targetAddress,
+        status: "pending",
+        createdAt: now
+      };
+
+      transaction.set(withdrawalRef, withdrawalData);
+
       transaction.set(txRef, {
-        userId,
-        type: isApproved ? "withdrawal_completed" : "withdrawal_refunded",
-        amount: grossAmount,
-        network: withdrawal.network || WALLET_CONSTANTS.WITHDRAWAL_NETWORK,
-        status: nextStatus,
-        description: isApproved
-          ? `تم تنفيذ السحب بقيمة $${grossAmount.toFixed(2)} عبر ${WALLET_CONSTANTS.WITHDRAWAL_NETWORK}`
-          : `تم رفض السحب وإعادة $${grossAmount.toFixed(2)} إلى الرصيد المتاح${adminNote ? ` - ${adminNote}` : ""}`,
+        userId: normalizedId,
+        type: "withdrawal_request",
+        amount: requestedAmount,
+        fee,
+        netAmount,
+        network: WALLET_CONSTANTS.WITHDRAWAL_NETWORK,
+        trc20Address: targetAddress,
+        withdrawalId: withdrawalRef.id,
+        status: "pending",
+        description: `طلب سحب ${requestedAmount.toFixed(2)} USDT (الصافي ${netAmount.toFixed(2)} USDT بعد رسوم ${fee.toFixed(2)} USDT) عبر ${WALLET_CONSTANTS.WITHDRAWAL_NETWORK}`,
         createdAt: now
       });
 
-      return {
-        withdrawalId: normalizedWithdrawalId,
-        userId,
-        grossAmount,
-        status: nextStatus,
-        step: nextStep
-      };
+      return withdrawalData;
     });
-  } catch (error) {
-    console.error("[Firestore reviewWithdrawalRequest Error]:", error);
-    throw error;
-  }
-}
 
-export async function getWalletSnapshot(userId) {
-  try {
-    const normalizedUserId = String(userId || "").trim();
-    if (!normalizedUserId) {
-      throw new Error("User ID is required");
-    }
-
-    await process24HourReleases(normalizedUserId);
-
-    const userRef = db.collection(Collections.USERS).doc(normalizedUserId);
-    const userSnap = await userRef.get();
-    if (!userSnap.exists) {
-      throw new Error("المستخدم غير موجود");
-    }
-
-    const userData = userSnap.data() || {};
-    const txQuery = await db
-      .collection(Collections.TRANSACTIONS)
-      .where("userId", "==", normalizedUserId)
-      .orderBy("createdAt", "desc")
-      .limit(WALLET_CONSTANTS.RECENT_TRANSACTIONS_LIMIT)
-      .get();
-
-    const recentTransactions = txQuery.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    await logSecurityEvent("WITHDRAWAL_REQUEST_CREATED", {
+      userId: normalizedId,
+      withdrawalId: result.withdrawalId,
+      requestedAmount: result.requestedAmount,
+      fee: result.fee,
+      netAmount: result.netAmount,
+      network: result.network,
+      trc20Address: result.trc20Address
+    });
 
     return {
-      userId: normalizedUserId,
-      availableBalance: Number(
-        userData.availableBalance !== undefined ? userData.availableBalance : (userData.balance || 0)
-      ),
-      pendingEarnings: Number(userData.pendingEarnings || 0),
-      totalSpent: Number(userData.totalSpent || 0),
-      totalEarned: Number(userData.totalEarned || 0),
-      referralEarningsAvailable: Number(userData.referralEarningsAvailable || 0),
-      referralEarningsPending: Number(userData.referralEarningsPending || 0),
-      trc20Address: userData.trc20Address || "",
-      referralCode: userData.referralCode || "",
-      referredBy: userData.referredBy || null,
-      referralsCount: Number(userData.referralsCount || 0),
-      constants: WALLET_CONSTANTS,
-      recentTransactions
+      success: true,
+      withdrawal: result
     };
   } catch (error) {
-    console.error("[Firestore getWalletSnapshot Error]:", error);
-    throw error;
+    console.error("[Firestore requestWithdrawalAtomically Error]:", error);
+    throw new Error(`تعذر إتمام طلب السحب: ${error.message}`);
   }
 }
 
-export async function getAdminFinanceLedger(limitCount = 50) {
+export async function getTransactionHistory(userId, limit = 20) {
   try {
-    const safeLimit = Math.max(1, Math.min(200, Number(limitCount) || 50));
+    const normalizedId = String(userId);
+    const safeLimit = Math.max(1, Math.min(Number(limit) || 20, 100));
 
-    const [depositsSnap, withdrawalsSnap] = await Promise.all([
-      db.collection(Collections.DEPOSITS).orderBy("createdAt", "desc").limit(safeLimit).get(),
-      db.collection(Collections.WITHDRAWALS).orderBy("createdAt", "desc").limit(safeLimit).get()
-    ]);
+    const snapshot = await db
+      .collection(Collections.TRANSACTIONS)
+      .where("userId", "==", normalizedId)
+      .orderBy("createdAt", "desc")
+      .limit(safeLimit)
+      .get();
 
-    const deposits = depositsSnap.docs.map((doc) => ({
+    return snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data()
     }));
-
-    const withdrawals = withdrawalsSnap.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-
-    return { deposits, withdrawals };
   } catch (error) {
-    console.error("[Firestore getAdminFinanceLedger Error]:", error);
-    throw error;
+    console.error("[Firestore getTransactionHistory Error]:", error);
+    throw new Error(`تعذر جلب سجل العمليات: ${error.message}`);
   }
 }
 
-export async function logSecurityEvent(eventType, details) {
-  try {
-    await db.collection(Collections.AUDIT_LOGS).add({
-      eventType,
-      details,
-      timestamp: FieldValue.serverTimestamp()
-    });
-  } catch (error) {
-    console.error("[Audit Log Error]:", error);
-  }
-}
+export const WalletModule = {
+  constants: WALLET_CONSTANTS,
+  collections: {
+    transactions: Collections.TRANSACTIONS,
+    deposits: Collections.DEPOSITS,
+    withdrawals: Collections.WITHDRAWALS,
+    referrals: Collections.REFERRALS,
+    pendingReleases: Collections.PENDING_RELEASES
+  },
+  getSummary: getWalletSummary,
+  setTrc20Address: updateUserTrc20Address,
+  createDepositRequest: recordDepositRequest,
+  confirmDeposit: confirmDepositAtomically,
+  requestWithdrawal: requestWithdrawalAtomically,
+  processReleases: process24HourReleases,
+  recordEarningWithReferral: recordPublisherEarningWithReferral,
+  settleCampaignBudget: settleCampaignBudgetAtomically,
+  getTransactions: getTransactionHistory
+};
