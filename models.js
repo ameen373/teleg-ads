@@ -27,395 +27,317 @@ export const Collections = {
   USERS: "users",
   CHANNELS: "channels",
   CAMPAIGNS: "campaigns",
+  TRANSACTIONS: "transactions",
+  DEPOSITS: "deposits",
+  WITHDRAWALS: "withdrawals",
+  PENDING_RELEASES: "pending_releases",
   TICKETS: "support_tickets",
-  AUDIT_LOGS: "security_audit_logs",
-  DEPOSITS: "wallet_deposits",
-  WITHDRAWALS: "wallet_withdrawals",
-  TRANSACTIONS: "wallet_transactions",
-  PENDING_RELEASES: "wallet_pending_releases"
+  AUDIT_LOGS: "security_audit_logs"
 };
 
-export const WALLET_CONSTANTS = {
-  MIN_DEPOSIT: 10.0,
-  MIN_WITHDRAWAL: 30.0,
-  WITHDRAWAL_FEE: 3.0,
-  DEPOSIT_NETWORK: "USDT - BEP20",
-  DEPOSIT_ADDRESS: "0xf9278f55585a0e6e35f12299493134056f2f19b0",
-  WITHDRAWAL_NETWORK: "USDT - TRC20",
-  RELEASE_HOLD_MS: 24 * 60 * 60 * 1000, // 24 ساعة
-  REFERRAL_COMMISSION_RATE: 0.10 // 10% من أرباح الناشرين المدعوين فقط
-};
+export const DEPOSIT_ADDRESS_BEP20 = "0xf9278f55585a0e6e35f12299493134056f2f19b0";
+export const MIN_DEPOSIT_USD = 10.0;
+export const MIN_WITHDRAW_USD = 30.0;
+export const WITHDRAW_FEE_USD = 3.0;
+export const REFERRAL_COMMISSION_RATE = 0.10; // 10% من أرباح الناشرين المدعوين فقط
+export const RELEASE_HOLD_MS = 24 * 60 * 60 * 1000; // 24 ساعة بالمللي ثانية
 
-function roundMoney(value) {
-  return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+export function roundMoney(val) {
+  return Math.round((Number(val) + Number.EPSILON) * 100) / 100;
 }
 
 /**
- * تسجيل معاملة مالية في سجل المعاملات الموحد
+ * مزامنة أو إنشاء مستخدم تيليجرام مع ربط كود الإحالة إن وُجد عند أول دخول
  */
-export async function recordTransaction(txOrDb, payload) {
-  const docRef = db.collection(Collections.TRANSACTIONS).doc();
-  const data = {
-    userId: String(payload.userId),
-    type: payload.type, // deposit | withdrawal | campaign_spend | campaign_refund | publisher_earning | referral_earning | earning_released
-    amount: roundMoney(payload.amount),
-    direction: payload.direction || "in", // in | out | hold
-    status: payload.status || "completed",
-    title: payload.title || "",
-    meta: payload.meta || {},
+export async function upsertTelegramUser(tgUser, startParam = "") {
+  const userId = String(tgUser.id);
+  const userRef = db.collection(Collections.USERS).doc(userId);
+  const snapshot = await userRef.get();
+  const now = admin.firestore.FieldValue.serverTimestamp();
+
+  const basePayload = {
+    telegramId: userId,
+    username: tgUser.username || "",
+    firstName: tgUser.first_name || "",
+    lastName: tgUser.last_name || "",
+    languageCode: tgUser.language_code || "en",
+    updatedAt: now
+  };
+
+  if (!snapshot.exists) {
+    let referredBy = null;
+    if (startParam && String(startParam).startsWith("ref_")) {
+      try {
+        const rawCode = String(startParam).replace("ref_", "");
+        const decodedId = Buffer.from(rawCode, "base64").toString("utf8").trim();
+        if (decodedId && decodedId !== userId && /^\d+$/.test(decodedId)) {
+          const referrerDoc = await db.collection(Collections.USERS).doc(decodedId).get();
+          if (referrerDoc.exists) {
+            referredBy = decodedId;
+          }
+        }
+      } catch {
+        referredBy = null;
+      }
+    }
+
+    await userRef.set({
+      ...basePayload,
+      availableBalance: 0,      // الرصيد المتاح للسحب أو الإعلان
+      pendingBalance: 0,        // الأرباح المعلقة بانتظار مرور 24 ساعة
+      totalSpent: 0,            // إجمالي المصروفات على الحملات
+      totalPublisherEarned: 0,  // إجمالي أرباح النشر المحررة
+      totalReferralEarned: 0,   // إجمالي أرباح الإحالات المحررة
+      trc20Address: "",         // عنوان محفظة السحب USDT-TRC20
+      referredBy,
+      referralsCount: 0,
+      createdAt: now
+    });
+
+    if (referredBy) {
+      await db
+        .collection(Collections.USERS)
+        .doc(referredBy)
+        .update({
+          referralsCount: admin.firestore.FieldValue.increment(1)
+        });
+    }
+  } else {
+    await userRef.update(basePayload);
+  }
+
+  return (await userRef.get()).data();
+}
+
+/**
+ * تسجيل معاملة مالية في سجل المحفظة
+ */
+export async function recordTransaction(txOrBatch, data) {
+  const txRef = db.collection(Collections.TRANSACTIONS).doc();
+  const payload = {
+    userId: String(data.userId),
+    type: data.type, // deposit | withdraw | campaign_spend | campaign_refund | publisher_earning | referral_earning
+    titleKey: data.titleKey,
+    amount: roundMoney(data.amount),
+    direction: data.direction, // in | out
+    status: data.status || "completed", // completed | pending | rejected
+    meta: data.meta || {},
     createdAt: new Date().toISOString()
   };
 
-  if (txOrDb && typeof txOrDb.set === "function") {
-    txOrDb.set(docRef, data);
+  if (txOrBatch && typeof txOrBatch.set === "function") {
+    txOrBatch.set(txRef, payload);
   } else {
-    await docRef.set(data);
+    await txRef.set(payload);
   }
-  return { id: docRef.id, ...data };
+  return txRef.id;
 }
 
 /**
- * فك رمز الإحالة إن وُجد واستخراج معرف المحيل
+ * تسجيل ربح لناشر + احتساب عمولة 10% للمحيل (تُحرر تلقائياً بعد 24 ساعة)
+ * ملاحظة: هذه الدالة تُستدعى فقط عند أرباح الناشر، ولا تُستدعى إطلاقاً عند الإيداع/الشحن.
  */
-function decodeReferrerId(startParam, currentUserId) {
-  if (!startParam || typeof startParam !== "string") return null;
-  const trimmed = startParam.trim();
-  if (!trimmed.startsWith("ref_")) return null;
-  const encoded = trimmed.slice(4);
-  if (!encoded) return null;
+export async function creditPublisherEarningWithHold(publisherId, grossAmount, campaignTitle = "") {
+  const cleanGross = roundMoney(grossAmount);
+  if (cleanGross <= 0) return;
 
-  try {
-    const padded = encoded + "=".repeat((4 - (encoded.length % 4)) % 4);
-    const decoded = Buffer.from(padded, "base64").toString("utf8").trim();
-    if (/^\d+$/.test(decoded) && decoded !== String(currentUserId)) {
-      return decoded;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
+  const pubRef = db.collection(Collections.USERS).doc(String(publisherId));
+  const pubSnap = await pubRef.get();
+  if (!pubSnap.exists) return;
 
-export async function upsertTelegramUser(tgUser, startParam = "") {
-  try {
-    const userId = String(tgUser.id);
-    const userRef = db.collection(Collections.USERS).doc(userId);
-    const snapshot = await userRef.get();
-    const now = admin.firestore.FieldValue.serverTimestamp();
+  const pubData = pubSnap.data();
+  const referrerId = pubData.referredBy || null;
+  const releaseAtMs = Date.now() + RELEASE_HOLD_MS;
+  const releaseAtIso = new Date(releaseAtMs).toISOString();
 
-    const basePayload = {
-      telegramId: userId,
-      username: tgUser.username || "",
-      firstName: tgUser.first_name || "",
-      lastName: tgUser.last_name || "",
-      languageCode: tgUser.language_code || "en",
-      updatedAt: now
-    };
-
-    if (!snapshot.exists) {
-      let referredBy = null;
-      const candidateRef = decodeReferrerId(startParam, userId);
-      if (candidateRef) {
-        const refUserSnap = await db.collection(Collections.USERS).doc(candidateRef).get();
-        if (refUserSnap.exists) {
-          referredBy = candidateRef;
-        }
-      }
-
-      await userRef.set({
-        ...basePayload,
-        balance: 0,
-        pendingBalance: 0,
-        totalSpent: 0,
-        totalEarned: 0,
-        referralEarnings: 0,
-        pendingReferralEarnings: 0,
-        referredBy,
-        trc20Wallet: "",
-        createdAt: now
-      });
-
-      if (referredBy) {
-        await db.collection(Collections.USERS).doc(referredBy).set(
-          {
-            referralsCount: admin.firestore.FieldValue.increment(1)
-          },
-          { merge: true }
-        );
-      }
-    } else {
-      const existingData = snapshot.data() || {};
-      const updates = { ...basePayload };
-      if (typeof existingData.balance !== "number") updates.balance = 0;
-      if (typeof existingData.pendingBalance !== "number") updates.pendingBalance = 0;
-      if (typeof existingData.totalSpent !== "number") updates.totalSpent = 0;
-      if (typeof existingData.totalEarned !== "number") updates.totalEarned = 0;
-      if (typeof existingData.referralEarnings !== "number") updates.referralEarnings = 0;
-      if (typeof existingData.pendingReferralEarnings !== "number") updates.pendingReferralEarnings = 0;
-      if (typeof existingData.trc20Wallet !== "string") updates.trc20Wallet = "";
-
-      await userRef.update(updates);
-    }
-
-    return basePayload;
-  } catch (error) {
-    console.error("[Firestore upsertTelegramUser Error]:", error);
-    throw error;
-  }
-}
-
-/**
- * تحرير الأرباح المعلقة (أرباح الناشر وأرباح الإحالة) التي مرّ عليها 24 ساعة تلقائياً وبشكل ذري
- */
-export async function processMatureEarnings(userId) {
-  const uid = String(userId);
-  const nowIso = new Date().toISOString();
-
-  const dueSnap = await db
-    .collection(Collections.PENDING_RELEASES)
-    .where("userId", "==", uid)
-    .where("status", "==", "pending")
-    .get();
-
-  const matureDocs = dueSnap.docs.filter((doc) => {
-    const data = doc.data();
-    return data.releaseAt && data.releaseAt <= nowIso;
-  });
-
-  if (matureDocs.length === 0) return 0;
-
-  let totalReleased = 0;
-
-  await db.runTransaction(async (tx) => {
-    const userRef = db.collection(Collections.USERS).doc(uid);
-    const userSnap = await tx.get(userRef);
-    if (!userSnap.exists) return;
-
-    const userData = userSnap.data() || {};
-    let currentBalance = roundMoney(userData.balance || 0);
-    let currentPending = roundMoney(userData.pendingBalance || 0);
-    let currentPendingRef = roundMoney(userData.pendingReferralEarnings || 0);
-    let currentRefEarned = roundMoney(userData.referralEarnings || 0);
-    let currentTotalEarned = roundMoney(userData.totalEarned || 0);
-
-    for (const docSnap of matureDocs) {
-      const freshDoc = await tx.get(docSnap.ref);
-      if (!freshDoc.exists) continue;
-      const item = freshDoc.data();
-      if (item.status !== "pending") continue;
-
-      const amt = roundMoney(item.amount || 0);
-      if (amt <= 0) {
-        tx.update(docSnap.ref, { status: "released", releasedAt: nowIso });
-        continue;
-      }
-
-      currentBalance = roundMoney(currentBalance + amt);
-      currentPending = Math.max(0, roundMoney(currentPending - amt));
-      totalReleased = roundMoney(totalReleased + amt);
-
-      if (item.source === "referral") {
-        currentPendingRef = Math.max(0, roundMoney(currentPendingRef - amt));
-        currentRefEarned = roundMoney(currentRefEarned + amt);
-      } else {
-        currentTotalEarned = roundMoney(currentTotalEarned + amt);
-      }
-
-      tx.update(docSnap.ref, {
-        status: "released",
-        releasedAt: nowIso
-      });
-
-      recordTransaction(tx, {
-        userId: uid,
-        type: item.source === "referral" ? "referral_earning" : "earning_released",
-        amount: amt,
-        direction: "in",
-        status: "completed",
-        title:
-          item.source === "referral"
-            ? "Referral Commission Released (24h)"
-            : "Publisher Earnings Released (24h)",
-        meta: { releaseId: docSnap.id, source: item.source || "publisher" }
-      });
-    }
-
-    tx.update(userRef, {
-      balance: currentBalance,
-      pendingBalance: currentPending,
-      pendingReferralEarnings: currentPendingRef,
-      referralEarnings: currentRefEarned,
-      totalEarned: currentTotalEarned
+  await db.runTransaction(async (transaction) => {
+    // 1. إضافة ربح الناشر إلى الرصيد المعلق (24 ساعة)
+    transaction.update(pubRef, {
+      pendingBalance: admin.firestore.FieldValue.increment(cleanGross)
     });
-  });
-
-  return totalReleased;
-}
-
-/**
- * تسجيل أرباح ناشر جديدة (تُحتجز 24 ساعة) + احتساب 10% عمولة إحالة للمحيل (إن وُجد) تُحتجز 24 ساعة أيضاً
- * ملاحظة: هذه الدالة مخصصة لأرباح الناشرين فقط، ولا تُستدعى إطلاقاً عند الإيداع.
- */
-export async function creditPublisherEarningWithHold(publisherId, grossAmount, meta = {}) {
-  const pubId = String(publisherId);
-  const amount = roundMoney(grossAmount);
-  if (amount <= 0) return { credited: 0, referralCommission: 0 };
-
-  const now = Date.now();
-  const createdAt = new Date(now).toISOString();
-  const releaseAt = new Date(now + WALLET_CONSTANTS.RELEASE_HOLD_MS).toISOString();
-
-  let referralCommission = 0;
-
-  await db.runTransaction(async (tx) => {
-    const pubRef = db.collection(Collections.USERS).doc(pubId);
-    const pubSnap = await tx.get(pubRef);
-    if (!pubSnap.exists) throw new Error("Publisher account not found");
-
-    const pubData = pubSnap.data() || {};
-    const referrerId = pubData.referredBy ? String(pubData.referredBy) : null;
-
-    let refSnap = null;
-    let refRef = null;
-    if (referrerId && referrerId !== pubId) {
-      refRef = db.collection(Collections.USERS).doc(referrerId);
-      refSnap = await tx.get(refRef);
-    }
-
-    // 1. إضافة أرباح الناشر إلى الرصيد المعلق لمدة 24 ساعة
-    const newPubPending = roundMoney((pubData.pendingBalance || 0) + amount);
-    tx.update(pubRef, { pendingBalance: newPubPending });
 
     const pubHoldRef = db.collection(Collections.PENDING_RELEASES).doc();
-    tx.set(pubHoldRef, {
-      userId: pubId,
-      source: "publisher",
-      amount,
-      status: "pending",
-      meta,
-      createdAt,
-      releaseAt
+    transaction.set(pubHoldRef, {
+      userId: String(publisherId),
+      sourceUserId: String(publisherId),
+      kind: "publisher_earning",
+      amount: cleanGross,
+      campaignTitle,
+      status: "held",
+      releaseAtMs,
+      releaseAt: releaseAtIso,
+      createdAt: new Date().toISOString()
     });
 
-    recordTransaction(tx, {
-      userId: pubId,
+    recordTransaction(transaction, {
+      userId: String(publisherId),
       type: "publisher_earning",
-      amount,
-      direction: "hold",
-      status: "pending_24h",
-      title: "Publisher Ad Revenue (24h Hold)",
-      meta: { ...meta, releaseAt }
+      titleKey: "tx_publisher_hold",
+      amount: cleanGross,
+      direction: "in",
+      status: "pending",
+      meta: { campaignTitle, releaseAt: releaseAtIso }
     });
 
-    // 2. احتساب 10% عمولة إحالة من أرباح الناشر فقط (تُحتجز 24 ساعة أيضاً)
-    if (refSnap && refSnap.exists) {
-      referralCommission = roundMoney(amount * WALLET_CONSTANTS.REFERRAL_COMMISSION_RATE);
-      if (referralCommission > 0) {
-        const refData = refSnap.data() || {};
-        tx.update(refRef, {
-          pendingBalance: roundMoney((refData.pendingBalance || 0) + referralCommission),
-          pendingReferralEarnings: roundMoney((refData.pendingReferralEarnings || 0) + referralCommission)
+    // 2. إذا كان للناشر مُحيل: احتساب 10% من أرباح الناشر كعمولة إحالة معلقة 24 ساعة
+    if (referrerId) {
+      const commission = roundMoney(cleanGross * REFERRAL_COMMISSION_RATE);
+      if (commission > 0) {
+        const refUserRef = db.collection(Collections.USERS).doc(String(referrerId));
+        transaction.update(refUserRef, {
+          pendingBalance: admin.firestore.FieldValue.increment(commission)
         });
 
         const refHoldRef = db.collection(Collections.PENDING_RELEASES).doc();
-        tx.set(refHoldRef, {
-          userId: referrerId,
-          source: "referral",
-          fromPublisherId: pubId,
-          amount: referralCommission,
-          status: "pending",
-          meta,
-          createdAt,
-          releaseAt
+        transaction.set(refHoldRef, {
+          userId: String(referrerId),
+          sourceUserId: String(publisherId),
+          kind: "referral_earning",
+          amount: commission,
+          campaignTitle,
+          status: "held",
+          releaseAtMs,
+          releaseAt: releaseAtIso,
+          createdAt: new Date().toISOString()
         });
 
-        recordTransaction(tx, {
-          userId: referrerId,
+        recordTransaction(transaction, {
+          userId: String(referrerId),
           type: "referral_earning",
-          amount: referralCommission,
-          direction: "hold",
-          status: "pending_24h",
-          title: "10% Publisher Referral Commission (24h Hold)",
-          meta: { fromPublisherId: pubId, releaseAt }
+          titleKey: "tx_referral_hold",
+          amount: commission,
+          direction: "in",
+          status: "pending",
+          meta: { fromPublisher: String(publisherId), releaseAt: releaseAtIso }
         });
       }
     }
   });
-
-  return { credited: amount, referralCommission };
 }
 
 /**
- * تسوية الميزانية الآلية (Atomic Transaction) عند انتهاء الحملة الإعلانية:
- * تُحسب الميزانية المتبقية وتُعاد فوراً إلى رصيد المعلن المتاح.
+ * فحص وتحرير أي أرباح (ناشر أو إحالة) أتمت 24 ساعة تلقائياً وبشكل ذري
  */
-export async function settleCampaignBudgetAtomically(campaignId, requesterId, isOwner = false) {
+export async function processMatureEarningsForUser(userId) {
+  const nowMs = Date.now();
+  const snap = await db
+    .collection(Collections.PENDING_RELEASES)
+    .where("userId", "==", String(userId))
+    .where("status", "==", "held")
+    .get();
+
+  const dueDocs = snap.docs.filter((doc) => Number(doc.data().releaseAtMs || 0) <= nowMs);
+  if (dueDocs.length === 0) return 0;
+
+  let releasedTotal = 0;
+
+  for (const holdDoc of dueDocs) {
+    await db.runTransaction(async (transaction) => {
+      const freshHold = await transaction.get(holdDoc.ref);
+      if (!freshHold.exists || freshHold.data().status !== "held") return;
+
+      const data = freshHold.data();
+      const amount = roundMoney(data.amount);
+      const userRef = db.collection(Collections.USERS).doc(String(userId));
+      const userSnap = await transaction.get(userRef);
+      if (!userSnap.exists) return;
+
+      const currentPending = roundMoney(userSnap.data().pendingBalance || 0);
+      const safeDeduct = Math.min(currentPending, amount);
+
+      const updates = {
+        pendingBalance: roundMoney(currentPending - safeDeduct),
+        availableBalance: admin.firestore.FieldValue.increment(amount)
+      };
+
+      if (data.kind === "publisher_earning") {
+        updates.totalPublisherEarned = admin.firestore.FieldValue.increment(amount);
+      } else if (data.kind === "referral_earning") {
+        updates.totalReferralEarned = admin.firestore.FieldValue.increment(amount);
+      }
+
+      transaction.update(userRef, updates);
+      transaction.update(holdDoc.ref, {
+        status: "released",
+        releasedAt: new Date().toISOString()
+      });
+
+      recordTransaction(transaction, {
+        userId: String(userId),
+        type: data.kind,
+        titleKey: data.kind === "referral_earning" ? "tx_referral_released" : "tx_publisher_released",
+        amount,
+        direction: "in",
+        status: "completed",
+        meta: { holdId: holdDoc.id }
+      });
+
+      releasedTotal = roundMoney(releasedTotal + amount);
+    });
+  }
+
+  return releasedTotal;
+}
+
+/**
+ * تسوية الميزانية الآلية الذرية (Atomic Transaction) عند انتهاء الحملة
+ * تحسب الميزانية المتبقية وتعيدها فوراً إلى رصيد المعلن المتاح
+ */
+export async function settleCampaignAtomic(campaignId, requesterId, isOwner = false) {
   const campRef = db.collection(Collections.CAMPAIGNS).doc(String(campaignId));
 
-  return await db.runTransaction(async (tx) => {
-    const campSnap = await tx.get(campRef);
+  return await db.runTransaction(async (transaction) => {
+    const campSnap = await transaction.get(campRef);
     if (!campSnap.exists) {
       throw new Error("Campaign not found");
     }
 
-    const camp = campSnap.data() || {};
-    const advertiserId = String(camp.advertiserId);
-
-    if (!isOwner && advertiserId !== String(requesterId)) {
+    const camp = campSnap.data();
+    if (!isOwner && String(camp.advertiserId) !== String(requesterId)) {
       throw new Error("Unauthorized campaign access");
     }
 
-    if (camp.status === "Completed" || camp.settled === true) {
+    if (camp.status === "Completed") {
       throw new Error("Campaign already settled");
     }
 
     const totalBudget = roundMoney(camp.budget || 0);
     const spentBudget = roundMoney(camp.spent || 0);
-    const remainingBudget = Math.max(0, roundMoney(totalBudget - spentBudget));
+    const remainingBudget = roundMoney(Math.max(0, totalBudget - spentBudget));
 
-    const userRef = db.collection(Collections.USERS).doc(advertiserId);
-    const userSnap = await tx.get(userRef);
-    if (!userSnap.exists) {
+    const advertiserRef = db.collection(Collections.USERS).doc(String(camp.advertiserId));
+    const advSnap = await transaction.get(advertiserRef);
+    if (!advSnap.exists) {
       throw new Error("Advertiser account not found");
     }
 
-    const userData = userSnap.data() || {};
-    const updatedBalance = roundMoney((userData.balance || 0) + remainingBudget);
-
-    tx.update(campRef, {
+    transaction.update(campRef, {
       status: "Completed",
-      settled: true,
       refundedAmount: remainingBudget,
-      completedAt: new Date().toISOString()
+      settledAt: new Date().toISOString()
     });
 
     if (remainingBudget > 0) {
-      tx.update(userRef, {
-        balance: updatedBalance
+      transaction.update(advertiserRef, {
+        availableBalance: admin.firestore.FieldValue.increment(remainingBudget)
       });
 
-      recordTransaction(tx, {
-        userId: advertiserId,
+      recordTransaction(transaction, {
+        userId: String(camp.advertiserId),
         type: "campaign_refund",
+        titleKey: "tx_campaign_refund",
         amount: remainingBudget,
         direction: "in",
         status: "completed",
-        title: `Campaign Settlement Refund: ${camp.title || campaignId}`,
-        meta: {
-          campaignId: String(campaignId),
-          totalBudget,
-          spentBudget,
-          refunded: remainingBudget
-        }
+        meta: { campaignId: campRef.id, title: camp.title }
       });
     }
 
     return {
-      campaignId: String(campaignId),
+      campaignId: campRef.id,
       totalBudget,
       spentBudget,
-      refundedAmount: remainingBudget,
-      newBalance: updatedBalance
+      refundedAmount: remainingBudget
     };
   });
 }
