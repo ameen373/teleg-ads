@@ -28,7 +28,6 @@ async function bootstrapApp() {
 
   // 1. Smart User Detection
   const tgUser = tg?.initDataUnsafe?.user || {};
-  const startParam = tg?.initDataUnsafe?.start_param || "";
   const fullName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(" ") || "Telegram User";
   const secretTelegramId = tgUser.id ? String(tgUser.id) : "";
   const secretUsername = tgUser.username ? String(tgUser.username) : "";
@@ -67,8 +66,7 @@ async function bootstrapApp() {
     const syncResponse = await api.syncUser({
       firstName: tgUser.first_name || "",
       lastName: tgUser.last_name || "",
-      languageCode: detectedLang,
-      startParam
+      languageCode: detectedLang
     });
     isOwner = Boolean(syncResponse?.isOwner);
     if (syncResponse?.officialChannel) officialChannelUrl = syncResponse.officialChannel;
@@ -78,15 +76,12 @@ async function bootstrapApp() {
   }
 
   // 5. Initialize Modules
-  const walletCtrl = initWalletAndReferralModule(api, secretTelegramId || secretUsername, botUsername);
-  initAdminModule(api, isOwner, () => walletCtrl.loadWalletData());
+  initAdminModule(api, isOwner);
   const channelsCtrl = initChannelsModule(api);
-  const campaignsCtrl = initCampaignsModule(api, () => walletCtrl.loadWalletData());
-
-  await walletCtrl.loadWalletData();
+  const campaignsCtrl = initCampaignsModule(api);
+  initWalletAndReferralModule(secretTelegramId || secretUsername, botUsername);
 
   initNavigation((sectionId) => {
-    if (sectionId === "section-wallet" || sectionId === "section-referral") walletCtrl.loadWalletData();
     if (sectionId === "section-channels") channelsCtrl.loadChannels();
     if (sectionId === "section-campaigns") campaignsCtrl.loadCampaigns();
   });
@@ -94,7 +89,6 @@ async function bootstrapApp() {
   // 6. Account Interactive Buttons
   const triggerLanguageModal = () =>
     openLanguageModal(() => {
-      walletCtrl.loadWalletData();
       channelsCtrl.loadChannels();
       campaignsCtrl.loadCampaigns();
     });
