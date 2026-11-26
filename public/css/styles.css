@@ -3,8 +3,8 @@
   --bg-secondary: #131b2e;
   --glass-bg: rgba(23, 32, 54, 0.72);
   --glass-border: rgba(255, 255, 255, 0.08);
-  --accent-primary: #3b82f6;
-  --accent-glow: rgba(59, 130, 246, 0.45);
+  --accent-primary: #2aabee;
+  --accent-glow: rgba(42, 171, 238, 0.42);
   --accent-secondary: #10b981;
   --text-main: #f8fafc;
   --text-muted: #94a3b8;
@@ -12,6 +12,7 @@
   --radius-lg: 20px;
   --radius-md: 14px;
   --transition-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+  --spring-bounce: cubic-bezier(0.34, 1.4, 0.64, 1);
 }
 
 * {
@@ -75,8 +76,8 @@ section.hidden-admin.owner-unlocked {
 
 @keyframes pulseWave {
   0% { transform: scale(0.85); box-shadow: 0 0 0 0 var(--accent-glow); }
-  70% { transform: scale(1.05); box-shadow: 0 0 0 18px rgba(59, 130, 246, 0); }
-  100% { transform: scale(0.85); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+  70% { transform: scale(1.05); box-shadow: 0 0 0 18px rgba(42, 171, 238, 0); }
+  100% { transform: scale(0.85); box-shadow: 0 0 0 0 rgba(42, 171, 238, 0); }
 }
 
 /* Glassmorphism */
@@ -93,7 +94,7 @@ section.hidden-admin.owner-unlocked {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  padding-bottom: 88px;
+  padding-bottom: 106px;
 }
 
 .top-bar {
@@ -130,7 +131,7 @@ section.hidden-admin.owner-unlocked {
 .brand h1 {
   font-size: 1.15rem;
   font-weight: 800;
-  background: linear-gradient(90deg, #fff, #93c5fd);
+  background: linear-gradient(90deg, #fff, #7dd3fc);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -255,7 +256,7 @@ section.hidden-admin.owner-unlocked {
 }
 
 .feature-btn:hover {
-  border-color: rgba(59, 130, 246, 0.5);
+  border-color: rgba(42, 171, 238, 0.5);
 }
 
 .feature-btn:active {
@@ -318,7 +319,7 @@ html[dir="rtl"] .btn-arrow {
 }
 
 .primary-btn {
-  background: linear-gradient(135deg, var(--accent-primary), #2563eb);
+  background: linear-gradient(135deg, var(--accent-primary), #1d9bf0);
   color: #fff;
   border: none;
   padding: 11px 18px;
@@ -390,46 +391,169 @@ html[dir="rtl"] .btn-arrow {
   font-weight: 800;
 }
 
-/* Bottom Navigation */
-.bottom-nav {
+/* =========================================================
+   FLOATING PILL BOTTOM NAVIGATION (Telegram iOS/Android Style)
+   ========================================================= */
+.bottom-nav-wrapper {
   position: fixed;
-  bottom: 12px;
-  left: 12px;
-  right: 12px;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  left: 0;
+  right: 0;
   display: flex;
-  justify-content: space-around;
-  padding: 10px 6px;
-  border-radius: 22px;
-  z-index: 200;
+  justify-content: center;
+  padding: 0 14px;
+  z-index: 300;
+  pointer-events: none;
+}
+
+.bottom-nav {
+  pointer-events: auto;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 440px;
+  padding: 6px;
+  border-radius: 999px;
+  background: rgba(21, 30, 46, 0.84);
+  backdrop-filter: blur(26px) saturate(180%);
+  -webkit-backdrop-filter: blur(26px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  box-shadow:
+    0 14px 36px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* الكبسولة النشطة المتحركة خلف القسم المختار */
+.nav-active-pill {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 0;
+  border-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    rgba(42, 171, 238, 0.26) 0%,
+    rgba(24, 62, 98, 0.55) 100%
+  );
+  border: 1px solid rgba(42, 171, 238, 0.28);
+  box-shadow:
+    0 4px 16px rgba(42, 171, 238, 0.22),
+    inset 0 1px 1px rgba(255, 255, 255, 0.14);
+  transition:
+    transform 0.44s var(--spring-bounce),
+    width 0.35s var(--transition-smooth);
+  z-index: 1;
+  pointer-events: none;
 }
 
 .nav-item {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  min-width: 0;
   background: transparent;
   border: none;
-  color: var(--text-muted);
+  color: #e2e8f0;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 4px;
+  padding: 8px 4px;
+  border-radius: 999px;
   cursor: pointer;
-  padding: 6px 10px;
-  border-radius: 14px;
-  transition: all 0.25s var(--transition-smooth);
+  transition: color 0.25s ease, transform 0.2s var(--transition-smooth);
 }
 
-.nav-item.active {
-  color: var(--text-main);
-  background: rgba(59, 130, 246, 0.18);
-  transform: translateY(-2px);
+.nav-item:active {
+  transform: scale(0.92);
 }
 
-.nav-icon {
-  font-size: 1.2rem;
+.nav-icon-wrap {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.35s var(--spring-bounce);
 }
 
+.nav-item.active .nav-icon-wrap {
+  transform: translateY(-1px) scale(1.08);
+}
+
+/* أيقونات SVG */
+.nav-svg {
+  width: 24px;
+  height: 24px;
+  color: #f1f5f9;
+  transition: color 0.28s ease, filter 0.28s ease;
+}
+
+.nav-item.active .nav-svg {
+  color: #2aabee;
+  filter: drop-shadow(0 0 8px rgba(42, 171, 238, 0.55));
+}
+
+/* صورة البروفايل المصغرة داخل زر الحساب */
+.nav-avatar-img {
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.75);
+  transition: border-color 0.28s ease, box-shadow 0.28s ease;
+}
+
+.nav-item.active .nav-avatar-img {
+  border-color: #2aabee;
+  box-shadow: 0 0 12px rgba(42, 171, 238, 0.65);
+}
+
+/* نص القسم */
 .nav-text {
-  font-size: 0.72rem;
-  font-weight: 600;
+  font-size: 0.73rem;
+  font-weight: 700;
+  letter-spacing: 0.1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  color: #f1f5f9;
+  transition: color 0.28s ease;
+}
+
+.nav-item.active .nav-text {
+  color: #2aabee;
+}
+
+/* شارة الإشعارات الدائرية الزرقاء (مثل الرقم ١٠٤ في الصورة) */
+.nav-badge {
+  position: absolute;
+  top: -5px;
+  right: -10px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #38bdf8, #0284c7);
+  color: #ffffff;
+  font-size: 0.66rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #162033;
+  box-shadow: 0 3px 8px rgba(2, 132, 199, 0.55);
+  line-height: 1;
+}
+
+html[dir="rtl"] .nav-badge {
+  right: auto;
+  left: -10px;
 }
 
 /* Modal Sheet */
@@ -507,7 +631,7 @@ html[dir="rtl"] .btn-arrow {
 
 .lang-option-btn.selected {
   border-color: var(--accent-primary);
-  background: rgba(59, 130, 246, 0.16);
+  background: rgba(42, 171, 238, 0.16);
 }
 
 .lang-option-btn.coming-soon {
