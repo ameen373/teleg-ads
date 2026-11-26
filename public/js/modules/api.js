@@ -35,38 +35,33 @@ export class ApiService {
     });
   }
 
-  // Wallet Endpoints
-  getWalletSummary() {
-    return this.request("/wallet/summary");
+  // Wallet APIs
+  getWalletOverview() {
+    return this.request("/wallet/overview");
   }
 
-  saveWithdrawalAddress(address) {
+  saveWithdrawAddress(address) {
     return this.request("/wallet/address", {
       method: "POST",
       body: JSON.stringify({ address })
     });
   }
 
-  submitDeposit(payload) {
+  submitDeposit(amount, txid) {
     return this.request("/wallet/deposit", {
       method: "POST",
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ amount, txid })
     });
   }
 
-  submitWithdrawal(payload) {
+  submitWithdraw(amount, address) {
     return this.request("/wallet/withdraw", {
       method: "POST",
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ amount, address })
     });
   }
 
-  // Referrals Endpoint
-  getReferralSummary() {
-    return this.request("/referrals/summary");
-  }
-
-  // Channels Endpoints
+  // Channels APIs
   getChannels() {
     return this.request("/channels");
   }
@@ -78,7 +73,7 @@ export class ApiService {
     });
   }
 
-  // Campaigns Endpoints
+  // Campaigns APIs
   getCampaigns() {
     return this.request("/campaigns");
   }
@@ -90,13 +85,13 @@ export class ApiService {
     });
   }
 
-  completeCampaign(campaignId) {
-    return this.request(`/campaigns/${encodeURIComponent(campaignId)}/complete`, {
+  settleCampaign(campaignId) {
+    return this.request(`/campaigns/${campaignId}/settle`, {
       method: "POST"
     });
   }
 
-  // Support Endpoint
+  // Support
   sendSupportTicket(message) {
     return this.request("/support", {
       method: "POST",
@@ -104,26 +99,33 @@ export class ApiService {
     });
   }
 
-  // Admin Endpoints
+  // Admin APIs
   getAdminStats() {
     return this.request("/admin/stats");
   }
 
-  getAdminFinanceRequests() {
-    return this.request("/admin/finance/requests");
+  getAdminFinanceQueue() {
+    return this.request("/admin/finance-queue");
   }
 
-  reviewDepositRequest(depositId, action, note = "") {
-    return this.request(`/admin/deposits/${encodeURIComponent(depositId)}/decision`, {
+  reviewDeposit(depositId, action) {
+    return this.request(`/admin/deposits/${depositId}/review`, {
       method: "POST",
-      body: JSON.stringify({ action, note })
+      body: JSON.stringify({ action })
     });
   }
 
-  reviewWithdrawalRequest(withdrawalId, status, txHash = "", note = "") {
-    return this.request(`/admin/withdrawals/${encodeURIComponent(withdrawalId)}/decision`, {
+  reviewWithdrawal(withdrawalId, action, txHash = "") {
+    return this.request(`/admin/withdrawals/${withdrawalId}/review`, {
       method: "POST",
-      body: JSON.stringify({ status, txHash, note })
+      body: JSON.stringify({ action, txHash })
+    });
+  }
+
+  creditPublisherEarning(publisherId, amount, campaignTitle) {
+    return this.request("/admin/credit-publisher", {
+      method: "POST",
+      body: JSON.stringify({ publisherId, amount, campaignTitle })
     });
   }
 
