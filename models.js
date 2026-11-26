@@ -8,11 +8,7 @@ if (!admin.apps.length) {
     ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n")
     : undefined;
 
-  if (
-    process.env.FIREBASE_PROJECT_ID &&
-    process.env.FIREBASE_CLIENT_EMAIL &&
-    privateKey
-  ) {
+  if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && privateKey) {
     admin.initializeApp({
       credential: admin.credential.cert({
         projectId: process.env.FIREBASE_PROJECT_ID,
@@ -26,8 +22,6 @@ if (!admin.apps.length) {
 }
 
 export const db = admin.firestore();
-export const FieldValue = admin.firestore.FieldValue;
-export const Timestamp = admin.firestore.Timestamp;
 
 export const Collections = {
   USERS: "users",
@@ -35,1003 +29,405 @@ export const Collections = {
   CAMPAIGNS: "campaigns",
   TICKETS: "support_tickets",
   AUDIT_LOGS: "security_audit_logs",
-  TRANSACTIONS: "transactions",
-  DEPOSITS: "deposits",
-  WITHDRAWALS: "withdrawals",
-  REFERRALS: "referrals",
-  PENDING_RELEASES: "pending_releases"
+  DEPOSITS: "wallet_deposits",
+  WITHDRAWALS: "wallet_withdrawals",
+  TRANSACTIONS: "wallet_transactions",
+  PENDING_RELEASES: "wallet_pending_releases"
 };
-
-export const COLLECTIONS = Collections;
 
 export const WALLET_CONSTANTS = {
+  MIN_DEPOSIT: 10.0,
   MIN_WITHDRAWAL: 30.0,
   WITHDRAWAL_FEE: 3.0,
-  WITHDRAWAL_NETWORK: "USDT - TRC20",
-  MIN_DEPOSIT: 10.0,
   DEPOSIT_NETWORK: "USDT - BEP20",
-  DEPOSIT_ADDRESS:
-    process.env.DEPOSIT_ADDRESS_BEP20 ||
-    "0xf9278f55585a0e6e35f12299493134056f2f19b0",
-  REFERRAL_COMMISSION_RATE: 0.1,
-  RELEASE_DELAY_MS: 24 * 60 * 60 * 1000
+  DEPOSIT_ADDRESS: "0xf9278f55585a0e6e35f12299493134056f2f19b0",
+  WITHDRAWAL_NETWORK: "USDT - TRC20",
+  RELEASE_HOLD_MS: 24 * 60 * 60 * 1000, // 24 ساعة
+  REFERRAL_COMMISSION_RATE: 0.10 // 10% من أرباح الناشرين المدعوين فقط
 };
 
-export function roundMoney(value) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return 0;
-  return Number(num.toFixed(2));
+function roundMoney(value) {
+  return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 }
 
-export function isValidTrc20Address(address) {
-  if (typeof address !== "string") return false;
-  const trimmed = address.trim();
-  return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(trimmed);
-}
-
-function generateReferralCode(userId) {
-  const cleanId = String(userId)
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "")
-    .slice(0, 6);
-  const suffix = Math.floor(100 + Math.random() * 900);
-  return `REF-${cleanId || "USER"}-${suffix}`;
-}
-
-function isAdminUserId(userId) {
-  const normalizedId = String(userId);
-  const adminIds = [
-    process.env.ADMIN_TELEGRAM_ID,
-    process.env.ADMIN_USER_ID,
-    "admin_1"
-  ]
-    .filter(Boolean)
-    .map(String);
-
-  return adminIds.includes(normalizedId);
-}
-
-function buildNormalizedUserDefaults(userId, existing = {}) {
-  const id = String(userId);
-  const availableBalance = roundMoney(
-    typeof existing.availableBalance === "number"
-      ? existing.availableBalance
-      : existing.balance || 0
-  );
-  const referralEarningsAvailable = roundMoney(
-    typeof existing.referralEarningsAvailable === "number"
-      ? existing.referralEarningsAvailable
-      : existing.referralEarnings || 0
-  );
-
-  return {
-    userId: id,
-    telegramId: existing.telegramId ? String(existing.telegramId) : id,
-    username: typeof existing.username === "string" ? existing.username : "",
-    firstName: typeof existing.firstName === "string" ? existing.firstName : "",
-    lastName: typeof existing.lastName === "string" ? existing.lastName : "",
-    languageCode:
-      typeof existing.languageCode === "string" && existing.languageCode
-        ? existing.languageCode
-        : "en",
-    balance: availableBalance,
-    availableBalance,
-    pendingEarnings: roundMoney(existing.pendingEarnings || 0),
-    totalSpent: roundMoney(existing.totalSpent || 0),
-    totalEarned: roundMoney(existing.totalEarned || 0),
-    referralEarnings: referralEarningsAvailable,
-    referralEarningsAvailable,
-    referralEarningsPending: roundMoney(existing.referralEarningsPending || 0),
-    trc20Address:
-      typeof existing.trc20Address === "string" ? existing.trc20Address : "",
-    referralCode:
-      typeof existing.referralCode === "string" && existing.referralCode
-        ? existing.referralCode
-        : generateReferralCode(id),
-    referredBy: existing.referredBy ? String(existing.referredBy) : null,
-    referralsCount:
-      typeof existing.referralsCount === "number" ? existing.referralsCount : 0,
-    isAdmin:
-      typeof existing.isAdmin === "boolean"
-        ? existing.isAdmin || isAdminUserId(id)
-        : isAdminUserId(id)
+/**
+ * تسجيل معاملة مالية في سجل المعاملات الموحد
+ */
+export async function recordTransaction(txOrDb, payload) {
+  const docRef = db.collection(Collections.TRANSACTIONS).doc();
+  const data = {
+    userId: String(payload.userId),
+    type: payload.type, // deposit | withdrawal | campaign_spend | campaign_refund | publisher_earning | referral_earning | earning_released
+    amount: roundMoney(payload.amount),
+    direction: payload.direction || "in", // in | out | hold
+    status: payload.status || "completed",
+    title: payload.title || "",
+    meta: payload.meta || {},
+    createdAt: new Date().toISOString()
   };
+
+  if (txOrDb && typeof txOrDb.set === "function") {
+    txOrDb.set(docRef, data);
+  } else {
+    await docRef.set(data);
+  }
+  return { id: docRef.id, ...data };
 }
 
-export async function logSecurityEvent(eventType, details = {}) {
+/**
+ * فك رمز الإحالة إن وُجد واستخراج معرف المحيل
+ */
+function decodeReferrerId(startParam, currentUserId) {
+  if (!startParam || typeof startParam !== "string") return null;
+  const trimmed = startParam.trim();
+  if (!trimmed.startsWith("ref_")) return null;
+  const encoded = trimmed.slice(4);
+  if (!encoded) return null;
+
   try {
-    await db.collection(Collections.AUDIT_LOGS).add({
-      eventType: String(eventType),
-      details,
-      timestamp: FieldValue.serverTimestamp()
-    });
-  } catch (error) {
-    console.error("[Audit Log Error]:", error);
+    const padded = encoded + "=".repeat((4 - (encoded.length % 4)) % 4);
+    const decoded = Buffer.from(padded, "base64").toString("utf8").trim();
+    if (/^\d+$/.test(decoded) && decoded !== String(currentUserId)) {
+      return decoded;
+    }
+    return null;
+  } catch {
+    return null;
   }
 }
 
-export async function upsertTelegramUser(tgUser) {
+export async function upsertTelegramUser(tgUser, startParam = "") {
   try {
-    if (!tgUser || !tgUser.id) {
-      throw new Error("Invalid Telegram user payload");
-    }
-
     const userId = String(tgUser.id);
     const userRef = db.collection(Collections.USERS).doc(userId);
     const snapshot = await userRef.get();
-    const now = FieldValue.serverTimestamp();
+    const now = admin.firestore.FieldValue.serverTimestamp();
 
-    const profilePatch = {
+    const basePayload = {
       telegramId: userId,
-      username: tgUser.username ? String(tgUser.username) : "",
-      firstName: tgUser.first_name ? String(tgUser.first_name) : "",
-      lastName: tgUser.last_name ? String(tgUser.last_name) : "",
-      languageCode: tgUser.language_code ? String(tgUser.language_code) : "en",
+      username: tgUser.username || "",
+      firstName: tgUser.first_name || "",
+      lastName: tgUser.last_name || "",
+      languageCode: tgUser.language_code || "en",
       updatedAt: now
     };
 
     if (!snapshot.exists) {
-      const defaults = buildNormalizedUserDefaults(userId, profilePatch);
-      const initialData = {
-        ...defaults,
+      let referredBy = null;
+      const candidateRef = decodeReferrerId(startParam, userId);
+      if (candidateRef) {
+        const refUserSnap = await db.collection(Collections.USERS).doc(candidateRef).get();
+        if (refUserSnap.exists) {
+          referredBy = candidateRef;
+        }
+      }
+
+      await userRef.set({
+        ...basePayload,
+        balance: 0,
+        pendingBalance: 0,
+        totalSpent: 0,
+        totalEarned: 0,
+        referralEarnings: 0,
+        pendingReferralEarnings: 0,
+        referredBy,
+        trc20Wallet: "",
         createdAt: now
-      };
-      await userRef.set(initialData);
-      return { ...initialData, ...profilePatch };
+      });
+
+      if (referredBy) {
+        await db.collection(Collections.USERS).doc(referredBy).set(
+          {
+            referralsCount: admin.firestore.FieldValue.increment(1)
+          },
+          { merge: true }
+        );
+      }
+    } else {
+      const existingData = snapshot.data() || {};
+      const updates = { ...basePayload };
+      if (typeof existingData.balance !== "number") updates.balance = 0;
+      if (typeof existingData.pendingBalance !== "number") updates.pendingBalance = 0;
+      if (typeof existingData.totalSpent !== "number") updates.totalSpent = 0;
+      if (typeof existingData.totalEarned !== "number") updates.totalEarned = 0;
+      if (typeof existingData.referralEarnings !== "number") updates.referralEarnings = 0;
+      if (typeof existingData.pendingReferralEarnings !== "number") updates.pendingReferralEarnings = 0;
+      if (typeof existingData.trc20Wallet !== "string") updates.trc20Wallet = "";
+
+      await userRef.update(updates);
     }
 
-    const existing = snapshot.data() || {};
-    const normalized = buildNormalizedUserDefaults(userId, {
-      ...existing,
-      ...profilePatch
-    });
-
-    await userRef.set(
-      {
-        ...normalized,
-        updatedAt: now
-      },
-      { merge: true }
-    );
-
-    return { ...existing, ...normalized };
+    return basePayload;
   } catch (error) {
     console.error("[Firestore upsertTelegramUser Error]:", error);
     throw error;
   }
 }
 
-export async function ensureUserDocument(userId, referralCodeInput = null) {
-  try {
-    const normalizedId = String(userId);
-    const userRef = db.collection(Collections.USERS).doc(normalizedId);
-    const doc = await userRef.get();
+/**
+ * تحرير الأرباح المعلقة (أرباح الناشر وأرباح الإحالة) التي مرّ عليها 24 ساعة تلقائياً وبشكل ذري
+ */
+export async function processMatureEarnings(userId) {
+  const uid = String(userId);
+  const nowIso = new Date().toISOString();
 
-    if (!doc.exists) {
-      let validReferrerId = null;
+  const dueSnap = await db
+    .collection(Collections.PENDING_RELEASES)
+    .where("userId", "==", uid)
+    .where("status", "==", "pending")
+    .get();
 
-      if (referralCodeInput && typeof referralCodeInput === "string") {
-        const cleanRefCode = referralCodeInput.trim();
-        if (cleanRefCode) {
-          const refQuery = await db
-            .collection(Collections.USERS)
-            .where("referralCode", "==", cleanRefCode)
-            .limit(1)
-            .get();
+  const matureDocs = dueSnap.docs.filter((doc) => {
+    const data = doc.data();
+    return data.releaseAt && data.releaseAt <= nowIso;
+  });
 
-          if (!refQuery.empty && refQuery.docs[0].id !== normalizedId) {
-            validReferrerId = refQuery.docs[0].id;
-          }
-        }
+  if (matureDocs.length === 0) return 0;
+
+  let totalReleased = 0;
+
+  await db.runTransaction(async (tx) => {
+    const userRef = db.collection(Collections.USERS).doc(uid);
+    const userSnap = await tx.get(userRef);
+    if (!userSnap.exists) return;
+
+    const userData = userSnap.data() || {};
+    let currentBalance = roundMoney(userData.balance || 0);
+    let currentPending = roundMoney(userData.pendingBalance || 0);
+    let currentPendingRef = roundMoney(userData.pendingReferralEarnings || 0);
+    let currentRefEarned = roundMoney(userData.referralEarnings || 0);
+    let currentTotalEarned = roundMoney(userData.totalEarned || 0);
+
+    for (const docSnap of matureDocs) {
+      const freshDoc = await tx.get(docSnap.ref);
+      if (!freshDoc.exists) continue;
+      const item = freshDoc.data();
+      if (item.status !== "pending") continue;
+
+      const amt = roundMoney(item.amount || 0);
+      if (amt <= 0) {
+        tx.update(docSnap.ref, { status: "released", releasedAt: nowIso });
+        continue;
       }
 
-      const now = Timestamp.now();
-      const initialData = {
-        ...buildNormalizedUserDefaults(normalizedId, {
-          referredBy: validReferrerId
-        }),
-        createdAt: now,
-        updatedAt: now
-      };
+      currentBalance = roundMoney(currentBalance + amt);
+      currentPending = Math.max(0, roundMoney(currentPending - amt));
+      totalReleased = roundMoney(totalReleased + amt);
 
-      await userRef.set(initialData);
-
-      if (validReferrerId) {
-        const referrerRef = db.collection(Collections.USERS).doc(validReferrerId);
-        await referrerRef.set(
-          {
-            referralsCount: FieldValue.increment(1),
-            updatedAt: FieldValue.serverTimestamp()
-          },
-          { merge: true }
-        );
+      if (item.source === "referral") {
+        currentPendingRef = Math.max(0, roundMoney(currentPendingRef - amt));
+        currentRefEarned = roundMoney(currentRefEarned + amt);
+      } else {
+        currentTotalEarned = roundMoney(currentTotalEarned + amt);
       }
 
-      return initialData;
-    }
+      tx.update(docSnap.ref, {
+        status: "released",
+        releasedAt: nowIso
+      });
 
-    const existing = doc.data() || {};
-    const normalized = buildNormalizedUserDefaults(normalizedId, existing);
-
-    if (
-      existing.balance !== normalized.balance ||
-      existing.availableBalance !== normalized.availableBalance ||
-      existing.referralEarnings !== normalized.referralEarnings ||
-      existing.referralEarningsAvailable !== normalized.referralEarningsAvailable ||
-      !existing.referralCode ||
-      typeof existing.isAdmin !== "boolean"
-    ) {
-      await userRef.set(
-        {
-          ...normalized,
-          updatedAt: FieldValue.serverTimestamp()
-        },
-        { merge: true }
-      );
-    }
-
-    return { ...existing, ...normalized };
-  } catch (error) {
-    console.error("[Firestore ensureUserDocument Error]:", error);
-    throw new Error(`Database user initialization error: ${error.message}`);
-  }
-}
-
-export async function process24HourReleases(userId) {
-  try {
-    const normalizedId = String(userId);
-    const now = Timestamp.now();
-
-    const pendingQuery = await db
-      .collection(Collections.PENDING_RELEASES)
-      .where("userId", "==", normalizedId)
-      .where("status", "==", "pending")
-      .where("releaseAt", "<=", now)
-      .get();
-
-    if (pendingQuery.empty) {
-      return { releasedCount: 0, releasedAmount: 0 };
-    }
-
-    let releasedCount = 0;
-    let totalReleasedAmount = 0;
-
-    for (const releaseDoc of pendingQuery.docs) {
-      const releaseData = releaseDoc.data() || {};
-
-      await db.runTransaction(async (transaction) => {
-        const freshRelease = await transaction.get(releaseDoc.ref);
-        if (!freshRelease.exists) return;
-
-        const freshData = freshRelease.data() || {};
-        if (freshData.status !== "pending") return;
-
-        const userRef = db.collection(Collections.USERS).doc(normalizedId);
-        const userSnap = await transaction.get(userRef);
-        if (!userSnap.exists) return;
-
-        const amount = roundMoney(freshData.amount);
-        if (amount <= 0) {
-          transaction.update(releaseDoc.ref, {
-            status: "skipped",
-            releasedAt: Timestamp.now()
-          });
-          return;
-        }
-
-        const isReferral = freshData.type === "referral_commission";
-
-        const updates = {
-          availableBalance: FieldValue.increment(amount),
-          balance: FieldValue.increment(amount),
-          updatedAt: FieldValue.serverTimestamp()
-        };
-
-        if (isReferral) {
-          updates.referralEarningsPending = FieldValue.increment(-amount);
-          updates.referralEarningsAvailable = FieldValue.increment(amount);
-          updates.referralEarnings = FieldValue.increment(amount);
-        } else {
-          updates.pendingEarnings = FieldValue.increment(-amount);
-          updates.totalEarned = FieldValue.increment(amount);
-        }
-
-        transaction.update(userRef, updates);
-        transaction.update(releaseDoc.ref, {
-          status: "released",
-          releasedAt: Timestamp.now()
-        });
-
-        const txRef = db.collection(Collections.TRANSACTIONS).doc();
-        transaction.set(txRef, {
-          userId: normalizedId,
-          type: isReferral ? "referral_released" : "earning_released",
-          amount,
-          status: "completed",
-          description: isReferral
-            ? "تحرير عمولة إحالة بعد 24 ساعة"
-            : "تحرير أرباح ناشر بعد 24 ساعة",
-          createdAt: Timestamp.now()
-        });
-
-        releasedCount += 1;
-        totalReleasedAmount = roundMoney(totalReleasedAmount + amount);
+      recordTransaction(tx, {
+        userId: uid,
+        type: item.source === "referral" ? "referral_earning" : "earning_released",
+        amount: amt,
+        direction: "in",
+        status: "completed",
+        title:
+          item.source === "referral"
+            ? "Referral Commission Released (24h)"
+            : "Publisher Earnings Released (24h)",
+        meta: { releaseId: docSnap.id, source: item.source || "publisher" }
       });
     }
 
-    return { releasedCount, releasedAmount: totalReleasedAmount };
-  } catch (error) {
-    console.error("[Firestore process24HourReleases Error]:", error);
-    throw new Error(`24h release processing failed: ${error.message}`);
-  }
-}
-
-export async function recordPublisherEarningWithReferral(
-  publisherId,
-  grossAmount,
-  campaignId = null
-) {
-  try {
-    const normalizedPublisherId = String(publisherId);
-    const amount = roundMoney(grossAmount);
-    if (amount <= 0) {
-      throw new Error("Invalid earning amount");
-    }
-
-    const releaseAt = Timestamp.fromMillis(
-      Date.now() + WALLET_CONSTANTS.RELEASE_DELAY_MS
-    );
-    const publisherRef = db.collection(Collections.USERS).doc(normalizedPublisherId);
-    const publisherSnap = await publisherRef.get();
-
-    if (!publisherSnap.exists) {
-      throw new Error("Publisher not found");
-    }
-
-    const publisherData = publisherSnap.data() || {};
-    const referrerId = publisherData.referredBy
-      ? String(publisherData.referredBy)
-      : null;
-
-    await db.runTransaction(async (transaction) => {
-      const freshPubSnap = await transaction.get(publisherRef);
-      if (!freshPubSnap.exists) {
-        throw new Error("Publisher not found");
-      }
-
-      transaction.update(publisherRef, {
-        pendingEarnings: FieldValue.increment(amount),
-        updatedAt: FieldValue.serverTimestamp()
-      });
-
-      const now = Timestamp.now();
-      const pubReleaseRef = db.collection(Collections.PENDING_RELEASES).doc();
-      transaction.set(pubReleaseRef, {
-        userId: normalizedPublisherId,
-        type: "publisher_earning",
-        amount,
-        campaignId: campaignId ? String(campaignId) : null,
-        status: "pending",
-        createdAt: now,
-        releaseAt
-      });
-
-      const pubTxRef = db.collection(Collections.TRANSACTIONS).doc();
-      transaction.set(pubTxRef, {
-        userId: normalizedPublisherId,
-        type: "earning_pending",
-        amount,
-        campaignId: campaignId ? String(campaignId) : null,
-        status: "pending_24h",
-        description: "أرباح نشر إعلان (تُحرر خلال 24 ساعة)",
-        createdAt: now
-      });
-
-      if (referrerId && referrerId !== normalizedPublisherId) {
-        const commission = roundMoney(
-          amount * WALLET_CONSTANTS.REFERRAL_COMMISSION_RATE
-        );
-
-        if (commission > 0) {
-          const referrerRef = db.collection(Collections.USERS).doc(referrerId);
-          const referrerSnap = await transaction.get(referrerRef);
-
-          if (referrerSnap.exists) {
-            transaction.update(referrerRef, {
-              referralEarningsPending: FieldValue.increment(commission),
-              updatedAt: FieldValue.serverTimestamp()
-            });
-
-            const refReleaseRef = db.collection(Collections.PENDING_RELEASES).doc();
-            transaction.set(refReleaseRef, {
-              userId: referrerId,
-              fromUserId: normalizedPublisherId,
-              type: "referral_commission",
-              amount: commission,
-              campaignId: campaignId ? String(campaignId) : null,
-              status: "pending",
-              createdAt: now,
-              releaseAt
-            });
-
-            const refLogRef = db.collection(Collections.REFERRALS).doc();
-            transaction.set(refLogRef, {
-              referrerId,
-              referredUserId: normalizedPublisherId,
-              publisherEarning: amount,
-              commissionAmount: commission,
-              campaignId: campaignId ? String(campaignId) : null,
-              status: "pending_24h",
-              releaseAt,
-              createdAt: now
-            });
-
-            const refTxRef = db.collection(Collections.TRANSACTIONS).doc();
-            transaction.set(refTxRef, {
-              userId: referrerId,
-              type: "referral_pending",
-              amount: commission,
-              fromUserId: normalizedPublisherId,
-              campaignId: campaignId ? String(campaignId) : null,
-              status: "pending_24h",
-              description: `عمولة إحالة 10% من أرباح الناشر ${normalizedPublisherId} (تُحرر خلال 24 ساعة)`,
-              createdAt: now
-            });
-          }
-        }
-      }
+    tx.update(userRef, {
+      balance: currentBalance,
+      pendingBalance: currentPending,
+      pendingReferralEarnings: currentPendingRef,
+      referralEarnings: currentRefEarned,
+      totalEarned: currentTotalEarned
     });
+  });
 
-    return {
-      success: true,
+  return totalReleased;
+}
+
+/**
+ * تسجيل أرباح ناشر جديدة (تُحتجز 24 ساعة) + احتساب 10% عمولة إحالة للمحيل (إن وُجد) تُحتجز 24 ساعة أيضاً
+ * ملاحظة: هذه الدالة مخصصة لأرباح الناشرين فقط، ولا تُستدعى إطلاقاً عند الإيداع.
+ */
+export async function creditPublisherEarningWithHold(publisherId, grossAmount, meta = {}) {
+  const pubId = String(publisherId);
+  const amount = roundMoney(grossAmount);
+  if (amount <= 0) return { credited: 0, referralCommission: 0 };
+
+  const now = Date.now();
+  const createdAt = new Date(now).toISOString();
+  const releaseAt = new Date(now + WALLET_CONSTANTS.RELEASE_HOLD_MS).toISOString();
+
+  let referralCommission = 0;
+
+  await db.runTransaction(async (tx) => {
+    const pubRef = db.collection(Collections.USERS).doc(pubId);
+    const pubSnap = await tx.get(pubRef);
+    if (!pubSnap.exists) throw new Error("Publisher account not found");
+
+    const pubData = pubSnap.data() || {};
+    const referrerId = pubData.referredBy ? String(pubData.referredBy) : null;
+
+    let refSnap = null;
+    let refRef = null;
+    if (referrerId && referrerId !== pubId) {
+      refRef = db.collection(Collections.USERS).doc(referrerId);
+      refSnap = await tx.get(refRef);
+    }
+
+    // 1. إضافة أرباح الناشر إلى الرصيد المعلق لمدة 24 ساعة
+    const newPubPending = roundMoney((pubData.pendingBalance || 0) + amount);
+    tx.update(pubRef, { pendingBalance: newPubPending });
+
+    const pubHoldRef = db.collection(Collections.PENDING_RELEASES).doc();
+    tx.set(pubHoldRef, {
+      userId: pubId,
+      source: "publisher",
       amount,
-      releaseAt: releaseAt.toDate()
-    };
-  } catch (error) {
-    console.error("[Firestore recordPublisherEarningWithReferral Error]:", error);
-    throw new Error(`Earning recording failed: ${error.message}`);
-  }
-}
-
-export async function settleCampaignBudgetAtomically(campaignId) {
-  try {
-    const campaignRef = db
-      .collection(Collections.CAMPAIGNS)
-      .doc(String(campaignId));
-
-    const result = await db.runTransaction(async (transaction) => {
-      const campaignSnap = await transaction.get(campaignRef);
-      if (!campaignSnap.exists) {
-        throw new Error("الحملة غير موجودة");
-      }
-
-      const campaign = campaignSnap.data() || {};
-      if (campaign.status === "settled" || campaign.isSettled === true) {
-        throw new Error("تمت تسوية ميزانية هذه الحملة مسبقاً");
-      }
-
-      const totalBudget = roundMoney(campaign.totalBudget ?? campaign.budget ?? 0);
-      const spentBudget = roundMoney(campaign.spentBudget || 0);
-      const remainingBudget = roundMoney(Math.max(0, totalBudget - spentBudget));
-
-      const advertiserId = String(campaign.advertiserId);
-      const advertiserRef = db.collection(Collections.USERS).doc(advertiserId);
-      const advertiserSnap = await transaction.get(advertiserRef);
-      if (!advertiserSnap.exists) {
-        throw new Error("حساب المعلن غير موجود");
-      }
-
-      const now = Timestamp.now();
-
-      transaction.update(campaignRef, {
-        status: "settled",
-        isSettled: true,
-        remainingRefunded: remainingBudget,
-        settledAt: now,
-        updatedAt: FieldValue.serverTimestamp()
-      });
-
-      if (remainingBudget > 0) {
-        transaction.update(advertiserRef, {
-          availableBalance: FieldValue.increment(remainingBudget),
-          balance: FieldValue.increment(remainingBudget),
-          totalSpent: FieldValue.increment(-remainingBudget),
-          updatedAt: FieldValue.serverTimestamp()
-        });
-
-        const txRef = db.collection(Collections.TRANSACTIONS).doc();
-        transaction.set(txRef, {
-          userId: advertiserId,
-          type: "campaign_refund",
-          amount: remainingBudget,
-          campaignId: String(campaignId),
-          status: "completed",
-          description: `تسوية آلية: استرداد الميزانية المتبقية من الحملة (${campaign.title || campaignId})`,
-          createdAt: now
-        });
-      }
-
-      return {
-        campaignId: String(campaignId),
-        advertiserId,
-        totalBudget,
-        spentBudget,
-        refundedAmount: remainingBudget
-      };
+      status: "pending",
+      meta,
+      createdAt,
+      releaseAt
     });
 
-    return result;
-  } catch (error) {
-    console.error("[Firestore settleCampaignBudgetAtomically Error]:", error);
-    throw new Error(`Atomic settlement failed: ${error.message}`);
-  }
+    recordTransaction(tx, {
+      userId: pubId,
+      type: "publisher_earning",
+      amount,
+      direction: "hold",
+      status: "pending_24h",
+      title: "Publisher Ad Revenue (24h Hold)",
+      meta: { ...meta, releaseAt }
+    });
+
+    // 2. احتساب 10% عمولة إحالة من أرباح الناشر فقط (تُحتجز 24 ساعة أيضاً)
+    if (refSnap && refSnap.exists) {
+      referralCommission = roundMoney(amount * WALLET_CONSTANTS.REFERRAL_COMMISSION_RATE);
+      if (referralCommission > 0) {
+        const refData = refSnap.data() || {};
+        tx.update(refRef, {
+          pendingBalance: roundMoney((refData.pendingBalance || 0) + referralCommission),
+          pendingReferralEarnings: roundMoney((refData.pendingReferralEarnings || 0) + referralCommission)
+        });
+
+        const refHoldRef = db.collection(Collections.PENDING_RELEASES).doc();
+        tx.set(refHoldRef, {
+          userId: referrerId,
+          source: "referral",
+          fromPublisherId: pubId,
+          amount: referralCommission,
+          status: "pending",
+          meta,
+          createdAt,
+          releaseAt
+        });
+
+        recordTransaction(tx, {
+          userId: referrerId,
+          type: "referral_earning",
+          amount: referralCommission,
+          direction: "hold",
+          status: "pending_24h",
+          title: "10% Publisher Referral Commission (24h Hold)",
+          meta: { fromPublisherId: pubId, releaseAt }
+        });
+      }
+    }
+  });
+
+  return { credited: amount, referralCommission };
 }
 
-export async function getWalletSummary(
-  userId,
-  { runReleaseCheck = true, ensureDoc = true } = {}
-) {
-  try {
-    const normalizedId = String(userId);
-    if (ensureDoc) {
-      await ensureUserDocument(normalizedId);
-    }
-    if (runReleaseCheck) {
-      await process24HourReleases(normalizedId);
+/**
+ * تسوية الميزانية الآلية (Atomic Transaction) عند انتهاء الحملة الإعلانية:
+ * تُحسب الميزانية المتبقية وتُعاد فوراً إلى رصيد المعلن المتاح.
+ */
+export async function settleCampaignBudgetAtomically(campaignId, requesterId, isOwner = false) {
+  const campRef = db.collection(Collections.CAMPAIGNS).doc(String(campaignId));
+
+  return await db.runTransaction(async (tx) => {
+    const campSnap = await tx.get(campRef);
+    if (!campSnap.exists) {
+      throw new Error("Campaign not found");
     }
 
-    const userSnap = await db.collection(Collections.USERS).doc(normalizedId).get();
+    const camp = campSnap.data() || {};
+    const advertiserId = String(camp.advertiserId);
+
+    if (!isOwner && advertiserId !== String(requesterId)) {
+      throw new Error("Unauthorized campaign access");
+    }
+
+    if (camp.status === "Completed" || camp.settled === true) {
+      throw new Error("Campaign already settled");
+    }
+
+    const totalBudget = roundMoney(camp.budget || 0);
+    const spentBudget = roundMoney(camp.spent || 0);
+    const remainingBudget = Math.max(0, roundMoney(totalBudget - spentBudget));
+
+    const userRef = db.collection(Collections.USERS).doc(advertiserId);
+    const userSnap = await tx.get(userRef);
     if (!userSnap.exists) {
-      throw new Error("حساب المستخدم غير موجود");
+      throw new Error("Advertiser account not found");
     }
 
     const userData = userSnap.data() || {};
-    const availableBalance = roundMoney(
-      typeof userData.availableBalance === "number"
-        ? userData.availableBalance
-        : userData.balance || 0
-    );
-    const pendingEarnings = roundMoney(userData.pendingEarnings || 0);
-    const referralEarningsAvailable = roundMoney(
-      typeof userData.referralEarningsAvailable === "number"
-        ? userData.referralEarningsAvailable
-        : userData.referralEarnings || 0
-    );
-    const referralEarningsPending = roundMoney(
-      userData.referralEarningsPending || 0
-    );
-    const totalEarned = roundMoney(userData.totalEarned || 0);
-    const totalSpent = roundMoney(userData.totalSpent || 0);
+    const updatedBalance = roundMoney((userData.balance || 0) + remainingBudget);
 
-    return {
-      userId: normalizedId,
-      availableBalance,
-      pendingEarnings,
-      referralEarningsAvailable,
-      referralEarningsPending,
-      totalEarned,
-      totalSpent,
-      trc20Address: userData.trc20Address || "",
-      referralCode: userData.referralCode || "",
-      referredBy: userData.referredBy || null,
-      referralsCount: Number(userData.referralsCount || 0),
-      walletConfig: {
-        minWithdrawal: WALLET_CONSTANTS.MIN_WITHDRAWAL,
-        withdrawalFee: WALLET_CONSTANTS.WITHDRAWAL_FEE,
-        withdrawalNetwork: WALLET_CONSTANTS.WITHDRAWAL_NETWORK,
-        minDeposit: WALLET_CONSTANTS.MIN_DEPOSIT,
-        depositNetwork: WALLET_CONSTANTS.DEPOSIT_NETWORK,
-        depositAddress: WALLET_CONSTANTS.DEPOSIT_ADDRESS,
-        referralCommissionRate: WALLET_CONSTANTS.REFERRAL_COMMISSION_RATE
-      }
-    };
-  } catch (error) {
-    console.error("[Firestore getWalletSummary Error]:", error);
-    throw new Error(`تعذر جلب ملخص المحفظة: ${error.message}`);
-  }
-}
-
-export async function updateUserTrc20Address(userId, trc20Address) {
-  try {
-    const normalizedId = String(userId);
-    const cleanedAddress =
-      typeof trc20Address === "string" ? trc20Address.trim() : "";
-
-    if (!isValidTrc20Address(cleanedAddress)) {
-      throw new Error("عنوان محفظة USDT - TRC20 غير صالح");
-    }
-
-    await ensureUserDocument(normalizedId);
-    const userRef = db.collection(Collections.USERS).doc(normalizedId);
-
-    await userRef.update({
-      trc20Address: cleanedAddress,
-      updatedAt: FieldValue.serverTimestamp()
+    tx.update(campRef, {
+      status: "Completed",
+      settled: true,
+      refundedAmount: remainingBudget,
+      completedAt: new Date().toISOString()
     });
 
-    await logSecurityEvent("TRC20_ADDRESS_UPDATED", {
-      userId: normalizedId,
-      trc20Address: cleanedAddress
-    });
-
-    return {
-      success: true,
-      userId: normalizedId,
-      trc20Address: cleanedAddress,
-      network: WALLET_CONSTANTS.WITHDRAWAL_NETWORK
-    };
-  } catch (error) {
-    console.error("[Firestore updateUserTrc20Address Error]:", error);
-    throw new Error(`تعذر تحديث عنوان السحب: ${error.message}`);
-  }
-}
-
-export async function recordDepositRequest(
-  userId,
-  amount,
-  txHash = "",
-  adminNote = ""
-) {
-  try {
-    const normalizedId = String(userId);
-    const depositAmount = roundMoney(amount);
-
-    if (depositAmount < WALLET_CONSTANTS.MIN_DEPOSIT) {
-      throw new Error(
-        `الحد الأدنى للإيداع هو ${WALLET_CONSTANTS.MIN_DEPOSIT.toFixed(2)} USDT عبر شبكة ${WALLET_CONSTANTS.DEPOSIT_NETWORK}`
-      );
-    }
-
-    const cleanHash = typeof txHash === "string" ? txHash.trim() : "";
-    if (!cleanHash || cleanHash.length < 16) {
-      throw new Error("رقم المعاملة (TXID) غير صالح");
-    }
-
-    await ensureUserDocument(normalizedId);
-
-    const existingByTxid = await db
-      .collection(Collections.DEPOSITS)
-      .where("txid", "==", cleanHash)
-      .limit(1)
-      .get();
-
-    if (!existingByTxid.empty) {
-      const err = new Error("رقم المعاملة (TXID) هذا مسجل مسبقاً في النظام");
-      err.code = "DUPLICATE_TXID";
-      throw err;
-    }
-
-    const existingByTxHash = await db
-      .collection(Collections.DEPOSITS)
-      .where("txHash", "==", cleanHash)
-      .limit(1)
-      .get();
-
-    if (!existingByTxHash.empty) {
-      const err = new Error("رقم المعاملة (TXID) هذا مسجل مسبقاً في النظام");
-      err.code = "DUPLICATE_TXID";
-      throw err;
-    }
-
-    const depositRef = db.collection(Collections.DEPOSITS).doc();
-    const txRef = db.collection(Collections.TRANSACTIONS).doc();
-    const now = Timestamp.now();
-
-    const depositRecord = {
-      depositId: depositRef.id,
-      userId: normalizedId,
-      amount: depositAmount,
-      network: WALLET_CONSTANTS.DEPOSIT_NETWORK,
-      depositAddress: WALLET_CONSTANTS.DEPOSIT_ADDRESS,
-      txid: cleanHash,
-      txHash: cleanHash,
-      adminNote: adminNote ? String(adminNote).trim() : "",
-      status: "pending",
-      createdAt: now
-    };
-
-    await db.runTransaction(async (transaction) => {
-      transaction.set(depositRef, depositRecord);
-      transaction.set(txRef, {
-        userId: normalizedId,
-        type: "deposit_request",
-        amount: depositAmount,
-        network: WALLET_CONSTANTS.DEPOSIT_NETWORK,
-        depositId: depositRef.id,
-        txid: cleanHash,
-        txHash: cleanHash,
-        status: "pending",
-        description: `طلب إيداع ${depositAmount.toFixed(2)} USDT عبر ${WALLET_CONSTANTS.DEPOSIT_NETWORK}`,
-        createdAt: now
-      });
-    });
-
-    await logSecurityEvent("DEPOSIT_REQUEST_CREATED", {
-      userId: normalizedId,
-      depositId: depositRef.id,
-      amount: depositAmount,
-      network: WALLET_CONSTANTS.DEPOSIT_NETWORK
-    });
-
-    return {
-      success: true,
-      deposit: depositRecord
-    };
-  } catch (error) {
-    console.error("[Firestore recordDepositRequest Error]:", error);
-    if (error.code === "DUPLICATE_TXID") {
-      throw error;
-    }
-    throw new Error(`تعذر تسجيل طلب الإيداع: ${error.message}`);
-  }
-}
-
-export async function confirmDepositAtomically(depositId, adminId = null) {
-  try {
-    const depositRef = db.collection(Collections.DEPOSITS).doc(String(depositId));
-
-    const result = await db.runTransaction(async (transaction) => {
-      const depositSnap = await transaction.get(depositRef);
-      if (!depositSnap.exists) {
-        throw new Error("طلب الإيداع غير موجود");
-      }
-
-      const deposit = depositSnap.data() || {};
-      if (deposit.status === "completed" || deposit.status === "approved") {
-        throw new Error("تم تأكيد طلب الإيداع مسبقاً");
-      }
-
-      const userId = String(deposit.userId);
-      const amount = roundMoney(deposit.amount);
-      if (amount <= 0) {
-        throw new Error("قيمة الإيداع غير صالحة");
-      }
-
-      const userRef = db.collection(Collections.USERS).doc(userId);
-      const userSnap = await transaction.get(userRef);
-      if (!userSnap.exists) {
-        throw new Error("حساب المستخدم غير موجود");
-      }
-
-      const now = Timestamp.now();
-
-      transaction.update(depositRef, {
-        status: "approved",
-        confirmedBy: adminId ? String(adminId) : null,
-        reviewedBy: adminId ? String(adminId) : null,
-        confirmedAt: now,
-        reviewedAt: now
+    if (remainingBudget > 0) {
+      tx.update(userRef, {
+        balance: updatedBalance
       });
 
-      transaction.update(userRef, {
-        availableBalance: FieldValue.increment(amount),
-        balance: FieldValue.increment(amount),
-        updatedAt: FieldValue.serverTimestamp()
-      });
-
-      const txRef = db.collection(Collections.TRANSACTIONS).doc();
-      transaction.set(txRef, {
-        userId,
-        type: "deposit_approved",
-        amount,
-        network: deposit.network || WALLET_CONSTANTS.DEPOSIT_NETWORK,
-        depositId: depositRef.id,
+      recordTransaction(tx, {
+        userId: advertiserId,
+        type: "campaign_refund",
+        amount: remainingBudget,
+        direction: "in",
         status: "completed",
-        description: `تم اعتماد إيداع $${amount.toFixed(2)} عبر ${deposit.network || WALLET_CONSTANTS.DEPOSIT_NETWORK}`,
-        createdAt: now
+        title: `Campaign Settlement Refund: ${camp.title || campaignId}`,
+        meta: {
+          campaignId: String(campaignId),
+          totalBudget,
+          spentBudget,
+          refunded: remainingBudget
+        }
       });
-
-      return {
-        depositId: depositRef.id,
-        userId,
-        amount,
-        status: "approved"
-      };
-    });
-
-    await logSecurityEvent("DEPOSIT_CONFIRMED", {
-      ...result,
-      adminId: adminId ? String(adminId) : null
-    });
-
-    return result;
-  } catch (error) {
-    console.error("[Firestore confirmDepositAtomically Error]:", error);
-    throw new Error(`تعذر تأكيد الإيداع: ${error.message}`);
-  }
-}
-
-export async function requestWithdrawalAtomically(
-  userId,
-  amount,
-  trc20AddressInput = null
-) {
-  try {
-    const normalizedId = String(userId);
-    const requestedAmount = roundMoney(amount);
-
-    if (requestedAmount < WALLET_CONSTANTS.MIN_WITHDRAWAL) {
-      throw new Error(
-        `الحد الأدنى للسحب هو ${WALLET_CONSTANTS.MIN_WITHDRAWAL.toFixed(2)} USDT`
-      );
     }
-
-    const fee = roundMoney(WALLET_CONSTANTS.WITHDRAWAL_FEE);
-    if (requestedAmount <= fee) {
-      throw new Error(
-        `مبلغ السحب يجب أن يكون أكبر من رسوم الشبكة (${fee.toFixed(2)} USDT)`
-      );
-    }
-
-    const netAmount = roundMoney(requestedAmount - fee);
-
-    await ensureUserDocument(normalizedId);
-    await process24HourReleases(normalizedId);
-
-    const userRef = db.collection(Collections.USERS).doc(normalizedId);
-    const withdrawalRef = db.collection(Collections.WITHDRAWALS).doc();
-    const txRef = db.collection(Collections.TRANSACTIONS).doc();
-
-    const result = await db.runTransaction(async (transaction) => {
-      const userSnap = await transaction.get(userRef);
-      if (!userSnap.exists) {
-        throw new Error("حساب المستخدم غير موجود");
-      }
-
-      const userData = userSnap.data() || {};
-      const targetAddress =
-        typeof trc20AddressInput === "string" && trc20AddressInput.trim()
-          ? trc20AddressInput.trim()
-          : (userData.trc20Address || "").trim();
-
-      if (!isValidTrc20Address(targetAddress)) {
-        throw new Error(
-          `يرجى تحديد عنوان محفظة صالح على شبكة ${WALLET_CONSTANTS.WITHDRAWAL_NETWORK}`
-        );
-      }
-
-      const currentAvailable = roundMoney(
-        typeof userData.availableBalance === "number"
-          ? userData.availableBalance
-          : userData.balance || 0
-      );
-
-      if (currentAvailable < requestedAmount) {
-        throw new Error(
-          `الرصيد المتاح غير كافٍ. المتاح: ${currentAvailable.toFixed(2)} USDT`
-        );
-      }
-
-      const now = Timestamp.now();
-
-      transaction.update(userRef, {
-        availableBalance: FieldValue.increment(-requestedAmount),
-        balance: FieldValue.increment(-requestedAmount),
-        trc20Address: targetAddress,
-        updatedAt: FieldValue.serverTimestamp()
-      });
-
-      const withdrawalData = {
-        withdrawalId: withdrawalRef.id,
-        userId: normalizedId,
-        requestedAmount,
-        fee,
-        netAmount,
-        network: WALLET_CONSTANTS.WITHDRAWAL_NETWORK,
-        trc20Address: targetAddress,
-        walletAddress: targetAddress,
-        status: "pending",
-        stepIndex: 1,
-        txHash: "",
-        adminNote: "",
-        createdAt: now,
-        updatedAt: now
-      };
-
-      transaction.set(withdrawalRef, withdrawalData);
-
-      transaction.set(txRef, {
-        userId: normalizedId,
-        type: "withdrawal_request",
-        amount: requestedAmount,
-        fee,
-        netAmount,
-        network: WALLET_CONSTANTS.WITHDRAWAL_NETWORK,
-        trc20Address: targetAddress,
-        withdrawalId: withdrawalRef.id,
-        status: "pending",
-        description: `طلب سحب ${requestedAmount.toFixed(2)} USDT (الصافي ${netAmount.toFixed(2)} USDT بعد رسوم ${fee.toFixed(2)} USDT) عبر ${WALLET_CONSTANTS.WITHDRAWAL_NETWORK}`,
-        createdAt: now
-      });
-
-      return withdrawalData;
-    });
-
-    await logSecurityEvent("WITHDRAWAL_REQUEST_CREATED", {
-      userId: normalizedId,
-      withdrawalId: result.withdrawalId,
-      requestedAmount: result.requestedAmount,
-      fee: result.fee,
-      netAmount: result.netAmount,
-      network: result.network,
-      trc20Address: result.trc20Address
-    });
 
     return {
-      success: true,
-      withdrawal: result
+      campaignId: String(campaignId),
+      totalBudget,
+      spentBudget,
+      refundedAmount: remainingBudget,
+      newBalance: updatedBalance
     };
-  } catch (error) {
-    console.error("[Firestore requestWithdrawalAtomically Error]:", error);
-    throw new Error(`تعذر إتمام طلب السحب: ${error.message}`);
-  }
+  });
 }
 
-export async function getTransactionHistory(userId, limit = 20) {
+export async function logSecurityEvent(eventType, details) {
   try {
-    const normalizedId = String(userId);
-    const safeLimit = Math.max(1, Math.min(Number(limit) || 20, 100));
-
-    try {
-      const snapshot = await db
-        .collection(Collections.TRANSACTIONS)
-        .where("userId", "==", normalizedId)
-        .orderBy("createdAt", "desc")
-        .limit(safeLimit)
-        .get();
-
-      return snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-    } catch (indexError) {
-      console.warn(
-        "[Firestore getTransactionHistory Fallback Sort]:",
-        indexError.message
-      );
-      const fallbackSnap = await db
-        .collection(Collections.TRANSACTIONS)
-        .where("userId", "==", normalizedId)
-        .limit(safeLimit)
-        .get();
-
-      return fallbackSnap.docs
-        .map((doc) => ({
-          id: doc.id,
-          ...doc.data()
-        }))
-        .sort((a, b) => {
-          const aMs = a.createdAt?.toMillis
-            ? a.createdAt.toMillis()
-            : new Date(a.createdAt || 0).getTime();
-          const bMs = b.createdAt?.toMillis
-            ? b.createdAt.toMillis()
-            : new Date(b.createdAt || 0).getTime();
-          return bMs - aMs;
-        });
-    }
+    await db.collection(Collections.AUDIT_LOGS).add({
+      eventType,
+      details,
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
   } catch (error) {
-    console.error("[Firestore getTransactionHistory Error]:", error);
-    throw new Error(`تعذر جلب سجل العمليات: ${error.message}`);
+    console.error("[Audit Log Error]:", error);
   }
 }
-
-export const WalletModule = {
-  constants: WALLET_CONSTANTS,
-  collections: {
-    transactions: Collections.TRANSACTIONS,
-    deposits: Collections.DEPOSITS,
-    withdrawals: Collections.WITHDRAWALS,
-    referrals: Collections.REFERRALS,
-    pendingReleases: Collections.PENDING_RELEASES
-  },
-  getSummary: getWalletSummary,
-  setTrc20Address: updateUserTrc20Address,
-  createDepositRequest: recordDepositRequest,
-  confirmDeposit: confirmDepositAtomically,
-  requestWithdrawal: requestWithdrawalAtomically,
-  processReleases: process24HourReleases,
-  recordEarningWithReferral: recordPublisherEarningWithReferral,
-  settleCampaignBudget: settleCampaignBudgetAtomically,
-  getTransactions: getTransactionHistory
-};
