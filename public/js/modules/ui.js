@@ -38,6 +38,42 @@ export function closeModal() {
   backdrop.classList.add("hidden");
 }
 
+/**
+ * تحريك الكبسولة النشطة بدقة خلف الزر المختار
+ */
+export function updateActiveNavPill(targetBtn) {
+  const nav = document.getElementById("bottom-nav");
+  const pill = document.getElementById("nav-active-pill");
+  const activeBtn = targetBtn || document.querySelector(".bottom-nav .nav-item.active");
+
+  if (!nav || !pill || !activeBtn) return;
+
+  const navRect = nav.getBoundingClientRect();
+  const btnRect = activeBtn.getBoundingClientRect();
+
+  if (btnRect.width === 0) return;
+
+  const offsetLeft = btnRect.left - navRect.left;
+  pill.style.width = `${btnRect.width}px`;
+  pill.style.transform = `translateX(${offsetLeft}px)`;
+}
+
+/**
+ * تحديث عداد الإشعارات على أي قسم (channels | campaigns | admin)
+ */
+export function setNavBadge(sectionKey, count) {
+  const badgeEl = document.getElementById(`badge-${sectionKey}`);
+  if (!badgeEl) return;
+
+  const num = Number(count) || 0;
+  if (num > 0) {
+    badgeEl.textContent = num > 999 ? "999+" : String(num);
+    badgeEl.classList.remove("hidden");
+  } else {
+    badgeEl.classList.add("hidden");
+  }
+}
+
 export function initNavigation(onSectionChange) {
   const navItems = document.querySelectorAll(".nav-item");
   const sections = document.querySelectorAll(".view-section");
@@ -47,8 +83,16 @@ export function initNavigation(onSectionChange) {
       const targetId = btn.getAttribute("data-target");
       if (!targetId) return;
 
+      // اهتزاز لمسي ناعم داخل تيليجرام
+      try {
+        window.Telegram?.WebApp?.HapticFeedback?.selectionChanged();
+      } catch {
+        // تجاهل في حال الفتح خارج تيليجرام
+      }
+
       navItems.forEach((n) => n.classList.remove("active"));
       btn.classList.add("active");
+      updateActiveNavPill(btn);
 
       sections.forEach((sec) => {
         sec.classList.remove("active-view");
@@ -62,6 +106,10 @@ export function initNavigation(onSectionChange) {
       }
     });
   });
+
+  // إعادة ضبط موضع الكبسولة عند تدوير الشاشة أو تغيير حجمها
+  window.addEventListener("resize", () => updateActiveNavPill());
+  requestAnimationFrame(() => updateActiveNavPill());
 
   document.getElementById("modal-close-btn")?.addEventListener("click", closeModal);
   document.getElementById("modal-backdrop")?.addEventListener("click", (e) => {
@@ -89,10 +137,12 @@ export function openLanguageModal(onLanguageChanged) {
       if (lang.active) {
         setLanguage(lang.code);
         closeModal();
+        requestAnimationFrame(() => updateActiveNavPill());
         if (typeof onLanguageChanged === "function") onLanguageChanged(lang.code);
       } else {
         setLanguage("en");
         closeModal();
+        requestAnimationFrame(() => updateActiveNavPill());
         showToast(t("lang_not_ready"));
         if (typeof onLanguageChanged === "function") onLanguageChanged("en");
       }
