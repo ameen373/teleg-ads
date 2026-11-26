@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title data-i18n="app_title">Telega.ads - Telegram Ad Network</title>
+  <title>Telega.ads - Telegram Ad Network</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="/css/styles.css" />
 </head>
@@ -21,9 +21,6 @@
         <h1>Telega.ads</h1>
       </div>
       <div class="header-actions">
-        <button id="btn-live-refresh" class="icon-btn" aria-label="Refresh" data-i18n="refresh_live">
-          🔄
-        </button>
         <button id="btn-header-lang" class="icon-btn" aria-label="Language">
           <span id="current-flag">🇬🇧</span>
         </button>
@@ -32,7 +29,8 @@
 
     <!-- Main Dynamic Content -->
     <main id="main-viewport" class="viewport">
-      <!-- Section 1: My Account (حسابي) -->
+      
+      <!-- Section 1: My Account & Wallet (حسابي والمحفظة) -->
       <section id="section-account" class="view-section active-view">
         <div class="profile-hero-card glass-panel animate-float">
           <div class="avatar-wrapper">
@@ -43,7 +41,90 @@
           <p class="user-role-tag" data-i18n="account_verified">Verified Partner</p>
         </div>
 
-        <div class="action-grid">
+        <!-- Wallet System Card -->
+        <div class="wallet-card glass-panel">
+          <div class="wallet-header-row">
+            <h3 data-i18n="wallet_title">Wallet & Balances</h3>
+            <span class="network-chip">USDT</span>
+          </div>
+
+          <div class="wallet-stats-grid">
+            <div class="wallet-stat-box highlight">
+              <span class="stat-label" data-i18n="wallet_available">Available Balance</span>
+              <strong id="wallet-available-balance" class="stat-value">$0.00</strong>
+            </div>
+            <div class="wallet-stat-box">
+              <span class="stat-label" data-i18n="wallet_pending_24h">Pending (24h Hold)</span>
+              <strong id="wallet-pending-balance" class="stat-value warn-text">$0.00</strong>
+            </div>
+            <div class="wallet-stat-box">
+              <span class="stat-label" data-i18n="wallet_total_earned">Total Earned</span>
+              <strong id="wallet-total-earned" class="stat-value ok-text">$0.00</strong>
+            </div>
+            <div class="wallet-stat-box">
+              <span class="stat-label" data-i18n="wallet_total_spent">Total Spent</span>
+              <strong id="wallet-total-spent" class="stat-value">$0.00</strong>
+            </div>
+          </div>
+
+          <div class="wallet-actions-row">
+            <button class="primary-btn" data-action="toggle-deposit" data-i18n="wallet_btn_deposit">+ Deposit</button>
+            <button class="secondary-btn" data-action="toggle-withdraw" data-i18n="wallet_btn_withdraw">↑ Withdraw</button>
+          </div>
+
+          <!-- Deposit Form (USDT - BEP20) -->
+          <div id="wallet-deposit-panel" class="wallet-sub-panel hidden">
+            <div class="sub-panel-header">
+              <strong data-i18n="wallet_deposit_title">Deposit via USDT - BEP20 (Min $10.00)</strong>
+              <button type="button" id="btn-deposit-instructions" class="mini-link-btn" data-i18n="wallet_btn_instructions">Deposit Instructions</button>
+            </div>
+            <div class="copy-row">
+              <input type="text" id="deposit-bep20-address" class="modern-input" readonly />
+              <button type="button" id="copy-deposit-addr-btn" class="secondary-btn" data-i18n="btn_copy">Copy</button>
+            </div>
+            <input type="number" id="deposit-amount-input" class="modern-input" step="0.01" min="10" data-i18n-placeholder="wallet_placeholder_dep_amount" placeholder="Deposit Amount (Min $10.00)" />
+            <input type="text" id="deposit-txid-input" class="modern-input" data-i18n-placeholder="wallet_placeholder_txid" placeholder="Paste Transaction Hash (TXID)" />
+            <button type="button" id="submit-deposit-btn" class="primary-btn full-width" data-i18n="wallet_btn_submit_deposit">Submit Deposit for Review</button>
+          </div>
+
+          <!-- Withdraw Form (USDT - TRC20) -->
+          <div id="wallet-withdraw-panel" class="wallet-sub-panel hidden">
+            <div class="sub-panel-header">
+              <strong data-i18n="wallet_withdraw_title">Withdraw via USDT - TRC20 (Min $30.00)</strong>
+            </div>
+            <div class="copy-row">
+              <input type="text" id="withdraw-trc20-input" class="modern-input" data-i18n-placeholder="wallet_placeholder_trc20" placeholder="Your USDT TRC20 Address (T...)" />
+              <button type="button" id="save-trc20-btn" class="secondary-btn" data-i18n="wallet_btn_save_addr">Save Address</button>
+            </div>
+            <input type="number" id="withdraw-amount-input" class="modern-input" step="0.01" min="30" data-i18n-placeholder="wallet_placeholder_wd_amount" placeholder="Withdraw Amount (Min $30.00)" />
+            <div id="withdraw-net-preview" class="fee-hint-line">Withdrawal fee ($3.00)</div>
+            <button type="button" id="submit-withdraw-btn" class="primary-btn full-width" data-i18n="wallet_btn_submit_withdraw">Request Withdrawal</button>
+          </div>
+        </div>
+
+        <!-- Deposits & Withdrawals Log -->
+        <div class="wallet-block">
+          <div class="section-header" style="margin-bottom:10px;">
+            <h3 style="font-size:1rem;" data-i18n="wallet_dw_history_title">Deposits & Withdrawals Log</h3>
+            <div class="filter-pills">
+              <button type="button" id="dw-tab-all" class="filter-pill active" data-i18n="wallet_tab_all">All</button>
+              <button type="button" id="dw-tab-deposits" class="filter-pill" data-i18n="wallet_tab_deposits">Deposits</button>
+              <button type="button" id="dw-tab-withdrawals" class="filter-pill" data-i18n="wallet_tab_withdrawals">Withdrawals</button>
+            </div>
+          </div>
+          <div id="wallet-dw-history-list" class="cards-container"></div>
+        </div>
+
+        <!-- Last 10 Transactions -->
+        <div class="wallet-block">
+          <div class="section-header" style="margin-bottom:10px;">
+            <h3 style="font-size:1rem;" data-i18n="wallet_recent_tx_title">Last 10 Transactions</h3>
+          </div>
+          <div id="wallet-transactions-list" class="cards-container"></div>
+        </div>
+
+        <!-- Account Quick Actions -->
+        <div class="action-grid" style="margin-top:16px;">
           <button class="feature-btn glass-panel ripple" data-action="open-language">
             <span class="btn-icon">🌐</span>
             <span class="btn-label" data-i18n="btn_language">Change Language</span>
@@ -70,259 +151,85 @@
         </div>
       </section>
 
-      <!-- Section 2: Wallet (المحفظة المالية) -->
-      <section id="section-wallet" class="view-section">
-        <div class="section-header">
-          <h2 data-i18n="nav_wallet">Wallet</h2>
-        </div>
-
-        <!-- العرض اللحظي للأرصدة -->
-        <div class="stats-grid">
-          <div class="stat-card glass-panel card-primary">
-            <div class="stat-title" data-i18n="available_balance">Available Balance</div>
-            <div class="stat-value" id="stat-available">$0.00</div>
-          </div>
-          <div class="stat-card glass-panel card-warning">
-            <div class="stat-title" data-i18n="pending_earnings">Pending Earnings (24h Release)</div>
-            <div class="stat-value" id="stat-pending">$0.00</div>
-          </div>
-          <div class="stat-card glass-panel card-danger">
-            <div class="stat-title" data-i18n="total_spent">Total Spent</div>
-            <div class="stat-value" id="stat-spent">$0.00</div>
-          </div>
-          <div class="stat-card glass-panel card-success">
-            <div class="stat-title" data-i18n="total_earned">Total Released Earnings</div>
-            <div class="stat-value" id="stat-earned">$0.00</div>
-          </div>
-        </div>
-
-        <!-- الأرباح المعلقة للتحرير التلقائي بعد 24 ساعة -->
-        <div class="glass-panel card">
-          <h3>⏳ جدول تحرير الأرباح التلقائي (24 ساعة)</h3>
-          <div id="pending-24h-list" class="pending-list"></div>
-        </div>
-
-        <!-- عمليات الإيداع USDT - BEP20 -->
-        <div class="glass-panel card">
-          <div class="card-header-flex">
-            <h3 data-i18n="deposit_title">Deposit Funds (USDT - BEP20)</h3>
-            <button type="button" id="btn-deposit-instructions" class="secondary-btn" data-i18n="deposit_instructions_btn">
-              Deposit Instructions & Steps
-            </button>
-          </div>
-          <p class="alert-info" data-i18n="min_deposit_note">Minimum deposit: $10.00 via BEP20 network only</p>
-
-          <div class="form-group">
-            <label for="bep20-deposit-address" data-i18n="deposit_address_label">Official Deposit Address (BEP20):</label>
-            <div class="copy-box">
-              <input type="text" id="bep20-deposit-address" class="modern-input" readonly value="0xf9278f55585a0e6e35f12299493134056f2f19b0" />
-              <button type="button" id="btn-copy-bep20" class="primary-btn" data-i18n="copy_address">Copy Address</button>
-            </div>
-          </div>
-
-          <form id="form-deposit">
-            <div class="form-group">
-              <label for="deposit-amount" data-i18n="deposit_amount_label">Amount Sent ($)</label>
-              <input type="number" id="deposit-amount" class="modern-input" step="0.01" min="10" placeholder="10.00" required />
-            </div>
-            <div class="form-group">
-              <label for="deposit-txid" data-i18n="deposit_txid_label">Transaction Hash (TXID)</label>
-              <input type="text" id="deposit-txid" class="modern-input" placeholder="0x..." required />
-            </div>
-            <button type="submit" class="primary-btn full-width" data-i18n="submit_deposit_btn">Submit Deposit for Review</button>
-          </form>
-        </div>
-
-        <!-- عمليات السحب USDT - TRC20 -->
-        <div class="glass-panel card">
-          <h3 data-i18n="withdraw_title">Withdraw Funds (USDT - TRC20)</h3>
-          <p class="alert-warning" data-i18n="min_withdraw_note">Minimum withdrawal: $30.00 | Fixed Fee: $3.00</p>
-
-          <div class="form-group">
-            <label for="trc20-wallet-input" data-i18n="trc20_address_label">Your Wallet Address (USDT - TRC20):</label>
-            <div class="copy-box">
-              <input type="text" id="trc20-wallet-input" class="modern-input" placeholder="T..." />
-              <button type="button" id="btn-save-trc20" class="secondary-btn" data-i18n="save_address_btn">Save / Update Address</button>
-            </div>
-          </div>
-
-          <form id="form-withdraw">
-            <div class="form-group">
-              <label for="withdraw-amount" data-i18n="withdraw_amount_label">Withdrawal Amount ($)</label>
-              <input type="number" id="withdraw-amount" class="modern-input" step="0.01" min="30" placeholder="30.00" required />
-            </div>
-            <div class="net-box">
-              <span data-i18n="net_receive_label">Net Amount After Fee:</span>
-              <strong id="withdraw-net-preview">$0.00</strong>
-            </div>
-            <button type="submit" class="primary-btn full-width" data-i18n="submit_withdraw_btn">Request Withdrawal</button>
-          </form>
-        </div>
-
-        <!-- تتبع دورة طلب السحب خطوة بخطوة -->
-        <div class="glass-panel card">
-          <h3 data-i18n="withdrawal_tracker_title">Step-by-Step Withdrawal Cycle Tracker</h3>
-          <div id="withdrawal-cycle-tracker"></div>
-        </div>
-
-        <!-- سجل آخر 10 معاملات بأيقونات توضيحية -->
-        <div class="glass-panel card">
-          <h3 data-i18n="recent_transactions_title">Last 10 Financial Transactions</h3>
-          <div id="recent-transactions-list" class="tx-list"></div>
-        </div>
-
-        <!-- سجل الإيداعات -->
-        <div class="glass-panel card">
-          <h3 data-i18n="deposits_history_title">Deposits History</h3>
-          <div class="table-responsive">
-            <table>
-              <thead>
-                <tr>
-                  <th>التاريخ</th>
-                  <th>المبلغ</th>
-                  <th>الشبكة</th>
-                  <th>TXID</th>
-                  <th>الحالة</th>
-                </tr>
-              </thead>
-              <tbody id="deposits-history-body"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- سجل السحوبات -->
-        <div class="glass-panel card">
-          <h3 data-i18n="withdrawals_history_title">Withdrawals History</h3>
-          <div class="table-responsive">
-            <table>
-              <thead>
-                <tr>
-                  <th>التاريخ</th>
-                  <th>المبلغ</th>
-                  <th>الرسوم</th>
-                  <th>الصافي</th>
-                  <th>العنوان</th>
-                  <th>الحالة</th>
-                </tr>
-              </thead>
-              <tbody id="withdrawals-history-body"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- Section 3: My Channels (قنواتي والأرباح) -->
+      <!-- Section 2: My Channels (قنواتي) -->
       <section id="section-channels" class="view-section">
         <div class="section-header">
           <h2 data-i18n="nav_channels">My Channels</h2>
           <button class="primary-btn pulse-btn" data-action="toggle-add-channel" data-i18n="btn_add_channel">+ Add Channel</button>
         </div>
-        <div id="channels-wallet-summary"></div>
         <div id="add-channel-panel" class="collapsible-panel hidden glass-panel">
           <input type="text" id="channel-input" class="modern-input" data-i18n-placeholder="placeholder_channel" placeholder="@channel_username" />
           <button id="submit-channel-btn" class="primary-btn full-width" data-i18n="btn_verify_channel">Verify & Connect</button>
         </div>
         <div id="channels-list" class="cards-container"></div>
-
-        <div class="glass-panel card">
-          <h3>تسجيل أرباح نشر إعلان للناشر (مع احتساب 10% للمحيل وتحرير بعد 24 ساعة)</h3>
-          <form id="form-record-earning">
-            <div class="form-group">
-              <label for="earning-amount">قيمة أرباح الإعلان ($)</label>
-              <input type="number" id="earning-amount" class="modern-input" step="0.01" min="0.1" placeholder="40.00" required />
-            </div>
-            <div class="form-group">
-              <label for="earning-campaign-id">معرف الحملة (اختياري)</label>
-              <input type="text" id="earning-campaign-id" class="modern-input" placeholder="camp_123" />
-            </div>
-            <button type="submit" class="primary-btn full-width">إضافة الأرباح للناشر</button>
-          </form>
-        </div>
       </section>
 
-      <!-- Section 4: Promotion (الترويج والتسوية الذرية) -->
+      <!-- Section 3: Promotion (الترويج) -->
       <section id="section-campaigns" class="view-section">
         <div class="section-header">
           <h2 data-i18n="nav_promotion">Promotion</h2>
           <button class="primary-btn pulse-btn" data-action="toggle-create-campaign" data-i18n="btn_new_ad">+ New Ad</button>
         </div>
-        <div id="campaigns-wallet-summary"></div>
         <div id="create-campaign-panel" class="collapsible-panel hidden glass-panel">
           <input type="text" id="ad-title-input" class="modern-input" data-i18n-placeholder="placeholder_ad_title" placeholder="Campaign Title" />
           <textarea id="ad-content-input" class="modern-input" rows="3" data-i18n-placeholder="placeholder_ad_text" placeholder="Ad message text..."></textarea>
-          <input type="number" id="ad-budget-input" class="modern-input" step="0.01" min="1" data-i18n-placeholder="placeholder_budget" placeholder="Budget (USDT)" />
+          <input type="number" id="ad-budget-input" class="modern-input" data-i18n-placeholder="placeholder_budget" placeholder="Budget (USDT)" />
           <button id="submit-campaign-btn" class="primary-btn full-width" data-i18n="btn_launch_ad">Launch Campaign</button>
         </div>
         <div id="campaigns-list" class="cards-container"></div>
       </section>
 
-      <!-- Section 5: Referral (الإحالة 10%) -->
+      <!-- Section 4: Referral (الإحالة) -->
       <section id="section-referral" class="view-section">
         <div class="section-header">
-          <h2 data-i18n="referral_title">Partner Referral Program (10%)</h2>
+          <h2 data-i18n="nav_referral">Referral</h2>
+          <span class="network-chip">10%</span>
         </div>
-        <div class="glass-panel referral-box">
-          <p class="referral-desc" data-i18n="referral_rule_note">
-            Earn 10% of your invited publishers earnings (released after 24h). Deposits do not generate commissions.
-          </p>
 
-          <div class="form-group">
-            <label for="referral-link-input" data-i18n="your_referral_link">Your Referral Link:</label>
-            <div class="copy-box">
-              <input type="text" id="referral-link-input" class="modern-input" readonly />
-              <button type="button" id="btn-copy-referral" class="primary-btn" data-i18n="btn_copy">Copy Link</button>
-            </div>
+        <div class="wallet-stats-grid" style="margin-bottom:14px;">
+          <div class="wallet-stat-box glass-panel">
+            <span class="stat-label" data-i18n="ref_stat_invited">Invited Users</span>
+            <strong id="ref-invited-count" class="stat-value">0</strong>
           </div>
+          <div class="wallet-stat-box glass-panel">
+            <span class="stat-label" data-i18n="ref_stat_available">Available (10%)</span>
+            <strong id="ref-available-earnings" class="stat-value ok-text">$0.00</strong>
+          </div>
+          <div class="wallet-stat-box glass-panel" style="grid-column:span 2;">
+            <span class="stat-label" data-i18n="ref_stat_pending">Pending (24h)</span>
+            <strong id="ref-pending-earnings" class="stat-value warn-text">$0.00</strong>
+          </div>
+        </div>
 
-          <button class="secondary-btn full-width ripple" data-action="reveal-referral" data-i18n="btn_get_ref_link">Generate Invite Link</button>
+        <div class="glass-panel referral-box">
+          <p class="referral-desc" data-i18n="referral_desc">Invite publishers and earn 10% commission from their ad earnings (released automatically after 24 hours). Deposits are excluded.</p>
+          <button class="primary-btn full-width ripple" data-action="reveal-referral" data-i18n="btn_get_ref_link">Generate Invite Link</button>
           <div id="referral-link-box" class="hidden ref-result">
             <input type="text" id="ref-link-input" class="modern-input" readonly />
             <button id="copy-ref-btn" class="secondary-btn full-width" data-i18n="btn_copy">Copy Link</button>
           </div>
+        </div>
 
-          <div class="stats-grid three-cols">
-            <div class="stat-card glass-panel">
-              <div class="stat-title" data-i18n="invited_count">Invited Users</div>
-              <div class="stat-value" id="ref-invited-count">0</div>
-            </div>
-            <div class="stat-card glass-panel card-success">
-              <div class="stat-title" data-i18n="ref_available">Available Ref Earnings</div>
-              <div class="stat-value" id="ref-available-amount">$0.00</div>
-            </div>
-            <div class="stat-card glass-panel card-warning">
-              <div class="stat-title" data-i18n="ref_pending">Pending Ref Earnings (24h)</div>
-              <div class="stat-value" id="ref-pending-amount">$0.00</div>
-            </div>
+        <div class="wallet-block">
+          <div class="section-header" style="margin-bottom:10px;">
+            <h3 style="font-size:1rem;" data-i18n="ref_history_title">Publisher Referral Earnings</h3>
           </div>
-
-          <h3>سجل عمولات الإحالة (10% من أرباح الناشرين)</h3>
-          <div class="table-responsive">
-            <table>
-              <thead>
-                <tr>
-                  <th>التاريخ</th>
-                  <th>الناشر المدعو</th>
-                  <th>أرباح الناشر</th>
-                  <th>عمولتك (10%)</th>
-                  <th>موعد التحرير (24س)</th>
-                </tr>
-              </thead>
-              <tbody id="referral-logs-body"></tbody>
-            </table>
-          </div>
+          <div id="referral-history-list" class="cards-container"></div>
         </div>
       </section>
 
-      <!-- Section 6: Admin Only (قسم الإدارة - مخفي تماماً عن الجميع إلا المالك) -->
+      <!-- Section 5: Admin Only (قسم الإدارة - مخفي تماماً عن الجميع إلا المالك) -->
       <section id="section-admin" class="view-section hidden-admin">
         <div class="section-header">
           <h2 data-i18n="nav_admin">Admin Control</h2>
           <span class="admin-badge">OWNER</span>
         </div>
-
-        <div id="admin-wallet-summary"></div>
-
         <div class="action-grid">
+          <button class="feature-btn glass-panel ripple" data-action="admin-finance">
+            <span class="btn-icon">💳</span>
+            <span class="btn-label" data-i18n="admin_finance_review">Deposits & Withdrawals Review</span>
+            <span class="btn-arrow">›</span>
+          </button>
           <button class="feature-btn glass-panel ripple" data-action="admin-stats">
             <span class="btn-icon">📊</span>
             <span class="btn-label" data-i18n="admin_live_stats">Live Platform Stats</span>
@@ -339,74 +246,9 @@
             <span class="btn-arrow">›</span>
           </button>
         </div>
-
-        <div id="admin-dynamic-workspace" class="collapsible-panel hidden glass-panel"></div>
-
-        <div class="glass-panel card">
-          <div class="card-header-flex">
-            <h3 data-i18n="admin_deposits_title">Review Deposit Requests (BEP20)</h3>
-            <div class="inline-actions">
-              <input type="text" id="admin-force-user-id" class="modern-input" placeholder="معرف المستخدم" />
-              <button type="button" id="btn-admin-force-release" class="secondary-btn">
-                ⚡ تسريع تحرير أرباح 24 ساعة الآن
-              </button>
-            </div>
-          </div>
-          <div class="table-responsive">
-            <table>
-              <thead>
-                <tr>
-                  <th>المستخدم</th>
-                  <th>المبلغ</th>
-                  <th>رقم المعاملة (TXID)</th>
-                  <th>التاريخ</th>
-                  <th>الحالة</th>
-                  <th>الإجراء الإداري</th>
-                </tr>
-              </thead>
-              <tbody id="admin-deposits-body"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="glass-panel card">
-          <h3 data-i18n="admin_withdrawals_title">Manage Withdrawal Cycle (TRC20)</h3>
-          <div class="table-responsive">
-            <table>
-              <thead>
-                <tr>
-                  <th>المستخدم</th>
-                  <th>المبلغ / الصافي</th>
-                  <th>عنوان TRC20</th>
-                  <th>المرحلة الحالية</th>
-                  <th>TXID التحويل</th>
-                  <th>تحديث المرحلة</th>
-                </tr>
-              </thead>
-              <tbody id="admin-withdrawals-body"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="glass-panel card">
-          <h3 data-i18n="admin_campaigns_title">Atomic Campaign Budget Settlement</h3>
-          <div class="table-responsive">
-            <table>
-              <thead>
-                <tr>
-                  <th>الحملة</th>
-                  <th>المعلن</th>
-                  <th>الميزانية الكلية</th>
-                  <th>المصروف</th>
-                  <th>المتبقي</th>
-                  <th>الإجراء</th>
-                </tr>
-              </thead>
-              <tbody id="admin-campaigns-body"></tbody>
-            </table>
-          </div>
-        </div>
+        <div id="admin-dynamic-workspace" class="collapsible-panel hidden glass-panel" style="margin-top:14px;"></div>
       </section>
+
     </main>
 
     <!-- Floating Pill Bottom Navigation Bar -->
@@ -422,19 +264,7 @@
           <span class="nav-text" data-i18n="nav_account">Account</span>
         </button>
 
-        <!-- 2. المحفظة -->
-        <button class="nav-item" data-target="section-wallet">
-          <div class="nav-icon-wrap">
-            <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="2" y="5" width="20" height="14" rx="2"></rect>
-              <line x1="2" y1="10" x2="22" y2="10"></line>
-            </svg>
-            <span id="badge-wallet" class="nav-badge hidden">0</span>
-          </div>
-          <span class="nav-text" data-i18n="nav_wallet">Wallet</span>
-        </button>
-
-        <!-- 3. قنواتي -->
+        <!-- 2. قنواتي -->
         <button class="nav-item" data-target="section-channels">
           <div class="nav-icon-wrap">
             <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -449,7 +279,7 @@
           <span class="nav-text" data-i18n="nav_channels">Channels</span>
         </button>
 
-        <!-- 4. الترويج -->
+        <!-- 3. الترويج -->
         <button class="nav-item" data-target="section-campaigns">
           <div class="nav-icon-wrap">
             <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -460,7 +290,7 @@
           <span class="nav-text" data-i18n="nav_promotion">Promotion</span>
         </button>
 
-        <!-- 5. الإحالة -->
+        <!-- 4. الإحالة -->
         <button class="nav-item" data-target="section-referral">
           <div class="nav-icon-wrap">
             <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -472,7 +302,7 @@
           <span class="nav-text" data-i18n="nav_referral">Referral</span>
         </button>
 
-        <!-- 6. الإدارة (مخفي إلا للمالك) -->
+        <!-- 5. الإدارة -->
         <button id="nav-admin-btn" class="nav-item hidden-admin" data-target="section-admin">
           <div class="nav-icon-wrap">
             <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
