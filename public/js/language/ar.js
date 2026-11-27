@@ -11,6 +11,7 @@ export const ar = {
   nav_channels: "قنواتي",
   nav_promotion: "الترويج",
   nav_referral: "الإحالة",
+  nav_wallet: "المحفظة",
   nav_admin: "الإدارة",
   btn_add_channel: "+ إضافة قناة",
   placeholder_channel: "@معرف_القناة",
