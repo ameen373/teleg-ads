@@ -111,6 +111,13 @@
         </div>
       </section>
 
+            <!-- Section 5: Wallet (المحفظة - فارغ حالياً) -->
+      <section id="section-wallet" class="view-section">
+        <div class="section-header">
+          <h2 data-i18n="nav_wallet">Wallet</h2>
+        </div>
+      </section>
+      
       <!-- Section 5: Admin Only (قسم الإدارة - مخفي تماماً عن الجميع إلا المالك) -->
       <section id="section-admin" class="view-section hidden-admin">
         <div class="section-header">
@@ -191,6 +198,18 @@
           <span class="nav-text" data-i18n="nav_referral">Referral</span>
         </button>
 
+                <!-- 5. المحفظة -->
+        <button class="nav-item" data-target="section-wallet">
+          <div class="nav-icon-wrap">
+            <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path>
+              <path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path>
+              <path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path>
+            </svg>
+          </div>
+          <span class="nav-text" data-i18n="nav_wallet">Wallet</span>
+        </button>
+        
         <!-- 5. الإدارة (مخفي إلا للمالك) -->
         <button id="nav-admin-btn" class="nav-item hidden-admin" data-target="section-admin">
           <div class="nav-icon-wrap">
