@@ -1,83 +1,5 @@
 import { SUPPORTED_LANGUAGES, getCurrentLanguage, setLanguage, t } from "../language/i18n.js";
 
-/* =========================================================
- * التنسيق والأدوات العامة (Formatting & Utilities)
- * ========================================================= */
-
-export function formatUsd(amount) {
-  const num = Number(amount);
-  return `$${(Number.isFinite(num) ? num : 0).toFixed(2)}`;
-}
-
-export function formatDate(isoString) {
-  if (!isoString) return "-";
-  const date = new Date(isoString);
-  if (Number.isNaN(date.getTime())) return isoString;
-  return date.toLocaleString("ar-EG", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-export function getTransactionIcon(type) {
-  const map = {
-    deposit: "⬇️",
-    withdrawal: "⬆️",
-    earning: "💰",
-    referral_commission: "🤝",
-    campaign_spend: "📢",
-    campaign_refund: "↩️",
-    withdrawal_fee: "🧾",
-  };
-  return map[type] || "💳";
-}
-
-export function getTransactionTypeLabel(type) {
-  const map = {
-    deposit: "إيداع USDT - BEP20",
-    withdrawal: "سحب USDT - TRC20",
-    earning: "ربح مكتسب",
-    referral_commission: "عمولة إحالة (10%)",
-    campaign_spend: "صرف حملة إعلانية",
-    campaign_refund: "استرداد ميزانية حملة",
-    withdrawal_fee: "رسوم سحب",
-  };
-  return map[type] || type;
-}
-
-export async function copyToClipboard(text) {
-  if (!text) return false;
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    await navigator.clipboard.writeText(text);
-    return true;
-  }
-  const helper = document.createElement("textarea");
-  helper.value = text;
-  document.body.appendChild(helper);
-  helper.select();
-  document.execCommand("copy");
-  document.body.removeChild(helper);
-  return true;
-}
-
-/* =========================================================
- * التنبيهات والرسائل (Alerts & Toasts)
- * ========================================================= */
-
-export function showAlert(message, type = "success") {
-  const alertEl = document.getElementById("globalAlert");
-  if (!alertEl) return;
-  alertEl.textContent = message;
-  alertEl.className = `alert ${type}`;
-  clearTimeout(showAlert._timer);
-  showAlert._timer = setTimeout(() => {
-    alertEl.className = "alert hidden";
-  }, 5000);
-}
-
 export function showToast(message) {
   const container = document.getElementById("toast-container");
   if (!container) return;
@@ -94,15 +16,10 @@ export function showToast(message) {
   }, 2800);
 }
 
-/* =========================================================
- * النوافذ المنبثقة (Modals)
- * ========================================================= */
-
 export function openModal(title, contentNodeOrHtml) {
   const backdrop = document.getElementById("modal-backdrop");
   const titleEl = document.getElementById("modal-title");
   const bodyEl = document.getElementById("modal-body");
-  if (!backdrop || !titleEl || !bodyEl) return;
 
   titleEl.textContent = title;
   bodyEl.innerHTML = "";
@@ -118,8 +35,86 @@ export function openModal(title, contentNodeOrHtml) {
 
 export function closeModal() {
   const backdrop = document.getElementById("modal-backdrop");
-  if (!backdrop) return;
   backdrop.classList.add("hidden");
+}
+
+/**
+ * تحريك الكبسولة النشطة بدقة خلف الزر المختار
+ */
+export function updateActiveNavPill(targetBtn) {
+  const nav = document.getElementById("bottom-nav");
+  const pill = document.getElementById("nav-active-pill");
+  const activeBtn = targetBtn || document.querySelector(".bottom-nav .nav-item.active");
+
+  if (!nav || !pill || !activeBtn) return;
+
+  const navRect = nav.getBoundingClientRect();
+  const btnRect = activeBtn.getBoundingClientRect();
+
+  if (btnRect.width === 0) return;
+
+  const offsetLeft = btnRect.left - navRect.left;
+  pill.style.width = `${btnRect.width}px`;
+  pill.style.transform = `translateX(${offsetLeft}px)`;
+}
+
+/**
+ * تحديث عداد الإشعارات على أي قسم (channels | campaigns | admin)
+ */
+export function setNavBadge(sectionKey, count) {
+  const badgeEl = document.getElementById(`badge-${sectionKey}`);
+  if (!badgeEl) return;
+
+  const num = Number(count) || 0;
+  if (num > 0) {
+    badgeEl.textContent = num > 999 ? "999+" : String(num);
+    badgeEl.classList.remove("hidden");
+  } else {
+    badgeEl.classList.add("hidden");
+  }
+}
+
+export function initNavigation(onSectionChange) {
+  const navItems = document.querySelectorAll(".nav-item");
+  const sections = document.querySelectorAll(".view-section");
+
+  navItems.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const targetId = btn.getAttribute("data-target");
+      if (!targetId) return;
+
+      // اهتزاز لمسي ناعم داخل تيليجرام
+      try {
+        window.Telegram?.WebApp?.HapticFeedback?.selectionChanged();
+      } catch {
+        // تجاهل في حال الفتح خارج تيليجرام
+      }
+
+      navItems.forEach((n) => n.classList.remove("active"));
+      btn.classList.add("active");
+      updateActiveNavPill(btn);
+
+      sections.forEach((sec) => {
+        sec.classList.remove("active-view");
+        if (sec.id === targetId) {
+          sec.classList.add("active-view");
+        }
+      });
+
+      if (typeof onSectionChange === "function") {
+        onSectionChange(targetId);
+      }
+    });
+  });
+
+  // إعادة ضبط موضع الكبسولة عند تدوير الشاشة أو تغيير حجمها
+  window.addEventListener("resize", () => updateActiveNavPill());
+  requestAnimationFrame(() => updateActiveNavPill());
+
+  document.getElementById("modal-close-btn")?.addEventListener("click", closeModal);
+  document.getElementById("modal-backdrop")?.addEventListener("click", (e) => {
+    if (e.target.id === "modal-backdrop") closeModal();
+  });
 }
 
 export function openLanguageModal(onLanguageChanged) {
@@ -219,96 +214,4 @@ export function openSupportModal(apiService, tgWebApp, botUsername) {
 
   container.append(desc, textarea, sendBtn, botBtn);
   openModal(t("modal_support_title"), container);
-}
-
-/* =========================================================
- * التنقل والأقسام والشارات (Navigation & Sections)
- * ========================================================= */
-
-/**
- * تحريك الكبسولة النشطة بدقة خلف الزر المختار
- */
-export function updateActiveNavPill(targetBtn) {
-  const nav = document.getElementById("bottom-nav");
-  const pill = document.getElementById("nav-active-pill");
-  const activeBtn = targetBtn || document.querySelector(".bottom-nav .nav-item.active");
-
-  if (!nav || !pill || !activeBtn) return;
-
-  const navRect = nav.getBoundingClientRect();
-  const btnRect = activeBtn.getBoundingClientRect();
-
-  if (btnRect.width === 0) return;
-
-  const offsetLeft = btnRect.left - navRect.left;
-  pill.style.width = `${btnRect.width}px`;
-  pill.style.transform = `translateX(${offsetLeft}px)`;
-}
-
-/**
- * تحديث عداد الإشعارات على أي قسم (channels | campaigns | admin)
- */
-export function setNavBadge(sectionKey, count) {
-  const badgeEl = document.getElementById(`badge-${sectionKey}`);
-  if (!badgeEl) return;
-
-  const num = Number(count) || 0;
-  if (num > 0) {
-    badgeEl.textContent = num > 999 ? "999+" : String(num);
-    badgeEl.classList.remove("hidden");
-  } else {
-    badgeEl.classList.add("hidden");
-  }
-}
-
-export function activateSection(sectionName) {
-  document.querySelectorAll(".nav-btn").forEach((btn) => {
-    btn.classList.toggle("active", btn.getAttribute("data-section") === sectionName);
-  });
-  document.querySelectorAll(".tab-section").forEach((sec) => {
-    sec.classList.toggle("active", sec.id === `section-${sectionName}`);
-  });
-}
-
-export function initNavigation(onSectionChange) {
-  const navItems = document.querySelectorAll(".nav-item");
-  const sections = document.querySelectorAll(".view-section");
-
-  navItems.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const targetId = btn.getAttribute("data-target");
-      if (!targetId) return;
-
-      // اهتزاز لمسي ناعم داخل تيليجرام
-      try {
-        window.Telegram?.WebApp?.HapticFeedback?.selectionChanged();
-      } catch {
-        // تجاهل في حال الفتح خارج تيليجرام
-      }
-
-      navItems.forEach((n) => n.classList.remove("active"));
-      btn.classList.add("active");
-      updateActiveNavPill(btn);
-
-      sections.forEach((sec) => {
-        sec.classList.remove("active-view");
-        if (sec.id === targetId) {
-          sec.classList.add("active-view");
-        }
-      });
-
-      if (typeof onSectionChange === "function") {
-        onSectionChange(targetId);
-      }
-    });
-  });
-
-  // إعادة ضبط موضع الكبسولة عند تدوير الشاشة أو تغيير حجمها
-  window.addEventListener("resize", () => updateActiveNavPill());
-  requestAnimationFrame(() => updateActiveNavPill());
-
-  document.getElementById("modal-close-btn")?.addEventListener("click", closeModal);
-  document.getElementById("modal-backdrop")?.addEventListener("click", (e) => {
-    if (e.target.id === "modal-backdrop") closeModal();
-  });
 }
