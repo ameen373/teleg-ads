@@ -1,21 +1,55 @@
+function getDefaultInitData() {
+  try {
+    return window?.Telegram?.WebApp?.initData || "";
+  } catch {
+    return "";
+  }
+}
+
+function getSavedUserId() {
+  try {
+    return localStorage.getItem("telega_ads_uid")?.trim() || "";
+  } catch {
+    return "";
+  }
+}
+
 export class ApiService {
   constructor(initData = "", options = {}) {
     this.initData = initData || "";
-    this.baseUrl = options.baseUrl || "/api";
-    this.defaultUserId = options.userId || "";
-    this.defaultAdminKey = options.adminKey || "";
+    this.baseUrl = String(options.baseUrl || "/api").replace(/\/+$/, "");
+    this.defaultUserId = options.userId ? String(options.userId) : "";
+    this.defaultAdminKey = options.adminKey ? String(options.adminKey) : "";
+  }
+
+  get userId() {
+    return this.defaultUserId;
+  }
+
+  set userId(value) {
+    this.defaultUserId = value ? String(value) : "";
+  }
+
+  get adminKey() {
+    return this.defaultAdminKey;
+  }
+
+  set adminKey(value) {
+    this.defaultAdminKey = value ? String(value) : "";
   }
 
   setUserId(userId) {
-    this.defaultUserId = userId || "";
+    this.defaultUserId = userId ? String(userId) : "";
   }
 
   setAdminKey(adminKey) {
-    this.defaultAdminKey = adminKey || "";
+    this.defaultAdminKey = adminKey ? String(adminKey) : "";
   }
 
   async request(endpoint, options = {}) {
-    const normalizedEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+    const rawEndpoint = String(endpoint || "");
+    const normalizedEndpoint = rawEndpoint.startsWith("/") ? rawEndpoint : `/${rawEndpoint}`;
+    const fullUrl = `${this.baseUrl}${normalizedEndpoint}`;
 
     try {
       const headers = {
@@ -24,32 +58,32 @@ export class ApiService {
         ...(options.headers || {})
       };
 
-      // إزالة أي ترويسة بقيمة undefined أو null لتجنب إرسال قيم غير صالحة
       Object.keys(headers).forEach((key) => {
         if (headers[key] === undefined || headers[key] === null) {
           delete headers[key];
         }
       });
 
-      const response = await fetch(`${this.baseUrl}${normalizedEndpoint}`, {
+      const response = await fetch(fullUrl, {
         ...options,
         headers
       });
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(data.error || `HTTP ${response.status}`);
+        throw new Error(data?.error || data?.message || `HTTP ${response.status}`);
       }
       return data;
     } catch (error) {
-      console.error(`[API Error ${normalizedEndpoint}]:`, error.message);
-      throw error;
+      const message = error instanceof Error ? error.message : String(error || "Request failed");
+      console.error(`[API Error ${normalizedEndpoint}]:`, message);
+      throw error instanceof Error ? error : new Error(message);
     }
   }
 
   // ==================== Auth & Channels & Campaigns ====================
 
-  syncUser(userPayload) {
+  syncUser(userPayload = {}) {
     return this.request("/auth/sync", {
       method: "POST",
       body: JSON.stringify(userPayload)
@@ -71,7 +105,7 @@ export class ApiService {
     return this.request("/campaigns");
   }
 
-  createCampaign(payload) {
+  createCampaign(payload = {}) {
     return this.request("/campaigns", {
       method: "POST",
       body: JSON.stringify(payload)
@@ -88,56 +122,81 @@ export class ApiService {
   // ==================== Users & Wallet & Referrals ====================
 
   initUser(userId, extra = {}) {
-    const resolvedUserId = userId || this.defaultUserId;
+    const resolvedUserId = String(userId || this.defaultUserId || "").trim();
+    const payload = {
+      ...extra,
+      ...(resolvedUserId ? { userId: resolvedUserId } : {})
+    };
+
     return this.request("/users/init", {
       method: "POST",
-      headers: { "x-user-id": resolvedUserId },
-      body: JSON.stringify({ userId: resolvedUserId, ...extra })
+      headers: resolvedUserId ? { "x-user-id": resolvedUserId } : {},
+      body: JSON.stringify(payload)
     });
   }
 
   fetchWalletOverview(userId, referredBy = "") {
-    const resolvedUserId = userId || this.defaultUserId;
-    const query = new URLSearchParams({ userId: resolvedUserId });
-    if (referredBy) {
-      query.set("ref", referredBy);
+    const resolvedUserId = String(userId || this.defaultUserId || "").trim();
+    const query = new URLSearchParams();
+    if (resolvedUserId) {
+      query.set("userId", resolvedUserId);
     }
-    return this.request(`/wallet/overview?${query.toString()}`, {
-      headers: { "x-user-id": resolvedUserId }
+    if (referredBy) {
+      query.set("ref", String(referredBy));
+    }
+
+    const qs = query.toString();
+    const endpoint = qs ? `/wallet/overview?${qs}` : "/wallet/overview";
+
+    return this.request(endpoint, {
+      headers: resolvedUserId ? { "x-user-id": resolvedUserId } : {}
     });
   }
 
   updateTrc20Address(userId, trc20WalletAddress) {
-    const resolvedUserId = userId || this.defaultUserId;
+    const resolvedUserId = String(userId || this.defaultUserId || "").trim();
     return this.request("/wallet/trc20-address", {
       method: "PUT",
-      headers: { "x-user-id": resolvedUserId },
-      body: JSON.stringify({ userId: resolvedUserId, trc20WalletAddress })
+      headers: resolvedUserId ? { "x-user-id": resolvedUserId } : {},
+      body: JSON.stringify({
+        ...(resolvedUserId ? { userId: resolvedUserId } : {}),
+        trc20WalletAddress
+      })
     });
   }
 
   createDepositRequest(userId, amountUsd, txid) {
-    const resolvedUserId = userId || this.defaultUserId;
+    const resolvedUserId = String(userId || this.defaultUserId || "").trim();
     return this.request("/wallet/deposits", {
       method: "POST",
-      headers: { "x-user-id": resolvedUserId },
-      body: JSON.stringify({ userId: resolvedUserId, amountUsd, txid })
+      headers: resolvedUserId ? { "x-user-id": resolvedUserId } : {},
+      body: JSON.stringify({
+        ...(resolvedUserId ? { userId: resolvedUserId } : {}),
+        amountUsd,
+        txid
+      })
     });
   }
 
   createWithdrawalRequest(userId, amountUsd, trc20WalletAddress) {
-    const resolvedUserId = userId || this.defaultUserId;
+    const resolvedUserId = String(userId || this.defaultUserId || "").trim();
     return this.request("/wallet/withdrawals", {
       method: "POST",
-      headers: { "x-user-id": resolvedUserId },
-      body: JSON.stringify({ userId: resolvedUserId, amountUsd, trc20WalletAddress })
+      headers: resolvedUserId ? { "x-user-id": resolvedUserId } : {},
+      body: JSON.stringify({
+        ...(resolvedUserId ? { userId: resolvedUserId } : {}),
+        amountUsd,
+        trc20WalletAddress
+      })
     });
   }
 
   fetchReferrals(userId) {
-    const resolvedUserId = userId || this.defaultUserId;
-    return this.request(`/referrals?userId=${encodeURIComponent(resolvedUserId)}`, {
-      headers: { "x-user-id": resolvedUserId }
+    const resolvedUserId = String(userId || this.defaultUserId || "").trim();
+    const query = resolvedUserId ? `?userId=${encodeURIComponent(resolvedUserId)}` : "";
+
+    return this.request(`/referrals${query}`, {
+      headers: resolvedUserId ? { "x-user-id": resolvedUserId } : {}
     });
   }
 
@@ -155,27 +214,72 @@ export class ApiService {
   }
 
   fetchAdminOverview(adminKey) {
-    const resolvedAdminKey = adminKey || this.defaultAdminKey;
+    const resolvedAdminKey = String(adminKey || this.defaultAdminKey || "").trim();
     return this.request("/admin/overview", {
-      headers: { "x-admin-key": resolvedAdminKey }
+      headers: resolvedAdminKey ? { "x-admin-key": resolvedAdminKey } : {}
     });
   }
 
   reviewDeposit(adminKey, depositId, decision, adminNote = "") {
-    const resolvedAdminKey = adminKey || this.defaultAdminKey;
-    return this.request(`/admin/deposits/${encodeURIComponent(depositId)}/review`, {
+    const resolvedAdminKey = String(adminKey || this.defaultAdminKey || "").trim();
+    const safeId = encodeURIComponent(String(depositId ?? ""));
+    return this.request(`/admin/deposits/${safeId}/review`, {
       method: "POST",
-      headers: { "x-admin-key": resolvedAdminKey },
+      headers: resolvedAdminKey ? { "x-admin-key": resolvedAdminKey } : {},
       body: JSON.stringify({ decision, adminNote })
     });
   }
 
-  updateWithdrawalStep(adminKey, withdrawalId, payload) {
-    const resolvedAdminKey = adminKey || this.defaultAdminKey;
-    return this.request(`/admin/withdrawals/${encodeURIComponent(withdrawalId)}/step`, {
+  updateWithdrawalStep(adminKey, withdrawalId, payload = {}) {
+    const resolvedAdminKey = String(adminKey || this.defaultAdminKey || "").trim();
+    const safeId = encodeURIComponent(String(withdrawalId ?? ""));
+    return this.request(`/admin/withdrawals/${safeId}/step`, {
       method: "POST",
-      headers: { "x-admin-key": resolvedAdminKey },
+      headers: resolvedAdminKey ? { "x-admin-key": resolvedAdminKey } : {},
       body: JSON.stringify(payload)
     });
   }
+}
+
+function getSharedApiClient(userId = "") {
+  const client = new ApiService(getDefaultInitData(), {
+    userId: userId || getSavedUserId()
+  });
+  return client;
+}
+
+export function initUser(userId, extra = {}) {
+  return getSharedApiClient(userId).initUser(userId, extra);
+}
+
+export function fetchWalletOverview(userId, referredBy = "") {
+  return getSharedApiClient(userId).fetchWalletOverview(userId, referredBy);
+}
+
+export function updateTrc20Address(userId, trc20WalletAddress) {
+  return getSharedApiClient(userId).updateTrc20Address(userId, trc20WalletAddress);
+}
+
+export function createDepositRequest(userId, amountUsd, txid) {
+  return getSharedApiClient(userId).createDepositRequest(userId, amountUsd, txid);
+}
+
+export function createWithdrawalRequest(userId, amountUsd, trc20WalletAddress) {
+  return getSharedApiClient(userId).createWithdrawalRequest(userId, amountUsd, trc20WalletAddress);
+}
+
+export function fetchReferrals(userId) {
+  return getSharedApiClient(userId).fetchReferrals(userId);
+}
+
+export function fetchAdminOverview(adminKey) {
+  return getSharedApiClient().fetchAdminOverview(adminKey);
+}
+
+export function reviewDeposit(adminKey, depositId, decision, adminNote = "") {
+  return getSharedApiClient().reviewDeposit(adminKey, depositId, decision, adminNote);
+}
+
+export function updateWithdrawalStep(adminKey, withdrawalId, payload = {}) {
+  return getSharedApiClient().updateWithdrawalStep(adminKey, withdrawalId, payload);
 }
