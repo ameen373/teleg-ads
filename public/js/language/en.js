@@ -11,6 +11,7 @@ export const en = {
   nav_channels: "Channels",
   nav_promotion: "Promotion",
   nav_referral: "Referral",
+  nav_wallet: "Wallet",
   nav_admin: "Admin",
   btn_add_channel: "+ Add Channel",
   placeholder_channel: "@channel_username",
