@@ -1,6 +1,12 @@
 import { t } from "../language/i18n.js";
 import { showToast } from "./ui.js";
 
+export function getActiveChannelsState() {
+  return {
+    channels: [],
+  };
+}
+
 export function initChannelsModule(apiService) {
   const toggleBtn = document.querySelector('[data-action="toggle-add-channel"]');
   const panel = document.getElementById("add-channel-panel");
@@ -13,32 +19,46 @@ export function initChannelsModule(apiService) {
   });
 
   submitBtn?.addEventListener("click", async () => {
+    if (!input) return;
     const username = input.value.trim();
     if (!username) return;
-    submitBtn.disabled = true;
+
+    if (submitBtn) submitBtn.disabled = true;
     try {
       await apiService.addChannel(username);
       input.value = "";
-      panel.classList.add("hidden");
+      panel?.classList.add("hidden");
       showToast("✓");
       await loadChannels();
     } catch (err) {
-      showToast(err.message);
+      showToast(err?.message || t("error_generic") || "Error");
     } finally {
-      submitBtn.disabled = false;
+      if (submitBtn) submitBtn.disabled = false;
     }
   });
 
-  async function loadChannels() {
+  function renderEmptyState() {
     if (!listContainer) return;
+    listContainer.innerHTML = `<div class="glass-panel data-card"><span style="color:var(--text-muted)">${t("empty_channels")}</span></div>`;
+  }
+
+  async function loadChannels() {
+    const state = getActiveChannelsState();
+
+    if (!listContainer) {
+      return state;
+    }
+
     try {
       const res = await apiService.getChannels();
-      const channels = res.channels || [];
-      if (channels.length === 0) {
-        listContainer.innerHTML = `<div class="glass-panel data-card"><span style="color:var(--text-muted)">${t("empty_channels")}</span></div>`;
-        return;
+      state.channels = Array.isArray(res?.channels) ? res.channels : [];
+
+      if (state.channels.length === 0) {
+        renderEmptyState();
+        return state;
       }
-      listContainer.innerHTML = channels
+
+      listContainer.innerHTML = state.channels
         .map(
           (ch) => `
           <div class="glass-panel data-card">
@@ -50,10 +70,16 @@ export function initChannelsModule(apiService) {
           </div>`
         )
         .join("");
+
+      return state;
     } catch {
-      listContainer.innerHTML = `<div class="glass-panel data-card"><span style="color:var(--text-muted)">${t("empty_channels")}</span></div>`;
+      renderEmptyState();
+      return state;
     }
   }
 
-  return { loadChannels };
+  return {
+    loadChannels,
+    getActiveChannelsState,
+  };
 }
