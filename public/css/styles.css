@@ -1,16 +1,40 @@
+/* =========================================================
+   1. VARIABLES & RESET
+   ========================================================= */
 :root {
+  /* Core Palette (Unified) */
   --bg-primary: #0b0f19;
   --bg-secondary: #131b2e;
+  --bg: var(--bg-primary);
+  --surface: #1e293b;
+  --surface-2: #0b1120;
+
+  /* Glassmorphism */
   --glass-bg: rgba(23, 32, 54, 0.72);
   --glass-border: rgba(255, 255, 255, 0.08);
+  --border: #334155;
+
+  /* Accents & Status */
   --accent-primary: #2aabee;
   --accent-glow: rgba(42, 171, 238, 0.42);
   --accent-secondary: #10b981;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --secondary: #475569;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+
+  /* Typography */
   --text-main: #f8fafc;
   --text-muted: #94a3b8;
-  --danger: #ef4444;
+  --text: var(--text-main);
+  --muted: var(--text-muted);
+
+  /* Radii & Transitions */
   --radius-lg: 20px;
   --radius-md: 14px;
+  --radius: 12px;
   --transition-smooth: cubic-bezier(0.22, 1, 0.36, 1);
   --spring-bounce: cubic-bezier(0.34, 1.4, 0.64, 1);
 }
@@ -20,17 +44,22 @@
   margin: 0;
   padding: 0;
   -webkit-tap-highlight-color: transparent;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 body {
+  margin: 0;
   background: radial-gradient(circle at top right, #172554, var(--bg-primary) 60%);
   color: var(--text-main);
   min-height: 100vh;
+  line-height: 1.6;
   overflow-x: hidden;
   user-select: none;
 }
 
+/* =========================================================
+   2. VISIBILITY & ADMIN HELPERS
+   ========================================================= */
 .hidden {
   display: none !important;
 }
@@ -47,7 +76,9 @@ section.hidden-admin.owner-unlocked {
   display: block !important;
 }
 
-/* Loader */
+/* =========================================================
+   3. LOADER & ANIMATIONS
+   ========================================================= */
 .loader-overlay {
   position: fixed;
   inset: 0;
@@ -80,7 +111,36 @@ section.hidden-admin.owner-unlocked {
   100% { transform: scale(0.85); box-shadow: 0 0 0 0 rgba(42, 171, 238, 0); }
 }
 
-/* Glassmorphism */
+@keyframes blinkGlow {
+  from { opacity: 0.6; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1.2); }
+}
+
+@keyframes sectionEntrance {
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes subtleFloat {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+/* =========================================================
+   4. GLASSMORPHISM & LAYOUT WRAPPERS
+   ========================================================= */
 .glass-panel {
   background: var(--glass-bg);
   backdrop-filter: blur(16px);
@@ -89,7 +149,12 @@ section.hidden-admin.owner-unlocked {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.28);
 }
 
-/* App Layout */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
 .app-wrapper {
   display: flex;
   flex-direction: column;
@@ -97,6 +162,18 @@ section.hidden-admin.owner-unlocked {
   padding-bottom: 106px;
 }
 
+.viewport {
+  padding: 18px 16px;
+  flex: 1;
+}
+
+.main-content {
+  padding: 24px 16px 48px;
+}
+
+/* =========================================================
+   5. TOP BARS & NAVIGATION TABS
+   ========================================================= */
 .top-bar {
   position: sticky;
   top: 0;
@@ -108,10 +185,34 @@ section.hidden-admin.owner-unlocked {
   border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
 
+.topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.topbar-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .brand {
   display: flex;
   align-items: center;
   gap: 10px;
+  font-weight: 700;
 }
 
 .brand-dot {
@@ -123,9 +224,11 @@ section.hidden-admin.owner-unlocked {
   animation: blinkGlow 2s infinite alternate;
 }
 
-@keyframes blinkGlow {
-  from { opacity: 0.6; transform: scale(0.9); }
-  to { opacity: 1; transform: scale(1.2); }
+.brand-logo {
+  background: var(--primary);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 8px;
 }
 
 .brand h1 {
@@ -136,28 +239,32 @@ section.hidden-admin.owner-unlocked {
   -webkit-text-fill-color: transparent;
 }
 
-.icon-btn {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--glass-border);
-  color: var(--text-main);
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  font-size: 1.25rem;
+.nav-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.nav-btn {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid transparent;
+  padding: 8px 14px;
+  border-radius: 8px;
   cursor: pointer;
-  transition: transform 0.2s var(--transition-smooth);
+  font-size: 0.92rem;
 }
 
-.icon-btn:active {
-  transform: scale(0.9);
+.nav-btn.active,
+.nav-btn:hover {
+  color: var(--text);
+  background: var(--surface-2);
+  border-color: var(--border);
 }
 
-/* Viewport & Sections */
-.viewport {
-  padding: 18px 16px;
-  flex: 1;
-}
-
+/* =========================================================
+   6. VIEW SECTIONS & HEADERS
+   ========================================================= */
 .view-section {
   display: none;
   opacity: 0;
@@ -169,14 +276,41 @@ section.hidden-admin.owner-unlocked {
   animation: sectionEntrance 0.42s var(--transition-smooth) forwards;
 }
 
-@keyframes sectionEntrance {
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+.tab-section {
+  display: none;
 }
 
-/* Profile Card */
+.tab-section.active {
+  display: block;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.section-header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.section-header h2 {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.collapsible-panel {
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 16px;
+  animation: sectionEntrance 0.3s var(--transition-smooth) forwards;
+}
+
+/* =========================================================
+   7. PROFILE HERO & ACTION GRID
+   ========================================================= */
 .profile-hero-card {
   border-radius: var(--radius-lg);
   padding: 26px 20px;
@@ -188,11 +322,6 @@ section.hidden-admin.owner-unlocked {
 
 .animate-float {
   animation: subtleFloat 5s ease-in-out infinite;
-}
-
-@keyframes subtleFloat {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-4px); }
 }
 
 .avatar-wrapper {
@@ -234,7 +363,6 @@ section.hidden-admin.owner-unlocked {
   font-weight: 600;
 }
 
-/* Action Buttons Grid */
 .action-grid {
   display: flex;
   flex-direction: column;
@@ -282,24 +410,137 @@ html[dir="rtl"] .btn-arrow {
   transform: rotate(180deg);
 }
 
-/* Section Headers & Collapsible Panels */
-.section-header {
+/* =========================================================
+   8. GRIDS, STATS & CARDS
+   ========================================================= */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.compact-grid {
+  margin-top: 16px;
+}
+
+.two-col-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stat-label {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.stat-value {
+  font-size: 1.35rem;
+}
+
+.highlight-success {
+  color: var(--success);
+}
+
+.highlight-warning {
+  color: var(--warning);
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 18px;
+}
+
+.card h2,
+.card h3 {
+  margin-top: 0;
+}
+
+.card-header-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  gap: 10px;
+  margin-bottom: 8px;
 }
 
-.section-header h2 {
-  font-size: 1.2rem;
-  font-weight: 700;
+.cards-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.collapsible-panel {
-  border-radius: var(--radius-md);
+.data-card {
   padding: 16px;
-  margin-bottom: 16px;
-  animation: sectionEntrance 0.3s var(--transition-smooth) forwards;
+  border-radius: var(--radius-md);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.muted-note {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-top: 0;
+}
+
+.divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 16px 0;
+}
+
+/* =========================================================
+   9. FORMS, INPUTS & BUTTONS
+   ========================================================= */
+.copy-box {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.flex-1 {
+  flex: 1;
+  min-width: 220px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group label {
+  font-size: 0.88rem;
+  color: var(--muted);
 }
 
 .modern-input {
@@ -316,6 +557,40 @@ html[dir="rtl"] .btn-arrow {
 
 .modern-input:focus {
   border-color: var(--accent-primary);
+}
+
+.input,
+.input-sm,
+select {
+  width: 100%;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+}
+
+.input-sm {
+  width: 160px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+}
+
+.icon-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--glass-border);
+  color: var(--text-main);
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  font-size: 1.25rem;
+  cursor: pointer;
+  transition: transform 0.2s var(--transition-smooth);
+}
+
+.icon-btn:active {
+  transform: scale(0.9);
 }
 
 .primary-btn {
@@ -349,21 +624,207 @@ html[dir="rtl"] .btn-arrow {
   width: 100%;
 }
 
-.cards-container {
+.btn {
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 0.84rem;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: var(--primary-hover);
+}
+
+.btn-secondary {
+  background: var(--secondary);
+  color: #fff;
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+/* =========================================================
+   10. TRACKERS, TRANSACTIONS, TABLES & BADGES
+   ========================================================= */
+.fee-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: var(--surface-2);
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.tracker-list,
+.tx-list,
+.admin-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.data-card {
-  padding: 16px;
-  border-radius: var(--radius-md);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.tracker-item,
+.tx-item,
+.admin-item {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
 }
 
-/* Referral */
+.tracker-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.step-pill {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 0.82rem;
+  text-align: center;
+  color: var(--muted);
+}
+
+.step-pill.done {
+  border-color: var(--success);
+  color: var(--text);
+}
+
+.step-pill.current {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.steps-list {
+  margin: 0;
+  padding-inline-start: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tx-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tx-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tx-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 1.1rem;
+}
+
+.tx-title {
+  font-weight: 600;
+}
+
+.tx-sub {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.tx-right {
+  text-align: end;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.badge.approved,
+.badge.completed {
+  color: var(--success);
+  border-color: var(--success);
+}
+
+.badge.pending,
+.badge.processing {
+  color: var(--warning);
+  border-color: var(--warning);
+}
+
+.badge.rejected,
+.badge.failed {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.admin-badge {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.data-table th,
+.data-table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: start;
+}
+
+/* =========================================================
+   11. REFERRAL & ALERTS
+   ========================================================= */
 .referral-box {
   padding: 20px;
   border-radius: var(--radius-lg);
@@ -380,19 +841,26 @@ html[dir="rtl"] .btn-arrow {
   margin-top: 14px;
 }
 
-/* Admin Badge */
-.admin-badge {
-  background: rgba(239, 68, 68, 0.2);
-  color: #fca5a5;
-  border: 1px solid rgba(239, 68, 68, 0.4);
-  padding: 4px 10px;
-  border-radius: 20px;
-  font-size: 0.72rem;
-  font-weight: 800;
+.alert {
+  padding: 12px 16px;
+  border-radius: 10px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.alert.success {
+  border-color: var(--success);
+  color: #a7f3d0;
+}
+
+.alert.error {
+  border-color: var(--danger);
+  color: #fecaca;
 }
 
 /* =========================================================
-   FLOATING PILL BOTTOM NAVIGATION (Telegram iOS/Android Style)
+   12. FLOATING PILL BOTTOM NAVIGATION
    ========================================================= */
 .bottom-nav-wrapper {
   position: fixed;
@@ -425,7 +893,6 @@ html[dir="rtl"] .btn-arrow {
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
-/* الكبسولة النشطة المتحركة خلف القسم المختار */
 .nav-active-pill {
   position: absolute;
   top: 6px;
@@ -485,7 +952,6 @@ html[dir="rtl"] .btn-arrow {
   transform: translateY(-1px) scale(1.08);
 }
 
-/* أيقونات SVG */
 .nav-svg {
   width: 24px;
   height: 24px;
@@ -498,7 +964,6 @@ html[dir="rtl"] .btn-arrow {
   filter: drop-shadow(0 0 8px rgba(42, 171, 238, 0.55));
 }
 
-/* صورة البروفايل المصغرة داخل زر الحساب */
 .nav-avatar-img {
   width: 27px;
   height: 27px;
@@ -513,7 +978,6 @@ html[dir="rtl"] .btn-arrow {
   box-shadow: 0 0 12px rgba(42, 171, 238, 0.65);
 }
 
-/* نص القسم */
 .nav-text {
   font-size: 0.68rem;
   font-weight: 700;
@@ -530,7 +994,6 @@ html[dir="rtl"] .btn-arrow {
   color: #2aabee;
 }
 
-/* شارة الإشعارات الدائرية الزرقاء (مثل الرقم ١٠٤ في الصورة) */
 .nav-badge {
   position: absolute;
   top: -5px;
@@ -556,7 +1019,28 @@ html[dir="rtl"] .nav-badge {
   left: -10px;
 }
 
-/* Modal Sheet */
+/* =========================================================
+   13. MODALS & TOASTS
+   ========================================================= */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.75);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 50;
+}
+
+.modal-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  max-width: 520px;
+  width: 100%;
+  padding: 20px;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -567,11 +1051,6 @@ html[dir="rtl"] .nav-badge {
   justify-content: center;
   z-index: 1000;
   animation: fadeIn 0.25s ease;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
 }
 
 .modal-sheet {
@@ -585,11 +1064,6 @@ html[dir="rtl"] .nav-badge {
   animation: slideUp 0.35s var(--transition-smooth);
 }
 
-@keyframes slideUp {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
-}
-
 .modal-header {
   display: flex;
   justify-content: space-between;
@@ -597,6 +1071,10 @@ html[dir="rtl"] .nav-badge {
   padding-bottom: 14px;
   border-bottom: 1px solid var(--glass-border);
   margin-bottom: 14px;
+}
+
+.modal-header h3 {
+  margin: 0;
 }
 
 .close-btn {
@@ -646,7 +1124,6 @@ html[dir="rtl"] .nav-badge {
   color: var(--text-muted);
 }
 
-/* Toast */
 .toast-container {
   position: fixed;
   top: 72px;
