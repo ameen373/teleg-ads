@@ -1,5 +1,24 @@
 import { SUPPORTED_LANGUAGES, getCurrentLanguage, setLanguage, t } from "../language/i18n.js";
 
+let alertTimer = null;
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function safeT(key) {
+  try {
+    return typeof t === "function" ? t(key) : key;
+  } catch {
+    return key;
+  }
+}
+
 /* =========================================================
  * التنسيق والأدوات العامة (Formatting & Utilities)
  * ========================================================= */
@@ -12,14 +31,18 @@ export function formatUsd(amount) {
 export function formatDate(isoString) {
   if (!isoString) return "-";
   const date = new Date(isoString);
-  if (Number.isNaN(date.getTime())) return isoString;
-  return date.toLocaleString("ar-EG", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  if (Number.isNaN(date.getTime())) return String(isoString);
+  try {
+    return date.toLocaleString("ar-EG", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return date.toISOString();
+  }
 }
 
 export function getTransactionIcon(type) {
@@ -45,22 +68,40 @@ export function getTransactionTypeLabel(type) {
     campaign_refund: "استرداد ميزانية حملة",
     withdrawal_fee: "رسوم سحب",
   };
-  return map[type] || type;
+  return map[type] || String(type || "");
 }
 
 export async function copyToClipboard(text) {
-  if (!text) return false;
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    await navigator.clipboard.writeText(text);
-    return true;
+  const value = String(text ?? "");
+  if (!value) return false;
+
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+    try {
+      await navigator.clipboard.writeText(value);
+      return true;
+    } catch {
+      // الانتقال إلى النسخ البديل في حال رفض الصلاحية في WebView
+    }
   }
-  const helper = document.createElement("textarea");
-  helper.value = text;
-  document.body.appendChild(helper);
-  helper.select();
-  document.execCommand("copy");
-  document.body.removeChild(helper);
-  return true;
+
+  try {
+    const helper = document.createElement("textarea");
+    helper.value = value;
+    helper.setAttribute("readonly", "");
+    helper.style.position = "fixed";
+    helper.style.top = "-9999px";
+    helper.style.left = "-9999px";
+    helper.style.opacity = "0";
+    document.body.appendChild(helper);
+    helper.focus();
+    helper.select();
+    helper.setSelectionRange(0, value.length);
+    const copied = document.execCommand("copy");
+    document.body.removeChild(helper);
+    return Boolean(copied);
+  } catch {
+    return false;
+  }
 }
 
 /* =========================================================
@@ -70,11 +111,17 @@ export async function copyToClipboard(text) {
 export function showAlert(message, type = "success") {
   const alertEl = document.getElementById("globalAlert");
   if (!alertEl) return;
-  alertEl.textContent = message;
-  alertEl.className = `alert ${type}`;
-  clearTimeout(showAlert._timer);
-  showAlert._timer = setTimeout(() => {
+
+  const safeType = ["success", "error", "warning", "info"].includes(type) ? type : "success";
+  alertEl.textContent = String(message ?? "");
+  alertEl.className = `alert ${safeType}`;
+
+  if (alertTimer) {
+    clearTimeout(alertTimer);
+  }
+  alertTimer = setTimeout(() => {
     alertEl.className = "alert hidden";
+    alertTimer = null;
   }, 5000);
 }
 
@@ -84,13 +131,15 @@ export function showToast(message) {
 
   const toast = document.createElement("div");
   toast.className = "toast-msg";
-  toast.textContent = message;
+  toast.textContent = String(message ?? "");
   container.appendChild(toast);
 
   setTimeout(() => {
     toast.style.opacity = "0";
     toast.style.transition = "opacity 0.3s ease";
-    setTimeout(() => toast.remove(), 300);
+    setTimeout(() => {
+      toast.remove();
+    }, 300);
   }, 2800);
 }
 
@@ -104,7 +153,7 @@ export function openModal(title, contentNodeOrHtml) {
   const bodyEl = document.getElementById("modal-body");
   if (!backdrop || !titleEl || !bodyEl) return;
 
-  titleEl.textContent = title;
+  titleEl.textContent = String(title ?? "");
   bodyEl.innerHTML = "";
 
   if (typeof contentNodeOrHtml === "string") {
@@ -128,35 +177,45 @@ export function openLanguageModal(onLanguageChanged) {
   wrapper.style.flexDirection = "column";
   wrapper.style.gap = "8px";
 
-  const activeCode = getCurrentLanguage();
+  const activeCode = typeof getCurrentLanguage === "function" ? getCurrentLanguage() : "en";
+  const languages = Array.isArray(SUPPORTED_LANGUAGES) ? SUPPORTED_LANGUAGES : [];
 
-  SUPPORTED_LANGUAGES.forEach((lang) => {
+  languages.forEach((lang) => {
     const btn = document.createElement("button");
-    btn.className = `lang-option-btn ${lang.code === activeCode ? "selected" : ""} ${!lang.active ? "coming-soon" : ""}`;
-    btn.innerHTML = `
-      <span>${lang.flag} &nbsp; ${lang.label}</span>
-      ${lang.active ? (lang.code === activeCode ? "<span>✓</span>" : "") : `<span class="badge-soon">Soon</span>`}
-    `;
+    btn.type = "button";
+    const isSelected = lang.code === activeCode;
+    const isComingSoon = !lang.active;
+    btn.className = `lang-option-btn ${isSelected ? "selected" : ""} ${isComingSoon ? "coming-soon" : ""}`;
+
+    const safeFlag = escapeHtml(lang.flag || "");
+    const safeLabel = escapeHtml(lang.label || lang.code || "");
+    const rightBadge = lang.active
+      ? isSelected
+        ? "<span>✓</span>"
+        : ""
+      : `<span class="badge-soon">Soon</span>`;
+
+    btn.innerHTML = `<span>${safeFlag} &nbsp; ${safeLabel}</span>${rightBadge}`;
 
     btn.addEventListener("click", () => {
-      if (lang.active) {
-        setLanguage(lang.code);
-        closeModal();
-        requestAnimationFrame(() => updateActiveNavPill());
-        if (typeof onLanguageChanged === "function") onLanguageChanged(lang.code);
-      } else {
-        setLanguage("en");
-        closeModal();
-        requestAnimationFrame(() => updateActiveNavPill());
-        showToast(t("lang_not_ready"));
-        if (typeof onLanguageChanged === "function") onLanguageChanged("en");
+      const targetLang = lang.active ? lang.code : "en";
+      if (typeof setLanguage === "function") {
+        setLanguage(targetLang);
+      }
+      closeModal();
+      requestAnimationFrame(() => updateActiveNavPill());
+      if (!lang.active) {
+        showToast(safeT("lang_not_ready"));
+      }
+      if (typeof onLanguageChanged === "function") {
+        onLanguageChanged(targetLang);
       }
     });
 
     wrapper.appendChild(btn);
   });
 
-  openModal(t("modal_select_lang"), wrapper);
+  openModal(safeT("modal_select_lang"), wrapper);
 }
 
 export function openFaqModal() {
@@ -164,8 +223,8 @@ export function openFaqModal() {
   emptyBox.style.padding = "28px 12px";
   emptyBox.style.textAlign = "center";
   emptyBox.style.color = "var(--text-muted)";
-  emptyBox.textContent = t("modal_faq_empty");
-  openModal(t("modal_faq_title"), emptyBox);
+  emptyBox.textContent = safeT("modal_faq_empty");
+  openModal(safeT("modal_faq_title"), emptyBox);
 }
 
 export function openSupportModal(apiService, tgWebApp, botUsername) {
@@ -177,27 +236,30 @@ export function openSupportModal(apiService, tgWebApp, botUsername) {
   const desc = document.createElement("p");
   desc.style.fontSize = "0.9rem";
   desc.style.color = "var(--text-muted)";
-  desc.textContent = t("modal_support_desc");
+  desc.textContent = safeT("modal_support_desc");
 
   const textarea = document.createElement("textarea");
   textarea.className = "modern-input";
   textarea.rows = 4;
-  textarea.placeholder = t("placeholder_support_msg");
+  textarea.placeholder = safeT("placeholder_support_msg");
 
   const sendBtn = document.createElement("button");
+  sendBtn.type = "button";
   sendBtn.className = "primary-btn full-width";
-  sendBtn.textContent = t("btn_send_support");
+  sendBtn.textContent = safeT("btn_send_support");
 
   sendBtn.addEventListener("click", async () => {
     const msg = textarea.value.trim();
     if (!msg) return;
     sendBtn.disabled = true;
     try {
-      await apiService.sendSupportTicket(msg);
-      showToast(t("support_sent"));
+      if (apiService && typeof apiService.sendSupportTicket === "function") {
+        await apiService.sendSupportTicket(msg);
+      }
+      showToast(safeT("support_sent"));
       closeModal();
     } catch {
-      showToast(t("support_sent"));
+      showToast(safeT("support_sent"));
       closeModal();
     } finally {
       sendBtn.disabled = false;
@@ -205,12 +267,13 @@ export function openSupportModal(apiService, tgWebApp, botUsername) {
   });
 
   const botBtn = document.createElement("button");
+  botBtn.type = "button";
   botBtn.className = "secondary-btn full-width";
-  botBtn.textContent = t("btn_open_bot_support");
+  botBtn.textContent = safeT("btn_open_bot_support");
   botBtn.addEventListener("click", () => {
-    const cleanBot = (botUsername || "TelegaAdsSupportBot").replace("@", "");
+    const cleanBot = String(botUsername || "TelegaAdsSupportBot").replace(/^@/, "");
     const url = `https://t.me/${cleanBot}?start=support`;
-    if (tgWebApp && tgWebApp.openTelegramLink) {
+    if (tgWebApp && typeof tgWebApp.openTelegramLink === "function") {
       tgWebApp.openTelegramLink(url);
     } else {
       window.open(url, "_blank");
@@ -218,7 +281,7 @@ export function openSupportModal(apiService, tgWebApp, botUsername) {
   });
 
   container.append(desc, textarea, sendBtn, botBtn);
-  openModal(t("modal_support_title"), container);
+  openModal(safeT("modal_support_title"), container);
 }
 
 /* =========================================================
@@ -275,6 +338,9 @@ export function initNavigation(onSectionChange) {
   const sections = document.querySelectorAll(".view-section");
 
   navItems.forEach((btn) => {
+    if (btn.dataset.navBound === "true") return;
+    btn.dataset.navBound = "true";
+
     btn.addEventListener("click", () => {
       const targetId = btn.getAttribute("data-target");
       if (!targetId) return;
@@ -303,12 +369,23 @@ export function initNavigation(onSectionChange) {
     });
   });
 
-  // إعادة ضبط موضع الكبسولة عند تدوير الشاشة أو تغيير حجمها
-  window.addEventListener("resize", () => updateActiveNavPill());
+  if (!window.__uiNavResizeBound) {
+    window.__uiNavResizeBound = true;
+    window.addEventListener("resize", () => updateActiveNavPill());
+  }
   requestAnimationFrame(() => updateActiveNavPill());
 
-  document.getElementById("modal-close-btn")?.addEventListener("click", closeModal);
-  document.getElementById("modal-backdrop")?.addEventListener("click", (e) => {
-    if (e.target.id === "modal-backdrop") closeModal();
-  });
+  const closeBtn = document.getElementById("modal-close-btn");
+  if (closeBtn && closeBtn.dataset.modalCloseBound !== "true") {
+    closeBtn.dataset.modalCloseBound = "true";
+    closeBtn.addEventListener("click", closeModal);
+  }
+
+  const backdrop = document.getElementById("modal-backdrop");
+  if (backdrop && backdrop.dataset.modalBackdropBound !== "true") {
+    backdrop.dataset.modalBackdropBound = "true";
+    backdrop.addEventListener("click", (e) => {
+      if (e.target.id === "modal-backdrop") closeModal();
+    });
+  }
 }
