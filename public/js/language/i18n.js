@@ -23,62 +23,99 @@ export const SUPPORTED_LANGUAGES = [
   { code: "tr", label: "Turkish", flag: "🇹🇷", active: false }
 ];
 
-const dictionaries = { en, ar };
-let currentLang = "en";
+const STORAGE_KEY = "telega_ads_lang";
+const FALLBACK_LANG = "ar";
+const dictionaries = { ar, en };
+
+let currentLang = readSavedLang() || FALLBACK_LANG;
+
+function readSavedLang() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved && dictionaries[saved] ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSavedLang(langCode) {
+  try {
+    localStorage.setItem(STORAGE_KEY, langCode);
+  } catch {
+    // Storage restricted fallback (e.g. Telegram WebApp / private mode)
+  }
+}
+
+function resolveDir(langCode, dict) {
+  if (dict && (dict.dir === "rtl" || dict.dir === "ltr")) {
+    return dict.dir;
+  }
+  return langCode === "ar" ? "rtl" : "ltr";
+}
 
 export function detectSmartLanguage(tgUserLangCode) {
-  try {
-    const saved = localStorage.getItem("telega_ads_lang");
-    if (saved && dictionaries[saved]) {
-      return saved;
-    }
+  const saved = readSavedLang();
+  if (saved) {
+    currentLang = saved;
+    return saved;
+  }
 
+  try {
     if (tgUserLangCode) {
       const normalized = tgUserLangCode.toLowerCase().split("-")[0];
       if (dictionaries[normalized]) {
+        currentLang = normalized;
         return normalized;
       }
     }
 
-    const browserLang = (navigator.language || "en").toLowerCase().split("-")[0];
+    const browserLang = (navigator.language || "").toLowerCase().split("-")[0];
     if (dictionaries[browserLang]) {
+      currentLang = browserLang;
       return browserLang;
     }
-
-    return "en";
   } catch {
-    return "en";
+    // Ignore environment access errors
   }
+
+  currentLang = FALLBACK_LANG;
+  return FALLBACK_LANG;
 }
 
 export function setLanguage(langCode) {
-  const target = dictionaries[langCode] ? langCode : "en";
+  const target = dictionaries[langCode] ? langCode : FALLBACK_LANG;
   currentLang = target;
-  try {
-    localStorage.setItem("telega_ads_lang", target);
-  } catch {
-    // Storage restricted fallback
-  }
+  writeSavedLang(target);
   applyTranslations();
   return target;
+}
+
+export function setLang(langCode) {
+  return setLanguage(langCode);
 }
 
 export function getCurrentLanguage() {
   return currentLang;
 }
 
+export function getLang() {
+  return getCurrentLanguage();
+}
+
 export function t(key) {
-  const dict = dictionaries[currentLang] || dictionaries.en;
-  return dict[key] || dictionaries.en[key] || key;
+  const activeDict = dictionaries[currentLang] || dictionaries[FALLBACK_LANG];
+  const fallbackDict = dictionaries[FALLBACK_LANG];
+  return activeDict[key] ?? fallbackDict[key] ?? key;
 }
 
 export function applyTranslations() {
-  const dict = dictionaries[currentLang] || dictionaries.en;
+  const dict = dictionaries[currentLang] || dictionaries[FALLBACK_LANG];
+
   document.documentElement.lang = currentLang;
-  document.documentElement.dir = dict.dir;
+  document.documentElement.dir = resolveDir(currentLang, dict);
 
   const flagEl = document.getElementById("current-flag");
-  if (flagEl) {
+  if (flagEl && dict.flag) {
     flagEl.textContent = dict.flag;
   }
 
@@ -95,4 +132,9 @@ export function applyTranslations() {
       el.setAttribute("placeholder", t(key));
     }
   });
+
+  const langBtn = document.getElementById("langToggleBtn");
+  if (langBtn) {
+    langBtn.textContent = currentLang === "ar" ? "EN" : "AR";
+  }
 }
