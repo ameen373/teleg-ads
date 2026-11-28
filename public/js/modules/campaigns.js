@@ -10,162 +10,103 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
-function safeTranslate(key, fallback = "No campaigns") {
-  try {
-    if (typeof t === "function") {
-      const result = t(key);
-      if (typeof result === "string" && result.trim() !== "") {
-        return result;
-      }
-    }
-  } catch {
-    // تجاهل أخطاء الترجمة واستخدام القيمة الاحتياطية
+function renderCampaignsList(listContainer, campaigns) {
+  if (!listContainer) return;
+
+  if (!Array.isArray(campaigns) || campaigns.length === 0) {
+    listContainer.innerHTML = `<div class="glass-panel data-card"><span style="color:var(--text-muted)">${escapeHtml(t("empty_campaigns"))}</span></div>`;
+    return;
   }
-  return fallback;
-}
 
-async function postCampaignJson(url, body) {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data.error || `HTTP ${res.status}`);
-  }
-  return data;
-}
-
-export async function createCampaign(advertiserId, title, budgetUsd, extraPayload = {}) {
-  const payload = {
-    ...(advertiserId ? { userId: advertiserId } : {}),
-    title,
-    budgetUsd,
-    ...extraPayload,
-  };
-  return postCampaignJson("/api/campaigns/create", payload);
-}
-
-export async function settleCampaignBudget(campaignId, spentUsd) {
-  return postCampaignJson(`/api/campaigns/${encodeURIComponent(String(campaignId ?? ""))}/settle`, {
-    spentUsd,
-  });
-}
-
-function resolveAdvertiserId(apiService) {
-  if (!apiService) return null;
-  if (typeof apiService.getCurrentUserId === "function") {
-    return apiService.getCurrentUserId();
-  }
-  return apiService.userId ?? apiService.advertiserId ?? null;
+  listContainer.innerHTML = campaigns
+    .map((cp) => {
+      const title = escapeHtml(cp.title || "");
+      const budget = Number(cp.budget || 0).toFixed(2);
+      const status = escapeHtml(cp.status || "Running");
+      return `
+        <div class="glass-panel data-card">
+          <div>
+            <strong>${title}</strong>
+            <div style="font-size:0.8rem;color:var(--text-muted)">$${budget} USDT</div>
+          </div>
+          <span style="color:var(--accent-primary);font-weight:700">${status}</span>
+        </div>
+      `;
+    })
+    .join("");
 }
 
 export function initCampaignsModule(apiService) {
-  const toggleBtn = document.querySelector('[data-action="toggle-create-campaign"]');
-  const panel = document.getElementById("create-campaign-panel");
-  const submitBtn = document.getElementById("submit-campaign-btn");
-  const titleInput = document.getElementById("ad-title-input");
-  const contentInput = document.getElementById("ad-content-input");
-  const budgetInput = document.getElementById("ad-budget-input");
-  const listContainer = document.getElementById("campaigns-list");
+  const toggleBtn =
+    document.querySelector('[data-action="toggle-create-campaign"]') ||
+    document.getElementById("btn-open-create-campaign");
+  const panel =
+    document.getElementById("create-campaign-panel") ||
+    document.getElementById("panel-campaign-wizard");
+  const submitBtn =
+    document.getElementById("submit-campaign-btn") ||
+    document.getElementById("btn-camp-publish");
+  const titleInput =
+    document.getElementById("ad-title-input") ||
+    document.getElementById("camp-title") ||
+    document.getElementById("campaignTitleInput");
+  const contentInput =
+    document.getElementById("ad-content-input") ||
+    document.getElementById("camp-text");
+  const budgetInput =
+    document.getElementById("ad-budget-input") ||
+    document.getElementById("camp-budget") ||
+    document.getElementById("campaignBudgetInput");
+  const listContainer =
+    document.getElementById("campaigns-list") ||
+    document.getElementById("campaignsList");
 
-  function renderEmptyState() {
-    if (!listContainer) return;
-    const emptyText = escapeHtml(safeTranslate("empty_campaigns", "No campaigns"));
-    listContainer.innerHTML = `<div class="glass-panel data-card"><span style="color:var(--text-muted)">${emptyText}</span></div>`;
-  }
+  toggleBtn?.addEventListener("click", () => {
+    panel?.classList.toggle("hidden");
+  });
 
-  async function loadCampaigns() {
-    if (!listContainer) return;
+  async function handleCreateCampaign(e) {
+    if (e && typeof e.preventDefault === "function") {
+      e.preventDefault();
+    }
 
-    if (!apiService || typeof apiService.getCampaigns !== "function") {
-      renderEmptyState();
+    const title = (titleInput?.value || "").trim();
+    const content = (contentInput?.value || "").trim();
+    const budget = parseFloat(budgetInput?.value);
+
+    if (!title || isNaN(budget) || budget <= 0) {
+      showToast(t("msg_fill_required"));
       return;
     }
 
+    if (submitBtn) submitBtn.disabled = true;
     try {
-      const res = await apiService.getCampaigns();
-      const campaigns = Array.isArray(res?.campaigns) ? res.campaigns : [];
-
-      if (campaigns.length === 0) {
-        renderEmptyState();
-        return;
-      }
-
-      listContainer.innerHTML = campaigns
-        .map((cp) => {
-          const rawBudget = cp?.budgetUsd ?? cp?.budget ?? 0;
-          const numericBudget = Number(rawBudget);
-          const displayBudget = Number.isFinite(numericBudget) ? numericBudget : 0;
-          const safeTitle = escapeHtml(cp?.title ?? "");
-          const safeStatus = escapeHtml(cp?.status || "Running");
-
-          return `
-          <div class="glass-panel data-card">
-            <div>
-              <strong>${safeTitle}</strong>
-              <div style="font-size:0.8rem;color:var(--text-muted)">$${displayBudget} USDT</div>
-            </div>
-            <span style="color:var(--accent-primary);font-weight:700">${safeStatus}</span>
-          </div>`;
-        })
-        .join("");
-    } catch {
-      renderEmptyState();
+      await apiService.createCampaign({ title, content, budget });
+      if (titleInput) titleInput.value = "";
+      if (contentInput) contentInput.value = "";
+      if (budgetInput) budgetInput.value = "";
+      panel?.classList.add("hidden");
+      showToast("✓");
+      await loadCampaigns();
+    } catch (err) {
+      showToast(err.message);
+    } finally {
+      if (submitBtn) submitBtn.disabled = false;
     }
   }
 
-  if (toggleBtn && !toggleBtn.dataset.campaignToggleBound) {
-    toggleBtn.dataset.campaignToggleBound = "true";
-    toggleBtn.addEventListener("click", () => {
-      panel?.classList.toggle("hidden");
-    });
+  submitBtn?.addEventListener("click", handleCreateCampaign);
+
+  async function loadCampaigns() {
+    if (!listContainer) return;
+    try {
+      const res = await apiService.getCampaigns();
+      const campaigns = res?.campaigns || res?.data || [];
+      renderCampaignsList(listContainer, campaigns);
+    } catch {
+      renderCampaignsList(listContainer, []);
+    }
   }
 
-  if (submitBtn && !submitBtn.dataset.campaignSubmitBound) {
-    submitBtn.dataset.campaignSubmitBound = "true";
-    submitBtn.addEventListener("click", async () => {
-      if (!titleInput || !contentInput || !budgetInput) return;
-
-      const title = titleInput.value.trim();
-      const content = contentInput.value.trim();
-      const budget = parseFloat(budgetInput.value);
-      if (!title || !content || Number.isNaN(budget) || budget <= 0) return;
-
-      submitBtn.disabled = true;
-      try {
-        const advertiserId = resolveAdvertiserId(apiService);
-
-        if (apiService && typeof apiService.createCampaign === "function") {
-          await apiService.createCampaign({
-            title,
-            content,
-            budget,
-            budgetUsd: budget,
-            ...(advertiserId ? { userId: advertiserId } : {}),
-          });
-        } else {
-          await createCampaign(advertiserId, title, budget, { content, budget });
-        }
-
-        titleInput.value = "";
-        contentInput.value = "";
-        budgetInput.value = "";
-        panel?.classList.add("hidden");
-        showToast("✓");
-        await loadCampaigns();
-      } catch (err) {
-        showToast(err?.message || "Error");
-      } finally {
-        submitBtn.disabled = false;
-      }
-    });
-  }
-
-  return {
-    loadCampaigns,
-    createCampaign,
-    settleCampaignBudget,
-  };
+  return { loadCampaigns };
 }
