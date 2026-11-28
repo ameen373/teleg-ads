@@ -1,278 +1,307 @@
 import admin from "firebase-admin";
 import dotenv from "dotenv";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 
 dotenv.config();
 
-if (!admin.apps.length) {
-  const rawKey = process.env.FIREBASE_PRIVATE_KEY;
-  const privateKey = rawKey
-    ? rawKey.trim().replace(/^["']|["']$/g, "").replace(/\\n/g, "\n")
-    : undefined;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-  if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && privateKey) {
-    admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: process.env.FIREBASE_PROJECT_ID.trim(),
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL.trim(),
-        privateKey
-      })
-    });
-  } else {
-    admin.initializeApp();
+export function initFirebase() {
+  if (!admin.apps.length) {
+    const serviceAccountPath = path.join(__dirname, "serviceAccountKey.json");
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY
+      ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n")
+      : undefined;
+
+    if (
+      process.env.FIREBASE_PROJECT_ID &&
+      process.env.FIREBASE_CLIENT_EMAIL &&
+      privateKey
+    ) {
+      admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId: process.env.FIREBASE_PROJECT_ID,
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+          privateKey
+        })
+      });
+    } else if (fs.existsSync(serviceAccountPath)) {
+      const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, "utf8"));
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+      });
+    } else {
+      admin.initializeApp({
+        credential: admin.credential.applicationDefault()
+      });
+    }
   }
+
+  return admin.firestore();
 }
 
-export const db = admin.firestore();
+export const db = initFirebase();
 
-try {
-  db.settings({ ignoreUndefinedProperties: true });
-} catch {
-  // تجاهل في حال تم ضبط إعدادات Firestore مسبقاً
-}
-
-export const Collections = {
+export const Collections = Object.freeze({
+  // حسابي و المحفظة و الإحالة
   USERS: "users",
+  TRANSACTIONS: "transactions",
+  DEPOSITS: "deposits",
+  WITHDRAWALS: "withdrawals",
+  EARNINGS_LOCKS: "earningsLocks",
+  REFERRALS: "referrals",
+
+  // قنواتي و الترويج
   CHANNELS: "channels",
   CAMPAIGNS: "campaigns",
+  PUBLISH_LOGS: "publishLogs",
+
+  // الإدارة و النظام
   TICKETS: "support_tickets",
+  BROADCASTS: "broadcasts",
+  SYSTEM_CONFIG: "systemConfig",
+  SECURITY_LOGS: "securityLogs",
   AUDIT_LOGS: "security_audit_logs",
-  TRANSACTIONS: "transactions",
-  WITHDRAWALS: "withdrawals",
-  EARNING_HOLDS: "earning_holds"
-};
+  SMART_ALERTS: "smartAlerts",
+  NOTIFICATIONS: "notifications",
+  BACKUPS: "backups"
+});
 
-export const WALLET_CONSTANTS = {
-  DEPOSIT_NETWORK: "USDT - BEP20",
-  WITHDRAWAL_NETWORK: "USDT - TRC20",
-  DEPOSIT_ADDRESS: "0xf9278f55585a0e6e35f12299493134056f2f19b0",
-  MIN_DEPOSIT_USD: 10.0,
-  MIN_WITHDRAWAL_USD: 30.0,
-  WITHDRAWAL_FEE_USD: 3.0,
-  EARNINGS_HOLD_HOURS: 24,
-  REFERRAL_COMMISSION_RATE: 0.1,
-  RECENT_TRANSACTIONS_LIMIT: 10
-};
+export const ALLOWED_LANGUAGES = Object.freeze([
+  "English",
+  "Chinese",
+  "Hindi",
+  "Spanish",
+  "Arabic",
+  "French",
+  "Bengali",
+  "Portuguese",
+  "Indonesian",
+  "Urdu",
+  "Russian",
+  "German",
+  "Japanese",
+  "Nigerian Pidgin",
+  "Marathi",
+  "Vietnamese",
+  "Telugu",
+  "Swahili",
+  "Turkish"
+]);
 
-export const TRANSACTION_TYPES = {
-  DEPOSIT: "deposit",
-  WITHDRAWAL: "withdrawal",
-  EARNING: "earning",
-  REFERRAL_COMMISSION: "referral_commission",
-  CAMPAIGN_SPEND: "campaign_spend",
-  CAMPAIGN_REFUND: "campaign_refund",
-  WITHDRAWAL_FEE: "withdrawal_fee"
-};
+export const ALLOWED_CATEGORIES = Object.freeze([
+  "entertainment",
+  "news_media",
+  "movies_series",
+  "fashion_beauty",
+  "gaming",
+  "art_photography",
+  "crypto",
+  "technology",
+  "education",
+  "cooking",
+  "health",
+  "sports",
+  "other"
+]);
 
-export const TRANSACTION_STATUS = {
-  PENDING: "pending",
-  APPROVED: "approved",
-  REJECTED: "rejected",
-  PROCESSING: "processing",
-  COMPLETED: "completed",
-  FAILED: "failed"
-};
+export const RULES = Object.freeze({
+  MIN_DEPOSIT_USD: Number(process.env.MIN_DEPOSIT_USD) || 10,
+  MIN_WITHDRAWAL_USD: Number(process.env.MIN_WITHDRAWAL_USD) || 30,
+  WITHDRAWAL_FEE_USD: Number(process.env.WITHDRAWAL_FEE_USD) || 3,
+  WITHDRAWAL_NETWORK: process.env.WITHDRAWAL_NETWORK || "USDT - TRC20",
+  REFERRAL_COMMISSION_RATE: Number(process.env.REFERRAL_COMMISSION_RATE) || 0.10,
+  MIN_CHANNEL_SUBSCRIBERS: Number(process.env.MIN_CHANNEL_SUBSCRIBERS) || 1000,
+  OPEN_TARGETING_MIN_BUDGET: Number(process.env.OPEN_TARGETING_MIN_BUDGET) || 1000,
+  EARNINGS_RELEASE_HOURS: 24,
+  ANTI_BOT_MAX_VIEWS_PER_BATCH: Number(process.env.ANTI_BOT_MAX_VIEWS_PER_BATCH) || 25000,
+  ANTI_BOT_MIN_INTERVAL_SEC: Number(process.env.ANTI_BOT_MIN_INTERVAL_SEC) || 10,
+  BUDGET_LOW_ALERT_RATIO: Number(process.env.BUDGET_LOW_ALERT_RATIO) || 0.15,
+  MIN_PRICE_PER_POST: 1,
+  MAX_PRICE_PER_POST: 3,
+  NETWORK: "USDT - BEP20",
+  WALLET_ADDRESS:
+    process.env.USDT_BEP20_ADDRESS || "0x742d35Cc6634C0532925a3b844Bc454e4438f44e"
+});
 
-export const WITHDRAWAL_STEPS = [
-  "submitted",
-  "under_review",
-  "trc20_broadcast",
-  "completed"
-];
-
-export function roundMoney(amount) {
-  const num = Number(amount);
+export function roundMoney(value) {
+  const num = Number(value);
   if (!Number.isFinite(num)) return 0;
-  return Math.round((num + Number.EPSILON) * 100) / 100;
+  return Math.round(num * 100) / 100;
 }
 
-export function isValidTrc20Address(address) {
-  if (typeof address !== "string") return false;
-  const trimmed = address.trim();
-  return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(trimmed);
+export function nowIso() {
+  return new Date().toISOString();
 }
 
-export function isValidTxid(txid) {
-  if (typeof txid !== "string") return false;
-  const trimmed = txid.trim();
-  return /^(0x)?[0-9a-fA-F]{64}$/.test(trimmed) || /^[a-zA-Z0-9_-]{16,128}$/.test(trimmed);
-}
-
-export function createUserRecord(uid, data = {}) {
-  const nowIso = new Date().toISOString();
-  const safeUid = String(uid ?? "").trim();
-  const fullName = [data.firstName, data.lastName].filter(Boolean).join(" ").trim();
+export function createDefaultUser(userId, role = "user", referredBy = null) {
+  const cleanId = String(userId);
+  const normalizedRole = role === "admin" ? "admin" : "user";
+  const cleanReferrer =
+    referredBy && String(referredBy).trim() !== cleanId
+      ? String(referredBy).trim()
+      : null;
+  const timestamp = nowIso();
 
   return {
-    uid: safeUid,
-    telegramId: data.telegramId ? String(data.telegramId) : safeUid,
-    username: data.username || "",
-    firstName: data.firstName || "",
-    lastName: data.lastName || "",
-    languageCode: data.languageCode || "en",
-    email: data.email || "",
-    name: data.name || fullName || "مستخدم",
-    role: data.role === "admin" ? "admin" : "user",
-    balanceUsd: roundMoney(data.balanceUsd ?? 0),
-    pendingEarningsUsd: roundMoney(data.pendingEarningsUsd ?? 0),
-    availableEarningsUsd: roundMoney(data.availableEarningsUsd ?? 0),
-    totalSpentUsd: roundMoney(data.totalSpentUsd ?? 0),
-    totalEarnedUsd: roundMoney(data.totalEarnedUsd ?? 0),
-    referralEarningsUsd: roundMoney(data.referralEarningsUsd ?? 0),
-    trc20WalletAddress:
-      typeof data.trc20WalletAddress === "string" ? data.trc20WalletAddress.trim() : "",
-    referralCode: data.referralCode || safeUid,
-    referredBy:
-      typeof data.referredBy === "string" && data.referredBy.trim()
-        ? data.referredBy.trim()
-        : null,
-    createdAt: data.createdAt || nowIso,
-    updatedAt: data.updatedAt || nowIso
+    id: cleanId,
+    telegramId: cleanId,
+    username: "",
+    firstName: "",
+    lastName: "",
+    languageCode: "en",
+    role: normalizedRole,
+    balance: 0,
+    advertiserBalance: 0,
+    publisherBalance: 0,
+    walletBalance: 0,
+    pendingEarnings: 0,
+    availableEarnings: 0,
+    referralEarnings: 0,
+    referralEarningsTotal: 0,
+    trc20Address: "",
+    referredBy: cleanReferrer,
+    banned: false,
+    banReason: "",
+    createdAt: timestamp,
+    updatedAt: timestamp
   };
 }
 
-export function createEarningHoldRecord(data = {}) {
-  const earnedAtDate = data.earnedAt ? new Date(data.earnedAt) : new Date();
-  const safeEarnedAt = Number.isNaN(earnedAtDate.getTime()) ? new Date() : earnedAtDate;
-  const releaseAtDate = new Date(
-    safeEarnedAt.getTime() + WALLET_CONSTANTS.EARNINGS_HOLD_HOURS * 60 * 60 * 1000
-  );
-
-  return {
-    id: data.id || "",
-    userId: String(data.userId ?? ""),
-    sourceType: data.sourceType || "ad_payout",
-    sourceId: data.sourceId || "",
-    grossAmountUsd: roundMoney(data.grossAmountUsd),
-    commissionPaidUsd: roundMoney(data.commissionPaidUsd ?? 0),
-    netAmountUsd: roundMoney(data.netAmountUsd),
-    released: Boolean(data.released ?? false),
-    earnedAt: safeEarnedAt.toISOString(),
-    releaseAt: releaseAtDate.toISOString(),
-    releasedAt: data.releasedAt || null
-  };
-}
-
-export function createTransactionRecord(data = {}) {
-  const nowIso = new Date().toISOString();
-
-  return {
-    id: data.id || "",
-    userId: String(data.userId ?? ""),
-    type: data.type || TRANSACTION_TYPES.EARNING,
-    status: data.status || TRANSACTION_STATUS.PENDING,
-    amountUsd: roundMoney(data.amountUsd),
-    feeUsd: roundMoney(data.feeUsd ?? 0),
-    netAmountUsd: roundMoney(data.netAmountUsd ?? data.amountUsd),
-    network: data.network || null,
-    address: data.address || null,
-    txid: data.txid || null,
-    campaignId: data.campaignId || null,
-    fromUserId: data.fromUserId || null,
-    notes: data.notes || "",
-    createdAt: data.createdAt || nowIso,
-    updatedAt: data.updatedAt || nowIso
-  };
-}
-
-export function createWithdrawalRequestRecord(data = {}) {
-  const nowIso = new Date().toISOString();
-  const amountUsd = roundMoney(data.amountUsd);
-  const feeUsd = roundMoney(data.feeUsd ?? WALLET_CONSTANTS.WITHDRAWAL_FEE_USD);
-  const netAmountUsd = roundMoney(Math.max(0, amountUsd - feeUsd));
-  const step = WITHDRAWAL_STEPS.includes(data.step) ? data.step : "submitted";
-  const cleanAddress =
-    typeof data.trc20Address === "string" ? data.trc20Address.trim() : "";
-
-  return {
-    id: data.id || "",
-    userId: String(data.userId ?? ""),
-    amountUsd,
-    feeUsd,
-    netAmountUsd,
-    network: WALLET_CONSTANTS.WITHDRAWAL_NETWORK,
-    trc20Address: cleanAddress,
-    status: data.status || TRANSACTION_STATUS.PENDING,
-    step,
-    stepHistory: Array.isArray(data.stepHistory)
-      ? data.stepHistory
-      : [
-          {
-            step: "submitted",
-            label: "تم استلام طلب السحب",
-            timestamp: nowIso
-          }
-        ],
-    txHash: data.txHash || null,
-    adminNote: data.adminNote || "",
-    createdAt: data.createdAt || nowIso,
-    updatedAt: data.updatedAt || nowIso
-  };
-}
-
-export async function upsertTelegramUser(tgUser, extraData = {}) {
+export async function upsertTelegramUser(tgUser, options = {}) {
   try {
-    if (!tgUser || tgUser.id === undefined || tgUser.id === null || String(tgUser.id).trim() === "") {
-      throw new Error("Invalid Telegram user payload: missing id");
-    }
-
-    const uid = String(tgUser.id).trim();
-    const userRef = db.collection(Collections.USERS).doc(uid);
+    const cleanId = String(tgUser.id);
+    const userRef = db.collection(Collections.USERS).doc(cleanId);
     const snapshot = await userRef.get();
-    const serverNow = admin.firestore.FieldValue.serverTimestamp();
+    const serverTs = admin.firestore.FieldValue.serverTimestamp();
+    const isoNow = nowIso();
 
-    const profileUpdates = {
-      uid,
-      telegramId: uid,
+    const profilePayload = {
+      telegramId: cleanId,
       username: tgUser.username || "",
       firstName: tgUser.first_name || "",
       lastName: tgUser.last_name || "",
       languageCode: tgUser.language_code || "en",
-      updatedAt: serverNow
+      updatedAt: isoNow,
+      lastSeenAt: serverTs
     };
 
-    if (tgUser.first_name || tgUser.last_name) {
-      profileUpdates.name = [tgUser.first_name, tgUser.last_name]
-        .filter(Boolean)
-        .join(" ")
-        .trim();
-    }
-
     if (!snapshot.exists) {
-      const baseRecord = createUserRecord(uid, {
-        ...extraData,
-        telegramId: uid,
-        username: tgUser.username || "",
-        firstName: tgUser.first_name || "",
-        lastName: tgUser.last_name || "",
-        languageCode: tgUser.language_code || "en"
-      });
-
+      const baseUser = createDefaultUser(cleanId, options.role, options.referredBy);
       await userRef.set({
-        ...baseRecord,
-        createdAt: serverNow,
-        updatedAt: serverNow
+        ...baseUser,
+        ...profilePayload,
+        createdAt: isoNow,
+        registeredAt: serverTs
       });
-
-      return baseRecord;
+      return { ...baseUser, ...profilePayload, createdAt: isoNow };
     }
 
-    await userRef.update(profileUpdates);
-    const updatedSnap = await userRef.get();
-    return updatedSnap.data() || { uid, ...profileUpdates };
+    await userRef.update(profilePayload);
+    return { id: cleanId, ...snapshot.data(), ...profilePayload };
   } catch (error) {
     console.error("[Firestore upsertTelegramUser Error]:", error);
     throw error;
   }
 }
 
-export async function logSecurityEvent(eventType, details = {}) {
+export function buildTransactionRecord(payload) {
+  return {
+    id: payload.id,
+    userId: String(payload.userId),
+    walletRole: payload.walletRole || "advertiser",
+    type: payload.type,
+    amount: roundMoney(payload.amount),
+    status: payload.status || "pending",
+    campaignId: payload.campaignId || null,
+    channelId: payload.channelId || null,
+    idempotencyKey: payload.idempotencyKey || null,
+    note: payload.note || "",
+    txid: payload.txid || null,
+    createdAt: nowIso()
+  };
+}
+
+export function buildSecurityLogRecord(payload) {
+  return {
+    id: payload.id,
+    actorId: payload.actorId || "system",
+    actorRole: payload.actorRole || "system",
+    action: payload.action,
+    targetId: payload.targetId || null,
+    details: payload.details || {},
+    ip: payload.ip || null,
+    createdAt: nowIso()
+  };
+}
+
+export function buildAuditLogRecord(payload) {
+  return {
+    id: payload.id,
+    entityType: payload.entityType,
+    entityId: payload.entityId,
+    severity: payload.severity || "medium",
+    reason: payload.reason || "",
+    meta: payload.meta || {},
+    createdAt: nowIso()
+  };
+}
+
+export function buildSmartAlertRecord(payload) {
+  return {
+    id: payload.id,
+    userId: String(payload.userId),
+    category: payload.category,
+    title: payload.title,
+    message: payload.message,
+    read: false,
+    isRead: false,
+    createdAt: nowIso()
+  };
+}
+
+export async function logSecurityEvent(eventType, details, meta = {}) {
   try {
+    const timestamp = nowIso();
     await db.collection(Collections.AUDIT_LOGS).add({
-      eventType: String(eventType || "unknown_event"),
-      details: details ?? {},
-      timestamp: admin.firestore.FieldValue.serverTimestamp()
+      eventType,
+      details,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: timestamp
+    });
+
+    await db.collection(Collections.SECURITY_LOGS).add({
+      actorId: meta.actorId || "system",
+      actorRole: meta.actorRole || "system",
+      action: eventType,
+      targetId: meta.targetId || null,
+      details: typeof details === "object" && details !== null ? details : { message: details },
+      ip: meta.ip || null,
+      createdAt: timestamp
     });
   } catch (error) {
     console.error("[Audit Log Error]:", error);
   }
 }
+
+export default {
+  admin,
+  db,
+  initFirebase,
+  Collections,
+  ALLOWED_LANGUAGES,
+  ALLOWED_CATEGORIES,
+  RULES,
+  roundMoney,
+  nowIso,
+  createDefaultUser,
+  upsertTelegramUser,
+  buildTransactionRecord,
+  buildSecurityLogRecord,
+  buildAuditLogRecord,
+  buildSmartAlertRecord,
+  logSecurityEvent
+};
