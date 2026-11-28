@@ -7,6 +7,7 @@ export const en = {
   account_verified: "Verified Partner",
   switchUser: "Switch",
   refreshNow: "Refresh Now",
+  refreshBtn: "Refresh",
   noData: "No records available yet.",
 
   // Buttons & Actions
@@ -15,9 +16,18 @@ export const en = {
   btn_official_channel: "Official Channel",
   btn_support: "Support Team",
   btn_add_channel: "+ Add Channel",
+  addChannelBtn: "➕ Add New Channel",
+  myChannelsListBtn: "📺 My Channels",
   btn_verify_channel: "Verify & Connect",
+  saveChannelBtn: "Save & Verify",
   btn_new_ad: "+ New Ad",
+  createCampaignBtn: "🚀 Create Campaign",
+  myCampaignsBtn: "📊 My Campaigns",
+  verifiedChannelsBtn: "✅ Verified Channels",
+  publishLogsBtn: "📜 Publish Logs",
   btn_launch_ad: "Launch Campaign",
+  launchCampaignBtn: "Launch Campaign",
+  saveDraftBtn: "Save as Draft",
   btn_get_ref_link: "Generate Invite Link",
   btn_copy: "Copy Link",
   copyAddress: "Copy Address",
@@ -34,17 +44,42 @@ export const en = {
   // Navigation
   nav_account: "Account",
   nav_channels: "Channels",
+  navMyChannels: "My Channels",
   nav_promotion: "Promotion",
+  navPromotion: "Promotion",
   nav_referral: "Referral",
+  navReferral: "Referrals",
   nav_wallet: "Wallet",
-  nav_admin: "Admin",
   navWallet: "Wallet",
   navHistory: "Deposits & Withdrawals",
-  navReferral: "Referrals",
+  nav_admin: "Admin",
   navAdmin: "Admin",
 
-  // Placeholders & Labels
+  // Placeholders, Labels & Channel/Campaign Fields
+  addChannelTitle: "Add New Channel",
+  publicChannelOnlyHint: "Only public channels are accepted; the bot automatically detects who added it as admin.",
+  selectDetectedChannel: "Select channel where the bot was added",
+  channelUsernameLabel: "Or Enter Channel Username",
+  channelPriceLabel: "Set channel CPM price per 1,000 views ($1 - $3)",
+  channelLanguageLabel: "Channel Language",
+  channelCategoryLabel: "Channel Category",
   placeholder_channel: "@channel_username",
+  createCampaignTitle: "Create New Ad Campaign",
+  campaignTitleLabel: "Campaign Title",
+  campaignTextLabel: "Ad Post Text",
+  campaignMediaLabel: "Add Photo or Video from Gallery",
+  campaignBudgetLabel: "Campaign Budget ($)",
+  openTargetingLabel: "🌍 Open Targeting (Broadcast across all channels if budget > $1,000)",
+  minPriceLabel: "Min Price ($)",
+  maxPriceLabel: "Max Price ($)",
+  targetLanguageLabel: "Target by Language",
+  targetCategoryLabel: "Target by Category",
+  interactiveButtonLabel: "Interactive Buttons",
+  customButtonOption: "Custom Interactive Button",
+  scheduleLabel: "Publishing Schedule",
+  publishImmediate: "Publish Immediately",
+  publishPeakHours: "Schedule for Peak Hours",
+  livePreviewLabel: "Live Ad Preview",
   placeholder_ad_title: "Campaign Title",
   placeholder_ad_text: "Ad message text...",
   placeholder_budget: "Budget (USDT)",
@@ -55,6 +90,17 @@ export const en = {
   withdrawAmountLabel: "Withdrawal Amount (USD) - Min $30.00",
   withdrawalFeeLabel: "Withdrawal Fee:",
   netReceiveLabel: "Net Receive:",
+
+  // Channel & Campaign Statuses
+  statusApproved: "Approved",
+  statusPendingAdmin: "Pending Admin",
+  statusAwaitingSetup: "Awaiting Setup",
+  statusPermissionLost: "Bot Permission Lost",
+  statusRejected: "Rejected",
+  statusActive: "Active",
+  statusPaused: "Paused",
+  statusScheduled: "Scheduled",
+  statusDraft: "Draft",
 
   // Wallet & Balances
   walletTitle: "Wallet",
@@ -96,6 +142,7 @@ export const en = {
   referredUsersTitle: "Referred Users",
 
   // Modals, Notifications & Empty States
+  notificationsTitle: "Notifications",
   modal_select_lang: "Select Language",
   modal_faq_title: "Frequently Asked Questions",
   modal_faq_empty: "No questions added yet.",
@@ -117,5 +164,8 @@ export const en = {
   admin_broadcast: "Global Broadcast",
   admin_shield: "Anti-Bot & Security Logs",
   adminDepositsTitle: "Deposits Pending Review",
-  adminWithdrawalsTitle: "Withdrawals & Step Progress"
+  adminWithdrawalsTitle: "Withdrawals & Step Progress",
+  admin_pending_channels: "Pending Channels",
+  admin_health: "Server & Bot Health",
+  admin_backup: "Database Backup"
 };
