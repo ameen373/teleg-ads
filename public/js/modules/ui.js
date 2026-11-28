@@ -1,159 +1,29 @@
 import { SUPPORTED_LANGUAGES, getCurrentLanguage, setLanguage, t } from "../language/i18n.js";
 
-let alertTimer = null;
-
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function safeT(key) {
-  try {
-    return typeof t === "function" ? t(key) : key;
-  } catch {
-    return key;
-  }
-}
-
-/* =========================================================
- * التنسيق والأدوات العامة (Formatting & Utilities)
- * ========================================================= */
-
-export function formatUsd(amount) {
-  const num = Number(amount);
-  return `$${(Number.isFinite(num) ? num : 0).toFixed(2)}`;
-}
-
-export function formatDate(isoString) {
-  if (!isoString) return "-";
-  const date = new Date(isoString);
-  if (Number.isNaN(date.getTime())) return String(isoString);
-  try {
-    return date.toLocaleString("ar-EG", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return date.toISOString();
-  }
-}
-
-export function getTransactionIcon(type) {
-  const map = {
-    deposit: "⬇️",
-    withdrawal: "⬆️",
-    earning: "💰",
-    referral_commission: "🤝",
-    campaign_spend: "📢",
-    campaign_refund: "↩️",
-    withdrawal_fee: "🧾",
-  };
-  return map[type] || "💳";
-}
-
-export function getTransactionTypeLabel(type) {
-  const map = {
-    deposit: "إيداع USDT - BEP20",
-    withdrawal: "سحب USDT - TRC20",
-    earning: "ربح مكتسب",
-    referral_commission: "عمولة إحالة (10%)",
-    campaign_spend: "صرف حملة إعلانية",
-    campaign_refund: "استرداد ميزانية حملة",
-    withdrawal_fee: "رسوم سحب",
-  };
-  return map[type] || String(type || "");
-}
-
-export async function copyToClipboard(text) {
-  const value = String(text ?? "");
-  if (!value) return false;
-
-  if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
-    try {
-      await navigator.clipboard.writeText(value);
-      return true;
-    } catch {
-      // الانتقال إلى النسخ البديل في حال رفض الصلاحية في WebView
-    }
-  }
-
-  try {
-    const helper = document.createElement("textarea");
-    helper.value = value;
-    helper.setAttribute("readonly", "");
-    helper.style.position = "fixed";
-    helper.style.top = "-9999px";
-    helper.style.left = "-9999px";
-    helper.style.opacity = "0";
-    document.body.appendChild(helper);
-    helper.focus();
-    helper.select();
-    helper.setSelectionRange(0, value.length);
-    const copied = document.execCommand("copy");
-    document.body.removeChild(helper);
-    return Boolean(copied);
-  } catch {
-    return false;
-  }
-}
-
-/* =========================================================
- * التنبيهات والرسائل (Alerts & Toasts)
- * ========================================================= */
-
-export function showAlert(message, type = "success") {
-  const alertEl = document.getElementById("globalAlert");
-  if (!alertEl) return;
-
-  const safeType = ["success", "error", "warning", "info"].includes(type) ? type : "success";
-  alertEl.textContent = String(message ?? "");
-  alertEl.className = `alert ${safeType}`;
-
-  if (alertTimer) {
-    clearTimeout(alertTimer);
-  }
-  alertTimer = setTimeout(() => {
-    alertEl.className = "alert hidden";
-    alertTimer = null;
-  }, 5000);
-}
-
 export function showToast(message) {
   const container = document.getElementById("toast-container");
   if (!container) return;
 
   const toast = document.createElement("div");
   toast.className = "toast-msg";
-  toast.textContent = String(message ?? "");
+  toast.textContent = message;
   container.appendChild(toast);
 
   setTimeout(() => {
     toast.style.opacity = "0";
     toast.style.transition = "opacity 0.3s ease";
-    setTimeout(() => {
-      toast.remove();
-    }, 300);
+    setTimeout(() => toast.remove(), 300);
   }, 2800);
 }
-
-/* =========================================================
- * النوافذ المنبثقة (Modals)
- * ========================================================= */
 
 export function openModal(title, contentNodeOrHtml) {
   const backdrop = document.getElementById("modal-backdrop");
   const titleEl = document.getElementById("modal-title");
   const bodyEl = document.getElementById("modal-body");
+
   if (!backdrop || !titleEl || !bodyEl) return;
 
-  titleEl.textContent = String(title ?? "");
+  titleEl.textContent = title;
   bodyEl.innerHTML = "";
 
   if (typeof contentNodeOrHtml === "string") {
@@ -170,123 +40,6 @@ export function closeModal() {
   if (!backdrop) return;
   backdrop.classList.add("hidden");
 }
-
-export function openLanguageModal(onLanguageChanged) {
-  const wrapper = document.createElement("div");
-  wrapper.style.display = "flex";
-  wrapper.style.flexDirection = "column";
-  wrapper.style.gap = "8px";
-
-  const activeCode = typeof getCurrentLanguage === "function" ? getCurrentLanguage() : "en";
-  const languages = Array.isArray(SUPPORTED_LANGUAGES) ? SUPPORTED_LANGUAGES : [];
-
-  languages.forEach((lang) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    const isSelected = lang.code === activeCode;
-    const isComingSoon = !lang.active;
-    btn.className = `lang-option-btn ${isSelected ? "selected" : ""} ${isComingSoon ? "coming-soon" : ""}`;
-
-    const safeFlag = escapeHtml(lang.flag || "");
-    const safeLabel = escapeHtml(lang.label || lang.code || "");
-    const rightBadge = lang.active
-      ? isSelected
-        ? "<span>✓</span>"
-        : ""
-      : `<span class="badge-soon">Soon</span>`;
-
-    btn.innerHTML = `<span>${safeFlag} &nbsp; ${safeLabel}</span>${rightBadge}`;
-
-    btn.addEventListener("click", () => {
-      const targetLang = lang.active ? lang.code : "en";
-      if (typeof setLanguage === "function") {
-        setLanguage(targetLang);
-      }
-      closeModal();
-      requestAnimationFrame(() => updateActiveNavPill());
-      if (!lang.active) {
-        showToast(safeT("lang_not_ready"));
-      }
-      if (typeof onLanguageChanged === "function") {
-        onLanguageChanged(targetLang);
-      }
-    });
-
-    wrapper.appendChild(btn);
-  });
-
-  openModal(safeT("modal_select_lang"), wrapper);
-}
-
-export function openFaqModal() {
-  const emptyBox = document.createElement("div");
-  emptyBox.style.padding = "28px 12px";
-  emptyBox.style.textAlign = "center";
-  emptyBox.style.color = "var(--text-muted)";
-  emptyBox.textContent = safeT("modal_faq_empty");
-  openModal(safeT("modal_faq_title"), emptyBox);
-}
-
-export function openSupportModal(apiService, tgWebApp, botUsername) {
-  const container = document.createElement("div");
-  container.style.display = "flex";
-  container.style.flexDirection = "column";
-  container.style.gap = "12px";
-
-  const desc = document.createElement("p");
-  desc.style.fontSize = "0.9rem";
-  desc.style.color = "var(--text-muted)";
-  desc.textContent = safeT("modal_support_desc");
-
-  const textarea = document.createElement("textarea");
-  textarea.className = "modern-input";
-  textarea.rows = 4;
-  textarea.placeholder = safeT("placeholder_support_msg");
-
-  const sendBtn = document.createElement("button");
-  sendBtn.type = "button";
-  sendBtn.className = "primary-btn full-width";
-  sendBtn.textContent = safeT("btn_send_support");
-
-  sendBtn.addEventListener("click", async () => {
-    const msg = textarea.value.trim();
-    if (!msg) return;
-    sendBtn.disabled = true;
-    try {
-      if (apiService && typeof apiService.sendSupportTicket === "function") {
-        await apiService.sendSupportTicket(msg);
-      }
-      showToast(safeT("support_sent"));
-      closeModal();
-    } catch {
-      showToast(safeT("support_sent"));
-      closeModal();
-    } finally {
-      sendBtn.disabled = false;
-    }
-  });
-
-  const botBtn = document.createElement("button");
-  botBtn.type = "button";
-  botBtn.className = "secondary-btn full-width";
-  botBtn.textContent = safeT("btn_open_bot_support");
-  botBtn.addEventListener("click", () => {
-    const cleanBot = String(botUsername || "TelegaAdsSupportBot").replace(/^@/, "");
-    const url = `https://t.me/${cleanBot}?start=support`;
-    if (tgWebApp && typeof tgWebApp.openTelegramLink === "function") {
-      tgWebApp.openTelegramLink(url);
-    } else {
-      window.open(url, "_blank");
-    }
-  });
-
-  container.append(desc, textarea, sendBtn, botBtn);
-  openModal(safeT("modal_support_title"), container);
-}
-
-/* =========================================================
- * التنقل والأقسام والشارات (Navigation & Sections)
- * ========================================================= */
 
 /**
  * تحريك الكبسولة النشطة بدقة خلف الزر المختار
@@ -324,23 +77,11 @@ export function setNavBadge(sectionKey, count) {
   }
 }
 
-export function activateSection(sectionName) {
-  document.querySelectorAll(".nav-btn").forEach((btn) => {
-    btn.classList.toggle("active", btn.getAttribute("data-section") === sectionName);
-  });
-  document.querySelectorAll(".tab-section").forEach((sec) => {
-    sec.classList.toggle("active", sec.id === `section-${sectionName}`);
-  });
-}
-
 export function initNavigation(onSectionChange) {
   const navItems = document.querySelectorAll(".nav-item");
   const sections = document.querySelectorAll(".view-section");
 
   navItems.forEach((btn) => {
-    if (btn.dataset.navBound === "true") return;
-    btn.dataset.navBound = "true";
-
     btn.addEventListener("click", () => {
       const targetId = btn.getAttribute("data-target");
       if (!targetId) return;
@@ -369,23 +110,114 @@ export function initNavigation(onSectionChange) {
     });
   });
 
-  if (!window.__uiNavResizeBound) {
-    window.__uiNavResizeBound = true;
-    window.addEventListener("resize", () => updateActiveNavPill());
-  }
+  // إعادة ضبط موضع الكبسولة عند تدوير الشاشة أو تغيير حجمها
+  window.addEventListener("resize", () => updateActiveNavPill());
   requestAnimationFrame(() => updateActiveNavPill());
 
-  const closeBtn = document.getElementById("modal-close-btn");
-  if (closeBtn && closeBtn.dataset.modalCloseBound !== "true") {
-    closeBtn.dataset.modalCloseBound = "true";
-    closeBtn.addEventListener("click", closeModal);
-  }
+  document.getElementById("modal-close-btn")?.addEventListener("click", closeModal);
+  document.getElementById("modal-backdrop")?.addEventListener("click", (e) => {
+    if (e.target.id === "modal-backdrop") closeModal();
+  });
+}
 
-  const backdrop = document.getElementById("modal-backdrop");
-  if (backdrop && backdrop.dataset.modalBackdropBound !== "true") {
-    backdrop.dataset.modalBackdropBound = "true";
-    backdrop.addEventListener("click", (e) => {
-      if (e.target.id === "modal-backdrop") closeModal();
+export function openLanguageModal(onLanguageChanged) {
+  const wrapper = document.createElement("div");
+  wrapper.style.display = "flex";
+  wrapper.style.flexDirection = "column";
+  wrapper.style.gap = "8px";
+
+  const activeCode = getCurrentLanguage();
+
+  SUPPORTED_LANGUAGES.forEach((lang) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `lang-option-btn ${lang.code === activeCode ? "selected" : ""} ${!lang.active ? "coming-soon" : ""}`;
+    btn.innerHTML = `
+      <span>${lang.flag} &nbsp; ${lang.label}</span>
+      ${lang.active ? (lang.code === activeCode ? "<span>✓</span>" : "") : `<span class="badge-soon">Soon</span>`}
+    `;
+
+    btn.addEventListener("click", () => {
+      if (lang.active) {
+        setLanguage(lang.code);
+        closeModal();
+        requestAnimationFrame(() => updateActiveNavPill());
+        if (typeof onLanguageChanged === "function") onLanguageChanged(lang.code);
+      } else {
+        setLanguage("en");
+        closeModal();
+        requestAnimationFrame(() => updateActiveNavPill());
+        showToast(t("lang_not_ready"));
+        if (typeof onLanguageChanged === "function") onLanguageChanged("en");
+      }
     });
-  }
+
+    wrapper.appendChild(btn);
+  });
+
+  openModal(t("modal_select_lang"), wrapper);
+}
+
+export function openFaqModal() {
+  const emptyBox = document.createElement("div");
+  emptyBox.style.padding = "28px 12px";
+  emptyBox.style.textAlign = "center";
+  emptyBox.style.color = "var(--text-muted)";
+  emptyBox.textContent = t("modal_faq_empty");
+  openModal(t("modal_faq_title"), emptyBox);
+}
+
+export function openSupportModal(apiService, tgWebApp, botUsername) {
+  const container = document.createElement("div");
+  container.style.display = "flex";
+  container.style.flexDirection = "column";
+  container.style.gap = "12px";
+
+  const desc = document.createElement("p");
+  desc.style.fontSize = "0.9rem";
+  desc.style.color = "var(--text-muted)";
+  desc.textContent = t("modal_support_desc");
+
+  const textarea = document.createElement("textarea");
+  textarea.className = "modern-input";
+  textarea.rows = 4;
+  textarea.placeholder = t("placeholder_support_msg");
+
+  const sendBtn = document.createElement("button");
+  sendBtn.type = "button";
+  sendBtn.className = "primary-btn full-width";
+  sendBtn.textContent = t("btn_send_support");
+
+  sendBtn.addEventListener("click", async () => {
+    const msg = textarea.value.trim();
+    if (!msg) return;
+    sendBtn.disabled = true;
+    try {
+      await apiService.sendSupportTicket(msg);
+      showToast(t("support_sent"));
+      closeModal();
+    } catch {
+      showToast(t("support_sent"));
+      closeModal();
+    } finally {
+      sendBtn.disabled = false;
+    }
+  });
+
+  const botBtn = document.createElement("button");
+  botBtn.type = "button";
+  botBtn.className = "secondary-btn full-width";
+  botBtn.textContent = t("btn_open_bot_support");
+  botBtn.addEventListener("click", () => {
+    const cleanBot = (botUsername || "TelegaAdsSupportBot").replace("@", "");
+    const url = `https://t.me/${cleanBot}?start=support`;
+    if (tgWebApp && tgWebApp.openTelegramLink) {
+      tgWebApp.openTelegramLink(url);
+    } else {
+      window.open(url, "_blank");
+    }
+  });
+
+  container.append(desc, textarea, sendBtn, botBtn);
+  openModal(t("modal_support_title"), container);
 }
